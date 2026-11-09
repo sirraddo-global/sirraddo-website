@@ -24,7 +24,7 @@ A plain static website (HTML, CSS and a little JavaScript). There is no build st
 
 Things you will probably want to change:
 
-- **Mission statement:** in `index.html`, search for `[YOUR MISSION IN ONE OR TWO LINES]` and replace it.
+- **Mission statement:** in `index.html`, search for `class="mission"` and change the sentence after it.
 - **SCUML number:** search for `SC 311502618` in all four `.html` files (compliance section and footer).
 - **Phone or WhatsApp number:** update it in `index.html` (search for `8167550937`) **and** in `assets/site.js` (`WHATSAPP_NUMBER`).
 - **Email address:** search for `sirraddogloballimited@gmail.com` in `index.html`, `privacy.html` and `terms.html`.

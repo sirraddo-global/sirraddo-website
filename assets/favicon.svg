@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#13254F"/>
+  <g font-family="Inter, 'Arial Black', Arial, sans-serif" font-weight="900" font-size="21" text-anchor="middle" letter-spacing="-0.5">
+    <text x="32" y="29" textLength="48" lengthAdjust="spacingAndGlyphs"><tspan fill="#FFFFFF">S</tspan><tspan fill="#FFFFFF">I</tspan><tspan fill="#D9A21B">RR</tspan></text>
+    <text x="32" y="51" textLength="48" lengthAdjust="spacingAndGlyphs"><tspan fill="#FFFFFF">A</tspan><tspan fill="#D9A21B">DD</tspan><tspan fill="#FFFFFF">O</tspan></text>
+  </g>
+</svg>

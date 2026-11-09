@@ -25,7 +25,7 @@ A plain static website (HTML, CSS and a little JavaScript). There is no build st
 Things you will probably want to change:
 
 - **Mission statement:** in `index.html`, search for `[YOUR MISSION IN ONE OR TWO LINES]` and replace it.
-- **SCUML status:** in `index.html`, search for `In progress` (under "SCUML registration").
+- **SCUML number:** in `index.html`, search for `SC 311502618` (under "SCUML registration").
 - **Phone or WhatsApp number:** update it in `index.html` (search for `8167550937`) **and** in `assets/site.js` (`WHATSAPP_NUMBER`).
 - **Email address:** search for `sirraddogloballimited@gmail.com` in `index.html`, `privacy.html` and `terms.html`.
 - **Header and footer:** each page has its own copy of the header and footer. If you change a link or the copyright line, change it in all four `.html` files.

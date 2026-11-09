@@ -12,6 +12,7 @@ A plain static website (HTML, CSS and a little JavaScript). There is no build st
 | `404.html` | "Page not found" page |
 | `assets/styles.css` | All styling. Brand colours are at the top, in `:root` |
 | `assets/site.js` | Mobile menu and the contact form, which opens WhatsApp |
+| `assets/fonts/` | The Inter font, hosted on this site (no Google Fonts), with its open-source licence |
 | `assets/favicon.svg` | Browser tab icon |
 | `assets/og-image.png` | Preview image shown when the site is shared on WhatsApp, X, LinkedIn and so on |
 | `vercel.json` | Vercel settings: clean URLs (`/privacy` instead of `/privacy.html`) and security headers |

@@ -65,4 +65,4 @@ Then open http://localhost:8000. Locally, `/privacy` only works as `/privacy.htm
 
    Or switch the domain's nameservers to Vercel's, if Vercel offers that.
 4. Wait for DNS to update. This can take from a few minutes to 48 hours. Vercel adds the HTTPS certificate automatically.
-5. Once the domain works, change `og:image` on each page from `/assets/og-image.png` to the full address, for example `https://sirraddo.com.ng/assets/og-image.png`. Some apps only show share previews with a full URL.
+5. Once the domain works, search all four `.html` files for `https://sirraddo-website.vercel.app` and replace it with your new address (for example `https://sirraddo.com.ng`). This updates the share image, `og:url` and `canonical` links.

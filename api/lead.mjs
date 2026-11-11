@@ -1,5 +1,5 @@
 // POST /api/lead — save a customer's details from a website form before they go to WhatsApp.
-// Body: { source: "form" | "contact" | "chat-form", name, contact, business?, interest?, details?, page?, website? }
+// Body: { source: "form" | "contact" | "chat-form", name, contact, email?, business?, interest?, details?, page?, website? }
 // "website" is a hidden field real people leave empty; bots fill it in.
 // Returns: { ok: true, ref: "SGL-0012" } (ref is missing if the database is unavailable)
 import { saveRequest, emailRequest, reference } from "./_lib/store.mjs";
@@ -46,6 +46,9 @@ export default async function handler(req, res) {
   const interest = PACKAGES.includes(body.interest) ? body.interest : "Other";
   if (name.length < 2) return res.status(400).json({ error: "Please enter your name." });
   if (!validContact(contact)) return res.status(400).json({ error: "Please enter a valid phone number or email." });
+  let email = str(body.email, 200).toLowerCase();
+  if (!email && /@/.test(contact)) email = contact.toLowerCase();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Please check your email address." });
 
   const r = {
     // One request per person, form and day: tapping the same button twice updates it instead of duplicating.
@@ -54,6 +57,7 @@ export default async function handler(req, res) {
     name,
     contact,
     business: str(body.business, 200),
+    email: email || null,
     interest,
     details: str(body.details, 1500),
     page: str(body.page, 200),

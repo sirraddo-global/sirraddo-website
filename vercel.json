@@ -71,5 +71,11 @@
       "path": "/api/cron-daily",
       "schedule": "0 6 * * *"
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/doc",
+      "destination": "/api/doc"
+    }
   ]
 }

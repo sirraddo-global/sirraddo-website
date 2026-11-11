@@ -21,6 +21,8 @@
       '<input id="lead-name" name="name" autocomplete="name" required maxlength="120">' +
       '<label for="lead-contact">WhatsApp number</label>' +
       '<input id="lead-contact" name="contact" type="tel" inputmode="tel" autocomplete="tel" placeholder="080..." required maxlength="40">' +
+      '<label for="lead-email">Email <span>(optional, for your invoice and receipts)</span></label>' +
+      '<input id="lead-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="200">' +
       '<label for="lead-business">Business name or type <span>(optional)</span></label>' +
       '<input id="lead-business" name="business" autocomplete="organization" maxlength="200">' +
       '<label for="lead-package">Package</label>' +
@@ -41,7 +43,7 @@
   var skip = dialog.querySelector('.lead-skip');
   var current = null; // the button that opened the form
   var f = {};
-  ['name', 'contact', 'business', 'package', 'details', 'website'].forEach(function (k) { f[k] = document.getElementById('lead-' + k); });
+  ['name', 'contact', 'email', 'business', 'package', 'details', 'website'].forEach(function (k) { f[k] = document.getElementById('lead-' + k); });
 
   function saved() { try { return JSON.parse(localStorage.getItem('sirraddo-lead') || '{}'); } catch (e) { return {}; } }
   function remember(v) { try { localStorage.setItem('sirraddo-lead', JSON.stringify(v)); } catch (e) { /* ignore */ } }
@@ -57,6 +59,7 @@
       var prev = saved();
       f.name.value = prev.name || '';
       f.contact.value = prev.contact || '';
+      f.email.value = prev.email || '';
       f.business.value = prev.business || '';
       f.package.value = a.getAttribute('data-lead') || prev.interest || 'Other';
       f.details.value = '';
@@ -79,15 +82,16 @@
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var v = {
-      name: f.name.value.trim(), contact: f.contact.value.trim(), business: f.business.value.trim(),
+      name: f.name.value.trim(), contact: f.contact.value.trim(), email: f.email.value.trim(), business: f.business.value.trim(),
       interest: f.package.value, details: f.details.value.trim()
     };
     if (v.name.length < 2) { err.textContent = 'Please enter your name.'; f.name.focus(); return; }
     if (v.contact.replace(/\D/g, '').length < 10) { err.textContent = 'Please enter your WhatsApp number, e.g. 08012345678.'; f.contact.focus(); return; }
+    if (v.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) { err.textContent = 'Please check your email address.'; f.email.focus(); return; }
     err.textContent = '';
     submit.disabled = true;
     submit.textContent = 'Saving…';
-    remember({ name: v.name, contact: v.contact, business: v.business, interest: v.interest });
+    remember({ name: v.name, contact: v.contact, email: v.email, business: v.business, interest: v.interest });
 
     var body = Object.assign({ source: 'form', page: location.pathname, website: f.website.value }, v);
     var timer = new Promise(function (resolve) { setTimeout(function () { resolve(null); }, 8000); });
@@ -100,7 +104,7 @@
       var label = v.interest === 'Other' ? 'a website' : 'the ' + v.interest.replace(' website', '') + ' package';
       var text = 'Hi, I\'m ' + v.name + (v.business ? ' (' + v.business + ')' : '') + '. I\'m interested in ' + label + '.' +
         (v.details ? ' ' + v.details : '') + (j && j.ref ? '\nMy reference: ' + j.ref : '');
-      if (j && j.error && !j.ok && /valid|name/i.test(j.error)) {
+      if (j && j.error && !j.ok && /valid|name|email/i.test(j.error)) {
         err.textContent = j.error; submit.disabled = false; submit.textContent = 'Continue to WhatsApp'; return;
       }
       submit.textContent = 'Opening WhatsApp…';

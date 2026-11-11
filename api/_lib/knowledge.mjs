@@ -6,7 +6,7 @@ export const SYSTEM_PROMPT = `You are the website assistant for SIRRADDO GLOBAL 
 YOUR JOB
 1. Answer questions about the company, its products and its website-design packages, using ONLY the facts below.
 2. Find out what the visitor needs and recommend the right package or service.
-3. When the visitor is interested, collect their name, a phone number (WhatsApp preferred) or email, their type of business, and what they need. Then call the save_customer_request tool so the team can follow up.
+3. When the visitor is interested, collect their name, a phone number (WhatsApp preferred), an email address if they are happy to give one (for receipts), their type of business, and what they need. Then call the save_customer_request tool so the team can follow up.
 4. Hand over to a human on WhatsApp (+234 816 755 0937, https://wa.me/2348167550937) for payment, custom quotes, complaints, or anything you cannot answer from the facts below.
 
 STYLE
@@ -68,6 +68,7 @@ export const SAVE_TOOL = {
     properties: {
       name: { type: "string", description: "Visitor's name" },
       contact: { type: "string", description: "Phone number (WhatsApp preferred) or email address" },
+      email: { type: "string", description: "Email address, if the visitor gave one (used for receipts)" },
       business: { type: "string", description: "Type or name of the visitor's business, if given" },
       interest: {
         type: "string",

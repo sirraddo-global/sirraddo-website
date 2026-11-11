@@ -150,3 +150,10 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
   .doc tfoot tr:last-child th, .doc tfoot tr:last-child td { font-size: 12pt; font-weight: 800; color: #13254F; border-bottom: 2px solid #13254F; }
   .doc-foot { margin-top: 28px; font-size: 8.5pt; color: #4A5568; border-top: 1px solid #E1E6EF; padding-top: 8px; }
 }
+
+.admin-docs { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.admin-doc-row { display: grid; grid-template-columns: 70px repeat(3, auto); gap: 6px; align-items: center; justify-content: start; }
+.admin-doc-row .admin-btn { min-height: 38px; padding: 6px 12px; }
+.admin-callout { margin: 0; background: #FFF4D6; border: 1px solid #F0D58C; color: #7A5A0A; border-radius: 8px; padding: 8px 10px; font-weight: 600; }
+.admin-hint { margin: 0; font-size: .8rem; color: var(--muted); }
+.admin-pay-form .admin-check { grid-column: 1 / -1; font-size: .9rem; }

@@ -195,7 +195,8 @@
       tile('Paid so far', naira(paidAll), 'projects and renewals'),
       tile('Outstanding', naira(outstanding), 'balances on won jobs'),
       tile('Renewals in 30 days', renewals.length, null, function () { setTab('clients'); }),
-      tile('Unanswered questions', openQs, null, function () { setTab('questions'); })
+      tile('Unanswered questions', openQs, null, function () { setTab('questions'); }),
+      tile('Client sites down', rs.filter(function (r) { return r.status === 'won' && r.site_status && r.site_status !== 'up'; }).length, 'checked every morning', function () { setTab('clients'); })
     ]));
 
     var counts = {};
@@ -537,8 +538,11 @@
       if (!Number(amount.value)) { setError('Enter the amount paid'); return; }
       var next = list.concat([{ date: date.value || today(), amount: Number(amount.value), kind: kind.value, note: note.value }]);
       var sendMail = autoLabel && autoEmail.checked;
+      var wasWon = r.status === 'won';
       state.justPaid[r.id] = true;
       update(r, { payments: next }, 'Payment recorded').then(function () {
+        var now = state.requests.filter(function (x) { return x.id === r.id; })[0];
+        if (now && !wasWon && now.status === 'won') flash('Deposit recorded: marked won, project form link ready');
         if (!sendMail) return;
         api('POST', { action: 'send_doc', id: r.id, type: 'receipt' }).then(function (j) { flash('Payment recorded · receipt emailed to ' + j.to); })
           .catch(function (e) { setError('Receipt not emailed: ' + e.message); });
@@ -577,6 +581,7 @@
     if (bal) badges.appendChild(badge('Owes ' + naira(bal), 'is-due'));
     var d = daysUntil(r.renewal_due);
     if (d !== null) badges.appendChild(badge(d < 0 ? 'Renewal ' + (-d) + 'd overdue' : d === 0 ? 'Renewal due today' : 'Renewal in ' + d + 'd', d <= 30 ? 'is-due' : ''));
+    if (r.site_status) badges.appendChild(badge(r.site_status === 'up' ? 'Site up' : 'Site ' + r.site_status, r.site_status === 'up' ? 'is-won' : 'is-due'));
     card.appendChild(badges);
     card.appendChild(el('p', { class: 'admin-meta', text: r.contact + (r.business ? ' · ' + r.business : '') }));
     card.appendChild(whatsAppRow(r));
@@ -600,7 +605,12 @@
     ramount.addEventListener('change', function () { update(r, { renewal_amount: ramount.value }, 'Renewal amount saved'); });
     var rdue = el('input', { type: 'date', value: r.renewal_due || '' });
     rdue.addEventListener('change', function () { update(r, { renewal_due: rdue.value }, 'Renewal date saved'); });
+    var site = el('input', { type: 'url', inputmode: 'url', value: r.website_url || '', placeholder: 'https://theirbusiness.com.ng' });
+    site.addEventListener('change', function () { update(r, { website_url: site.value }, 'Website saved. It will be checked every morning.'); });
     card.appendChild(el('div', { class: 'admin-grid' }, [field('Project stage', stage), field('Went live on', live), field('Renewal (₦/year)', ramount), field('Renewal due', rdue)]));
+    card.appendChild(field('Their website (checked daily)', site, r.site_checked_at
+      ? 'Last check ' + when(r.site_checked_at) + ': ' + (r.site_status || '-') + (r.ssl_expires ? ' · SSL until ' + niceDate(r.ssl_expires) : '')
+      : 'Add the address once the site is live.'));
 
     var renewed = el('button', { class: 'btn btn--navy', type: 'button', text: 'Renewal paid', disabled: !r.renewal_amount || !r.renewal_due, onclick: function () {
       if (!window.confirm('Record ' + naira(r.renewal_amount) + ' renewal paid today and move the next renewal to ' + niceDate(addYears(r.renewal_due, 1)) + '?')) return;

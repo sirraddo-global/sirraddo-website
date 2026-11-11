@@ -117,7 +117,23 @@ Open `/admin` and log in with `ADMIN_PASSWORD`. Tabs:
 
 **Project form.** When a payment brings a job to 70% of its quote (or any payment if there is no quote), the request gets a private form link. In **Manage** (and on the client card) tap **Send form on WhatsApp**. The customer sees questions for their package, saves as they go, uploads logo and photos, and taps **Send my details**. You get an email with all the answers, the project moves to **Building**, and **View answers** shows everything (printable). The questions live in `api/_lib/brief-schema.mjs`. Photo uploads need Vercel Blob: Vercel → Storage → Create → Blob → connect it to this project (this adds `BLOB_READ_WRITE_TOKEN`). Without it, the form asks customers to send files on WhatsApp.
 
-Every morning (if `CRON_SECRET`, `RESEND_API_KEY` and `LEAD_EMAIL_TO` are set) you get one email with new requests, follow-ups due, renewals due within 30 days and new unanswered questions. No email is sent on days with nothing to report. The same job deletes conversations older than 90 days.
+### What runs automatically (`api/_lib/automation.mjs`)
+
+On every change in admin:
+- New request (any source) → follow-up date tomorrow
+- Quote entered on a new/contacted lead → **quoted**, follow up in 3 days
+- Project payments reach 70% of the quote (or any payment with no quote) → **won**, default renewal amount, stage *Waiting for content*, project form link created, follow up in 2 days
+- Marked lost (or won with the form already in) → follow-up cleared
+- Stage set to **Live** → live date today, renewal date one year later
+- Project form sent → stage **Building**, follow-up cleared
+
+Every morning about 7am Lagos time (needs `CRON_SECRET`; emails need `RESEND_API_KEY` + `LEAD_EMAIL_TO`), one email with a **Send on WhatsApp** link (message ready) for each item: new requests, follow-ups due, project forms not sent back, balances owed on live sites, renewals due within 30 days or overdue (with the renewal invoice link), forms received, client websites down or with SSL ending within 14 days, unanswered questions, and leads quiet for 2+ weeks. Nothing to report = no email. Mondays add the week's numbers and a CSV backup of every request. Conversations older than 90 days are deleted.
+
+Emails to customers (only once `LEAD_EMAIL_FROM` is set on a domain verified in Resend; each is sent once): "we received your request" with their reference, the project form link at 70%, one form reminder 2 days later, receipts after payments, and renewal reminders 30 days before, 7 days before, on the due date and 3 days late.
+
+Client website checks: add each client's address under **Clients → Their website**. Each morning it is opened (up/down) and its SSL certificate end date is read; problems go into the morning email and the **Client sites down** tile.
+
+Optional: `SITE_URL` if the site moves to its own domain before the code is updated (links in emails use it).
 
 Other notes:
 

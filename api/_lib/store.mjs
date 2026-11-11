@@ -42,6 +42,11 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_token TEXT UNIQUE`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS email TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS doc_token TEXT UNIQUE`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS website_url TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS site_status TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS site_checked_at TIMESTAMPTZ`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ssl_expires DATE`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS auto_sent JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief JSONB`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_files JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_saved_at TIMESTAMPTZ`,
@@ -83,7 +88,8 @@ export const STAGES = ["content", "building", "live"];
 const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, business, interest, details, page,
   transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, payments, project_stage,
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
-  brief_token, brief_saved_at, brief_submitted_at, email, doc_token`;
+  brief_token, brief_saved_at, brief_submitted_at, email, doc_token,
+  website_url, site_status, site_checked_at, ssl_expires::text AS ssl_expires, auto_sent`;
 
 // ---------- Customer requests ----------
 // Insert or update the request for this session. Returns { id, inserted }, or null if there is no database.
@@ -92,8 +98,8 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
 export async function saveRequest(r) {
   if (!(await ensureSchema())) return null;
   const rows = await q(
-    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript, email)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript, email, follow_up_on)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, (now() AT TIME ZONE 'Africa/Lagos')::date + 1)
      ON CONFLICT (session_id) DO UPDATE SET
        name = EXCLUDED.name, contact = EXCLUDED.contact, business = EXCLUDED.business,
        email = COALESCE(EXCLUDED.email, customer_requests.email),
@@ -113,8 +119,8 @@ export async function createRequest(f) {
   await ensureSchema();
   const sessionId = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const rows = await q(
-    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, email)
-     VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7) RETURNING ${REQUEST_COLUMNS}`,
+    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, email, follow_up_on)
+     VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7, (now() AT TIME ZONE 'Africa/Lagos')::date + 1) RETURNING ${REQUEST_COLUMNS}`,
     [sessionId, f.name, f.contact, f.business || null, f.interest, f.details || "", f.email || null]
   );
   return rows[0];
@@ -129,7 +135,7 @@ export async function listRequests(limit = 1000) {
 const EDITABLE = {
   name: "text", contact: "text", email: "text", business: "text", interest: "text", details: "text", notes: "text",
   status: "text", follow_up_on: "date", quote_amount: "int", payments: "jsonb", project_stage: "text",
-  live_on: "date", renewal_amount: "int", renewal_due: "date",
+  live_on: "date", renewal_amount: "int", renewal_due: "date", website_url: "text",
 };
 export async function updateRequest(id, fields) {
   await ensureSchema();
@@ -212,7 +218,8 @@ export async function saveBrief(token, answers, submit) {
   const rows = await q(
     `UPDATE customer_requests SET brief = $1::jsonb, brief_saved_at = now(), updated_at = now(),
        brief_submitted_at = CASE WHEN $2 THEN now() ELSE brief_submitted_at END,
-       project_stage = CASE WHEN $2 AND (project_stage IS NULL OR project_stage = 'content') THEN 'building' ELSE project_stage END
+       project_stage = CASE WHEN $2 AND (project_stage IS NULL OR project_stage = 'content') THEN 'building' ELSE project_stage END,
+       follow_up_on = CASE WHEN $2 THEN NULL ELSE follow_up_on END
      WHERE brief_token = $3
      RETURNING id, name, contact, business, interest, brief, brief_files, brief_submitted_at`,
     [JSON.stringify(answers), Boolean(submit), token]
@@ -246,6 +253,23 @@ export async function removeBriefFile(token, field, url) {
     [field, url, token]
   );
   return rows[0]?.brief_files ?? null;
+}
+
+// ---------- Automation bookkeeping ----------
+// auto_sent remembers which automatic messages went out (key -> time), so nothing is sent twice.
+export async function markSent(id, key) {
+  await ensureSchema();
+  await q(`UPDATE customer_requests SET auto_sent = auto_sent || jsonb_build_object($1::text, now()) WHERE id = $2`, [key, id]);
+}
+
+export async function setSiteCheck(id, status, sslExpires) {
+  await ensureSchema();
+  await q(`UPDATE customer_requests SET site_status = $1, ssl_expires = $2::date, site_checked_at = now() WHERE id = $3`, [status, sslExpires, id]);
+}
+
+export async function listUnansweredSince(hours) {
+  await ensureSchema();
+  return q(`SELECT id, created_at, question FROM unanswered_questions WHERE NOT resolved AND created_at > now() - ($1 || ' hours')::interval ORDER BY created_at`, [String(hours)]);
 }
 
 // ---------- Conversations and unanswered questions ----------
@@ -383,7 +407,7 @@ export async function sendCustomerEmail(to, subject, html) {
   return true;
 }
 
-export async function sendEmail(subject, html) {
+export async function sendEmail(subject, html, attachments) {
   if (!emailConfigured()) return null;
   const from = process.env.LEAD_EMAIL_FROM || "SIRRADDO Website Assistant <onboarding@resend.dev>";
   const res = await fetch("https://api.resend.com/emails", {
@@ -394,6 +418,7 @@ export async function sendEmail(subject, html) {
       to: process.env.LEAD_EMAIL_TO.split(",").map((s) => s.trim()).filter(Boolean),
       subject,
       html,
+      ...(attachments ? { attachments } : {}),
     }),
   });
   if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 200)}`);

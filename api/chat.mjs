@@ -4,6 +4,7 @@
 import { SYSTEM_PROMPT, SAVE_TOOL, QUESTION_TOOL } from "./_lib/knowledge.mjs";
 import { saveRequest, emailRequest, logChat, addUnanswered, reference } from "./_lib/store.mjs";
 import { pickProvider } from "./_lib/providers.mjs";
+import { acknowledgeLead } from "./_lib/automation.mjs";
 
 const MAX_MESSAGES = 30; // per conversation
 const MAX_CHARS = 1500; // per message
@@ -60,7 +61,10 @@ async function handleSave(input, ctx) {
   let isNew = true;
   try {
     const saved = await saveRequest(r);
-    if (saved) { dbOk = true; isNew = saved.inserted; r.ref = reference(saved.id); }
+    if (saved) {
+      dbOk = true; isNew = saved.inserted; r.ref = reference(saved.id);
+      if (saved.inserted && r.email) await acknowledgeLead({ ...r, id: saved.id, auto_sent: {} });
+    }
   } catch (err) {
     dbOk = false;
     console.error("save failed", err);

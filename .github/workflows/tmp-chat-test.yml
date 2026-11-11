@@ -14,9 +14,10 @@ jobs:
         run: |
           cat > t.mjs <<'JS'
           const URL = "https://sirraddo-website.vercel.app/api/chat";
-          const sessionId = "github-test2-" + Date.now();
+          const sessionId = "github-test3-" + Date.now();
           const turns = [
             "Hi, what does the Starter package include and how much is renewal?",
+            "Do you offer a warranty or guarantee on your websites?",
             "I run a small salon in Ibadan. My name is TEST from Claude (automated check), email test@example.com. Starter sounds right. Yes, you can contact me.",
             "Yes, those details are correct. Please save my request.",
           ];

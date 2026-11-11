@@ -167,6 +167,7 @@
         save();
         typing.remove();
         addBubble('assistant', reply);
+        if (!data || data.error || !data.reply) offerDetailsForm();
       })
       .catch(function () {
         typing.remove();
@@ -179,6 +180,43 @@
         sendBtn.disabled = false;
         input.focus();
       });
+  }
+
+  // When the AI can't reply, let the visitor leave their details so the team can follow up.
+  function offerDetailsForm() {
+    if (state.detailsSent || log.querySelector('.chat-lead')) return;
+    var box = el('form', 'chat-msg chat-msg--bot chat-lead');
+    box.appendChild(el('p', null, 'Or leave your name and WhatsApp number and we will contact you:'));
+    var name = el('input'); name.placeholder = 'Your name'; name.autocomplete = 'name'; name.maxLength = 120;
+    name.setAttribute('aria-label', 'Your name');
+    var phone = el('input'); phone.placeholder = 'WhatsApp number'; phone.type = 'tel'; phone.inputMode = 'tel'; phone.maxLength = 40;
+    phone.setAttribute('aria-label', 'WhatsApp number');
+    var err = el('p', 'chat-lead-error'); err.setAttribute('role', 'alert');
+    var btn = el('button', 'chat-chip', 'Send my details'); btn.type = 'submit';
+    [name, phone, err, btn].forEach(function (n) { box.appendChild(n); });
+    box.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (name.value.trim().length < 2) { err.textContent = 'Please enter your name.'; name.focus(); return; }
+      if (phone.value.replace(/\D/g, '').length < 10) { err.textContent = 'Please enter a valid number.'; phone.focus(); return; }
+      btn.disabled = true; err.textContent = '';
+      var asked = state.messages.filter(function (m) { return m.role === 'user'; }).map(function (m) { return m.content; }).join(' / ');
+      fetch('/api/lead', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: 'chat-form', name: name.value.trim(), contact: phone.value.trim(), details: 'Asked in chat: ' + asked, page: location.pathname })
+      }).then(function (r) { return r.json(); }).then(function (j) {
+        if (!j.ok) throw new Error(j.error || 'failed');
+        state.detailsSent = true; save();
+        box.remove();
+        var msg = 'Thank you, ' + name.value.trim().split(' ')[0] + '. Our team will contact you on WhatsApp soon.' + (j.ref ? ' Your reference: ' + j.ref : '');
+        state.messages.push({ role: 'assistant', content: msg }); save();
+        addBubble('assistant', msg);
+      }).catch(function (e2) {
+        btn.disabled = false;
+        err.textContent = /valid|name/i.test(e2.message) ? e2.message : 'Could not send. Please message us on WhatsApp.';
+      });
+    });
+    log.appendChild(box);
+    log.scrollTop = log.scrollHeight;
   }
 
   function autosize() {

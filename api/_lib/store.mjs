@@ -77,21 +77,26 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due`;
 
 // ---------- Customer requests ----------
-// Insert or update the request for this chat session. Returns true if it was new, null if no database.
+// Insert or update the request for this session. Returns { id, inserted }, or null if there is no database.
+// source: "chat" (AI assistant), "form" (package buttons), "contact" (homepage form),
+// "chat-form" (details left in the chat when the AI couldn't reply), "manual" (added in admin).
 export async function saveRequest(r) {
   if (!(await ensureSchema())) return null;
   const rows = await q(
-    `INSERT INTO customer_requests (session_id, name, contact, business, interest, details, page, transcript)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
      ON CONFLICT (session_id) DO UPDATE SET
        name = EXCLUDED.name, contact = EXCLUDED.contact, business = EXCLUDED.business,
        interest = EXCLUDED.interest, details = EXCLUDED.details, page = EXCLUDED.page,
        transcript = EXCLUDED.transcript, updated_at = now()
-     RETURNING (xmax = 0) AS inserted`,
-    [r.sessionId, r.name, r.contact, r.business, r.interest, r.details, r.page, JSON.stringify(r.transcript || [])]
+     RETURNING id, (xmax = 0) AS inserted`,
+    [r.sessionId, r.source || "chat", r.name, r.contact, r.business || null, r.interest, r.details || "", r.page || null,
+      JSON.stringify(r.transcript || [])]
   );
-  return rows[0]?.inserted === true;
+  return rows[0] ? { id: rows[0].id, inserted: rows[0].inserted === true } : null;
 }
+
+export const reference = (id) => "SGL-" + String(id).padStart(4, "0");
 
 // A request added by hand in the admin page (e.g. a customer who called or sent a WhatsApp).
 export async function createRequest(f) {
@@ -281,14 +286,15 @@ export function waLink(contact) {
 export async function emailRequest(r, isNew) {
   if (!emailConfigured()) return null;
   const wa = waLink(r.contact);
-  const lines = (r.transcript || [])
+  const lines = (r.transcript || []).length ? "<hr><p><b>Conversation</b></p>" + r.transcript
     .map((m) => `<p style="margin:4px 0"><b>${m.role === "user" ? "Customer" : "Assistant"}:</b> ${esc(m.content)}</p>`)
-    .join("");
+    .join("") : "";
+  const from = { form: "website package form", contact: "website contact form", "chat-form": "chat (AI unavailable)" }[r.source] || "AI chat";
   const html = `
     <h2 style="margin:0 0 8px">${isNew ? "New" : "Updated"} customer request: ${esc(r.interest)}</h2>
+    <p style="color:#4A5568">From the ${from}${r.ref ? ` · reference <b>${esc(r.ref)}</b>` : ""}</p>
     <p><b>Name:</b> ${esc(r.name)}<br><b>Contact:</b> ${esc(r.contact)}${wa ? ` (<a href="${wa}">WhatsApp</a>)` : ""}
     <br><b>Business:</b> ${esc(r.business || "-")}<br><b>Page:</b> ${esc(r.page || "-")}</p>
-    <p><b>Summary:</b> ${esc(r.details)}</p>
-    <hr><p><b>Conversation</b></p>${lines}`;
+    <p><b>Summary:</b> ${esc(r.details || "-")}</p>${lines}`;
   return sendEmail(`${isNew ? "New" : "Updated"} website request: ${r.name} (${r.interest})`, html);
 }

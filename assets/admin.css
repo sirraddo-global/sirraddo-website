@@ -1,0 +1,30 @@
+/* Admin page for customer requests (admin.html) */
+.admin { background: var(--grey); }
+.admin-bar { background: var(--navy); color: var(--white); border-bottom: 3px solid var(--gold); }
+.admin-bar-inner { display: flex; align-items: center; justify-content: space-between; min-height: 60px; }
+.admin-link { background: none; border: 1px solid rgba(255,255,255,.4); color: var(--white); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+.admin-main { padding-top: 24px; padding-bottom: 48px; }
+.admin-login { max-width: 360px; margin: 40px auto; padding: 24px; background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); display: grid; gap: 10px; }
+.admin-login[hidden], #board[hidden] { display: none; }
+.admin-login input, .admin-toolbar select, .admin-controls select, .admin-controls textarea {
+  font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--white); color: var(--text);
+}
+.admin-error { color: #B42318; margin: 0; min-height: 1em; }
+.admin-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.admin-count { color: var(--muted); font-size: .9rem; }
+.admin-list { display: grid; gap: 14px; }
+.admin-empty { color: var(--muted); }
+.admin-card { background: var(--white); border: 1px solid var(--line); border-left: 5px solid var(--gold); border-radius: var(--radius); padding: 16px 18px; }
+.admin-card--contacted, .admin-card--quoted { border-left-color: var(--navy); }
+.admin-card--won { border-left-color: #1F8A4C; }
+.admin-card--lost { border-left-color: #9AA3B2; opacity: .8; }
+.admin-card-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.admin-card-top h2 { font-size: 1.15rem; margin: 0; }
+.admin-tag { background: var(--navy); color: var(--white); border-radius: 999px; padding: 2px 10px; font-size: .8rem; font-weight: 600; }
+.admin-meta { color: var(--muted); font-size: .9rem; margin: 6px 0 8px; }
+.admin-details { margin: 0 0 12px; }
+.admin-controls { display: grid; grid-template-columns: 140px 1fr; gap: 10px; }
+@media (max-width: 520px) { .admin-controls { grid-template-columns: 1fr; } }
+.admin-card details { margin-top: 12px; }
+.admin-card summary { cursor: pointer; font-weight: 600; color: var(--navy); }
+.admin-line { margin: 6px 0; font-size: .92rem; white-space: pre-wrap; }

@@ -67,6 +67,41 @@ python3 -m http.server 8000 -d public
 
 Open http://localhost:8000. Locally, `/privacy` only works as `/privacy.html`; clean URLs work on Vercel. Run the build again after each change.
 
+## Website assistant ("Ask us" chat)
+
+Every page has an AI chat button. It answers questions about the company, ZAPPI PAY and the website packages, recommends a package, and collects the customer's name, phone or email and needs. Each request is saved to the database and emailed to you. You see them all at **/admin**.
+
+| File | What it does |
+|---|---|
+| `api/_lib/knowledge.mjs` | What the assistant knows (prices, packages, FAQ) and its rules. **Update it whenever you change prices or services on the site.** |
+| `api/chat.mjs` | `POST /api/chat`: talks to the AI model and saves requests |
+| `api/requests.mjs` | `GET/PATCH /api/requests`: the admin list, protected by `ADMIN_PASSWORD` |
+| `api/_lib/store.mjs` | Neon database and Resend email |
+| `assets/chat.js` | The chat widget |
+| `admin.html`, `assets/admin.js`, `assets/admin.css` | The admin page at `/admin` |
+
+### Setting it up (once)
+
+In Vercel, open the project, go to **Settings → Environment Variables**, add these for **Production** (and Preview if you want to test there), then redeploy:
+
+| Variable | Value |
+|---|---|
+| `ANTHROPIC_API_KEY` | From https://console.anthropic.com → API keys. In **Billing → Limits**, set a monthly spend limit. |
+| `DATABASE_URL` | A Neon connection string (Neon dashboard → Connect). A new free Neon project is fine. The table is created automatically. |
+| `RESEND_API_KEY` | From https://resend.com → API keys. Sign up with the email that should receive requests. |
+| `LEAD_EMAIL_TO` | Where requests are emailed, e.g. `sirraddogloballimited@gmail.com` |
+| `ADMIN_PASSWORD` | A long password (at least 12 characters) for `/admin` |
+| `LEAD_EMAIL_FROM` | Optional. Leave unset at first. Resend's default sender only delivers to your own Resend account email. After you verify your domain in Resend, set e.g. `SIRRADDO Assistant <assistant@sirraddo.com.ng>`. |
+| `ANTHROPIC_MODEL` | Optional. Defaults to `claude-haiku-5-5`. |
+
+Each part is optional: without `ANTHROPIC_API_KEY` the chat replies with the WhatsApp link; without `DATABASE_URL` requests are only emailed; without `RESEND_API_KEY` they are only saved to the database.
+
+### Using it
+
+- Open `/admin`, enter `ADMIN_PASSWORD`, and you see every request with a WhatsApp link, the summary and the full conversation. Set the status (new, contacted, quoted, won, lost) and add notes.
+- To change what the assistant says, edit `api/_lib/knowledge.mjs` and push to `main`.
+- Each IP address can send about 40 messages per 10 minutes, and a chat is capped at about 28 messages. Keep the spend limit set in the Anthropic Console as the real safety net.
+
 ## Deploying on Vercel
 
 1. On https://vercel.com, choose **Add New → Project** and import this GitHub repository.

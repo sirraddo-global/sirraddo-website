@@ -75,6 +75,7 @@ Every page has an AI chat button. It answers questions about the company, ZAPPI 
 |---|---|
 | `api/_lib/knowledge.mjs` | What the assistant knows (prices, packages, FAQ) and its rules. **Update it whenever you change prices or services on the site.** |
 | `api/chat.mjs` | `POST /api/chat`: talks to the AI model and saves requests |
+| `api/_lib/providers.mjs` | The two AI providers: Anthropic (Claude) and Google (Gemini) |
 | `api/requests.mjs` | `GET/PATCH /api/requests`: the admin list, protected by `ADMIN_PASSWORD` |
 | `api/_lib/store.mjs` | Neon database and Resend email |
 | `assets/chat.js` | The chat widget |
@@ -87,14 +88,17 @@ In Vercel, open the project, go to **Settings → Environment Variables**, add t
 | Variable | Value |
 |---|---|
 | `ANTHROPIC_API_KEY` | From https://console.anthropic.com → API keys. In **Billing → Limits**, set a monthly spend limit. |
+| `GEMINI_API_KEY` | Alternative to Anthropic. From https://aistudio.google.com → Get API key. The free tier needs no card but has daily limits, and Google may use free-tier chats to improve its products. |
+| `AI_PROVIDER` | Optional: `anthropic` or `gemini`. If unset, Anthropic is used when its key exists, otherwise Gemini. Set it to switch provider without removing a key. |
 | `DATABASE_URL` | A Neon connection string (Neon dashboard → Connect). A new free Neon project is fine. The table is created automatically. |
 | `RESEND_API_KEY` | From https://resend.com → API keys. Sign up with the email that should receive requests. |
 | `LEAD_EMAIL_TO` | Where requests are emailed, e.g. `sirraddogloballimited@gmail.com` |
 | `ADMIN_PASSWORD` | A long password (at least 12 characters) for `/admin` |
 | `LEAD_EMAIL_FROM` | Optional. Leave unset at first. Resend's default sender only delivers to your own Resend account email. After you verify your domain in Resend, set e.g. `SIRRADDO Assistant <assistant@sirraddo.com.ng>`. |
 | `ANTHROPIC_MODEL` | Optional. Defaults to `claude-haiku-5-5`. |
+| `GEMINI_MODEL` | Optional. Defaults to `gemini-flash-latest`. If Google retires that name, set a current Flash model from AI Studio. |
 
-Each part is optional: without `ANTHROPIC_API_KEY` the chat replies with the WhatsApp link; without `DATABASE_URL` requests are only emailed; without `RESEND_API_KEY` they are only saved to the database.
+Each part is optional: without an AI key the chat replies with the WhatsApp link (it does the same if the AI provider fails or the free-tier limit is reached); without `DATABASE_URL` requests are only emailed; without `RESEND_API_KEY` they are only saved to the database.
 
 ### Using it
 

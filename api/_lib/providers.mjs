@@ -3,7 +3,7 @@
 //
 // Each provider exposes:
 //   start(messages)                 -> provider-specific conversation
-//   call(convo, system, tool)       -> { text, toolCalls: [{ id, name, input }], raw }
+//   call(convo, system, tools, ms)  -> { text, toolCalls: [{ id, name, input }], raw }
 //   addToolResults(convo, raw, results: [{ id, name, ok, text }])
 
 // Fetch with a time limit, so the chat answers before Vercel's own time limit.
@@ -28,7 +28,7 @@ const anthropic = {
   name: "anthropic",
   configured: () => Boolean(process.env.ANTHROPIC_API_KEY),
   start: (messages) => messages.map((m) => ({ role: m.role, content: m.content })),
-  async call(convo, system, tool, ms = 20000) {
+  async call(convo, system, tools, ms = 20000) {
     const res = await timedFetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -40,7 +40,7 @@ const anthropic = {
         model: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
         max_tokens: 700,
         system,
-        tools: [tool],
+        tools,
         messages: convo,
       }),
     }, ms);
@@ -70,7 +70,7 @@ const gemini = {
   configured: () => Boolean(process.env.GEMINI_API_KEY),
   start: (messages) =>
     messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
-  async call(convo, system, tool, ms = 20000) {
+  async call(convo, system, tools, ms = 20000) {
     // Models to try in order. If one is busy (503), rate-limited (429) or gone (404), try the next.
     // Override with GEMINI_MODEL, e.g. "gemini-2.5-flash" or a comma-separated list.
     const models = (process.env.GEMINI_MODEL || "gemini-flash-lite-latest,gemini-flash-latest,gemini-2.5-flash")
@@ -81,7 +81,7 @@ const gemini = {
     const base = {
       systemInstruction: { parts: [{ text: system }] },
       contents: convo,
-      tools: [{ functionDeclarations: [{ name: tool.name, description: tool.description, parameters: tool.input_schema }] }],
+      tools: [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, parameters: t.input_schema })) }],
     };
     const send = (model, generationConfig) =>
       timedFetch(

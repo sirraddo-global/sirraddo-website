@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>Customer requests – SIRRADDO GLOBAL LIMITED</title>
+  <title>Admin – SIRRADDO GLOBAL LIMITED</title>
   <meta name="theme-color" content="#13254F">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/styles.css">
@@ -14,7 +14,7 @@
 <body class="admin">
   <header class="admin-bar">
     <div class="container admin-bar-inner">
-      <strong>SIRRADDO · Customer requests</strong>
+      <strong>SIRRADDO · Admin</strong>
       <button class="admin-link" id="logout" type="button" hidden>Log out</button>
     </div>
   </header>
@@ -28,18 +28,22 @@
       <p id="login-error" class="admin-error" role="alert"></p>
     </form>
 
-    <section id="board" hidden>
-      <div class="admin-toolbar">
-        <label for="filter">Show</label>
-        <select id="filter">
-          <option value="">All</option>
-        </select>
-        <button class="btn btn--navy" id="refresh" type="button">Refresh</button>
-        <span id="count" class="admin-count"></span>
-      </div>
-      <p id="board-error" class="admin-error" role="alert"></p>
-      <div id="list" class="admin-list"></div>
-    </section>
+    <div id="app" hidden>
+      <nav class="admin-tabs" aria-label="Admin sections">
+        <button type="button" data-tab="dashboard" aria-pressed="true">Dashboard</button>
+        <button type="button" data-tab="requests" aria-pressed="false">Requests</button>
+        <button type="button" data-tab="clients" aria-pressed="false">Clients</button>
+        <button type="button" data-tab="questions" aria-pressed="false">Questions</button>
+        <button type="button" data-tab="chats" aria-pressed="false">Chats</button>
+        <button type="button" data-tab="settings" aria-pressed="false">Settings</button>
+      </nav>
+      <p id="app-error" class="admin-error" role="alert"></p>
+      <p id="app-status" class="admin-status" role="status" aria-live="polite"></p>
+      <section id="view"></section>
+    </div>
   </main>
+
+  <!-- Filled in when you print an invoice or receipt (Save as PDF from the print screen). -->
+  <div id="print-area" aria-hidden="true"></div>
 </body>
 </html>

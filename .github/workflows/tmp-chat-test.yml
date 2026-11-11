@@ -7,10 +7,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Live lead form test
+      - name: Live brief test
         run: |
-          sleep 60
-          curl -s https://sirraddo-website.vercel.app/websites | grep -c 'data-lead=' || true
-          curl -s https://sirraddo-website.vercel.app/websites | grep -o '/assets/lead.js?v=[0-9a-f]*' || true
-          curl -s -X POST https://sirraddo-website.vercel.app/api/lead -H 'content-type: application/json' \
-            -d '{"source":"form","name":"TEST lead form (automated)","contact":"test@example.com","interest":"Starter website","page":"/websites"}'
+          sleep 70
+          echo "page: $(curl -s -o /dev/null -w '%{http_code}' https://sirraddo-website.vercel.app/brief)"
+          echo "api: $(curl -s 'https://sirraddo-website.vercel.app/api/brief?t=abcdefghijklmnopqrstuvwxyz123456')"
+          echo "upload without token store: $(curl -s -X POST 'https://sirraddo-website.vercel.app/api/brief-upload?t=x' --data-binary 'x')"
+          echo "robots: $(curl -s https://sirraddo-website.vercel.app/robots.txt | tr '\n' ' ')"

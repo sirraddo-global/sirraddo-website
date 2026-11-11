@@ -71,30 +71,51 @@ const gemini = {
   start: (messages) =>
     messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
   async call(convo, system, tool, ms = 20000) {
-    const model = process.env.GEMINI_MODEL || "gemini-flash-latest";
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+    // Models to try in order. If one is busy (503), rate-limited (429) or gone (404), try the next.
+    // Override with GEMINI_MODEL, e.g. "gemini-2.5-flash" or a comma-separated list.
+    const models = (process.env.GEMINI_MODEL || "gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash")
+      .split(",").map((m) => m.trim()).filter(Boolean);
+    // Within one reply, keep using the model that answered first (its thought signatures must match).
+    if (convo._model) models.unshift(...models.splice(models.indexOf(convo._model), 1));
+    const deadline = Date.now() + ms;
     const base = {
       systemInstruction: { parts: [{ text: system }] },
       contents: convo,
       tools: [{ functionDeclarations: [{ name: tool.name, description: tool.description, parameters: tool.input_schema }] }],
     };
-    const deadline = Date.now() + ms;
-    const send = (generationConfig) =>
-      timedFetch(url, {
-        method: "POST",
-        headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({ ...base, generationConfig }),
-      }, Math.max(3000, deadline - Date.now()));
-    // Gemini 3 models think at "high" by default, which is slow for a chat. Ask for "low".
-    // Older models don't accept thinkingLevel; if refused, retry without it.
-    // Thinking tokens count towards maxOutputTokens, so leave room above the visible reply.
-    let res = await send({ maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" } });
-    if (res.status === 400) {
-      const body = await res.text();
-      if (!/thinking/i.test(body)) throw httpError("gemini", 400, body);
-      res = await send({ maxOutputTokens: 4096 });
+    const send = (model, generationConfig) =>
+      timedFetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        {
+          method: "POST",
+          headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "Content-Type": "application/json" },
+          body: JSON.stringify({ ...base, generationConfig }),
+        },
+        Math.max(3000, deadline - Date.now())
+      );
+    let res;
+    let lastErr;
+    for (const model of models) {
+      if (deadline - Date.now() < 4000) break;
+      // Gemini 3 models think at "high" by default, which is slow for a chat. Ask for "low";
+      // older models don't accept thinkingLevel, so retry without it if refused.
+      // Thinking tokens count towards maxOutputTokens, so leave room above the visible reply.
+      res = await send(model, { maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" } });
+      if (res.status === 400) {
+        const body = await res.text();
+        if (!/thinking/i.test(body)) throw httpError("gemini", 400, body);
+        res = await send(model, { maxOutputTokens: 4096 });
+      }
+      if (res.ok) {
+        Object.defineProperty(convo, "_model", { value: model, writable: true, enumerable: false });
+        break;
+      }
+      lastErr = httpError("gemini", res.status, await res.text());
+      if (![429, 404, 500, 503].includes(res.status)) throw lastErr;
+      console.warn(`Gemini model ${model} unavailable (${res.status}), trying next`);
+      res = null;
     }
-    if (!res.ok) throw httpError("gemini", res.status, await res.text());
+    if (!res) throw lastErr || Object.assign(new Error("AI request timed out"), { code: "timeout" });
     const out = await res.json();
     const content = out.candidates?.[0]?.content || { role: "model", parts: [] };
     const parts = content.parts || [];

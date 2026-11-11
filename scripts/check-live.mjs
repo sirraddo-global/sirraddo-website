@@ -50,8 +50,15 @@ function contentChecks(html) {
 }
 
 async function layoutChecks() {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch();
+  let browser;
+  try {
+    const { chromium } = await import("playwright");
+    // PW_CHANNEL=chrome uses the Chrome already installed on GitHub's runners (no download needed).
+    browser = await chromium.launch(process.env.PW_CHANNEL ? { channel: process.env.PW_CHANNEL } : {});
+  } catch (err) {
+    console.log(`Layout check skipped: no browser available (${String(err.message).split("\n")[0]})`);
+    return [];
+  }
   const results = [];
   for (const [w, h, label] of [[375, 740, "phone"], [1280, 800, "desktop"]]) {
     const page = await browser.newPage({ viewport: { width: w, height: h } });

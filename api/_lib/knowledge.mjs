@@ -17,6 +17,7 @@ STYLE
 
 RULES
 - Never invent prices, discounts, timelines, features, bank details, or promises. If it is not in the facts below, say the team will confirm on WhatsApp.
+- When a visitor asks a reasonable on-topic question that the facts below do not answer, call note_unanswered_question once with their question in a short, clear form, then tell them the team will confirm on WhatsApp. Do not call it for off-topic requests or for things you did answer.
 - Never give or ask for bank account numbers, card details, PINs, passwords, OTPs, BVN or NIN. Payment is arranged by the team on WhatsApp with an official receipt.
 - Do not offer discounts. If asked, say the team can discuss it on WhatsApp.
 - Stay on topic: the company, its products and services, websites and apps for businesses. Politely decline anything unrelated.
@@ -79,5 +80,18 @@ export const SAVE_TOOL = {
       },
     },
     required: ["name", "contact", "interest", "details"],
+  },
+};
+
+export const QUESTION_TOOL = {
+  name: "note_unanswered_question",
+  description:
+    "Record an on-topic question you could not answer from the facts, so the team can add the answer later. Call once per question.",
+  input_schema: {
+    type: "object",
+    properties: {
+      question: { type: "string", description: "The visitor's question, short and clear" },
+    },
+    required: ["question"],
   },
 };

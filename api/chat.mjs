@@ -1,8 +1,8 @@
 // POST /api/chat — the website assistant.
 // Body: { sessionId, page, messages: [{ role: "user" | "assistant", content: "..." }] }
 // Returns: { reply, saved }
-import { SYSTEM_PROMPT, SAVE_TOOL } from "./_lib/knowledge.mjs";
-import { saveRequest, emailRequest } from "./_lib/store.mjs";
+import { SYSTEM_PROMPT, SAVE_TOOL, QUESTION_TOOL } from "./_lib/knowledge.mjs";
+import { saveRequest, emailRequest, logChat, addUnanswered } from "./_lib/store.mjs";
 import { pickProvider } from "./_lib/providers.mjs";
 
 const MAX_MESSAGES = 30; // per conversation
@@ -77,6 +77,33 @@ async function handleSave(input, ctx) {
   };
 }
 
+async function handleQuestion(input, ctx) {
+  const question = str(input.question, 500);
+  if (!question) return { ok: false, text: "No question given." };
+  try {
+    await addUnanswered(ctx.sessionId, question);
+  } catch (err) {
+    console.error("question save failed", err);
+  }
+  // Tell the model it worked either way: the visitor's reply doesn't depend on it.
+  return { ok: true, text: "Noted for the team. Tell the visitor the team will confirm on WhatsApp." };
+}
+
+// Keep the conversation (with the reply) for the admin page. Never blocks or breaks the reply.
+async function record(ctx, reply, fallback, leadSaved) {
+  try {
+    await logChat({
+      sessionId: ctx.sessionId,
+      page: ctx.page,
+      messages: [...ctx.transcript, { role: "assistant", content: reply }],
+      fallback,
+      leadSaved,
+    });
+  } catch (err) {
+    console.error("chat log failed", err);
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") {
@@ -111,21 +138,27 @@ export default async function handler(req, res) {
     for (let step = 0; step < 3; step++) {
       const left = deadline - Date.now();
       if (left < 5000) throw Object.assign(new Error("Out of time"), { code: "timeout" });
-      const out = await provider.call(convo, SYSTEM_PROMPT, SAVE_TOOL, Math.min(25000, left));
+      const out = await provider.call(convo, SYSTEM_PROMPT, [SAVE_TOOL, QUESTION_TOOL], Math.min(25000, left));
       if (out.toolCalls.length === 0) {
+        await record(ctx, out.text || FALLBACK, !out.text, saved);
         return res.status(200).json({ reply: out.text || FALLBACK, saved });
       }
       const results = [];
       for (const t of out.toolCalls) {
-        const r = t.name === SAVE_TOOL.name ? await handleSave(t.input, ctx) : { ok: false, text: "Unknown tool" };
-        if (r.ok) saved = true;
+        const r =
+          t.name === SAVE_TOOL.name ? await handleSave(t.input, ctx)
+          : t.name === QUESTION_TOOL.name ? await handleQuestion(t.input, ctx)
+          : { ok: false, text: "Unknown tool" };
+        if (r.ok && t.name === SAVE_TOOL.name) saved = true;
         results.push({ id: t.id, name: t.name, ok: r.ok, text: r.text });
       }
       provider.addToolResults(convo, out.raw, results);
     }
+    await record(ctx, FALLBACK, true, saved);
     return res.status(200).json({ reply: FALLBACK, saved });
   } catch (err) {
     console.error(`chat failed (${provider.name})`, err);
+    await record(ctx, FALLBACK, true, false);
     // A short code (e.g. "gemini_429", "timeout") helps diagnose problems; it holds no secrets.
     return res.status(200).json({ reply: FALLBACK, saved: false, error: err.code || "error" });
   }

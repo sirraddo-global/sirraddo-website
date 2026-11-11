@@ -76,7 +76,8 @@ Every page has an AI chat button. It answers questions about the company, ZAPPI 
 | `api/_lib/knowledge.mjs` | What the assistant knows (prices, packages, FAQ) and its rules. **Update it whenever you change prices or services on the site.** |
 | `api/chat.mjs` | `POST /api/chat`: talks to the AI model and saves requests |
 | `api/_lib/providers.mjs` | The two AI providers: Anthropic (Claude) and Google (Gemini) |
-| `api/requests.mjs` | `GET/PATCH /api/requests`: the admin list, protected by `ADMIN_PASSWORD` |
+| `api/requests.mjs` | The admin API (requests, clients, questions, chats, settings), protected by `ADMIN_PASSWORD` |
+| `api/cron-daily.mjs` | Daily summary email and 90-day clean-up, run by Vercel Cron at about 7am Lagos time |
 | `api/_lib/store.mjs` | Neon database and Resend email |
 | `assets/chat.js` | The chat widget |
 | `admin.html`, `assets/admin.js`, `assets/admin.css` | The admin page at `/admin` |
@@ -94,6 +95,7 @@ In Vercel, open the project, go to **Settings → Environment Variables**, add t
 | `RESEND_API_KEY` | From https://resend.com → API keys. Sign up with the email that should receive requests. |
 | `LEAD_EMAIL_TO` | Where requests are emailed, e.g. `sirraddogloballimited@gmail.com` |
 | `ADMIN_PASSWORD` | A long password (at least 12 characters) for `/admin` |
+| `CRON_SECRET` | A random string (at least 16 characters). Vercel sends it to `/api/cron-daily`, so nobody else can trigger the daily email. |
 | `LEAD_EMAIL_FROM` | Optional. Leave unset at first. Resend's default sender only delivers to your own Resend account email. After you verify your domain in Resend, set e.g. `SIRRADDO Assistant <assistant@sirraddo.com.ng>`. |
 | `ANTHROPIC_MODEL` | Optional. Defaults to `claude-haiku-5-5`. |
 | `GEMINI_MODEL` | Optional. A model name or comma-separated list to try in order. Default: `gemini-flash-lite-latest,gemini-flash-latest,gemini-2.5-flash`. If one is busy or rate-limited, the next is tried. |
@@ -102,9 +104,22 @@ Each part is optional: without an AI key the chat replies with the WhatsApp link
 
 ### Using it
 
-- Open `/admin`, enter `ADMIN_PASSWORD`, and you see every request with a WhatsApp link, the summary and the full conversation. Set the status (new, contacted, quoted, won, lost) and add notes.
+Open `/admin` and log in with `ADMIN_PASSWORD`. Tabs:
+
+- **Dashboard:** new this week, open leads, follow-ups due, win rate, value won, paid, outstanding, renewals due, unanswered questions, requests by package.
+- **Requests:** search and filter, add a customer by hand, export CSV. Each card has a WhatsApp (or email) button with ready-made messages; opening one marks a new request as contacted. Under **Manage**: status, follow-up date, quote, payments (deposit, balance, renewals), invoice and receipt (print or Save as PDF), notes, edit details, the conversation, delete.
+- **Clients:** requests marked won. Track the build (waiting for content, building, live). Going live sets the renewal date a year ahead; **Renewal paid** records the payment and moves the date on a year.
+- **Questions:** questions the assistant couldn't answer. Add the answers to `api/_lib/knowledge.mjs`, then tick them off.
+- **Chats:** every conversation from the last 90 days.
+- **Settings:** bank details printed on invoices, and your own wording for the WhatsApp messages.
+
+Every morning (if `CRON_SECRET`, `RESEND_API_KEY` and `LEAD_EMAIL_TO` are set) you get one email with new requests, follow-ups due, renewals due within 30 days and new unanswered questions. No email is sent on days with nothing to report. The same job deletes conversations older than 90 days.
+
+Other notes:
+
 - To change what the assistant says, edit `api/_lib/knowledge.mjs` and push to `main`.
-- Each IP address can send about 40 messages per 10 minutes, and a chat is capped at about 28 messages. Keep the spend limit set in the Anthropic Console as the real safety net.
+- Each IP address can send about 40 messages per 10 minutes, and a chat is capped at about 28 messages. Keep a spend limit set with your AI provider as the real safety net.
+- New database tables and columns are added automatically on first use.
 
 ## Deploying on Vercel
 

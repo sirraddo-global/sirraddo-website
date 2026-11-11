@@ -1,0 +1,11 @@
+{
+  "name": "sirraddo-website",
+  "private": true,
+  "description": "SIRRADDO GLOBAL LIMITED company website, with the website assistant API in api/",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0"
+  }
+}

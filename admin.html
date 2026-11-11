@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en-NG">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Customer requests – SIRRADDO GLOBAL LIMITED</title>
+  <meta name="theme-color" content="#13254F">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/admin.css">
+  <script src="/assets/admin.js" defer></script>
+</head>
+<body class="admin">
+  <header class="admin-bar">
+    <div class="container admin-bar-inner">
+      <strong>SIRRADDO · Customer requests</strong>
+      <button class="admin-link" id="logout" type="button" hidden>Log out</button>
+    </div>
+  </header>
+
+  <main class="container admin-main">
+    <form id="login" class="admin-login">
+      <h1>Log in</h1>
+      <label for="password">Admin password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button class="btn btn--navy" type="submit">Log in</button>
+      <p id="login-error" class="admin-error" role="alert"></p>
+    </form>
+
+    <section id="board" hidden>
+      <div class="admin-toolbar">
+        <label for="filter">Show</label>
+        <select id="filter">
+          <option value="">All</option>
+        </select>
+        <button class="btn btn--navy" id="refresh" type="button">Refresh</button>
+        <span id="count" class="admin-count"></span>
+      </div>
+      <p id="board-error" class="admin-error" role="alert"></p>
+      <div id="list" class="admin-list"></div>
+    </section>
+  </main>
+</body>
+</html>

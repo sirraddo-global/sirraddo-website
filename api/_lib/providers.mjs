@@ -91,12 +91,15 @@ const gemini = {
           headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "Content-Type": "application/json" },
           body: JSON.stringify({ ...base, generationConfig }),
         },
-        Math.max(3000, deadline - Date.now())
+        Math.max(3000, Math.min(15000, deadline - Date.now()))
       );
     let res;
     let lastErr;
+    const trace = []; // e.g. "gemini-flash-latest:503@1s", returned in the error code for diagnosis
     for (const model of models) {
       if (deadline - Date.now() < 4000) break;
+      const t0 = Date.now();
+      try {
       // Gemini 3 models think at "high" by default, which is slow for a chat. Ask for "low";
       // older models don't accept thinkingLevel, so retry without it if refused.
       // Thinking tokens count towards maxOutputTokens, so leave room above the visible reply.
@@ -106,16 +109,32 @@ const gemini = {
         if (!/thinking/i.test(body)) throw httpError("gemini", 400, body);
         res = await send(model, { maxOutputTokens: 4096 });
       }
+      } catch (err) {
+        if (err.code !== "timeout") throw err;
+        trace.push(`${model}:timeout@${Math.round((Date.now() - t0) / 1000)}s`);
+        lastErr = err;
+        res = null;
+        continue;
+      }
       if (res.ok) {
         Object.defineProperty(convo, "_model", { value: model, writable: true, enumerable: false });
         break;
       }
+      trace.push(`${model}:${res.status}@${Math.round((Date.now() - t0) / 1000)}s`);
       lastErr = httpError("gemini", res.status, await res.text());
-      if (![429, 404, 500, 503].includes(res.status)) throw lastErr;
+      if (![429, 404, 500, 503].includes(res.status)) {
+        lastErr.code += ` [${trace.join(", ")}]`;
+        throw lastErr;
+      }
       console.warn(`Gemini model ${model} unavailable (${res.status}), trying next`);
       res = null;
     }
-    if (!res) throw lastErr || Object.assign(new Error("AI request timed out"), { code: "timeout" });
+    if (!res) {
+      const err = lastErr || Object.assign(new Error("AI request timed out"), { code: "timeout" });
+      err.code = `${err.code} [${trace.join(", ")}]`;
+      console.error("Gemini failed:", err.message);
+      throw err;
+    }
     const out = await res.json();
     const content = out.candidates?.[0]?.content || { role: "model", parts: [] };
     const parts = content.parts || [];

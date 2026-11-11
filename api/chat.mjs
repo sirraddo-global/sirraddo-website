@@ -105,10 +105,13 @@ export default async function handler(req, res) {
   };
 
   try {
+    const deadline = Date.now() + 50000; // stay under Vercel's 60 s limit
     const convo = provider.start(messages);
     let saved = false;
     for (let step = 0; step < 3; step++) {
-      const out = await provider.call(convo, SYSTEM_PROMPT, SAVE_TOOL);
+      const left = deadline - Date.now();
+      if (left < 5000) throw Object.assign(new Error("Out of time"), { code: "timeout" });
+      const out = await provider.call(convo, SYSTEM_PROMPT, SAVE_TOOL, Math.min(25000, left));
       if (out.toolCalls.length === 0) {
         return res.status(200).json({ reply: out.text || FALLBACK, saved });
       }
@@ -123,6 +126,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ reply: FALLBACK, saved });
   } catch (err) {
     console.error(`chat failed (${provider.name})`, err);
-    return res.status(200).json({ reply: FALLBACK, saved: false });
+    // A short code (e.g. "gemini_429", "timeout") helps diagnose problems; it holds no secrets.
+    return res.status(200).json({ reply: FALLBACK, saved: false, error: err.code || "error" });
   }
 }

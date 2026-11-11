@@ -7,6 +7,7 @@ A plain static website (HTML, CSS and a little JavaScript). There is no build st
 | File | What it is |
 | --- | --- |
 | `index.html` | The main one-page site: hero, About us, Products & services, Compliance, Contact |
+| `websites.html` | Website design service page (served at `/websites`): packages, what is included, our work, how it works, renewal, FAQ |
 | `privacy.html` | Privacy Policy (served at `/privacy`) |
 | `terms.html` | Terms of Use (served at `/terms`) |
 | `404.html` | "Page not found" page |
@@ -15,6 +16,8 @@ A plain static website (HTML, CSS and a little JavaScript). There is no build st
 | `assets/fonts/` | The Inter font, hosted on this site (no Google Fonts), with its open-source licence |
 | `assets/favicon.svg` | Browser tab icon |
 | `assets/og-image.png` | Preview image shown when the site is shared on WhatsApp, X, LinkedIn and so on |
+| `sitemap.xml` | List of pages for search engines. Add a line when you add a page, and update its date when a page changes a lot |
+| `robots.txt` | Tells search engines they may index the site and where the sitemap is |
 | `vercel.json` | Vercel settings: clean URLs (`/privacy` instead of `/privacy.html`) and security headers |
 
 ## Changing text
@@ -26,10 +29,13 @@ A plain static website (HTML, CSS and a little JavaScript). There is no build st
 Things you will probably want to change:
 
 - **Mission statement:** in `index.html`, search for `class="mission"` and change the sentence after it.
-- **SCUML number:** search for `SC 311502618` in all four `.html` files (compliance section and footer).
+- **Website packages and prices:** in `websites.html`, edit the package cards under "Packages" and the renewal price under "Renewal". The homepage card "Websites for businesses" also shows the starting price (₦50,000).
+- **Portfolio ("Our work"):** in `websites.html`, the comment above the "Our work" section explains how to swap a "Coming soon" card for a real project with a screenshot (put images in `assets/work/`).
+- **WhatsApp messages on the websites page:** each button's pre-filled message is in its link, after `?text=`. Spaces are written `%20`.
+- **SCUML number:** search for `SC 311502618` in all five `.html` files (compliance section and footer).
 - **Phone or WhatsApp number:** update it in `index.html` (search for `8167550937`) **and** in `assets/site.js` (`WHATSAPP_NUMBER`).
 - **Email address:** search for `sirraddogloballimited@gmail.com` in `index.html`, `privacy.html` and `terms.html`.
-- **Header and footer:** each page has its own copy of the header and footer. If you change a link or the copyright line, change it in all four `.html` files.
+- **Header and footer:** each page has its own copy of the header and footer. If you change a link or the copyright line, change it in all five `.html` files.
 - **Policy dates:** when you change the Privacy Policy or Terms, update the "Last updated" date at the top of that page.
 - **Search and share text:** the `<title>`, `<meta name="description">` and `og:` tags at the top of each page.
 
@@ -65,4 +71,4 @@ Then open http://localhost:8000. Locally, `/privacy` only works as `/privacy.htm
 
    Or switch the domain's nameservers to Vercel's, if Vercel offers that.
 4. Wait for DNS to update. This can take from a few minutes to 48 hours. Vercel adds the HTTPS certificate automatically.
-5. Once the domain works, search all four `.html` files for `https://sirraddo-website.vercel.app` and replace it with your new address (for example `https://sirraddo.com.ng`). This updates the share image, `og:url` and `canonical` links.
+5. Once the domain works, search all five `.html` files for `https://sirraddo-website.vercel.app` and replace it with your new address (for example `https://sirraddo.com.ng`). Do the same in `sitemap.xml` and `robots.txt`. This updates the share image, `og:url`, `canonical` links and the sitemap.

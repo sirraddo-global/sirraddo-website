@@ -20,6 +20,7 @@
     tpl_quoted: { label: 'Quote follow-up', text: 'Hello {name}, following up on your {package} quote of {amount}. To start, we need a 70% deposit of {deposit}, and the balance when your site is ready. Any questions, just ask.' },
     tpl_won: { label: 'Send your content', text: 'Hello {name}, thank you for choosing SIRRADDO! To begin, please send your logo, photos, a short business description and your contact details. Your website will be live within 7 working days after we receive them.' },
     tpl_payment: { label: 'Payment received', text: 'Hello {name}, we have received your payment, thank you. Total paid: {paid}. Balance: {balance}.' },
+    tpl_brief: { label: 'Send project form', text: 'Hello {name}, thank you for your deposit! Please fill in your project details here: {brief_link}\nIt takes about 10-15 minutes, and you can save and finish later with the same link.' },
     tpl_renewal: { label: 'Renewal reminder', text: 'Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.' }
   };
 
@@ -339,11 +340,14 @@
     var vals = {
       name: (r.name || '').split(' ')[0], package: r.interest, amount: naira(quote),
       deposit: quote ? naira(Math.round(quote * 0.7)) : '-', paid: naira(paid(r, 'project')), balance: naira(balance(r)),
-      renewal_amount: naira(r.renewal_amount), renewal_due: r.renewal_due ? niceDate(r.renewal_due) : '-'
+      renewal_amount: naira(r.renewal_amount), renewal_due: r.renewal_due ? niceDate(r.renewal_due) : '-',
+      brief_link: r.brief_token ? briefUrl(r) : '(no project form link yet)'
     };
     return text.replace(/\{(\w+)\}/g, function (m, k) { return k in vals ? vals[k] : m; });
   }
+  function briefUrl(r) { return location.origin + '/brief?t=' + r.brief_token; }
   function suggestedTemplate(r) {
+    if (r.brief_token && !r.brief_submitted_at && !r.brief_saved_at) return 'tpl_brief';
     if (r.status === 'won') {
       var d = daysUntil(r.renewal_due);
       if (d !== null && d <= 30) return 'tpl_renewal';
@@ -410,6 +414,8 @@
       el('button', { class: 'admin-btn', type: 'button', text: 'Receipt', disabled: !payments(r).length, title: !payments(r).length ? 'Record a payment first' : null, onclick: function () { printDoc(r, 'receipt'); } })
     ]));
 
+    wrap.appendChild(briefBlock(r));
+
     // Notes
     var notes = el('textarea', { rows: 2, placeholder: 'Your notes (saved when you leave the box)', value: r.notes || '' });
     notes.addEventListener('change', function () { update(r, { notes: notes.value }, 'Notes saved'); });
@@ -438,6 +444,62 @@
       }).catch(fail);
     } }));
     return wrap;
+  }
+
+  // Project brief: the form the customer fills in after paying the deposit.
+  function briefBlock(r) {
+    var box = el('div', { class: 'admin-brief' }, [el('span', { class: 'admin-label', text: 'Project form' })]);
+    if (!r.brief_token) {
+      box.appendChild(el('p', { class: 'admin-empty', text: 'Created automatically when the 70% deposit is recorded.' }));
+      box.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Create link now', onclick: function () {
+        api('POST', { action: 'brief_link', id: r.id }).then(function (row) { replaceRequest(row); flash('Project form link created'); render(); }).catch(fail);
+      } }));
+      return box;
+    }
+    var st = r.brief_submitted_at ? 'Sent by customer ' + when(r.brief_submitted_at)
+      : r.brief_saved_at ? 'Customer started it (saved ' + when(r.brief_saved_at) + ')' : 'Not opened yet';
+    box.appendChild(el('p', { class: 'admin-meta' }, [badge(r.brief_submitted_at ? 'Received' : r.brief_saved_at ? 'In progress' : 'Waiting', r.brief_submitted_at ? 'is-won' : 'is-new'), ' ' + st]));
+    var num = waNumber(r.contact);
+    var actions = el('div', { class: 'admin-actions' });
+    if (num) actions.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send form on WhatsApp', onclick: function () {
+      var text = fill(state.settings.tpl_brief || TEMPLATES.tpl_brief.text, r);
+      window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+    } }));
+    actions.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy link', onclick: function () {
+      var url = briefUrl(r);
+      (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(function () { flash('Link copied'); })
+        .catch(function () { window.prompt('Copy this link:', url); });
+    } }));
+    if (r.brief_saved_at) actions.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'View answers', onclick: function () { viewBrief(r); } }));
+    box.appendChild(actions);
+    return box;
+  }
+
+  function viewBrief(r) {
+    fetch('/api/brief?t=' + encodeURIComponent(r.brief_token)).then(function (res) { return res.json(); }).then(function (d) {
+      var parts = [];
+      d.sections.forEach(function (s) {
+        var rows = [];
+        s.fields.forEach(function (f) {
+          var v = f.type === 'files' ? (d.files[f.key] || []) : d.answers[f.key];
+          var html = '';
+          if (f.type === 'files') html = v.map(function (x) { return /^image\//.test(x.type || '') ? '<a href="' + h(x.url) + '"><img src="' + h(x.url) + '" alt="' + h(x.name) + '"></a>' : '<a href="' + h(x.url) + '">' + h(x.name) + '</a>'; }).join(' ');
+          else if (f.type === 'rows') html = (v || []).map(function (row) { return f.columns.map(function (c) { return h(row[c.key]); }).filter(Boolean).join(' · '); }).filter(Boolean).join('<br>');
+          else if (Array.isArray(v)) html = h(v.join(', '));
+          else if (f.type === 'confirm') html = v ? 'Yes' : '';
+          else html = h(v || '').replace(/\n/g, '<br>');
+          if (html) rows.push('<tr><th>' + h(f.label) + '</th><td>' + html + '</td></tr>');
+        });
+        if (rows.length) parts.push('<h2>' + h(s.title) + '</h2><table class="brief-view">' + rows.join('') + '</table>');
+      });
+      var area = $('print-area');
+      area.innerHTML = '<div class="doc"><div class="doc-head"><div>' + LOGO + '</div><div class="doc-co"><b>Project brief</b><br>' + h(r.name) + ' · ' + h(r.interest) + '<br>' + h(r.contact) + (d.submitted_at ? '<br>Sent ' + h(when(d.submitted_at)) : '<br>Not sent yet (draft)') + '</div></div>' + (parts.join('') || '<p>No answers yet.</p>') + '</div>';
+      document.body.classList.add('printing', 'viewing');
+      var close = el('button', { class: 'btn btn--navy admin-view-close', type: 'button', text: 'Close', onclick: function () { document.body.classList.remove('printing', 'viewing'); close.remove(); printBtn.remove(); } });
+      var printBtn = el('button', { class: 'admin-btn admin-view-print', type: 'button', text: 'Print / Save PDF', onclick: function () { window.print(); } });
+      area.prepend(printBtn); area.prepend(close);
+      window.scrollTo(0, 0);
+    }).catch(function () { setError('Could not load the answers.'); });
   }
 
   function paymentsBlock(r) {
@@ -539,6 +601,7 @@
         state.filters = { q: r.contact, status: '', interest: '', due: false }; state.open[r.id] = true; setTab('requests');
       } })
     ]));
+    card.appendChild(briefBlock(r));
     return card;
   }
 

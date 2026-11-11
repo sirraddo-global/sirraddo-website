@@ -113,6 +113,8 @@ Open `/admin` and log in with `ADMIN_PASSWORD`. Tabs:
 - **Chats:** every conversation from the last 90 days.
 - **Settings:** bank details printed on invoices, and your own wording for the WhatsApp messages.
 
+**Project form.** When a payment brings a job to 70% of its quote (or any payment if there is no quote), the request gets a private form link. In **Manage** (and on the client card) tap **Send form on WhatsApp**. The customer sees questions for their package, saves as they go, uploads logo and photos, and taps **Send my details**. You get an email with all the answers, the project moves to **Building**, and **View answers** shows everything (printable). The questions live in `api/_lib/brief-schema.mjs`. Photo uploads need Vercel Blob: Vercel → Storage → Create → Blob → connect it to this project (this adds `BLOB_READ_WRITE_TOKEN`). Without it, the form asks customers to send files on WhatsApp.
+
 Every morning (if `CRON_SECRET`, `RESEND_API_KEY` and `LEAD_EMAIL_TO` are set) you get one email with new requests, follow-ups due, renewals due within 30 days and new unanswered questions. No email is sent on days with nothing to report. The same job deletes conversations older than 90 days.
 
 Other notes:

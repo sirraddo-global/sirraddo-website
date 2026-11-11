@@ -118,6 +118,20 @@ button.admin-tile:hover { border-color: var(--navy); }
 
 /* Invoices and receipts: shown only when printing (or saving as PDF) */
 #print-area { display: none; }
+/* Viewing a brief on screen uses the same area */
+body.viewing > *:not(#print-area) { display: none !important; }
+body.viewing #print-area { display: block; background: #fff; padding: 16px; min-height: 100vh; }
+.admin-view-close, .admin-view-print { margin: 0 8px 12px 0; }
+@media print { .admin-view-close, .admin-view-print { display: none !important; } }
+.doc .brief-view { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+.doc .brief-view th, .doc .brief-view td { text-align: left; vertical-align: top; padding: 8px 6px; border-bottom: 1px solid #E1E6EF; }
+.doc .brief-view th { width: 38%; color: #4A5568; font-weight: 600; }
+.doc .brief-view img { width: 88px; height: 88px; object-fit: cover; border-radius: 6px; margin: 2px; }
+.doc h2 { font-size: 1.05rem; color: #13254F; margin: 18px 0 6px; }
+.doc { font-family: Inter, Arial, sans-serif; color: #1B2433; }
+.doc-head { display: flex; justify-content: space-between; gap: 16px; border-bottom: 3px solid #D9A21B; padding-bottom: 10px; }
+.doc-co { text-align: right; font-size: .85rem; line-height: 1.45; }
+.admin-brief { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 @media print {
   @page { margin: 14mm; }
   body.printing { background: #fff; }

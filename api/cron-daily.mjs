@@ -28,7 +28,7 @@ function contactLink(r) {
   return wa ? `<a href="${wa}">${esc(r.contact)}</a>` : esc(r.contact);
 }
 
-export function buildDigest({ fresh, overdue, renewals, questions }) {
+export function buildDigest({ fresh, overdue, renewals, questions, briefs = [] }) {
   const sections = [];
   if (fresh.length) {
     sections.push(`<h3>New requests (${fresh.length})</h3><ul>${fresh
@@ -50,6 +50,11 @@ export function buildDigest({ fresh, overdue, renewals, questions }) {
         const when = d < 0 ? `<b style="color:#B42318">${-d} day(s) overdue</b>` : d === 0 ? "<b>today</b>" : `in ${d} day(s)`;
         return `<li><b>${esc(r.name)}</b>: ${naira(r.renewal_amount)} due ${esc(r.renewal_due)} (${when}), ${contactLink(r)}</li>`;
       })
+      .join("")}</ul>`);
+  }
+  if (briefs.length) {
+    sections.push(`<h3>Project briefs received (${briefs.length})</h3><ul>${briefs
+      .map((r) => `<li><b>${esc(r.name)}</b>: ${esc(r.interest)}, ${contactLink(r)}. Ready to build.</li>`)
       .join("")}</ul>`);
   }
   if (questions.length) {
@@ -76,12 +81,13 @@ export default async function handler(req, res) {
       if (data.overdue.length) parts.push(`${data.overdue.length} follow-up`);
       if (data.renewals.length) parts.push(`${data.renewals.length} renewal`);
       if (data.questions.length) parts.push(`${data.questions.length} question`);
+      if (data.briefs.length) parts.push(`${data.briefs.length} brief`);
       emailed = Boolean(await sendEmail(`SIRRADDO daily summary: ${parts.join(", ")}`, html));
     }
     const removed = await cleanup(90);
     return res.status(200).json({
       emailed,
-      counts: { fresh: data.fresh.length, overdue: data.overdue.length, renewals: data.renewals.length, questions: data.questions.length },
+      counts: { fresh: data.fresh.length, overdue: data.overdue.length, renewals: data.renewals.length, questions: data.questions.length, briefs: data.briefs.length },
       removed,
     });
   } catch (err) {

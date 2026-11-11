@@ -25,7 +25,7 @@ jobs:
             messages.push({ role: "user", content: t });
             const r = await fetch(URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, page: "/websites", messages }) });
             const j = await r.json().catch(() => ({}));
-            console.log(`\nUSER: ${t}\nHTTP ${r.status} saved=${j.saved}\nBOT: ${j.reply || JSON.stringify(j)}`);
+            console.log(`\nUSER: ${t}\nHTTP ${r.status} saved=${j.saved} error=${j.error}\nBOT: ${j.reply || JSON.stringify(j)}`);
             messages.push({ role: "assistant", content: j.reply || "" });
           }
           const a = await fetch("https://sirraddo-website.vercel.app/admin");

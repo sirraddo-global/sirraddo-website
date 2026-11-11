@@ -33,13 +33,17 @@ jobs:
       - name: Build still works
         run: node scripts/build.mjs
 
-      - name: Install Chromium for the layout check
-        run: |
-          npm install --no-save --no-package-lock playwright@1.48.2
-          npx playwright install --with-deps chromium
+      # Uses the Chrome that GitHub's runners already have, so nothing is downloaded from Ubuntu mirrors.
+      # If this step fails (network trouble on GitHub's side), the content checks still run.
+      - name: Install Playwright for the layout check
+        id: pw
+        continue-on-error: true
+        timeout-minutes: 5
+        run: npm install --no-save --no-package-lock playwright@1.48.2
 
       - name: Check the live /websites page
         env:
           WAIT_MINUTES: ${{ github.event_name == 'push' && '10' || '0' }}
-          LAYOUT_CHECK: "1"
+          LAYOUT_CHECK: ${{ steps.pw.outcome == 'success' && '1' || '0' }}
+          PW_CHANNEL: chrome
         run: node scripts/check-live.mjs

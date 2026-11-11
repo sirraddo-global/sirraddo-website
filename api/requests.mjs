@@ -14,6 +14,7 @@ import {
   ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
 } from "./_lib/store.mjs";
 import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
+import { applyRules, emailBriefLink } from "./_lib/automation.mjs";
 
 // The project brief link is created once the deposit is in: 70% of the quote paid
 // (or any project payment if no quote was entered).
@@ -74,6 +75,12 @@ function cleanFields(body) {
   }
   for (const k of ["follow_up_on", "live_on", "renewal_due"]) if (has(k)) out[k] = date(body[k]);
   for (const k of ["quote_amount", "renewal_amount"]) if (has(k)) out[k] = naira(body[k]);
+  if (has("website_url")) {
+    let u = text(body.website_url, 300);
+    if (u && !/^https?:\/\//i.test(u)) u = "https://" + u;
+    if (u) { try { u = new URL(u).toString(); } catch { throw new Bad("That website address doesn't look right"); } }
+    out.website_url = u || null;
+  }
   if (has("payments")) {
     if (!Array.isArray(body.payments) || body.payments.length > 200) throw new Bad("Payments must be a list");
     out.payments = body.payments.map((p) => {
@@ -127,9 +134,14 @@ export default async function handler(req, res) {
       const body = readBody(req);
       const id = Number(body.id);
       if (!Number.isInteger(id)) throw new Bad("Missing id");
-      let row = await updateRequest(id, cleanFields(body));
+      const changed = cleanFields(body);
+      let row = await updateRequest(id, changed);
       if (!row) return res.status(404).json({ error: "Not found" });
-      if (!row.brief_token && depositPaid(row)) row = (await ensureBriefToken(id)) || row;
+      row = await applyRules(row, changed); // automatic status, follow-up and renewal dates
+      if (!row.brief_token && depositPaid(row)) {
+        row = (await ensureBriefToken(id)) || row;
+        await emailBriefLink(row); // emails the project form when customer emailing is set up
+      }
       return res.status(200).json(row);
     }
 

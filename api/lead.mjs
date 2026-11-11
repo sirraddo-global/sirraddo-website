@@ -3,6 +3,7 @@
 // "website" is a hidden field real people leave empty; bots fill it in.
 // Returns: { ok: true, ref: "SGL-0012" } (ref is missing if the database is unavailable)
 import { saveRequest, emailRequest, reference } from "./_lib/store.mjs";
+import { acknowledgeLead } from "./_lib/automation.mjs";
 
 const SOURCES = ["form", "contact", "chat-form"];
 const PACKAGES = ["Starter website", "Business website", "Online Store", "Custom app", "Business software", "ZAPPI PAY", "Other"];
@@ -79,5 +80,6 @@ export default async function handler(req, res) {
     console.error("lead email failed", err);
   }
   if (!saved && !mailed) return res.status(503).json({ error: "Couldn't save right now. Please message us on WhatsApp." });
+  if (saved?.inserted && r.email) await acknowledgeLead({ ...r, id: saved.id, auto_sent: {} }); // "we got your request" email
   return res.status(200).json({ ok: true, ref: r.ref });
 }

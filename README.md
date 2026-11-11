@@ -1,6 +1,6 @@
 # SIRRADDO GLOBAL LIMITED: company website
 
-A plain static website (HTML, CSS and a little JavaScript). There is no build step: Vercel serves the files as they are.
+A static website (HTML, CSS and a little JavaScript). A tiny build script (`scripts/build.mjs`, plain Node, no packages to install) fills in the site address, generates the sitemap and copies everything into `public/`. Vercel runs it automatically on every deploy.
 
 ## Files
 
@@ -16,9 +16,11 @@ A plain static website (HTML, CSS and a little JavaScript). There is no build st
 | `assets/fonts/` | The Inter font, hosted on this site (no Google Fonts), with its open-source licence |
 | `assets/favicon.svg` | Browser tab icon |
 | `assets/og-image.png` | Preview image shown when the site is shared on WhatsApp, X, LinkedIn and so on |
-| `sitemap.xml` | List of pages for search engines. Add a line when you add a page, and update its date when a page changes a lot |
-| `robots.txt` | Tells search engines they may index the site and where the sitemap is |
-| `vercel.json` | Vercel settings: clean URLs (`/privacy` instead of `/privacy.html`) and security headers |
+| `site.config.mjs` | **Site settings:** the site address (`SITE_URL`), the demo cards switch (`SHOW_DEMO_CARDS`) and the pages listed in the sitemap |
+| `scripts/build.mjs` | Build script. Puts `SITE_URL` into the pages, removes the demo cards when switched off, and writes `sitemap.xml` and `robots.txt` |
+| `vercel.json` | Vercel settings: runs the build, serves `public/`, clean URLs (`/privacy` instead of `/privacy.html`) and security headers |
+
+`public/` is created by the build. Don't edit it, and don't commit it.
 
 ## Changing text
 
@@ -31,13 +33,15 @@ Things you will probably want to change:
 - **Mission statement:** in `index.html`, search for `class="mission"` and change the sentence after it.
 - **Website packages and prices:** in `websites.html`, edit the package cards under "Packages" and the renewal price under "Renewal". The homepage card "Websites for businesses" also shows the starting price (₦50,000).
 - **Portfolio ("Our work"):** in `websites.html`, the comment above the "Our work" section explains how to swap a "Coming soon" card for a real project with a screenshot (put images in `assets/work/`).
+- **Demo cards (Restaurant, School, Shop):** hidden for now. To show them, set `SHOW_DEMO_CARDS = true` in `site.config.mjs`. They sit between the `DEMO_CARDS:START` and `DEMO_CARDS:END` comments in `websites.html`.
+- **New page:** add it to `SITEMAP_PAGES` in `site.config.mjs` and give it the same `{{SITE_URL}}` tags in its `<head>` as the other pages.
 - **WhatsApp messages on the websites page:** each button's pre-filled message is in its link, after `?text=`. Spaces are written `%20`.
 - **SCUML number:** search for `SC 311502618` in all five `.html` files (compliance section and footer).
 - **Phone or WhatsApp number:** update it in `index.html` (search for `8167550937`) **and** in `assets/site.js` (`WHATSAPP_NUMBER`).
 - **Email address:** search for `sirraddogloballimited@gmail.com` in `index.html`, `privacy.html` and `terms.html`.
 - **Header and footer:** each page has its own copy of the header and footer. If you change a link or the copyright line, change it in all five `.html` files.
 - **Policy dates:** when you change the Privacy Policy or Terms, update the "Last updated" date at the top of that page.
-- **Search and share text:** the `<title>`, `<meta name="description">` and `og:` tags at the top of each page.
+- **Search and share text:** the `<title>`, `<meta name="description">` and `og:` tags at the top of each page. Leave `{{SITE_URL}}` as it is: the build fills it in.
 
 Keep HTML special characters escaped: write `&amp;` for `&`.
 
@@ -47,18 +51,24 @@ The logo is an inline SVG, so it needs no image file. It appears in the header a
 
 ## Previewing locally
 
-From this folder, run:
+You need Node.js 18 or newer. From this folder, run the build:
 
 ```bash
-python3 -m http.server 8000
+node scripts/build.mjs
 ```
 
-Then open http://localhost:8000. Locally, `/privacy` only works as `/privacy.html`; clean URLs work on Vercel.
+Then serve the result:
+
+```bash
+python3 -m http.server 8000 -d public
+```
+
+Open http://localhost:8000. Locally, `/privacy` only works as `/privacy.html`; clean URLs work on Vercel. Run the build again after each change.
 
 ## Deploying on Vercel
 
 1. On https://vercel.com, choose **Add New → Project** and import this GitHub repository.
-2. Framework preset: **Other**. Leave Build Command and Output Directory empty.
+2. Framework preset: **Other**. Leave Build Command and Output Directory empty: `vercel.json` sets them.
 3. Click **Deploy**. Every push to `main` deploys again automatically.
 
 ## Adding a custom domain later (for example `sirraddo.com.ng`)
@@ -71,4 +81,10 @@ Then open http://localhost:8000. Locally, `/privacy` only works as `/privacy.htm
 
    Or switch the domain's nameservers to Vercel's, if Vercel offers that.
 4. Wait for DNS to update. This can take from a few minutes to 48 hours. Vercel adds the HTTPS certificate automatically.
-5. Once the domain works, search all five `.html` files for `https://sirraddo-website.vercel.app` and replace it with your new address (for example `https://sirraddo.com.ng`). Do the same in `sitemap.xml` and `robots.txt`. This updates the share image, `og:url`, `canonical` links and the sitemap.
+5. Once the domain works, change one line in `site.config.mjs`:
+
+   ```js
+   export const SITE_URL = "https://sirraddo.com.ng";
+   ```
+
+   Push to `main`. The next deploy updates the canonical links, `og:url`, the share image link, `sitemap.xml` and `robots.txt` on every page.

@@ -1,0 +1,45 @@
+# Checks the live site after each deploy to main.
+# Waits up to 10 minutes for Vercel to publish, then checks /websites content and layout.
+# Results appear in the Actions tab, with a table in the run summary.
+name: Live site check
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/live-check.yml"
+      - "scripts/check-live.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build still works
+        run: node scripts/build.mjs
+
+      - name: Install Chromium for the layout check
+        run: |
+          npm install --no-save --no-package-lock playwright@1.48.2
+          npx playwright install --with-deps chromium
+
+      - name: Check the live /websites page
+        env:
+          WAIT_MINUTES: ${{ github.event_name == 'push' && '10' || '0' }}
+          LAYOUT_CHECK: "1"
+        run: node scripts/check-live.mjs

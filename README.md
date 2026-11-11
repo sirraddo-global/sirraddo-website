@@ -18,6 +18,8 @@ A static website (HTML, CSS and a little JavaScript). A tiny build script (`scri
 | `assets/og-image.png` | Preview image shown when the site is shared on WhatsApp, X, LinkedIn and so on |
 | `site.config.mjs` | **Site settings:** the site address (`SITE_URL`), the demo cards switch (`SHOW_DEMO_CARDS`) and the pages listed in the sitemap |
 | `scripts/build.mjs` | Build script. Puts `SITE_URL` into the pages, removes the demo cards when switched off, and writes `sitemap.xml` and `robots.txt` |
+| `scripts/check-live.mjs` | Checks the live `/websites` page has the expected content (see "Live site check" below) |
+| `.github/workflows/live-check.yml` | Runs that check on GitHub after every push to `main` |
 | `vercel.json` | Vercel settings: runs the build, serves `public/`, clean URLs (`/privacy` instead of `/privacy.html`) and security headers |
 
 `public/` is created by the build. Don't edit it, and don't commit it.
@@ -88,3 +90,26 @@ Open http://localhost:8000. Locally, `/privacy` only works as `/privacy.html`; c
    ```
 
    Push to `main`. The next deploy updates the canonical links, `og:url`, the share image link, `sitemap.xml` and `robots.txt` on every page.
+
+## Live site check
+
+After every push to `main`, GitHub Actions waits up to 10 minutes for Vercel to publish. It then checks the live `/websites` page at `SITE_URL`:
+
+- content: no Google Maps item in the "every website" list, "7 working days", renewal prices, demo cards matching `SHOW_DEMO_CARDS`, and one "Recommended" badge on the Business card;
+- layout: in Chromium at phone and desktop widths, the "Recommended" band sits on the Business card.
+
+To see the result, open the repository's **Actions** tab and choose **Live site check**. The run summary shows a table of passes and fails. To run it by hand, open **Live site check** and click **Run workflow**.
+
+To run it on your computer against the live site:
+
+```bash
+node scripts/check-live.mjs
+```
+
+To run it against a local preview:
+
+```bash
+BASE_URL=http://localhost:8000 node scripts/check-live.mjs
+```
+
+If you change the page on purpose (for example new prices), update the matching line in `scripts/check-live.mjs`.

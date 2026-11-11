@@ -96,7 +96,7 @@ In Vercel, open the project, go to **Settings → Environment Variables**, add t
 | `ADMIN_PASSWORD` | A long password (at least 12 characters) for `/admin` |
 | `LEAD_EMAIL_FROM` | Optional. Leave unset at first. Resend's default sender only delivers to your own Resend account email. After you verify your domain in Resend, set e.g. `SIRRADDO Assistant <assistant@sirraddo.com.ng>`. |
 | `ANTHROPIC_MODEL` | Optional. Defaults to `claude-haiku-5-5`. |
-| `GEMINI_MODEL` | Optional. A model name or comma-separated list to try in order. Default: `gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash`. If one is busy or rate-limited, the next is tried. |
+| `GEMINI_MODEL` | Optional. A model name or comma-separated list to try in order. Default: `gemini-flash-lite-latest,gemini-flash-latest,gemini-2.5-flash`. If one is busy or rate-limited, the next is tried. |
 
 Each part is optional: without an AI key the chat replies with the WhatsApp link (it does the same if the AI provider fails or the free-tier limit is reached); without `DATABASE_URL` requests are only emailed; without `RESEND_API_KEY` they are only saved to the database.
 

@@ -73,7 +73,7 @@ const gemini = {
   async call(convo, system, tool, ms = 20000) {
     // Models to try in order. If one is busy (503), rate-limited (429) or gone (404), try the next.
     // Override with GEMINI_MODEL, e.g. "gemini-2.5-flash" or a comma-separated list.
-    const models = (process.env.GEMINI_MODEL || "gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash")
+    const models = (process.env.GEMINI_MODEL || "gemini-flash-lite-latest,gemini-flash-latest,gemini-2.5-flash")
       .split(",").map((m) => m.trim()).filter(Boolean);
     // Within one reply, keep using the model that answered first (its thought signatures must match).
     if (convo._model) models.unshift(...models.splice(models.indexOf(convo._model), 1));
@@ -100,10 +100,10 @@ const gemini = {
       if (deadline - Date.now() < 4000) break;
       const t0 = Date.now();
       try {
-      // Gemini 3 models think at "high" by default, which is slow for a chat. Ask for "low";
+      // Gemini 3 models think at "high" by default, which is slow for a chat. Ask for "minimal";
       // older models don't accept thinkingLevel, so retry without it if refused.
       // Thinking tokens count towards maxOutputTokens, so leave room above the visible reply.
-      res = await send(model, { maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "low" } });
+      res = await send(model, { maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "minimal" } });
       if (res.status === 400) {
         const body = await res.text();
         if (!/thinking/i.test(body)) throw httpError("gemini", 400, body);

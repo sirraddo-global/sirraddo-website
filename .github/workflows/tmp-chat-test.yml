@@ -1,0 +1,36 @@
+name: Temporary chat test
+on:
+  push:
+    branches: [claude/tmp-chat-test]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Talk to the live assistant
+        run: |
+          cat > t.mjs <<'JS'
+          const URL = "https://sirraddo-website.vercel.app/api/chat";
+          const sessionId = "github-test-" + Date.now();
+          const turns = [
+            "Hi, what does the Starter package include and how much is renewal?",
+            "I run a small salon in Ibadan. My name is TEST from Claude (automated check), email test@example.com. Starter sounds right. Yes, you can contact me.",
+            "Yes, those details are correct. Please save my request.",
+          ];
+          const messages = [];
+          for (const t of turns) {
+            messages.push({ role: "user", content: t });
+            const r = await fetch(URL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionId, page: "/websites", messages }) });
+            const j = await r.json().catch(() => ({}));
+            console.log(`\nUSER: ${t}\nHTTP ${r.status} saved=${j.saved}\nBOT: ${j.reply || JSON.stringify(j)}`);
+            messages.push({ role: "assistant", content: j.reply || "" });
+          }
+          const a = await fetch("https://sirraddo-website.vercel.app/admin");
+          console.log(`\n/admin HTTP ${a.status}`);
+          const q = await fetch("https://sirraddo-website.vercel.app/api/requests");
+          console.log(`/api/requests without password: HTTP ${q.status} ${await q.text()}`);
+          JS
+          node t.mjs

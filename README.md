@@ -16,6 +16,8 @@ A plain static website (HTML, CSS and a little JavaScript). There is no build st
 | `assets/fonts/` | The Inter font, hosted on this site (no Google Fonts), with its open-source licence |
 | `assets/favicon.svg` | Browser tab icon |
 | `assets/og-image.png` | Preview image shown when the site is shared on WhatsApp, X, LinkedIn and so on |
+| `sitemap.xml` | List of pages for search engines. Add a line when you add a page, and update its date when a page changes a lot |
+| `robots.txt` | Tells search engines they may index the site and where the sitemap is |
 | `vercel.json` | Vercel settings: clean URLs (`/privacy` instead of `/privacy.html`) and security headers |
 
 ## Changing text
@@ -69,4 +71,4 @@ Then open http://localhost:8000. Locally, `/privacy` only works as `/privacy.htm
 
    Or switch the domain's nameservers to Vercel's, if Vercel offers that.
 4. Wait for DNS to update. This can take from a few minutes to 48 hours. Vercel adds the HTTPS certificate automatically.
-5. Once the domain works, search all five `.html` files for `https://sirraddo-website.vercel.app` and replace it with your new address (for example `https://sirraddo.com.ng`). This updates the share image, `og:url` and `canonical` links.
+5. Once the domain works, search all five `.html` files for `https://sirraddo-website.vercel.app` and replace it with your new address (for example `https://sirraddo.com.ng`). Do the same in `sitemap.xml` and `robots.txt`. This updates the share image, `og:url`, `canonical` links and the sitemap.

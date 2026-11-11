@@ -6,11 +6,20 @@
 //   POST   { action: "create", ... }    add a request by hand
 //   POST   { action: "settings", settings: {...} }
 //   POST   { action: "question", id, resolved?: bool, remove?: true }
+//   POST   { action: "brief_link", id }  create the project brief link now
 import { timingSafeEqual, createHash } from "node:crypto";
 import {
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
-  setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, STATUSES, STAGES,
+  setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
 } from "./_lib/store.mjs";
+
+// The project brief link is created once the deposit is in: 70% of the quote paid
+// (or any project payment if no quote was entered).
+function depositPaid(row) {
+  const paid = (row.payments || []).filter((p) => p.kind !== "renewal").reduce((s, p) => s + Number(p.amount || 0), 0);
+  if (!paid) return false;
+  return row.quote_amount ? paid >= Math.round(row.quote_amount * 0.7) : true;
+}
 
 const failed = new Map(); // ip -> timestamps of wrong passwords
 
@@ -112,8 +121,10 @@ export default async function handler(req, res) {
       const body = readBody(req);
       const id = Number(body.id);
       if (!Number.isInteger(id)) throw new Bad("Missing id");
-      const row = await updateRequest(id, cleanFields(body));
-      return row ? res.status(200).json(row) : res.status(404).json({ error: "Not found" });
+      let row = await updateRequest(id, cleanFields(body));
+      if (!row) return res.status(404).json({ error: "Not found" });
+      if (!row.brief_token && depositPaid(row)) row = (await ensureBriefToken(id)) || row;
+      return res.status(200).json(row);
     }
 
     if (req.method === "DELETE") {
@@ -128,6 +139,12 @@ export default async function handler(req, res) {
         const f = cleanFields({ name: body.name, contact: body.contact, business: body.business, interest: body.interest || "Other", details: body.details || "" });
         if (!f.name || !f.contact) throw new Bad("Name and contact are required");
         return res.status(201).json(await createRequest(f));
+      }
+      if (body.action === "brief_link") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        const row = await ensureBriefToken(id);
+        return row ? res.status(200).json(row) : res.status(404).json({ error: "Not found" });
       }
       if (body.action === "settings") {
         return res.status(200).json({ settings: await saveSettings(body.settings || {}) });

@@ -2,6 +2,7 @@
 // website assistant and the admin page. Each part is optional: if its environment
 // variable is missing, it is skipped.
 import { neon } from "@neondatabase/serverless";
+import { randomBytes } from "node:crypto";
 
 // ---------- Database access ----------
 // q(text, params) runs one parameterised query and returns the rows.
@@ -38,6 +39,11 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS live_on DATE`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS renewal_amount INTEGER`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS renewal_due DATE`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_token TEXT UNIQUE`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief JSONB`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_files JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_saved_at TIMESTAMPTZ`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_submitted_at TIMESTAMPTZ`,
   `CREATE TABLE IF NOT EXISTS chat_logs (
      session_id TEXT PRIMARY KEY,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -74,7 +80,8 @@ export const STAGES = ["content", "building", "live"];
 
 const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, business, interest, details, page,
   transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, payments, project_stage,
-  live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due`;
+  live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
+  brief_token, brief_saved_at, brief_submitted_at`;
 
 // ---------- Customer requests ----------
 // Insert or update the request for this session. Returns { id, inserted }, or null if there is no database.
@@ -148,6 +155,70 @@ export async function deleteRequest(id) {
   return rows.length > 0;
 }
 
+// ---------- Project brief (the form customers fill in after paying the deposit) ----------
+export async function ensureBriefToken(id) {
+  await ensureSchema();
+  const token = randomBytes(18).toString("base64url");
+  const rows = await q(
+    `UPDATE customer_requests SET brief_token = COALESCE(brief_token, $1), updated_at = now() WHERE id = $2
+     RETURNING ${REQUEST_COLUMNS}`,
+    [token, id]
+  );
+  return rows[0] ?? null;
+}
+
+export async function getBrief(token) {
+  if (!token || token.length < 20) return null;
+  await ensureSchema();
+  const rows = await q(
+    `SELECT id, name, business, contact, interest, status, project_stage, brief, brief_files, brief_saved_at, brief_submitted_at
+     FROM customer_requests WHERE brief_token = $1`,
+    [token]
+  );
+  return rows[0] ?? null;
+}
+
+export async function saveBrief(token, answers, submit) {
+  await ensureSchema();
+  const rows = await q(
+    `UPDATE customer_requests SET brief = $1::jsonb, brief_saved_at = now(), updated_at = now(),
+       brief_submitted_at = CASE WHEN $2 THEN now() ELSE brief_submitted_at END,
+       project_stage = CASE WHEN $2 AND (project_stage IS NULL OR project_stage = 'content') THEN 'building' ELSE project_stage END
+     WHERE brief_token = $3
+     RETURNING id, name, contact, business, interest, brief, brief_files, brief_submitted_at`,
+    [JSON.stringify(answers), Boolean(submit), token]
+  );
+  return rows[0] ?? null;
+}
+
+// Add an uploaded file to a brief field, unless the field already has "max" files.
+export async function addBriefFile(token, field, file, max) {
+  await ensureSchema();
+  const rows = await q(
+    `UPDATE customer_requests
+     SET brief_files = jsonb_set(brief_files, ARRAY[$1::text], COALESCE(brief_files->$1, '[]'::jsonb) || $2::jsonb),
+         updated_at = now()
+     WHERE brief_token = $3 AND jsonb_array_length(COALESCE(brief_files->$1, '[]'::jsonb)) < $4
+     RETURNING brief_files`,
+    [field, JSON.stringify([file]), token, max]
+  );
+  return rows[0]?.brief_files ?? null;
+}
+
+export async function removeBriefFile(token, field, url) {
+  await ensureSchema();
+  const rows = await q(
+    `UPDATE customer_requests
+     SET brief_files = jsonb_set(brief_files, ARRAY[$1::text],
+       COALESCE((SELECT jsonb_agg(f) FROM jsonb_array_elements(COALESCE(brief_files->$1, '[]'::jsonb)) f WHERE f->>'url' <> $2), '[]'::jsonb)),
+       updated_at = now()
+     WHERE brief_token = $3
+     RETURNING brief_files`,
+    [field, url, token]
+  );
+  return rows[0]?.brief_files ?? null;
+}
+
 // ---------- Conversations and unanswered questions ----------
 export async function logChat({ sessionId, page, messages, fallback, leadSaved }) {
   if (!(await ensureSchema())) return;
@@ -204,7 +275,7 @@ export async function deleteUnanswered(id) {
 // ---------- Settings (bank details for invoices, WhatsApp message templates) ----------
 export const SETTING_KEYS = [
   "bank_name", "account_name", "account_number", "invoice_note",
-  "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal",
+  "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief",
 ];
 export async function getSettings() {
   await ensureSchema();
@@ -228,7 +299,7 @@ export async function saveSettings(values) {
 export async function digestData() {
   await ensureSchema();
   const open = `status NOT IN ('won', 'lost')`;
-  const [fresh, overdue, renewals, questions] = await Promise.all([
+  const [fresh, overdue, renewals, questions, briefs] = await Promise.all([
     q(`SELECT ${REQUEST_COLUMNS} FROM customer_requests WHERE created_at > now() - interval '1 day' ORDER BY created_at`),
     q(`SELECT ${REQUEST_COLUMNS} FROM customer_requests
        WHERE ${open} AND follow_up_on IS NOT NULL AND follow_up_on <= (now() AT TIME ZONE 'Africa/Lagos')::date
@@ -239,8 +310,10 @@ export async function digestData() {
        ORDER BY renewal_due`),
     q(`SELECT id, created_at, question FROM unanswered_questions
        WHERE NOT resolved AND created_at > now() - interval '1 day' ORDER BY created_at`),
+    q(`SELECT ${REQUEST_COLUMNS} FROM customer_requests
+       WHERE brief_submitted_at > now() - interval '1 day' ORDER BY brief_submitted_at`),
   ]);
-  return { fresh, overdue, renewals, questions };
+  return { fresh, overdue, renewals, questions, briefs };
 }
 
 // Conversations are kept for 90 days (see the privacy policy); saved requests are business records.

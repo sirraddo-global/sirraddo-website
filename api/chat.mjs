@@ -3,8 +3,8 @@
 // Returns: { reply, saved }
 import { SYSTEM_PROMPT, SAVE_TOOL } from "./_lib/knowledge.mjs";
 import { saveRequest, emailRequest } from "./_lib/store.mjs";
+import { pickProvider } from "./_lib/providers.mjs";
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
 const MAX_MESSAGES = 30; // per conversation
 const MAX_CHARS = 1500; // per message
 const FALLBACK =
@@ -36,20 +36,6 @@ function cleanMessages(raw) {
   while (msgs.length && msgs[0].role !== "user") msgs.shift();
   if (!msgs.length || msgs[msgs.length - 1].role !== "user") return null;
   return msgs;
-}
-
-async function callClaude(messages) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": process.env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ model: MODEL, max_tokens: 700, system: SYSTEM_PROMPT, tools: [SAVE_TOOL], messages }),
-  });
-  if (!res.ok) throw new Error(`Anthropic ${res.status}: ${(await res.text()).slice(0, 300)}`);
-  return res.json();
 }
 
 const str = (v, n) => (typeof v === "string" ? v.trim().slice(0, n) : "");
@@ -97,7 +83,8 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
-  if (!process.env.ANTHROPIC_API_KEY) return res.status(200).json({ reply: FALLBACK, saved: false });
+  const provider = pickProvider();
+  if (!provider) return res.status(200).json({ reply: FALLBACK, saved: false });
 
   const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
   if (rateLimited(ip)) {
@@ -118,27 +105,24 @@ export default async function handler(req, res) {
   };
 
   try {
-    const convo = [...messages];
+    const convo = provider.start(messages);
     let saved = false;
     for (let step = 0; step < 3; step++) {
-      const out = await callClaude(convo);
-      const text = (out.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
-      const toolUses = (out.content || []).filter((b) => b.type === "tool_use");
-      if (out.stop_reason !== "tool_use" || toolUses.length === 0) {
-        return res.status(200).json({ reply: text || FALLBACK, saved });
+      const out = await provider.call(convo, SYSTEM_PROMPT, SAVE_TOOL);
+      if (out.toolCalls.length === 0) {
+        return res.status(200).json({ reply: out.text || FALLBACK, saved });
       }
       const results = [];
-      for (const t of toolUses) {
-        const r = t.name === SAVE_TOOL.name ? await handleSave(t.input || {}, ctx) : { ok: false, text: "Unknown tool" };
+      for (const t of out.toolCalls) {
+        const r = t.name === SAVE_TOOL.name ? await handleSave(t.input, ctx) : { ok: false, text: "Unknown tool" };
         if (r.ok) saved = true;
-        results.push({ type: "tool_result", tool_use_id: t.id, content: r.text, is_error: !r.ok });
+        results.push({ id: t.id, name: t.name, ok: r.ok, text: r.text });
       }
-      convo.push({ role: "assistant", content: out.content });
-      convo.push({ role: "user", content: results });
+      provider.addToolResults(convo, out.raw, results);
     }
     return res.status(200).json({ reply: FALLBACK, saved });
   } catch (err) {
-    console.error("chat failed", err);
+    console.error(`chat failed (${provider.name})`, err);
     return res.status(200).json({ reply: FALLBACK, saved: false });
   }
 }

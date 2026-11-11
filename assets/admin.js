@@ -21,6 +21,8 @@
     tpl_won: { label: 'Send your content', text: 'Hello {name}, thank you for choosing SIRRADDO! To begin, please send your logo, photos, a short business description and your contact details. Your website will be live within 7 working days after we receive them.' },
     tpl_payment: { label: 'Payment received', text: 'Hello {name}, we have received your payment, thank you. Total paid: {paid}. Balance: {balance}.' },
     tpl_brief: { label: 'Send project form', text: 'Hello {name}, thank you for your deposit! Please fill in your project details here: {brief_link}\nIt takes about 10-15 minutes, and you can save and finish later with the same link.' },
+    tpl_invoice: { label: 'Send invoice', text: 'Hello {name}, here is your invoice for the {package} package. Total: {amount}. Paid: {paid}. Balance: {balance}. View or save it here: {doc_link}' },
+    tpl_receipt: { label: 'Send receipt', text: 'Hello {name}, thank you for your payment of {last_payment}. Your receipt: {doc_link}' },
     tpl_renewal: { label: 'Renewal reminder', text: 'Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.' }
   };
 
@@ -28,7 +30,7 @@
   try { password = sessionStorage.getItem(KEY); } catch (e) { /* storage blocked */ }
   var state = {
     tab: 'dashboard', requests: [], unanswered: [], settings: {}, statuses: [], stages: [], chats: null,
-    open: {}, filters: { q: '', status: '', interest: '', due: false }, chatQuery: ''
+    open: {}, filters: { q: '', status: '', interest: '', due: false }, chatQuery: '', canEmail: false, justPaid: {}
   };
 
   // ---------- Small helpers ----------
@@ -74,6 +76,8 @@
     return d.charAt(0) === '0' ? '234' + d.slice(1) : d;
   }
   function payments(r) { return Array.isArray(r.payments) ? r.payments : []; }
+  function emailOf(r) { return r.email || (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.contact || '') ? r.contact : null); }
+  function docUrl(r, type) { return location.origin + '/doc?t=' + r.doc_token + '&type=' + type; }
   function paid(r, kind) {
     return payments(r).filter(function (p) { return !kind || p.kind === kind; })
       .reduce(function (s, p) { return s + Number(p.amount || 0); }, 0);
@@ -124,6 +128,7 @@
       state.settings = j.settings || {};
       state.statuses = j.statuses || [];
       state.stages = j.stages || [];
+      state.canEmail = Boolean(j.can_email_customers);
       showApp(true);
       render();
     }).catch(function (err) {
@@ -228,7 +233,7 @@
     if (f.interest && r.interest !== f.interest) return false;
     if (f.due && !followUpDue(r)) return false;
     if (f.q) {
-      var hay = [r.name, r.contact, r.business, r.details, r.notes, r.interest].join(' ').toLowerCase();
+      var hay = [r.name, r.contact, r.email, r.business, r.details, r.notes, r.interest, 'sgl-' + String(r.id).padStart(4, '0')].join(' ').toLowerCase();
       if (hay.indexOf(f.q.toLowerCase()) === -1) return false;
     }
     return true;
@@ -284,16 +289,17 @@
   function renderAddForm() {
     var name = el('input', { required: true, placeholder: 'Name' });
     var contact = el('input', { required: true, placeholder: 'Phone (WhatsApp) or email' });
+    var email = el('input', { type: 'email', placeholder: 'Email (optional, for receipts)' });
     var business = el('input', { placeholder: 'Business (optional)' });
     var interest = select(PACKAGES, 'Starter website', { 'aria-label': 'Package' });
     var details = el('textarea', { rows: 2, placeholder: 'What they need' });
     var form = el('form', { class: 'admin-card admin-add', hidden: true }, [
-      el('h2', { text: 'Add a customer' }), name, contact, business, interest, details,
+      el('h2', { text: 'Add a customer' }), name, contact, email, business, interest, details,
       el('button', { class: 'btn btn--navy', type: 'submit', text: 'Save' })
     ]);
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      api('POST', { action: 'create', name: name.value, contact: contact.value, business: business.value, interest: interest.value, details: details.value })
+      api('POST', { action: 'create', name: name.value, contact: contact.value, email: email.value, business: business.value, interest: interest.value, details: details.value })
         .then(function (row) {
           state.requests.unshift(row); state.open[row.id] = true; flash('Customer added'); render();
         }).catch(fail);
@@ -321,7 +327,7 @@
     if (r.quote_amount != null) badges.appendChild(badge('Quote ' + naira(r.quote_amount) + ' · paid ' + naira(paid(r, 'project'))));
     card.appendChild(badges);
 
-    var meta = el('p', { class: 'admin-meta' }, [r.contact + ' · ' + (r.business || 'No business given') + ' · ' + when(r.created_at)]);
+    var meta = el('p', { class: 'admin-meta' }, [r.contact + (r.email && r.email !== r.contact ? ' · ' + r.email : '') + ' · ' + (r.business || 'No business given') + ' · ' + when(r.created_at)]);
     card.appendChild(meta);
     card.appendChild(el('p', { class: 'admin-details', text: r.details }));
     card.appendChild(whatsAppRow(r));
@@ -341,7 +347,9 @@
       name: (r.name || '').split(' ')[0], package: r.interest, amount: naira(quote),
       deposit: quote ? naira(Math.round(quote * 0.7)) : '-', paid: naira(paid(r, 'project')), balance: naira(balance(r)),
       renewal_amount: naira(r.renewal_amount), renewal_due: r.renewal_due ? niceDate(r.renewal_due) : '-',
-      brief_link: r.brief_token ? briefUrl(r) : '(no project form link yet)'
+      brief_link: r.brief_token ? briefUrl(r) : '(no project form link yet)',
+      last_payment: payments(r).length ? naira(payments(r)[payments(r).length - 1].amount) : '-',
+      doc_link: r._docType && r.doc_token ? docUrl(r, r._docType) : ''
     };
     return text.replace(/\{(\w+)\}/g, function (m, k) { return k in vals ? vals[k] : m; });
   }
@@ -409,10 +417,7 @@
     wrap.appendChild(paymentsBlock(r));
 
     // Documents
-    wrap.appendChild(el('div', { class: 'admin-actions' }, [
-      el('button', { class: 'admin-btn', type: 'button', text: 'Invoice', disabled: r.quote_amount == null, title: r.quote_amount == null ? 'Add a quote first' : null, onclick: function () { printDoc(r, 'invoice'); } }),
-      el('button', { class: 'admin-btn', type: 'button', text: 'Receipt', disabled: !payments(r).length, title: !payments(r).length ? 'Record a payment first' : null, onclick: function () { printDoc(r, 'receipt'); } })
-    ]));
+    wrap.appendChild(docsBlock(r));
 
     wrap.appendChild(briefBlock(r));
 
@@ -424,12 +429,13 @@
     // Edit details
     var edit = el('details', { class: 'admin-sub' }, [el('summary', { text: 'Edit customer details' })]);
     var n = el('input', { value: r.name }), c = el('input', { value: r.contact }), b = el('input', { value: r.business || '' });
+    var em = el('input', { type: 'email', value: r.email || '', placeholder: 'For invoices and receipts' });
     var i = select(PACKAGES.indexOf(r.interest) === -1 ? PACKAGES.concat([r.interest]) : PACKAGES, r.interest, null);
     var dt = el('textarea', { rows: 3, value: r.details });
     var saveBtn = el('button', { class: 'admin-btn', type: 'button', text: 'Save details', onclick: function () {
-      update(r, { name: n.value, contact: c.value, business: b.value, interest: i.value, details: dt.value }, 'Details saved');
+      update(r, { name: n.value, contact: c.value, email: em.value, business: b.value, interest: i.value, details: dt.value }, 'Details saved');
     } });
-    [field('Name', n), field('Phone or email', c), field('Business', b), field('Package', i), field('Summary', dt), saveBtn].forEach(function (x) { edit.appendChild(x); });
+    [field('Name', n), field('Phone (WhatsApp)', c), field('Email', em), field('Business', b), field('Package', i), field('Summary', dt), saveBtn].forEach(function (x) { edit.appendChild(x); });
     wrap.appendChild(edit);
 
     // Conversation
@@ -524,12 +530,21 @@
     var date = el('input', { type: 'date', value: today() });
     var kind = select([['project', 'Project'], ['renewal', 'Renewal']], 'project', { 'aria-label': 'Payment type' });
     var note = el('input', { placeholder: 'Note (e.g. transfer ref)' });
+    var autoEmail = el('input', { type: 'checkbox', id: 'ae' + r.id });
+    autoEmail.checked = Boolean(state.canEmail && emailOf(r));
+    var autoLabel = state.canEmail && emailOf(r) ? el('label', { class: 'admin-check', for: 'ae' + r.id }, [autoEmail, ' Email the receipt to ' + emailOf(r)]) : null;
     var add = el('button', { class: 'admin-btn', type: 'button', text: 'Add payment', onclick: function () {
       if (!Number(amount.value)) { setError('Enter the amount paid'); return; }
       var next = list.concat([{ date: date.value || today(), amount: Number(amount.value), kind: kind.value, note: note.value }]);
-      update(r, { payments: next }, 'Payment recorded');
+      var sendMail = autoLabel && autoEmail.checked;
+      state.justPaid[r.id] = true;
+      update(r, { payments: next }, 'Payment recorded').then(function () {
+        if (!sendMail) return;
+        api('POST', { action: 'send_doc', id: r.id, type: 'receipt' }).then(function (j) { flash('Payment recorded · receipt emailed to ' + j.to); })
+          .catch(function (e) { setError('Receipt not emailed: ' + e.message); });
+      });
     } });
-    box.appendChild(el('div', { class: 'admin-pay-form' }, [amount, date, kind, note, add]));
+    box.appendChild(el('div', { class: 'admin-pay-form' }, [amount, date, kind, note, autoLabel, add]));
     return box;
   }
 
@@ -596,7 +611,8 @@
     } });
     card.appendChild(el('div', { class: 'admin-actions' }, [
       renewed,
-      el('button', { class: 'admin-btn', type: 'button', text: 'Renewal invoice', disabled: !r.renewal_amount, onclick: function () { printDoc(r, 'renewal'); } }),
+      el('button', { class: 'admin-btn', type: 'button', text: 'Renewal invoice', disabled: !r.renewal_amount, onclick: function () { docAction(r, 'renewal', 'view'); } }),
+      el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send renewal invoice', disabled: !r.renewal_amount || !waNumber(r.contact), onclick: function () { docAction(r, 'renewal', 'whatsapp'); } }),
       el('button', { class: 'admin-btn', type: 'button', text: 'Open in Requests', onclick: function () {
         state.filters = { q: r.contact, status: '', interest: '', due: false }; state.open[r.id] = true; setTab('requests');
       } })
@@ -697,7 +713,7 @@
   // ---------- CSV export ----------
   function exportCsv() {
     var cols = [
-      ['id', 'ID'], ['created_at', 'Created'], ['source', 'Source'], ['name', 'Name'], ['contact', 'Contact'], ['business', 'Business'],
+      ['id', 'ID'], ['created_at', 'Created'], ['source', 'Source'], ['name', 'Name'], ['contact', 'Contact'], ['email', 'Email'], ['business', 'Business'],
       ['interest', 'Package'], ['status', 'Status'], ['follow_up_on', 'Follow up on'], ['quote_amount', 'Quote (NGN)'],
       ['_paid', 'Paid (NGN)'], ['_balance', 'Balance (NGN)'], ['project_stage', 'Project stage'], ['live_on', 'Live on'],
       ['renewal_amount', 'Renewal (NGN)'], ['renewal_due', 'Renewal due'], ['details', 'Summary'], ['notes', 'Notes']
@@ -725,53 +741,53 @@
   function h(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
   }
-  function printDoc(r, type) {
-    var year = new Date().getFullYear();
-    var num = String(r.id).padStart(4, '0');
-    var s = state.settings;
-    var title, number, rows = [], totals = [];
-    if (type === 'invoice') {
-      title = 'INVOICE'; number = 'SGL-INV-' + year + '-' + num;
-      rows.push([r.interest + ' — design and setup, first year of domain, hosting, SSL and business email included', r.quote_amount]);
-      var projectPaid = paid(r, 'project');
-      totals.push(['Total', r.quote_amount]);
-      if (!projectPaid) totals.push(['Deposit to start (70%)', Math.round(r.quote_amount * 0.7)]);
-      if (projectPaid) totals.push(['Paid so far', projectPaid]);
-      totals.push(['Balance due', balance(r)]);
-    } else if (type === 'renewal') {
-      title = 'INVOICE'; number = 'SGL-REN-' + year + '-' + num;
-      rows.push(['Yearly renewal — domain, hosting, SSL, business email and backups' + (r.renewal_due ? ' (due ' + niceDate(r.renewal_due) + ')' : ''), r.renewal_amount]);
-      totals.push(['Amount due', r.renewal_amount]);
-    } else {
-      title = 'RECEIPT'; number = 'SGL-RCT-' + year + '-' + num + '-' + payments(r).length;
-      payments(r).forEach(function (p) {
-        rows.push([niceDate(p.date) + ' — ' + (p.kind === 'renewal' ? 'Renewal payment' : 'Payment for ' + r.interest) + (p.note ? ' (' + p.note + ')' : ''), p.amount]);
-      });
-      totals.push(['Total received', paid(r)]);
-      if (r.quote_amount != null) totals.push(['Project balance', balance(r)]);
+  // Invoices and receipts live at /doc?t=...: a page the customer can open, print or save as PDF.
+  function ensureDoc(r) {
+    if (r.doc_token) return Promise.resolve(r);
+    return api('POST', { action: 'doc_link', id: r.id }).then(function (row) { replaceRequest(row); return row; });
+  }
+  function docAction(r, type, how) {
+    var label = type === 'receipt' ? 'receipt' : 'invoice';
+    if (how === 'email') {
+      flash('Sending ' + label + '…');
+      return api('POST', { action: 'send_doc', id: r.id, type: type })
+        .then(function (j) { setError(''); flash(cap(label) + ' emailed to ' + j.to); delete state.justPaid[r.id]; render(); })
+        .catch(fail);
     }
-    var bank = s.account_number ? '<p><b>Pay to:</b> ' + h(s.account_name || COMPANY.name) + ' · ' + h(s.bank_name || '') + ' · ' + h(s.account_number) + '</p>'
-      : '<p><b>Payment:</b> bank transfer to ' + COMPANY.name + '. Account details are sent on WhatsApp.</p>';
-    var html =
-      '<div class="doc">' +
-        '<div class="doc-head"><div>' + LOGO + '</div><div class="doc-co"><b>' + COMPANY.name + '</b><br>' + COMPANY.rc + ' · ' + COMPANY.tin + '<br>' + h(COMPANY.address) + '<br>' + COMPANY.phone + ' · ' + COMPANY.email + '</div></div>' +
-        '<h1>' + title + '</h1>' +
-        '<div class="doc-meta"><div><b>' + (type === 'receipt' ? 'Received from' : 'Bill to') + '</b><br>' + h(r.name) + (r.business ? '<br>' + h(r.business) : '') + '<br>' + h(r.contact) + '</div>' +
-        '<div><b>No.</b> ' + number + '<br><b>Date</b> ' + niceDate(today()) + '</div></div>' +
-        '<table><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody>' +
-          rows.map(function (x) { return '<tr><td>' + h(x[0]) + '</td><td>' + naira(x[1]) + '</td></tr>'; }).join('') +
-        '</tbody><tfoot>' + totals.map(function (x) { return '<tr><th>' + h(x[0]) + '</th><td>' + naira(x[1]) + '</td></tr>'; }).join('') + '</tfoot></table>' +
-        (type === 'receipt' ? '<p>Thank you for your payment.</p>' : bank + (s.invoice_note ? '<p>' + h(s.invoice_note) + '</p>' : '')) +
-        '<p class="doc-foot">' + COMPANY.name + ' is a private company limited by shares, registered with the Corporate Affairs Commission of Nigeria (' + COMPANY.rc + ').</p>' +
-      '</div>';
-    var area = $('print-area');
-    area.innerHTML = html;
-    document.body.classList.add('printing');
-    var oldTitle = document.title;
-    document.title = number + ' ' + r.name; // used as the PDF file name
-    var done = function () { document.body.classList.remove('printing'); document.title = oldTitle; window.removeEventListener('afterprint', done); };
-    window.addEventListener('afterprint', done);
-    setTimeout(function () { window.print(); }, 50);
+    // Open the new tab straight away (phones block tabs opened after a delay), then point it at the link.
+    var win = window.open('', '_blank');
+    ensureDoc(r).then(function (row) {
+      var url;
+      if (how === 'whatsapp') {
+        var tpl = type === 'receipt' ? 'tpl_receipt' : type === 'renewal' ? 'tpl_renewal' : 'tpl_invoice';
+        var withLink = Object.assign({}, row, { _docType: type });
+        var text = fill(state.settings[tpl] || TEMPLATES[tpl].text, withLink);
+        if (text.indexOf(docUrl(row, type)) === -1) text += '\n' + docUrl(row, type);
+        url = 'https://wa.me/' + waNumber(row.contact) + '?text=' + encodeURIComponent(text);
+        delete state.justPaid[r.id];
+      } else url = docUrl(row, type);
+      if (win) win.location.href = url; else window.location.href = url;
+      render();
+    }).catch(function (e) { if (win) win.close(); fail(e); });
+  }
+  function docsBlock(r) {
+    var hasQuote = r.quote_amount != null, hasPay = payments(r).length > 0;
+    var box = el('div', { class: 'admin-docs' }, [el('span', { class: 'admin-label', text: 'Invoice and receipt' })]);
+    if (state.justPaid[r.id] && hasPay) box.appendChild(el('p', { class: 'admin-callout', text: 'Payment recorded. Send the receipt?' }));
+    var num = waNumber(r.contact), mail = emailOf(r);
+    function line(type, label, enabled, why) {
+      var row = el('div', { class: 'admin-doc-row' }, [el('span', { text: label })]);
+      row.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'View', disabled: !enabled, title: enabled ? null : why, onclick: function () { docAction(r, type, 'view'); } }));
+      if (num) row.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'WhatsApp', disabled: !enabled, title: enabled ? null : why, onclick: function () { docAction(r, type, 'whatsapp'); } }));
+      if (mail) row.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Email', disabled: !enabled || !state.canEmail,
+        title: !enabled ? why : !state.canEmail ? 'Set up a sending domain in Resend and LEAD_EMAIL_FROM first' : null, onclick: function () { docAction(r, type, 'email'); } }));
+      return row;
+    }
+    box.appendChild(line('receipt', 'Receipt', hasPay, 'Record a payment first'));
+    box.appendChild(line('invoice', 'Invoice', hasQuote, 'Add a quote first'));
+    if (!mail) box.appendChild(el('p', { class: 'admin-hint', text: 'No email for this customer. Add one under "Edit customer details" to email documents.' }));
+    else if (!state.canEmail) box.appendChild(el('p', { class: 'admin-hint', text: 'Emailing customers starts once your domain is verified in Resend (LEAD_EMAIL_FROM).' }));
+    return box;
   }
 
   // ---------- Start ----------

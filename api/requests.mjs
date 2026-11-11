@@ -11,7 +11,9 @@ import { timingSafeEqual, createHash } from "node:crypto";
 import {
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
+  ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
 } from "./_lib/store.mjs";
+import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 
 // The project brief link is created once the deposit is in: 70% of the quote paid
 // (or any project payment if no quote was entered).
@@ -58,6 +60,10 @@ function cleanFields(body) {
     if (has(k)) out[k] = text(body[k], n);
   }
   if ((has("name") && !out.name) || (has("contact") && !out.contact)) throw new Bad("Name and contact can't be empty");
+  if (has("email")) {
+    out.email = text(body.email, 200).toLowerCase() || null;
+    if (out.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.email)) throw new Bad("That email address doesn't look right");
+  }
   if (has("status")) {
     if (!STATUSES.includes(body.status)) throw new Bad("Unknown status");
     out.status = body.status;
@@ -114,7 +120,7 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       if (query.view === "chats") return res.status(200).json({ chats: await listChats() });
       const [requests, unanswered, settings] = await Promise.all([listRequests(), listUnanswered(), getSettings()]);
-      return res.status(200).json({ requests, unanswered, settings, statuses: STATUSES, stages: STAGES });
+      return res.status(200).json({ requests, unanswered, settings, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured() });
     }
 
     if (req.method === "PATCH") {
@@ -136,7 +142,7 @@ export default async function handler(req, res) {
     if (req.method === "POST") {
       const body = readBody(req);
       if (body.action === "create") {
-        const f = cleanFields({ name: body.name, contact: body.contact, business: body.business, interest: body.interest || "Other", details: body.details || "" });
+        const f = cleanFields({ name: body.name, contact: body.contact, email: body.email || "", business: body.business, interest: body.interest || "Other", details: body.details || "" });
         if (!f.name || !f.contact) throw new Bad("Name and contact are required");
         return res.status(201).json(await createRequest(f));
       }
@@ -145,6 +151,28 @@ export default async function handler(req, res) {
         if (!Number.isInteger(id)) throw new Bad("Missing id");
         const row = await ensureBriefToken(id);
         return row ? res.status(200).json(row) : res.status(404).json({ error: "Not found" });
+      }
+      if (body.action === "doc_link") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        const row = await ensureDocToken(id);
+        return row ? res.status(200).json(row) : res.status(404).json({ error: "Not found" });
+      }
+      if (body.action === "send_doc") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id) || !DOC_TYPES.includes(body.type)) throw new Bad("Missing id or document type");
+        if (!customerEmailConfigured()) throw new Bad("Emailing customers isn't set up yet: verify your domain in Resend and set LEAD_EMAIL_FROM in Vercel. Send it on WhatsApp for now.");
+        const row = (await ensureDocToken(id)) || (await getRequest(id));
+        if (!row) return res.status(404).json({ error: "Not found" });
+        const to = customerEmail(row);
+        if (!to) throw new Bad("This customer has no email address. Add one under Edit customer details.");
+        const doc = buildDoc(row, body.type, await getSettings());
+        if (doc.error) throw new Bad(doc.error);
+        const link = `https://${req.headers.host || "sirraddo-website.vercel.app"}/doc?t=${row.doc_token}&type=${body.type}`;
+        await sendCustomerEmail(to, doc.subject, `<p style="font-family:Arial,sans-serif">Hello ${row.name.split(" ")[0]},</p>
+          <p style="font-family:Arial,sans-serif">${body.type === "receipt" ? "Thank you for your payment. Your receipt is below." : "Please find your invoice below."}
+          You can also <a href="${link}">view, print or save it as a PDF</a>.</p>${doc.html}`);
+        return res.status(200).json({ ok: true, to });
       }
       if (body.action === "settings") {
         return res.status(200).json({ settings: await saveSettings(body.settings || {}) });

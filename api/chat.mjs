@@ -48,6 +48,7 @@ async function handleSave(input, ctx) {
     name: str(input.name, 120),
     contact: str(input.contact, 120),
     business: str(input.business, 200),
+    email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str(input.email, 200)) ? str(input.email, 200).toLowerCase() : null,
     interest: str(input.interest, 60) || "Other",
     details: str(input.details, 2000),
   };

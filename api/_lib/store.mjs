@@ -40,6 +40,8 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS renewal_amount INTEGER`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS renewal_due DATE`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_token TEXT UNIQUE`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS email TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS doc_token TEXT UNIQUE`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief JSONB`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_files JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_saved_at TIMESTAMPTZ`,
@@ -81,7 +83,7 @@ export const STAGES = ["content", "building", "live"];
 const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, business, interest, details, page,
   transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, payments, project_stage,
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
-  brief_token, brief_saved_at, brief_submitted_at`;
+  brief_token, brief_saved_at, brief_submitted_at, email, doc_token`;
 
 // ---------- Customer requests ----------
 // Insert or update the request for this session. Returns { id, inserted }, or null if there is no database.
@@ -90,15 +92,16 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
 export async function saveRequest(r) {
   if (!(await ensureSchema())) return null;
   const rows = await q(
-    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript, email)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
      ON CONFLICT (session_id) DO UPDATE SET
        name = EXCLUDED.name, contact = EXCLUDED.contact, business = EXCLUDED.business,
+       email = COALESCE(EXCLUDED.email, customer_requests.email),
        interest = EXCLUDED.interest, details = EXCLUDED.details, page = EXCLUDED.page,
        transcript = EXCLUDED.transcript, updated_at = now()
      RETURNING id, (xmax = 0) AS inserted`,
     [r.sessionId, r.source || "chat", r.name, r.contact, r.business || null, r.interest, r.details || "", r.page || null,
-      JSON.stringify(r.transcript || [])]
+      JSON.stringify(r.transcript || []), r.email || null]
   );
   return rows[0] ? { id: rows[0].id, inserted: rows[0].inserted === true } : null;
 }
@@ -110,9 +113,9 @@ export async function createRequest(f) {
   await ensureSchema();
   const sessionId = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const rows = await q(
-    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details)
-     VALUES ($1, 'manual', $2, $3, $4, $5, $6) RETURNING ${REQUEST_COLUMNS}`,
-    [sessionId, f.name, f.contact, f.business || null, f.interest, f.details || ""]
+    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, email)
+     VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7) RETURNING ${REQUEST_COLUMNS}`,
+    [sessionId, f.name, f.contact, f.business || null, f.interest, f.details || "", f.email || null]
   );
   return rows[0];
 }
@@ -124,7 +127,7 @@ export async function listRequests(limit = 1000) {
 
 // Fields the admin page may change, with how to store each one.
 const EDITABLE = {
-  name: "text", contact: "text", business: "text", interest: "text", details: "text", notes: "text",
+  name: "text", contact: "text", email: "text", business: "text", interest: "text", details: "text", notes: "text",
   status: "text", follow_up_on: "date", quote_amount: "int", payments: "jsonb", project_stage: "text",
   live_on: "date", renewal_amount: "int", renewal_due: "date",
 };
@@ -154,6 +157,32 @@ export async function deleteRequest(id) {
   const rows = await q(`DELETE FROM customer_requests WHERE id = $1 RETURNING id`, [id]);
   return rows.length > 0;
 }
+
+// ---------- Invoice and receipt links (/doc?t=...) ----------
+export async function ensureDocToken(id) {
+  await ensureSchema();
+  const rows = await q(
+    `UPDATE customer_requests SET doc_token = COALESCE(doc_token, $1) WHERE id = $2 RETURNING ${REQUEST_COLUMNS}`,
+    [randomBytes(18).toString("base64url"), id]
+  );
+  return rows[0] ?? null;
+}
+
+export async function getByDocToken(token) {
+  if (!token || token.length < 20) return null;
+  await ensureSchema();
+  const rows = await q(`SELECT ${REQUEST_COLUMNS} FROM customer_requests WHERE doc_token = $1`, [token]);
+  return rows[0] ?? null;
+}
+
+export async function getRequest(id) {
+  await ensureSchema();
+  const rows = await q(`SELECT ${REQUEST_COLUMNS} FROM customer_requests WHERE id = $1`, [id]);
+  return rows[0] ?? null;
+}
+
+// The customer's email: the email field, or the contact if it is an email address.
+export const customerEmail = (r) => r.email || (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.contact || "") ? r.contact : null);
 
 // ---------- Project brief (the form customers fill in after paying the deposit) ----------
 export async function ensureBriefToken(id) {
@@ -275,7 +304,7 @@ export async function deleteUnanswered(id) {
 // ---------- Settings (bank details for invoices, WhatsApp message templates) ----------
 export const SETTING_KEYS = [
   "bank_name", "account_name", "account_number", "invoice_note",
-  "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief",
+  "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief", "tpl_receipt", "tpl_invoice",
 ];
 export async function getSettings() {
   await ensureSchema();
@@ -332,6 +361,27 @@ export const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 export const emailConfigured = () => Boolean(process.env.RESEND_API_KEY && process.env.LEAD_EMAIL_TO);
+// Emailing customers needs a sender on a domain verified in Resend (LEAD_EMAIL_FROM);
+// Resend's default test sender can only email the account owner.
+export const customerEmailConfigured = () => Boolean(process.env.RESEND_API_KEY && process.env.LEAD_EMAIL_FROM);
+
+// Send to a customer (needs LEAD_EMAIL_FROM). Replies go to LEAD_EMAIL_TO.
+export async function sendCustomerEmail(to, subject, html) {
+  if (!customerEmailConfigured()) return null;
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: process.env.LEAD_EMAIL_FROM,
+      to: [to],
+      reply_to: (process.env.LEAD_EMAIL_TO || "").split(",")[0].trim() || undefined,
+      subject,
+      html,
+    }),
+  });
+  if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return true;
+}
 
 export async function sendEmail(subject, html) {
   if (!emailConfigured()) return null;
@@ -367,6 +417,7 @@ export async function emailRequest(r, isNew) {
     <h2 style="margin:0 0 8px">${isNew ? "New" : "Updated"} customer request: ${esc(r.interest)}</h2>
     <p style="color:#4A5568">From the ${from}${r.ref ? ` · reference <b>${esc(r.ref)}</b>` : ""}</p>
     <p><b>Name:</b> ${esc(r.name)}<br><b>Contact:</b> ${esc(r.contact)}${wa ? ` (<a href="${wa}">WhatsApp</a>)` : ""}
+    ${r.email ? `<br><b>Email:</b> ${esc(r.email)}` : ""}
     <br><b>Business:</b> ${esc(r.business || "-")}<br><b>Page:</b> ${esc(r.page || "-")}</p>
     <p><b>Summary:</b> ${esc(r.details || "-")}</p>${lines}`;
   return sendEmail(`${isNew ? "New" : "Updated"} website request: ${r.name} (${r.interest})`, html);

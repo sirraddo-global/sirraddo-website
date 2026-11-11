@@ -7,10 +7,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Live brief test
+      - name: Live receipt test
         run: |
           sleep 70
-          echo "page: $(curl -s -o /dev/null -w '%{http_code}' https://sirraddo-website.vercel.app/brief)"
-          echo "api: $(curl -s 'https://sirraddo-website.vercel.app/api/brief?t=abcdefghijklmnopqrstuvwxyz123456')"
-          echo "upload without token store: $(curl -s -X POST 'https://sirraddo-website.vercel.app/api/brief-upload?t=x' --data-binary 'x')"
-          echo "robots: $(curl -s https://sirraddo-website.vercel.app/robots.txt | tr '\n' ' ')"
+          echo "doc: $(curl -s -o /dev/null -w '%{http_code}' 'https://sirraddo-website.vercel.app/doc?t=abcdefghijklmnopqrstuvwxyz123&type=receipt')"
+          echo "lead: $(curl -s -X POST https://sirraddo-website.vercel.app/api/lead -H 'content-type: application/json' -d '{"source":"form","name":"TEST email field (automated)","contact":"08000000000","email":"test@example.com","interest":"Starter website"}')"
+          echo "email-field: $(curl -s https://sirraddo-website.vercel.app/assets/lead.js | grep -c lead-email)"

@@ -72,8 +72,8 @@ const gemini = {
     messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
   async call(convo, system, tools, ms = 20000) {
     // Models to try in order. If one is busy (503), rate-limited (429) or gone (404), try the next.
-    // Override with GEMINI_MODEL, e.g. "gemini-2.5-flash" or a comma-separated list.
-    const models = (process.env.GEMINI_MODEL || "gemini-flash-lite-latest,gemini-flash-latest,gemini-2.5-flash")
+    // Override with GEMINI_MODEL (a model name or a comma-separated list).
+    const models = (process.env.GEMINI_MODEL || "gemini-flash-lite-latest,gemini-flash-latest")
       .split(",").map((m) => m.trim()).filter(Boolean);
     // Within one reply, keep using the model that answered first (its thought signatures must match).
     if (convo._model) models.unshift(...models.splice(models.indexOf(convo._model), 1));

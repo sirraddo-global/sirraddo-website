@@ -3,9 +3,11 @@
 // - copies the HTML pages and assets/
 // - replaces {{SITE_URL}} with SITE_URL from site.config.mjs
 // - removes the demo cards between DEMO_CARDS markers unless SHOW_DEMO_CARDS is true
+// - adds ?v=<hash> to CSS/JS links so browsers never use an outdated cached file
 // - writes sitemap.xml and robots.txt
 import { readFileSync, writeFileSync, rmSync, mkdirSync, cpSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { SITE_URL, SHOW_DEMO_CARDS, SITEMAP_PAGES } from "../site.config.mjs";
 
@@ -28,6 +30,13 @@ for (const page of pages) {
   let html = readFileSync(join(root, page), "utf8");
   html = html.replaceAll("{{SITE_URL}}", SITE_URL);
   html = SHOW_DEMO_CARDS ? html.replace(DEMO_MARKERS, "") : html.replace(DEMO_BLOCK, "");
+  // Add ?v=<content hash> to CSS and JS links, so browsers fetch new files after every change
+  // instead of using an old cached copy.
+  html = html.replace(/((?:href|src)="\/assets\/[\w.-]+\.(?:css|js))"/g, (m, url) => {
+    const file = join(root, url.slice(url.indexOf("/assets/") + 1));
+    const hash = createHash("sha256").update(readFileSync(file)).digest("hex").slice(0, 10);
+    return `${url}?v=${hash}"`;
+  });
   const left = html.match(/\{\{[A-Z_]+\}\}/);
   if (left) throw new Error(`${page}: unknown placeholder ${left[0]}`);
   writeFileSync(join(out, page), html);

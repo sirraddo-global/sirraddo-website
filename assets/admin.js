@@ -311,7 +311,8 @@
     card.appendChild(top);
 
     var badges = el('div', { class: 'admin-badges' }, [badge(cap(r.status), 'is-' + r.status)]);
-    if (r.source === 'manual') badges.appendChild(badge('Added by hand'));
+    var SOURCE = { manual: 'Added by hand', form: 'Package form', contact: 'Contact form', 'chat-form': 'Chat (no AI reply)' };
+    if (SOURCE[r.source]) badges.appendChild(badge(SOURCE[r.source]));
     if (r.follow_up_on && isOpen(r)) {
       var d = daysUntil(r.follow_up_on);
       badges.appendChild(badge(d < 0 ? 'Follow-up ' + (-d) + 'd overdue' : d === 0 ? 'Follow up today' : 'Follow up ' + niceDate(r.follow_up_on), d <= 0 ? 'is-due' : ''));

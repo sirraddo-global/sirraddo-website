@@ -444,3 +444,37 @@ p { margin: 0 0 1em; }
   .chat-launcher { padding: 0; width: 56px; height: 56px; justify-content: center; }
 }
 @media print { .chat-launcher, .chat-panel { display: none !important; } }
+
+/* ---------- Order form before WhatsApp (assets/lead.js) ---------- */
+.lead-dialog {
+  width: min(440px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 0;
+  border: 0; border-radius: var(--radius); box-shadow: 0 20px 60px rgba(11,23,51,.35);
+}
+.lead-dialog::backdrop { background: rgba(11,23,51,.55); }
+.lead-form { position: relative; display: grid; gap: 6px; padding: 24px 20px 18px; border-top: 4px solid var(--gold); }
+.lead-form h2 { margin: 0; font-size: 1.35rem; padding-right: 36px; }
+.lead-sub { color: var(--muted); margin: 0 0 6px; font-size: .95rem; }
+.lead-form label { font-weight: 600; font-size: .92rem; color: var(--navy); margin-top: 6px; }
+.lead-form label span { font-weight: 400; color: var(--muted); }
+.lead-form input, .lead-form select, .lead-form textarea {
+  font: inherit; font-size: 1rem; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; width: 100%; color: var(--text); background: var(--white);
+}
+.lead-form input:focus, .lead-form select:focus, .lead-form textarea:focus { outline: 2px solid var(--gold); outline-offset: 0; border-color: var(--gold); }
+.lead-form .lead-submit { margin-top: 10px; }
+.lead-close {
+  position: absolute; top: 12px; right: 12px; width: 40px; height: 40px; border: 0; border-radius: 10px;
+  background: var(--grey); color: var(--navy); font-size: 1.5rem; line-height: 1; cursor: pointer;
+}
+.lead-error { color: #B42318; margin: 4px 0 0; min-height: 0; }
+.lead-error:empty { display: none; }
+.lead-note { font-size: .8rem; color: var(--muted); margin: 6px 0 0; }
+.lead-skip { display: inline-block; margin-top: 4px; }
+.lead-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+/* Details form inside the chat when the AI can't reply */
+.chat-lead { display: grid; gap: 8px; }
+.chat-lead p { margin: 0; }
+.chat-lead input { font: inherit; font-size: 1rem; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; width: 100%; }
+.chat-lead .chat-chip { justify-self: start; }
+.chat-lead-error { color: #B42318; font-size: .85rem; }
+.chat-lead-error:empty { display: none; }

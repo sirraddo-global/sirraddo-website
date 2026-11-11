@@ -2,7 +2,7 @@
 // Body: { sessionId, page, messages: [{ role: "user" | "assistant", content: "..." }] }
 // Returns: { reply, saved }
 import { SYSTEM_PROMPT, SAVE_TOOL, QUESTION_TOOL } from "./_lib/knowledge.mjs";
-import { saveRequest, emailRequest, logChat, addUnanswered } from "./_lib/store.mjs";
+import { saveRequest, emailRequest, logChat, addUnanswered, reference } from "./_lib/store.mjs";
 import { pickProvider } from "./_lib/providers.mjs";
 
 const MAX_MESSAGES = 30; // per conversation
@@ -58,8 +58,8 @@ async function handleSave(input, ctx) {
   let mailOk = null;
   let isNew = true;
   try {
-    const inserted = await saveRequest(r);
-    if (inserted !== null) { dbOk = true; isNew = inserted; }
+    const saved = await saveRequest(r);
+    if (saved) { dbOk = true; isNew = saved.inserted; r.ref = reference(saved.id); }
   } catch (err) {
     dbOk = false;
     console.error("save failed", err);

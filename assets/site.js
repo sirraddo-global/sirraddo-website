@@ -50,8 +50,23 @@
         fields[2].value.trim() +
         '\n\nName: ' + fields[0].value.trim() +
         '\nEmail or phone: ' + fields[1].value.trim();
-      var url = 'https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(text);
-      window.open(url, '_blank', 'noopener');
+      // Save the enquiry first (so it appears in the admin page), then open WhatsApp.
+      // WhatsApp opens even if saving fails or takes too long.
+      var button = form.querySelector('button[type="submit"]');
+      button.disabled = true;
+      var openWa = function (ref) {
+        button.disabled = false;
+        var url = 'https://wa.me/' + WHATSAPP_NUMBER + '?text=' + encodeURIComponent(text + (ref ? '\nReference: ' + ref : ''));
+        window.location.href = url;
+      };
+      var timer = new Promise(function (resolve) { setTimeout(function () { resolve(null); }, 8000); });
+      Promise.race([
+        fetch('/api/lead', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: 'contact', name: fields[0].value.trim(), contact: fields[1].value.trim(), details: fields[2].value.trim(), page: location.pathname })
+        }).then(function (r) { return r.json().catch(function () { return {}; }); }).catch(function () { return null; }),
+        timer
+      ]).then(function (j) { openWa(j && j.ref); });
     });
   }
 })();

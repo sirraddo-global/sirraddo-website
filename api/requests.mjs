@@ -21,6 +21,7 @@ import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automation.mjs";
 import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
+import { setupStatus } from "./_lib/setup.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
 import { getBriefById } from "./_lib/store.mjs";
 
@@ -171,8 +172,8 @@ export default async function handler(req, res) {
         if (!row) return res.status(404).json({ error: "Not found" });
         return res.status(200).json({ draft_md: row.draft_md, draft_at: row.draft_at, draft_error: row.draft_error });
       }
-      const [requests, unanswered, settings] = await Promise.all([listRequests(), listUnanswered(), getSettings()]);
-      return res.status(200).json({ requests, unanswered, settings, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured() });
+      const [requests, unanswered, settings, setup] = await Promise.all([listRequests(), listUnanswered(), getSettings(), setupStatus()]);
+      return res.status(200).json({ requests, unanswered, settings, setup, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured() });
     }
 
     if (req.method === "PATCH") {

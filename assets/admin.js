@@ -134,6 +134,7 @@
       state.stages = j.stages || [];
       state.canEmail = Boolean(j.can_email_customers);
       state.canPay = Boolean(j.can_pay_online);
+      state.setup = j.setup || [];
       showApp(true);
       render();
     }).catch(function (err) {
@@ -176,8 +177,31 @@
     return el(onclick ? 'button' : 'div', { class: 'admin-tile', type: onclick ? 'button' : null, onclick: onclick },
       [el('span', { class: 'admin-tile-label', text: label }), el('strong', { text: String(value) }), note ? el('small', { text: note }) : null]);
   }
+  // Which connections are set in Vercel (values are never sent to the browser).
+  function setupCard() {
+    var items = state.setup || [];
+    if (!items.length) return null;
+    var problems = items.filter(function (s) { return !s.ok || s.warn; }).length;
+    var d = el('details', { class: 'admin-card admin-setup' });
+    if (problems) d.open = true;
+    d.appendChild(el('summary', null, [el('strong', { text: 'Setup status' }), ' ',
+      badge(problems ? problems + ' to check' : 'All set', problems ? 'is-due' : 'is-won')]));
+    d.appendChild(el('ul', null, items.map(function (s) {
+      var mark = !s.ok ? '✗' : s.warn ? '!' : '✓';
+      return el('li', { class: !s.ok ? 'is-bad' : s.warn ? 'is-warn' : 'is-ok' }, [
+        el('span', { class: 'admin-setup-mark', text: mark, 'aria-label': !s.ok ? 'Not set' : s.warn ? 'Check' : 'Set' }),
+        el('div', null, [el('b', { text: s.label }),
+          s.note ? el('small', { text: s.note.replace(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/g, function (m) { return when(m); }) }) : null,
+          !s.ok ? el('small', { class: 'admin-setup-fix', text: 'How to fix: ' + s.fix }) : null])
+      ]);
+    })));
+    return d;
+  }
+
   function renderDashboard(view) {
     var rs = state.requests;
+    var sc = setupCard();
+    if (sc) view.appendChild(sc);
     var weekAgo = Date.now() - 7 * 86400000;
     var thisWeek = rs.filter(function (r) { return new Date(r.created_at) > weekAgo; }).length;
     var open = rs.filter(isOpen).length;

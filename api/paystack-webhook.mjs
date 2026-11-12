@@ -2,6 +2,7 @@
 // Settings → API Keys & Webhooks → Live Webhook URL). Every call is checked against PAYSTACK_SECRET_KEY,
 // then the transaction is re-checked with Paystack before it is recorded.
 import { validSignature, verifyPayment, recordPayment } from "./_lib/paystack.mjs";
+import { setMeta } from "./_lib/store.mjs";
 
 async function readRaw(req) {
   const chunks = [];
@@ -24,6 +25,7 @@ export default async function handler(req, res) {
   if (!validSignature(raw, req.headers["x-paystack-signature"])) return res.status(401).json({ error: "Bad signature" });
   let event;
   try { event = JSON.parse(raw.toString("utf8")); } catch { return res.status(400).json({ error: "Bad JSON" }); }
+  await setMeta("paystack_webhook", new Date().toISOString()).catch(() => {}); // shown in admin → Setup status
   try {
     if (event?.event === "charge.success" && event.data?.reference) {
       const tx = await verifyPayment(event.data.reference); // trust Paystack's answer, not the message body

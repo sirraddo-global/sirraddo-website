@@ -157,3 +157,13 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .admin-callout { margin: 0; background: #FFF4D6; border: 1px solid #F0D58C; color: #7A5A0A; border-radius: 8px; padding: 8px 10px; font-weight: 600; }
 .admin-hint { margin: 0; font-size: .8rem; color: var(--muted); }
 .admin-pay-form .admin-check { grid-column: 1 / -1; font-size: .9rem; }
+
+.admin-draft { display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 4px; }
+.draft-doc { max-width: 760px; }
+.draft-note { background: #FFF4D6; border: 1px solid #F0D58C; color: #7A5A0A; border-radius: 8px; padding: 8px 10px; font-size: .9rem; }
+.draft-section { position: relative; border-bottom: 1px solid #E1E6EF; padding: 6px 0 12px; }
+.draft-section h3 { padding-right: 80px; }
+.draft-copy { position: absolute; top: 10px; right: 0; min-height: 34px; padding: 4px 12px; }
+.draft-doc mark { background: #FFE58A; color: #1B2433; padding: 0 2px; border-radius: 3px; }
+.draft-doc h2 { font-size: 1.3rem; } .draft-doc h3 { font-size: 1.1rem; margin-top: 14px; } .draft-doc h4 { font-size: 1rem; margin: 12px 0 4px; }
+@media print { .draft-copy { display: none !important; } .draft-note { display: none; } }

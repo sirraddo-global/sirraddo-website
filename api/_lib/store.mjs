@@ -47,6 +47,9 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS site_checked_at TIMESTAMPTZ`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ssl_expires DATE`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS auto_sent JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS draft_md TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS draft_at TIMESTAMPTZ`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS draft_error TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief JSONB`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_files JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_saved_at TIMESTAMPTZ`,
@@ -89,7 +92,8 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, payments, project_stage,
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
   brief_token, brief_saved_at, brief_submitted_at, email, doc_token,
-  website_url, site_status, site_checked_at, ssl_expires::text AS ssl_expires, auto_sent`;
+  website_url, site_status, site_checked_at, ssl_expires::text AS ssl_expires, auto_sent,
+  draft_at, draft_error, (draft_md IS NOT NULL) AS has_draft`;
 
 // ---------- Customer requests ----------
 // Insert or update the request for this session. Returns { id, inserted }, or null if there is no database.
@@ -253,6 +257,22 @@ export async function removeBriefFile(token, field, url) {
     [field, url, token]
   );
   return rows[0]?.brief_files ?? null;
+}
+
+// ---------- AI website text drafts ----------
+export async function getBriefById(id) {
+  await ensureSchema();
+  const rows = await q(
+    `SELECT id, name, business, contact, interest, status, brief, brief_files, brief_submitted_at, draft_md, draft_at, draft_error
+     FROM customer_requests WHERE id = $1`,
+    [id]
+  );
+  return rows[0] ?? null;
+}
+export async function saveDraft(id, md, error) {
+  await ensureSchema();
+  if (md) await q(`UPDATE customer_requests SET draft_md = $1, draft_at = now(), draft_error = NULL WHERE id = $2`, [md, id]);
+  else await q(`UPDATE customer_requests SET draft_error = $1 WHERE id = $2`, [String(error || "failed").slice(0, 300), id]);
 }
 
 // ---------- Automation bookkeeping ----------

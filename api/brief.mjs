@@ -8,7 +8,7 @@ import { waitUntil } from "@vercel/functions";
 import { generateDraft } from "./_lib/drafts.mjs";
 
 export const uploadsEnabled = () => Boolean(globalThis.__TEST_BLOB__ || process.env.BLOB_READ_WRITE_TOKEN);
-const SITE = "https://sirraddo-website.vercel.app";
+import { SITE } from "./_lib/automation.mjs";
 
 function publicView(row) {
   const kind = kindFor(row.interest);

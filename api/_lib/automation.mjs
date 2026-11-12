@@ -8,7 +8,8 @@ import {
 import { buildDoc, naira, balance } from "./docs.mjs";
 import { generateDraft } from "./drafts.mjs";
 
-export const SITE = process.env.SITE_URL || "https://sirraddo-website.vercel.app";
+import { SITE_URL } from "../../site.config.mjs";
+export const SITE = (process.env.SITE_URL || SITE_URL).replace(/\/$/, "");
 const DEFAULT_RENEWAL = { "Starter website": 25000, "Business website": 40000 };
 
 // ---------- Dates (Lagos) ----------

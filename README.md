@@ -162,7 +162,7 @@ Other notes:
 5. Once the domain works, change one line in `site.config.mjs`:
 
    ```js
-   export const SITE_URL = "https://sirraddo.com.ng";
+   export const SITE_URL = "https://www.sirraddo.com.ng";
    ```
 
    Push to `main`. The next deploy updates the canonical links, `og:url`, the share image link, `sitemap.xml` and `robots.txt` on every page.

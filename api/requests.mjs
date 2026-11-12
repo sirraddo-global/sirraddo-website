@@ -14,7 +14,7 @@ import {
   ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
 } from "./_lib/store.mjs";
 import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
-import { applyRules, emailBriefLink } from "./_lib/automation.mjs";
+import { applyRules, emailBriefLink, SITE } from "./_lib/automation.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
 import { getBriefById } from "./_lib/store.mjs";
 
@@ -194,7 +194,7 @@ export default async function handler(req, res) {
         if (!to) throw new Bad("This customer has no email address. Add one under Edit customer details.");
         const doc = buildDoc(row, body.type, await getSettings());
         if (doc.error) throw new Bad(doc.error);
-        const link = `https://${req.headers.host || "sirraddo-website.vercel.app"}/doc?t=${row.doc_token}&type=${body.type}`;
+        const link = `${SITE}/doc?t=${row.doc_token}&type=${body.type}`;
         await sendCustomerEmail(to, doc.subject, `<p style="font-family:Arial,sans-serif">Hello ${row.name.split(" ")[0]},</p>
           <p style="font-family:Arial,sans-serif">${body.type === "receipt" ? "Thank you for your payment. Your receipt is below." : "Please find your invoice below."}
           You can also <a href="${link}">view, print or save it as a PDF</a>.</p>${doc.html}`);

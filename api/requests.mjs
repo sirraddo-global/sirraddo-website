@@ -7,14 +7,19 @@
 //   POST   { action: "settings", settings: {...} }
 //   POST   { action: "question", id, resolved?: bool, remove?: true }
 //   POST   { action: "brief_link", id }  create the project brief link now
+//   POST   { action: "preview_link", id }  create the website preview link (stage -> waiting for approval)
+//   POST   { action: "send_preview", id }  email the preview link to the customer
+//   GET    ?view=export&id=123  the website as a .zip (pages + images) to upload to any host
 import { timingSafeEqual, createHash } from "node:crypto";
 import {
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
   ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
+  ensurePreviewToken, getPreviewById, markSent,
 } from "./_lib/store.mjs";
 import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
-import { applyRules, emailBriefLink, SITE } from "./_lib/automation.mjs";
+import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automation.mjs";
+import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
 import { getBriefById } from "./_lib/store.mjs";
 
@@ -83,6 +88,19 @@ function cleanFields(body) {
     if (u) { try { u = new URL(u).toString(); } catch { throw new Bad("That website address doesn't look right"); } }
     out.website_url = u || null;
   }
+  if (has("draft_md")) {
+    if (typeof body.draft_md !== "string" || !body.draft_md.trim()) throw new Bad("The website text can't be empty");
+    out.draft_md = body.draft_md.replace(/\r\n/g, "\n").slice(0, 100000);
+  }
+  if (has("handover")) {
+    const h = body.handover && typeof body.handover === "object" ? body.handover : {};
+    let webmail = text(h.webmail, 300);
+    if (webmail && !/^https?:\/\//i.test(webmail)) webmail = "https://" + webmail;
+    out.handover = {
+      domain: text(h.domain, 200).toLowerCase(), registrar: text(h.registrar, 120), domain_expires: date(h.domain_expires),
+      emails: text(h.emails, 1000), webmail, notes: text(h.notes, 2000),
+    };
+  }
   if (has("payments")) {
     if (!Array.isArray(body.payments) || body.payments.length > 200) throw new Bad("Payments must be a list");
     out.payments = body.payments.map((p) => {
@@ -128,6 +146,24 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       if (query.view === "chats") return res.status(200).json({ chats: await listChats() });
+      if (query.view === "export") {
+        const row = await getPreviewById(Number(query.id));
+        if (!row) return res.status(404).json({ error: "Not found" });
+        if (!row.draft_md) throw new Bad("Write the website text first");
+        const site = buildSiteModel(row);
+        const { pages, images } = exportFiles(site);
+        const files = pages.map((p) => ({ name: p.name, data: p.html }));
+        for (const im of images) {
+          try {
+            const r = await fetch(im.url);
+            if (r.ok) files.push({ name: im.path, data: Buffer.from(await r.arrayBuffer()) });
+          } catch (e) { console.error("export image failed", im.url, e); }
+        }
+        files.push({ name: "README.txt", data: `Website for ${site.name}, made by SIRRADDO GLOBAL LIMITED.\nUpload everything in this folder (keep the images folder) to the website host, e.g. Cloudflare Pages > Upload assets.\nindex.html is the home page.\n` });
+        res.setHeader("Content-Type", "application/zip");
+        res.setHeader("Content-Disposition", `attachment; filename="${slugify(site.name)}-website.zip"`);
+        return res.status(200).send(zip(files));
+      }
       if (query.view === "draft") {
         const row = await getBriefById(Number(query.id));
         if (!row) return res.status(404).json({ error: "Not found" });
@@ -171,6 +207,34 @@ export default async function handler(req, res) {
         const row = await ensureBriefToken(id);
         return row ? res.status(200).json(row) : res.status(404).json({ error: "Not found" });
       }
+      if (body.action === "preview_link") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        const before = await getRequest(id);
+        if (!before) return res.status(404).json({ error: "Not found" });
+        if (!before.has_draft) throw new Bad("Write the website text first");
+        return res.status(200).json(await ensurePreviewToken(id));
+      }
+      if (body.action === "send_preview") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        if (!customerEmailConfigured()) throw new Bad("Emailing customers isn't set up yet (LEAD_EMAIL_FROM). Send it on WhatsApp for now.");
+        const before = await getRequest(id);
+        if (!before) return res.status(404).json({ error: "Not found" });
+        if (!before.has_draft) throw new Bad("Write the website text first");
+        const to = customerEmail(before);
+        if (!to) throw new Bad("This customer has no email address. Add one under Edit customer details.");
+        const row = await ensurePreviewToken(id);
+        const again = (row.preview_feedback || []).length > 0;
+        await sendCustomerEmail(to, again ? "Your updated website preview is ready" : "Your website preview is ready",
+          customerHtml(row, [
+            again ? "We've made the changes you asked for. Your updated website preview is ready." : "Good news: the first version of your website is ready for you to see.",
+            "Open the preview, look through every page, then tap <b>Approve</b> at the bottom, or tell us what you'd like changed.",
+            "It is a private preview. It isn't live on your domain yet.",
+          ], { url: `${SITE}/preview?t=${row.preview_token}`, label: "See my website preview" }));
+        await markSent(id, again ? "preview_resent" : "preview_sent");
+        return res.status(200).json({ ok: true, to, row: await getRequest(id) });
+      }
       if (body.action === "write_draft") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");
@@ -195,10 +259,14 @@ export default async function handler(req, res) {
         const doc = buildDoc(row, body.type, await getSettings());
         if (doc.error) throw new Bad(doc.error);
         const link = `${SITE}/doc?t=${row.doc_token}&type=${body.type}`;
+        const intro = body.type === "receipt" ? "Thank you for your payment. Your receipt is below."
+          : body.type === "handover" ? `Your website is live at <a href="${row.website_url}">${row.website_url}</a>. Below is your handover pack with everything you need to know. Your passwords will come separately on WhatsApp.`
+          : "Please find your invoice below.";
         await sendCustomerEmail(to, doc.subject, `<p style="font-family:Arial,sans-serif">Hello ${row.name.split(" ")[0]},</p>
-          <p style="font-family:Arial,sans-serif">${body.type === "receipt" ? "Thank you for your payment. Your receipt is below." : "Please find your invoice below."}
+          <p style="font-family:Arial,sans-serif">${intro}
           You can also <a href="${link}">view, print or save it as a PDF</a>.</p>${doc.html}`);
-        return res.status(200).json({ ok: true, to });
+        if (body.type === "handover") await markSent(id, "handover");
+        return res.status(200).json({ ok: true, to, row: body.type === "handover" ? await getRequest(id) : undefined });
       }
       if (body.action === "settings") {
         return res.status(200).json({ settings: await saveSettings(body.settings || {}) });

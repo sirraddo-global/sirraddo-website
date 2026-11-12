@@ -143,6 +143,16 @@ Other notes:
 - Each IP address can send about 40 messages per 10 minutes, and a chat is capped at about 28 messages. Keep a spend limit set with your AI provider as the real safety net.
 - New database tables and columns are added automatically on first use.
 
+## From approved project form to live website
+
+1. **AI text.** When the customer sends the project form, the AI writes the website text (admin → Project form → *View text*). Fix anything wrong and fill each `[ADD: …]` with *Edit text*. Keep the `## Page:`, `### Section` and `**Headline:**` lines: the site is built from them.
+2. **Preview.** *Open preview* / *Send on WhatsApp* / *Email preview* creates a private link (`/preview?t=…`) with the customer's logo, photos, colours and style, built by `api/_lib/sitegen.mjs` (no AI). The project moves to **Preview sent**.
+3. **Approve or change.** At the bottom of every preview page the customer taps **Approve** or writes changes. You get an email either way. On approval the balance invoice is emailed to them automatically (once).
+4. **Go live.** After the balance is paid, *Download site (.zip)* gives the finished pages and images. Upload them to the host (e.g. Cloudflare Pages → Upload assets), connect the customer's domain, add the address under *Their website* and set the stage to **Live**.
+5. **Handover pack.** In Clients → *Handover pack*, fill in the domain, registrar, email addresses and webmail, then *Email* or *WhatsApp* it. It unlocks only when the balance is paid and never contains passwords: send those privately on WhatsApp. Edit the support policy text in Settings.
+
+The morning email lists previews with change requests, previews not answered for 3+ days, approved jobs waiting for the balance, and live sites without a handover pack.
+
 ## Deploying on Vercel
 
 1. On https://vercel.com, choose **Add New → Project** and import this GitHub repository.

@@ -54,6 +54,11 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_files JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_saved_at TIMESTAMPTZ`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_submitted_at TIMESTAMPTZ`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS handover JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS preview_token TEXT UNIQUE`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS preview_status TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS preview_feedback JSONB NOT NULL DEFAULT '[]'::jsonb`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS preview_approved_at TIMESTAMPTZ`,
   `CREATE TABLE IF NOT EXISTS chat_logs (
      session_id TEXT PRIMARY KEY,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -86,14 +91,16 @@ export async function ensureSchema() {
 }
 
 export const STATUSES = ["new", "contacted", "quoted", "won", "lost"];
-export const STAGES = ["content", "building", "live"];
+export const STAGES = ["content", "building", "review", "live"];
 
 const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, business, interest, details, page,
   transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, payments, project_stage,
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
   brief_token, brief_saved_at, brief_submitted_at, email, doc_token,
   website_url, site_status, site_checked_at, ssl_expires::text AS ssl_expires, auto_sent,
-  draft_at, draft_error, (draft_md IS NOT NULL) AS has_draft`;
+  draft_at, draft_error, (draft_md IS NOT NULL) AS has_draft,
+  handover, preview_token, preview_status, preview_feedback, preview_approved_at,
+  COALESCE((length(draft_md) - length(replace(draft_md, '[ADD:', ''))) / 5, 0) AS draft_gaps`;
 
 // ---------- Customer requests ----------
 // Insert or update the request for this session. Returns { id, inserted }, or null if there is no database.
@@ -140,6 +147,7 @@ const EDITABLE = {
   name: "text", contact: "text", email: "text", business: "text", interest: "text", details: "text", notes: "text",
   status: "text", follow_up_on: "date", quote_amount: "int", payments: "jsonb", project_stage: "text",
   live_on: "date", renewal_amount: "int", renewal_due: "date", website_url: "text",
+  handover: "jsonb", draft_md: "text",
 };
 export async function updateRequest(id, fields) {
   await ensureSchema();
@@ -149,7 +157,7 @@ export async function updateRequest(id, fields) {
     if (!(key in fields)) continue;
     let v = fields[key];
     if (v === "" || v === undefined) v = null;
-    params.push(type === "jsonb" ? JSON.stringify(v ?? []) : v);
+    params.push(type === "jsonb" ? JSON.stringify(v ?? (key === "handover" ? {} : [])) : v);
     sets.push(`${key} = $${params.length}${type === "jsonb" ? "::jsonb" : type === "date" ? "::date" : ""}`);
   }
   if (!sets.length) return null;
@@ -275,6 +283,47 @@ export async function saveDraft(id, md, error) {
   else await q(`UPDATE customer_requests SET draft_error = $1 WHERE id = $2`, [String(error || "failed").slice(0, 300), id]);
 }
 
+// ---------- Preview sites (/preview?t=...) ----------
+const PREVIEW_COLUMNS = `id, name, business, contact, email, interest, status, quote_amount, payments, project_stage, doc_token, auto_sent,
+  brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at`;
+export async function ensurePreviewToken(id) {
+  await ensureSchema();
+  const rows = await q(
+    `UPDATE customer_requests SET preview_token = COALESCE(preview_token, $1),
+       preview_status = CASE WHEN preview_status IS NULL OR preview_status = 'changes' THEN 'sent' ELSE preview_status END,
+       project_stage = CASE WHEN project_stage IS NULL OR project_stage IN ('content', 'building') THEN 'review' ELSE project_stage END,
+       updated_at = now()
+     WHERE id = $2 RETURNING ${REQUEST_COLUMNS}`,
+    [randomBytes(18).toString("base64url"), id]
+  );
+  return rows[0] ?? null;
+}
+export async function getByPreviewToken(token) {
+  if (!token || token.length < 20) return null;
+  await ensureSchema();
+  const rows = await q(`SELECT ${PREVIEW_COLUMNS} FROM customer_requests WHERE preview_token = $1`, [token]);
+  return rows[0] ?? null;
+}
+export async function getPreviewById(id) {
+  await ensureSchema();
+  const rows = await q(`SELECT ${PREVIEW_COLUMNS} FROM customer_requests WHERE id = $1`, [id]);
+  return rows[0] ?? null;
+}
+// The customer's answer on the preview page: "approved", or "changes" with what to change.
+export async function setPreviewResult(token, result, text) {
+  await ensureSchema();
+  const entry = JSON.stringify([{ at: new Date().toISOString(), result, text: String(text || "").slice(0, 3000) }]);
+  const rows = await q(
+    `UPDATE customer_requests SET preview_status = $1, preview_feedback = preview_feedback || $2::jsonb,
+       preview_approved_at = CASE WHEN $1 = 'approved' THEN now() ELSE preview_approved_at END,
+       project_stage = CASE WHEN $1 = 'changes' AND project_stage = 'review' THEN 'building' ELSE project_stage END,
+       updated_at = now()
+     WHERE preview_token = $3 RETURNING ${PREVIEW_COLUMNS}`,
+    [result, entry, token]
+  );
+  return rows[0] ?? null;
+}
+
 // ---------- Automation bookkeeping ----------
 // auto_sent remembers which automatic messages went out (key -> time), so nothing is sent twice.
 export async function markSent(id, key) {
@@ -349,6 +398,7 @@ export async function deleteUnanswered(id) {
 export const SETTING_KEYS = [
   "bank_name", "account_name", "account_number", "invoice_note",
   "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief", "tpl_receipt", "tpl_invoice",
+  "tpl_preview", "tpl_handover", "handover_terms",
 ];
 export async function getSettings() {
   await ensureSchema();

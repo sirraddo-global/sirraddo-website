@@ -167,3 +167,8 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .draft-doc mark { background: #FFE58A; color: #1B2433; padding: 0 2px; border-radius: 3px; }
 .draft-doc h2 { font-size: 1.3rem; } .draft-doc h3 { font-size: 1.1rem; margin-top: 14px; } .draft-doc h4 { font-size: 1rem; margin: 12px 0 4px; }
 @media print { .draft-copy { display: none !important; } .draft-note { display: none; } }
+
+.admin-preview, .admin-handover { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 6px; }
+.admin-handover { margin-top: 10px; }
+.admin-feedback { margin: 0; padding-left: 18px; font-size: .9rem; display: grid; gap: 4px; }
+.draft-editor { width: 100%; min-height: 70vh; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 8px; }

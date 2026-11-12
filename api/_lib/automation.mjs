@@ -3,7 +3,7 @@
 import tls from "node:tls";
 import {
   listRequests, updateRequest, ensureDocToken, getSettings, markSent, setSiteCheck, listUnansweredSince,
-  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference,
+  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta,
 } from "./store.mjs";
 import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
 import { buildDoc, naira, balance } from "./docs.mjs";
@@ -335,5 +335,6 @@ export async function runDaily(now = new Date()) {
   }
   report.removed = await cleanup(90);
   report.counts = { fresh: fresh.length, due: due.length, formsWaiting: formsWaiting.length, owing: owing.length, renewals: renewals.length, briefs: briefs.length, siteProblems: siteProblems.length, stale: stale.length, questions: questions.length };
+  await setMeta("daily_run", new Date().toISOString()).catch(() => {});
   return report;
 }

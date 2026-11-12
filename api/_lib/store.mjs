@@ -417,6 +417,17 @@ export async function getSettings() {
   const rows = await q(`SELECT key, value FROM settings`);
   return Object.fromEntries(rows.filter((r) => SETTING_KEYS.includes(r.key)).map((r) => [r.key, r.value]));
 }
+// Small facts the system remembers about itself (e.g. when the daily run last finished). Keys start with "_".
+export async function setMeta(key, value) {
+  if (!(await ensureSchema())) return;
+  await q(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, ["_" + key, String(value)]);
+}
+export async function getMeta(keys) {
+  if (!(await ensureSchema())) return {};
+  const rows = await q(`SELECT key, value FROM settings WHERE key = ANY($1)`, [keys.map((k) => "_" + k)]);
+  return Object.fromEntries(rows.map((r) => [r.key.slice(1), r.value]));
+}
+
 export async function saveSettings(values) {
   await ensureSchema();
   for (const key of SETTING_KEYS) {

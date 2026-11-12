@@ -98,5 +98,18 @@
       "source": "/preview",
       "destination": "/api/preview"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/((?!api/).*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "sirraddo-website.vercel.app"
+        }
+      ],
+      "destination": "https://www.sirraddo.com.ng/$1",
+      "permanent": true
+    }
   ]
 }

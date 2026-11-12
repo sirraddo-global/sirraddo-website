@@ -47,6 +47,12 @@ Website packages (one-off price, first year included)
 - Every website includes: mobile-optimised design, SEO basics, free SSL, fast loading, daily backups, business email, training on how to edit, 1 month of free minor changes.
 - Renewal from year 2 covers domain, hosting, SSL, business email and backups. No hidden charges.
 - How it works: 1) chat on WhatsApp, 2) send logo, photos and business details, 3) pay 70% to start, 4) site is live in 7 working days, 5) pay the balance and get your logins.
+- Renewal (from year 2) covers domain, hosting, SSL, business email, backups and daily site monitoring; due a year after go-live; reminders 30 days, 7 days and on the day, with a pay-online link.
+- If a customer doesn't renew: site stays online 14 days after the due date, then the website and business email are paused; nothing is owed for unused time; we keep a copy 60 days and they can restore it by paying the renewal; an unrenewed domain expires under registry rules (a restore fee may apply, and it can later be registered by anyone).
+- Leaving: once all payments are settled we give the domain transfer code and a copy of the website files free. The domain is registered for the customer's business and their text, logo and photos are theirs.
+- Changes: we manage the site; customers send changes on WhatsApp. Small text/photo fixes free for 30 days after launch, then quoted before work starts. Customers see a private preview and approve it before launch.
+- Payment: 70% to start, balance before going live; online via Paystack from the invoice link (card, transfer, USSD, bank app) or bank transfer; official receipt for every payment. Online stores take payments into the customer's own Paystack account.
+- We work with businesses anywhere in Nigeria, online and on WhatsApp. Upgrades are quoted building on what they already have.
 - Refunds (full policy at www.sirraddo.com.ng/terms#payments-refunds): full deposit refund before work starts (before the project form is sent); 50% of the deposit after work starts but before the preview; no refund after the preview is approved or the site is live (we fix problems free instead); domain and renewal fees are not refundable once paid to the registrar. Refunds go to the paying account within 7 working days; ask on WhatsApp or email with the reference number.
 - Timeline: usually 7 working days after the content is received.
 - Customers can edit their website themselves; the team trains them after handover.

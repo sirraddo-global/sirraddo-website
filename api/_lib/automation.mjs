@@ -5,6 +5,7 @@ import {
   listRequests, updateRequest, ensureDocToken, getSettings, markSent, setSiteCheck, listUnansweredSince,
   sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference,
 } from "./store.mjs";
+import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
 import { buildDoc, naira, balance } from "./docs.mjs";
 import { generateDraft } from "./drafts.mjs";
 
@@ -21,6 +22,11 @@ export function addDays(dateStr, n) {
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
 }
+// Same day next year (29 Feb -> 28 Feb).
+export function addYear(dateStr) {
+  const [y, m, d] = String(dateStr).slice(0, 10).split("-");
+  return `${Number(y) + 1}-${m}-${m === "02" && d === "29" ? "28" : d}`;
+}
 export function daysBetween(from, to) {
   return Math.round((Date.parse(to + "T12:00:00Z") - Date.parse(from + "T12:00:00Z")) / 86400000);
 }
@@ -31,20 +37,22 @@ export const TEMPLATES = {
   tpl_new: "Hello {name}, this is SIRRADDO GLOBAL LIMITED. Thank you for your interest in our {package} package. Could you tell us a bit more about your business so we can get started?",
   tpl_quoted: "Hello {name}, following up on your {package} quote of {amount}. To start, we need a 70% deposit of {deposit}, and the balance when your site is ready. Any questions, just ask.",
   tpl_brief: "Hello {name}, thank you for your deposit! Please fill in your project details here: {brief_link}\nIt takes about 10-15 minutes, and you can save and finish later with the same link.",
-  tpl_invoice: "Hello {name}, here is your invoice for the {package} package. Total: {amount}. Paid: {paid}. Balance: {balance}. View or save it here: {doc_link}",
+  tpl_invoice: "Hello {name}, here is your invoice for the {package} package. Total: {amount}. Paid: {paid}. Balance: {balance}. View or save it here: {doc_link}\nPay online: {pay_link}",
   tpl_preview: "Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.",
-  tpl_renewal: "Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.",
+  tpl_renewal: "Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.\nPay online: {pay_link}",
 };
 const projectPaid = (r) => (r.payments || []).filter((p) => p.kind !== "renewal").reduce((s, p) => s + Number(p.amount || 0), 0);
 
 export function fill(text, r, extra = {}) {
   const q = r.quote_amount;
+  const pay = r.doc_token && paystackConfigured() ? payLink(r) : "";
+  if (!pay && !extra.pay_link) text = text.split("\n").filter((l) => !l.includes("{pay_link}")).join("\n"); // no online payment yet
   const vals = {
     name: String(r.name || "").split(" ")[0], package: r.interest, amount: naira(q),
     deposit: q ? naira(Math.round(q * 0.7)) : "-", paid: naira(projectPaid(r)), balance: naira(balance(r)),
     renewal_amount: naira(r.renewal_amount), renewal_due: r.renewal_due ? niceDate(r.renewal_due) : "-",
     brief_link: r.brief_token ? `${SITE}/brief?t=${r.brief_token}` : "", doc_link: "",
-    preview_link: r.preview_token ? `${SITE}/preview?t=${r.preview_token}` : "", website: r.website_url || "", ...extra,
+    preview_link: r.preview_token ? `${SITE}/preview?t=${r.preview_token}` : "", website: r.website_url || "", pay_link: pay, ...extra,
   };
   return text.replace(/\{(\w+)\}/g, (m, k) => (k in vals ? vals[k] : m));
 }
@@ -83,7 +91,7 @@ export function rulesAfterUpdate(row, changed) {
   // Went live -> live date today, renewal a year on.
   if ("project_stage" in changed && row.project_stage === "live") {
     if (!row.live_on) f.live_on = today;
-    if (!row.renewal_due) f.renewal_due = addDays(row.live_on || today, 365);
+    if (!row.renewal_due) f.renewal_due = addYear(row.live_on || today);
     f.follow_up_on = null;
   }
   return Object.keys(f).length ? f : null;
@@ -232,7 +240,10 @@ export async function runDaily(now = new Date()) {
               ? `Your website renewal of <b>${naira(r.renewal_amount)}</b> was due on ${niceDate(r.renewal_due)}. Please pay soon so your website and email keep running.`
               : `Your website renewal of <b>${naira(r.renewal_amount)}</b> is due ${d === 0 ? "today" : `on ${niceDate(r.renewal_due)}`}. It covers your domain, hosting, SSL, business email and backups for another year.`;
             if (!doc.error && await sendOnce(r, key, stage === "late" ? "Your website renewal is overdue" : `Website renewal due ${d === 0 ? "today" : niceDate(r.renewal_due)}`,
-              customerHtml(r, [lead], { url: docLink(r, "renewal"), label: "View renewal invoice" }))) report.customerEmails++;
+              customerHtml(r, [lead], paystackConfigured() && amountDue(r, "renewal")
+                ? { url: payLink(r, "renewal"), label: `Pay ${naira(r.renewal_amount)} online` }
+                : { url: docLink(r, "renewal"), label: "View renewal invoice" }) +
+                (paystackConfigured() ? `<p style="font-family:Arial,sans-serif;font-size:13px"><a href="${docLink(r, "renewal")}">View the renewal invoice</a></p>` : ""))) report.customerEmails++;
           }
         }
       } catch (err) {

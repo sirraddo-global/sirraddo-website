@@ -283,6 +283,18 @@ export async function saveDraft(id, md, error) {
   else await q(`UPDATE customer_requests SET draft_error = $1 WHERE id = $2`, [String(error || "failed").slice(0, 300), id]);
 }
 
+// ---------- Online payments (Paystack) ----------
+// Adds a payment unless one with the same Paystack reference is already there (webhook and return page can both arrive).
+export async function addPaymentOnce(id, payment) {
+  await ensureSchema();
+  const rows = await q(
+    `UPDATE customer_requests SET payments = payments || $1::jsonb, updated_at = now()
+     WHERE id = $2 AND NOT (payments @> $3::jsonb) RETURNING ${REQUEST_COLUMNS}`,
+    [JSON.stringify([payment]), id, JSON.stringify([{ ref: payment.ref }])]
+  );
+  return rows[0] ?? null;
+}
+
 // ---------- Preview sites (/preview?t=...) ----------
 const PREVIEW_COLUMNS = `id, name, business, contact, email, interest, status, quote_amount, payments, project_stage, doc_token, auto_sent,
   brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at`;

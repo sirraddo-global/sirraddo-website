@@ -107,6 +107,10 @@ if (results.every(([, ok]) => ok)) {
     results.push(["6. /preview is served (invalid link page)", r.status === 404 && (await r.text()).includes("preview link is not valid")]);
   } catch (e) { results.push([`6. /preview: ${e.message}`, false]); }
   try {
+    const r = await fetch(`${BASE}/pay?t=live-check-invalid-token-0000`);
+    results.push(["8. /pay is served (invalid link page)", r.status === 404 && (await r.text()).includes("This link is not valid")]);
+  } catch (e) { results.push([`8. /pay: ${e.message}`, false]); }
+  try {
     const t = await (await fetch(`${BASE}/terms?check=${Date.now()}`)).text();
     results.push(["7. Terms has the delivery and refunds policies", t.includes('id="delivery"') && t.includes('id="payments-refunds"')]);
   } catch (e) { results.push([`7. /terms: ${e.message}`, false]); }

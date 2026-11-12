@@ -153,6 +153,15 @@ Other notes:
 
 The morning email lists previews with change requests, previews not answered for 3+ days, approved jobs waiting for the balance, and live sites without a handover pack.
 
+## Online payments (Paystack)
+
+Set `PAYSTACK_SECRET_KEY` in Vercel (Paystack → Settings → API Keys & Webhooks → Live Secret Key) and, on the same Paystack page, the **Live Webhook URL** `https://www.sirraddo.com.ng/api/paystack-webhook`.
+
+- Invoices (page and email), the balance invoice sent on preview approval, and renewal reminders get a **Pay online** button. WhatsApp invoice and renewal messages get a `{pay_link}` line. Admin → Invoice and receipt → **Copy pay link**.
+- `/pay?t=…` works out what is due on the server: the 70% deposit, then the balance, then the yearly renewal (from 60 days before it is due).
+- When Paystack confirms a payment (webhook, or the customer returning to `/pay`), it is added to the customer's payments once (by Paystack reference). Then the usual rules run: deposit → won and project form emailed; renewal → next renewal date moves a year on. The customer gets their receipt and you get an email.
+- Without the key, everything works as before (bank transfer, payments added by hand).
+
 ## Deploying on Vercel
 
 1. On https://vercel.com, choose **Add New → Project** and import this GitHub repository.

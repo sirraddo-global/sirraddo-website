@@ -1,7 +1,8 @@
 // GET /doc?t=TOKEN&type=receipt|invoice|renewal — the customer's invoice or receipt as a web page
 // they can open from WhatsApp or email, print, or save as PDF. (/doc is rewritten here in vercel.json.)
 import { getByDocToken, getSettings, esc } from "./_lib/store.mjs";
-import { buildDoc, docPage, DOC_TYPES } from "./_lib/docs.mjs";
+import { buildDoc, docPage, DOC_TYPES, naira } from "./_lib/docs.mjs";
+import { amountDue, paystackConfigured } from "./_lib/paystack.mjs";
 
 function message(res, code, text) {
   res.statusCode = code;
@@ -24,7 +25,13 @@ export default async function handler(req, res) {
     if (doc.error) return message(res, 404, "This document is not ready yet");
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    res.end(docPage(doc, r));
+    // Invoices get a "Pay online" button when Paystack is set up and something is due.
+    let opts = {};
+    if (paystackConfigured() && (type === "invoice" || type === "renewal")) {
+      const due = amountDue(r, type === "renewal" ? "renewal" : "");
+      if (due && (type === "renewal" || due.for !== "renewal")) opts = { payUrl: `/pay?t=${encodeURIComponent(String(query.t))}&for=${due.for}`, payAmount: naira(due.amount) };
+    }
+    res.end(docPage(doc, r, opts));
   } catch (err) {
     console.error("doc failed", err);
     return message(res, 500, "Something went wrong");

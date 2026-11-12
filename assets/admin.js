@@ -479,7 +479,84 @@
     } }));
     if (r.brief_saved_at) actions.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'View answers', onclick: function () { viewBrief(r); } }));
     box.appendChild(actions);
+    if (r.brief_submitted_at) box.appendChild(draftRow(r));
     return box;
+  }
+
+  // AI-written website text from the project form.
+  function draftRow(r) {
+    var row = el('div', { class: 'admin-draft' }, [el('span', { class: 'admin-label', text: 'Website text (AI draft)' })]);
+    var status = r.has_draft ? 'Ready ' + when(r.draft_at) : r.draft_error ? 'Not written: ' + r.draft_error : 'Being written…';
+    row.appendChild(el('p', { class: 'admin-meta' }, [badge(r.has_draft ? 'Ready' : r.draft_error ? 'Failed' : 'Writing', r.has_draft ? 'is-won' : r.draft_error ? 'is-due' : 'is-new'), ' ' + status]));
+    var acts = el('div', { class: 'admin-actions' });
+    if (r.has_draft) acts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'View text', onclick: function () { viewDraft(r); } }));
+    var write = el('button', { class: 'admin-btn', type: 'button', text: r.has_draft ? 'Rewrite' : 'Write website text' });
+    write.addEventListener('click', function () {
+      if (r.has_draft && !window.confirm('Write a new draft? The current one will be replaced.')) return;
+      write.disabled = true; write.textContent = 'Writing… (up to a minute)';
+      api('POST', { action: 'write_draft', id: r.id }).then(function (row2) { replaceRequest(row2); flash('Website text ready'); render(); })
+        .catch(function (e) { write.disabled = false; write.textContent = 'Try again'; fail(e); });
+    });
+    acts.appendChild(write);
+    row.appendChild(acts);
+    return row;
+  }
+
+  // A small Markdown renderer for the draft: headings, bold, lists, rules, paragraphs.
+  function mdToHtml(md) {
+    var inline = function (t) { return h(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>').replace(/\[ADD:([^\]]*)\]/g, '<mark>[ADD:$1]</mark>'); };
+    var out = [], list = null;
+    md.split('\n').forEach(function (line) {
+      var m;
+      if ((m = line.match(/^\s*[-*] (.*)/)) || (m = line.match(/^\s*\d+\. (.*)/))) {
+        var tag = /^\s*\d+\./.test(line) ? 'ol' : 'ul';
+        if (list !== tag) { if (list) out.push('</' + list + '>'); out.push('<' + tag + '>'); list = tag; }
+        out.push('<li>' + inline(m[1]) + '</li>'); return;
+      }
+      if (list) { out.push('</' + list + '>'); list = null; }
+      if ((m = line.match(/^(#{1,4}) (.*)/))) out.push('<h' + (m[1].length + 1) + '>' + inline(m[2]) + '</h' + (m[1].length + 1) + '>');
+      else if (/^---+\s*$/.test(line)) out.push('<hr>');
+      else if (line.trim()) out.push('<p>' + inline(line) + '</p>');
+    });
+    if (list) out.push('</' + list + '>');
+    return out.join('');
+  }
+  function plain(md) { return md.replace(/^#{1,4} /gm, '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/^\s*[-*] /gm, '• ').trim(); }
+  function copyText(t, label, btn) {
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () {
+      flash(label + ' copied');
+      if (btn) { var was = btn.textContent; btn.textContent = 'Copied ✓'; setTimeout(function () { btn.textContent = was; }, 1800); }
+    }).catch(function () { window.prompt('Copy this text:', t); });
+  }
+
+  function viewDraft(r) {
+    api('GET', null, '?view=draft&id=' + r.id).then(function (d) {
+      if (!d.draft_md) { setError('No draft yet.'); return; }
+      // Split into sections at each "## " heading so each can be copied on its own.
+      var parts = d.draft_md.split(/\n(?=## )/);
+      var area = $('print-area');
+      area.innerHTML = '';
+      var close = el('button', { class: 'btn btn--navy admin-view-close', type: 'button', text: 'Close', onclick: function () { document.body.classList.remove('printing', 'viewing'); area.innerHTML = ''; } });
+      var all = el('button', { class: 'admin-btn admin-view-print', type: 'button', text: 'Copy all', onclick: function (e) { copyText(plain(d.draft_md), 'All text', e.currentTarget); } });
+      var pr = el('button', { class: 'admin-btn admin-view-print', type: 'button', text: 'Print / Save PDF', onclick: function () { window.print(); } });
+      area.appendChild(close); area.appendChild(all); area.appendChild(pr);
+      var doc = el('div', { class: 'doc draft-doc' });
+      doc.appendChild(el('p', { class: 'draft-note', text: 'AI draft for ' + r.name + ' (' + r.interest + '). Check every fact and replace each highlighted [ADD: …] before it goes on the site.' }));
+      parts.forEach(function (part) {
+        var sec = el('section', { class: 'draft-section' });
+        var body = el('div');
+        body.innerHTML = mdToHtml(part);
+        if (/^## /.test(part)) {
+          var title = part.split('\n')[0].replace(/^## /, '');
+          sec.appendChild(el('button', { class: 'admin-btn draft-copy', type: 'button', text: 'Copy', 'aria-label': 'Copy ' + title, onclick: function (e) { copyText(plain(part.replace(/^## .*\n/, '')), title, e.currentTarget); } }));
+        }
+        sec.appendChild(body);
+        doc.appendChild(sec);
+      });
+      area.appendChild(doc);
+      document.body.classList.add('printing', 'viewing');
+      window.scrollTo(0, 0);
+    }).catch(fail);
   }
 
   function viewBrief(r) {

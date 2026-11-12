@@ -6,6 +6,7 @@ import {
   sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference,
 } from "./store.mjs";
 import { buildDoc, naira, balance } from "./docs.mjs";
+import { generateDraft } from "./drafts.mjs";
 
 export const SITE = process.env.SITE_URL || "https://sirraddo-website.vercel.app";
 const DEFAULT_RENEWAL = { "Starter website": 25000, "Business website": 40000 };
@@ -177,6 +178,7 @@ function item(r, text, wa) {
 const section = (title, items) => (items.length ? `<h3 style="margin:18px 0 6px;color:#13254F">${esc(title)} (${items.length})</h3><ul style="padding-left:18px;margin:0">${items.join("")}</ul>` : "");
 
 export async function runDaily(now = new Date()) {
+  const started = Date.now();
   const today = todayLagos(now);
   const settings = await getSettings();
   const tpl = (k) => settings[k] || TEMPLATES[k];
@@ -248,6 +250,13 @@ export async function runDaily(now = new Date()) {
 
   const questions = await listUnansweredSince(24);
 
+  // Catch up on website text drafts that didn't get written when the form came in (one per run).
+  const needsDraft = all.find((r) => r.brief_submitted_at && !r.has_draft);
+  if (needsDraft && Date.now() - started < 20000) {
+    const res = await generateDraft(needsDraft.id, 30000);
+    if (res.ok) { needsDraft.has_draft = true; report.draftsWritten = 1; }
+  }
+
   // The morning email
   const sections = [
     section("New requests", fresh.map((r) => item(r, `${esc(r.contact)}${r.email ? " · " + esc(r.email) : ""} · ${esc(r.details || "")}`, fill(tpl("tpl_new"), r)))),
@@ -262,7 +271,7 @@ export async function runDaily(now = new Date()) {
       const text = fill(tpl("tpl_renewal"), r) + (r.doc_token ? `\nInvoice: ${docLink(r, "renewal")}` : "");
       return item(r, `${naira(r.renewal_amount)} · ${when}. Renew their domain and hosting with your provider too.`, text);
     })),
-    section("Project forms received", briefs.map((r) => item(r, "ready to build. Open View answers in admin.", null))),
+    section("Project forms received", briefs.map((r) => item(r, r.has_draft ? "ready to build. The AI draft of the website text is in admin (Project form → View text)." : "ready to build. Open View answers in admin.", null))),
     section("Client websites needing attention", siteProblems.map((x) => item(x.r,
       `${esc(x.r.website_url)} · ${esc(x.status)}${x.ssl ? ` · SSL ends ${niceDate(x.ssl)}` : ""}`, null))),
     section("Questions the assistant couldn't answer", questions.map((q) => `<li>${esc(q.question)}</li>`)),

@@ -15,6 +15,8 @@ import {
 } from "./_lib/store.mjs";
 import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 import { applyRules, emailBriefLink } from "./_lib/automation.mjs";
+import { generateDraft } from "./_lib/drafts.mjs";
+import { getBriefById } from "./_lib/store.mjs";
 
 // The project brief link is created once the deposit is in: 70% of the quote paid
 // (or any project payment if no quote was entered).
@@ -126,6 +128,11 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       if (query.view === "chats") return res.status(200).json({ chats: await listChats() });
+      if (query.view === "draft") {
+        const row = await getBriefById(Number(query.id));
+        if (!row) return res.status(404).json({ error: "Not found" });
+        return res.status(200).json({ draft_md: row.draft_md, draft_at: row.draft_at, draft_error: row.draft_error });
+      }
       const [requests, unanswered, settings] = await Promise.all([listRequests(), listUnanswered(), getSettings()]);
       return res.status(200).json({ requests, unanswered, settings, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured() });
     }
@@ -163,6 +170,13 @@ export default async function handler(req, res) {
         if (!Number.isInteger(id)) throw new Bad("Missing id");
         const row = await ensureBriefToken(id);
         return row ? res.status(200).json(row) : res.status(404).json({ error: "Not found" });
+      }
+      if (body.action === "write_draft") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        const result = await generateDraft(id, 50000);
+        if (!result.ok) throw new Bad(result.error);
+        return res.status(200).json(await getRequest(id));
       }
       if (body.action === "doc_link") {
         const id = Number(body.id);

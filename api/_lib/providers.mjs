@@ -3,7 +3,8 @@
 //
 // Each provider exposes:
 //   start(messages)                 -> provider-specific conversation
-//   call(convo, system, tools, ms)  -> { text, toolCalls: [{ id, name, input }], raw }
+//   call(convo, system, tools, ms, opts) -> { text, toolCalls: [{ id, name, input }], raw }
+//     tools may be [] (plain text); opts.maxTokens sets the reply length (default: a chat reply)
 //   addToolResults(convo, raw, results: [{ id, name, ok, text }])
 
 // Fetch with a time limit, so the chat answers before Vercel's own time limit.
@@ -28,7 +29,7 @@ const anthropic = {
   name: "anthropic",
   configured: () => Boolean(process.env.ANTHROPIC_API_KEY),
   start: (messages) => messages.map((m) => ({ role: m.role, content: m.content })),
-  async call(convo, system, tools, ms = 20000) {
+  async call(convo, system, tools, ms = 20000, opts = {}) {
     const res = await timedFetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -38,9 +39,9 @@ const anthropic = {
       },
       body: JSON.stringify({
         model: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
-        max_tokens: 700,
+        max_tokens: opts.maxTokens || 700,
         system,
-        tools,
+        ...(tools.length ? { tools } : {}),
         messages: convo,
       }),
     }, ms);
@@ -70,7 +71,7 @@ const gemini = {
   configured: () => Boolean(process.env.GEMINI_API_KEY),
   start: (messages) =>
     messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
-  async call(convo, system, tools, ms = 20000) {
+  async call(convo, system, tools, ms = 20000, opts = {}) {
     // Models to try in order. If one is busy (503), rate-limited (429) or gone (404), try the next.
     // Override with GEMINI_MODEL (a model name or a comma-separated list).
     const models = (process.env.GEMINI_MODEL || "gemini-flash-lite-latest,gemini-flash-latest")
@@ -81,7 +82,7 @@ const gemini = {
     const base = {
       systemInstruction: { parts: [{ text: system }] },
       contents: convo,
-      tools: [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, parameters: t.input_schema })) }],
+      ...(tools.length ? { tools: [{ functionDeclarations: tools.map((t) => ({ name: t.name, description: t.description, parameters: t.input_schema })) }] } : {}),
     };
     const send = (model, generationConfig) =>
       timedFetch(
@@ -91,7 +92,7 @@ const gemini = {
           headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "Content-Type": "application/json" },
           body: JSON.stringify({ ...base, generationConfig }),
         },
-        Math.max(3000, Math.min(15000, deadline - Date.now()))
+        Math.max(3000, Math.min(opts.attemptMs || 15000, deadline - Date.now()))
       );
     let res;
     let lastErr;
@@ -103,11 +104,12 @@ const gemini = {
       // Gemini 3 models think at "high" by default, which is slow for a chat. Ask for "minimal";
       // older models don't accept thinkingLevel, so retry without it if refused.
       // Thinking tokens count towards maxOutputTokens, so leave room above the visible reply.
-      res = await send(model, { maxOutputTokens: 4096, thinkingConfig: { thinkingLevel: "minimal" } });
+      const maxOutputTokens = Math.max(4096, (opts.maxTokens || 0) + 2048);
+      res = await send(model, { maxOutputTokens, thinkingConfig: { thinkingLevel: "minimal" } });
       if (res.status === 400) {
         const body = await res.text();
         if (!/thinking/i.test(body)) throw httpError("gemini", 400, body);
-        res = await send(model, { maxOutputTokens: 4096 });
+        res = await send(model, { maxOutputTokens });
       }
       } catch (err) {
         if (err.code !== "timeout") throw err;

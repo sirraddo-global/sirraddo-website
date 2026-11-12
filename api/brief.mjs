@@ -4,6 +4,8 @@
 // The token in the link is the only key, so it is long and random. No other login is needed.
 import { getBrief, saveBrief, removeBriefFile, sendEmail, emailConfigured, esc } from "./_lib/store.mjs";
 import { kindFor, KIND_LABEL, schemaFor, cleanAnswers, missingRequired, fileField } from "./_lib/brief-schema.mjs";
+import { waitUntil } from "@vercel/functions";
+import { generateDraft } from "./_lib/drafts.mjs";
 
 export const uploadsEnabled = () => Boolean(globalThis.__TEST_BLOB__ || process.env.BLOB_READ_WRITE_TOKEN);
 const SITE = "https://sirraddo-website.vercel.app";
@@ -89,6 +91,8 @@ export default async function handler(req, res) {
       const saved = await saveBrief(token, answers, Boolean(body.submit));
       if (body.submit && saved) {
         try { await notify(saved, kind); } catch (err) { console.error("brief email failed", err); }
+        // Write the website text in the background; the customer doesn't wait for it.
+        waitUntil(generateDraft(saved.id).catch((err) => console.error("draft failed", err)));
       }
       return res.status(200).json({ ok: true, saved_at: new Date().toISOString(), submitted_at: saved?.brief_submitted_at || null });
     }

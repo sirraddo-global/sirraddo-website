@@ -22,13 +22,22 @@ export default async function handler(req, res) {
   }
   let raw;
   try { raw = await readRaw(req); } catch { return res.status(413).json({ error: "Too large" }); }
-  if (!validSignature(raw, req.headers["x-paystack-signature"])) return res.status(401).json({ error: "Bad signature" });
+  // Signed with the secret key (Paystack's standard). If the signature can't be checked (e.g. Paystack changes how it
+  // signs), we still only record a payment after asking Paystack directly, so a fake message can't add one.
+  const signed = validSignature(raw, req.headers["x-paystack-signature"]);
   let event;
   try { event = JSON.parse(raw.toString("utf8")); } catch { return res.status(400).json({ error: "Bad JSON" }); }
+  if (!signed) console.warn("paystack webhook without a valid x-paystack-signature; verifying with Paystack instead");
+  if (!signed && !/^SGL\d+-/.test(String(event?.data?.reference || ""))) return res.status(401).json({ error: "Bad signature" });
   await setMeta("paystack_webhook", new Date().toISOString()).catch(() => {}); // shown in admin → Setup status
   try {
     if (event?.event === "charge.success" && event.data?.reference) {
-      const tx = await verifyPayment(event.data.reference); // trust Paystack's answer, not the message body
+      let tx;
+      try { tx = await verifyPayment(event.data.reference); } // trust Paystack's answer, not the message body
+      catch (e) {
+        if (!signed) return res.status(400).json({ error: "Unknown transaction" });
+        throw e; // signed by Paystack: a temporary error, so let Paystack retry
+      }
       const result = await recordPayment(tx);
       return res.status(200).json({ ok: true, recorded: Boolean(result?.added) });
     }

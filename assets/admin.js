@@ -14,7 +14,9 @@
   var PACKAGES = ['Starter website', 'Business website', 'Online Store', 'Custom app', 'Business software', 'ZAPPI PAY', 'Other'];
   var DEFAULT_QUOTE = { 'Starter website': 50000, 'Business website': 100000, 'Online Store': 150000 };
   var DEFAULT_RENEWAL = { 'Starter website': 25000, 'Business website': 40000 };
-  var STAGE_LABEL = { '': 'Not started', content: 'Waiting for content', building: 'Building', live: 'Live' };
+  var STAGE_LABEL = { '': 'Not started', content: 'Waiting for content', building: 'Building', review: 'Preview sent', live: 'Live' };
+  var PREVIEW_LABEL = { sent: ['Waiting for customer', 'is-new'], changes: ['Changes asked', 'is-due'], approved: ['Approved', 'is-won'] };
+  var DEFAULT_HANDOVER_TERMS = "Small fixes to text and photos are free for 30 days after your website goes live. After that, tell us what you'd like changed and we'll quote it before we start. Your yearly renewal keeps your domain, hosting, SSL certificate, business email and backups running.";
   var TEMPLATES = {
     tpl_new: { label: 'First contact', text: 'Hello {name}, this is SIRRADDO GLOBAL LIMITED. Thank you for your interest in our {package} package. Could you tell us a bit more about your business so we can get started?' },
     tpl_quoted: { label: 'Quote follow-up', text: 'Hello {name}, following up on your {package} quote of {amount}. To start, we need a 70% deposit of {deposit}, and the balance when your site is ready. Any questions, just ask.' },
@@ -23,6 +25,8 @@
     tpl_brief: { label: 'Send project form', text: 'Hello {name}, thank you for your deposit! Please fill in your project details here: {brief_link}\nIt takes about 10-15 minutes, and you can save and finish later with the same link.' },
     tpl_invoice: { label: 'Send invoice', text: 'Hello {name}, here is your invoice for the {package} package. Total: {amount}. Paid: {paid}. Balance: {balance}. View or save it here: {doc_link}' },
     tpl_receipt: { label: 'Send receipt', text: 'Hello {name}, thank you for your payment of {last_payment}. Your receipt: {doc_link}' },
+    tpl_preview: { label: 'Send website preview', text: 'Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.' },
+    tpl_handover: { label: 'Website is live (handover)', text: 'Hello {name}, your website is now live at {website}! Here is your handover pack with your domain, email and renewal details: {doc_link}\nI will send your logins in a separate message. Please change the passwords the first time you log in.' },
     tpl_renewal: { label: 'Renewal reminder', text: 'Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.' }
   };
 
@@ -350,13 +354,18 @@
       renewal_amount: naira(r.renewal_amount), renewal_due: r.renewal_due ? niceDate(r.renewal_due) : '-',
       brief_link: r.brief_token ? briefUrl(r) : '(no project form link yet)',
       last_payment: payments(r).length ? naira(payments(r)[payments(r).length - 1].amount) : '-',
-      doc_link: r._docType && r.doc_token ? docUrl(r, r._docType) : ''
+      doc_link: r._docType && r.doc_token ? docUrl(r, r._docType) : '',
+      preview_link: r.preview_token ? previewUrl(r) : '(no preview link yet)',
+      website: r.website_url || '(add their website address)'
     };
     return text.replace(/\{(\w+)\}/g, function (m, k) { return k in vals ? vals[k] : m; });
   }
   function briefUrl(r) { return location.origin + '/brief?t=' + r.brief_token; }
+  function previewUrl(r) { return location.origin + '/preview?t=' + r.preview_token; }
   function suggestedTemplate(r) {
     if (r.brief_token && !r.brief_submitted_at && !r.brief_saved_at) return 'tpl_brief';
+    if (r.project_stage === 'live' && !(r.auto_sent || {}).handover && balance(r) === 0) return 'tpl_handover';
+    if (r.preview_status === 'sent' && r.project_stage === 'review') return 'tpl_preview';
     if (r.status === 'won') {
       var d = daysUntil(r.renewal_due);
       if (d !== null && d <= 30) return 'tpl_renewal';
@@ -498,8 +507,127 @@
         .catch(function (e) { write.disabled = false; write.textContent = 'Try again'; fail(e); });
     });
     acts.appendChild(write);
+    if (r.has_draft) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Edit text', onclick: function () { editDraft(r); } }));
     row.appendChild(acts);
+    if (r.has_draft && r.draft_gaps > 0) row.appendChild(el('p', { class: 'admin-hint', text: r.draft_gaps + ' highlighted gap' + (r.draft_gaps === 1 ? '' : 's') + ' ([ADD: …]) still in the text. Fill them with "Edit text", or the customer will see them marked "To be added".' }));
+    if (r.has_draft) row.appendChild(previewBlock(r));
     return row;
+  }
+
+  // Edit the website text by hand (it is what the preview and the download are built from).
+  function editDraft(r) {
+    api('GET', null, '?view=draft&id=' + r.id).then(function (d) {
+      var area = $('print-area');
+      area.innerHTML = '';
+      var ta = el('textarea', { class: 'draft-editor', 'aria-label': 'Website text', spellcheck: 'true' });
+      ta.value = d.draft_md || '';
+      var info = el('p', { class: 'draft-note' });
+      function count() {
+        var n = (ta.value.match(/\[ADD:[^\]]*\]/g) || []).length;
+        info.textContent = 'Edit the text, then Save. Keep the "## Page:", "### Section" and "**Headline:**" lines: the preview is built from them. ' + (n ? n + ' [ADD: …] gap' + (n === 1 ? '' : 's') + ' left.' : 'No gaps left.');
+      }
+      ta.addEventListener('input', count); count();
+      function close() { document.body.classList.remove('printing', 'viewing'); area.innerHTML = ''; }
+      var save = el('button', { class: 'btn btn--navy admin-view-close', type: 'button', text: 'Save', onclick: function () {
+        save.disabled = true; save.textContent = 'Saving…';
+        api('PATCH', { id: r.id, draft_md: ta.value }).then(function (row) { replaceRequest(row); close(); flash('Website text saved'); render(); })
+          .catch(function (e) { save.disabled = false; save.textContent = 'Save'; fail(e); });
+      } });
+      var cancel = el('button', { class: 'admin-btn admin-view-print', type: 'button', text: 'Cancel', onclick: function () {
+        if (ta.value !== (d.draft_md || '') && !window.confirm('Close without saving your changes?')) return;
+        close();
+      } });
+      area.appendChild(save); area.appendChild(cancel);
+      area.appendChild(el('div', { class: 'doc draft-doc' }, [info, ta]));
+      document.body.classList.add('printing', 'viewing');
+      window.scrollTo(0, 0);
+    }).catch(fail);
+  }
+
+  // The website preview the customer approves, and the download for hosting.
+  function previewBlock(r) {
+    var box = el('div', { class: 'admin-preview' }, [el('span', { class: 'admin-label', text: 'Website preview' })]);
+    var st = PREVIEW_LABEL[r.preview_status];
+    var meta = st ? [badge(st[0], st[1])] : [badge('Not sent yet', '')];
+    if (r.preview_status === 'approved' && r.preview_approved_at) meta.push(' ' + when(r.preview_approved_at));
+    box.appendChild(el('p', { class: 'admin-meta' }, meta));
+    var fb = (r.preview_feedback || []).slice(-3).reverse();
+    if (fb.length) box.appendChild(el('ul', { class: 'admin-feedback' }, fb.map(function (f) {
+      return el('li', null, [el('b', { text: (f.result === 'approved' ? 'Approved' : 'Changes') + ' · ' + when(f.at) + (f.text ? ': ' : '') }), f.text || '']);
+    })));
+    function withLink(fn) {
+      if (r.preview_token) return fn(r);
+      return api('POST', { action: 'preview_link', id: r.id }).then(function (row) { replaceRequest(row); render(); return fn(row); }).catch(fail);
+    }
+    var acts = el('div', { class: 'admin-actions' });
+    acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Open preview', onclick: function () {
+      var win = window.open('', '_blank');
+      withLink(function (row) { if (win) win.location.href = previewUrl(row); else window.location.href = previewUrl(row); });
+    } }));
+    var num = waNumber(r.contact), mail = emailOf(r);
+    if (num) acts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send on WhatsApp', onclick: function () {
+      var win = window.open('', '_blank');
+      withLink(function (row) {
+        var url = 'https://wa.me/' + num + '?text=' + encodeURIComponent(fill(state.settings.tpl_preview || TEMPLATES.tpl_preview.text, row));
+        if (win) win.location.href = url; else window.location.href = url;
+      });
+    } }));
+    if (mail) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Email preview', disabled: !state.canEmail, onclick: function (e) {
+      var b = e.currentTarget; b.disabled = true;
+      api('POST', { action: 'send_preview', id: r.id }).then(function (j) { if (j.row) replaceRequest(j.row); flash('Preview emailed to ' + j.to); render(); })
+        .catch(function (err) { b.disabled = false; fail(err); });
+    } }));
+    acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Download site (.zip)', onclick: function (e) { downloadSite(r, e.currentTarget); } }));
+    box.appendChild(acts);
+    box.appendChild(el('p', { class: 'admin-hint', text: r.preview_status === 'approved'
+      ? 'Approved. Once the balance is paid, upload the .zip to the host, connect their domain, mark the project Live and send the handover pack.'
+      : 'Opening or sending the preview moves the project to "Preview sent". The customer approves or asks for changes on the page itself, and you get an email.' }));
+    return box;
+  }
+  function downloadSite(r, btn) {
+    var was = btn.textContent; btn.disabled = true; btn.textContent = 'Preparing…';
+    fetch('/api/requests?view=export&id=' + r.id, { headers: { 'Authorization': 'Bearer ' + password } }).then(function (res) {
+      if (!res.ok) return res.json().catch(function () { return {}; }).then(function (j) { throw Object.assign(new Error(j.error || 'Download failed'), { status: res.status }); });
+      var name = ((res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/) || [])[1] || 'website.zip';
+      return res.blob().then(function (b) {
+        var a = el('a', { href: URL.createObjectURL(b), download: name });
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 10000);
+        flash('Downloaded ' + name);
+      });
+    }).catch(fail).then(function () { btn.disabled = false; btn.textContent = was; });
+  }
+
+  // Everything the customer needs after the balance is paid. Passwords never go in here.
+  function handoverBlock(r) {
+    var h = r.handover || {};
+    var box = el('div', { class: 'admin-handover' }, [el('span', { class: 'admin-label', text: 'Handover pack' })]);
+    var sent = (r.auto_sent || {}).handover;
+    var bal = balance(r);
+    var locked = r.quote_amount == null || bal > 0;
+    box.appendChild(el('p', { class: 'admin-meta' }, [sent ? badge('Sent', 'is-won') : badge(locked ? 'Locked' : 'Ready to send', locked ? '' : 'is-new'),
+      ' ' + (sent ? 'Emailed ' + when(sent) : locked ? (r.quote_amount == null ? 'Add the quote first.' : 'Unlocks when the balance (' + naira(bal) + ') is paid.') : 'Fill in the details, then send.')]));
+    var domain = el('input', { value: h.domain || '', placeholder: 'theirbusiness.com.ng' });
+    var registrar = el('input', { value: h.registrar || '', placeholder: 'e.g. Whogohost' });
+    var expires = el('input', { type: 'date', value: h.domain_expires || '' });
+    var emails = el('textarea', { rows: 2, value: h.emails || '', placeholder: 'info@theirbusiness.com.ng (addresses only, no passwords)' });
+    var webmail = el('input', { value: h.webmail || '', placeholder: 'Webmail link, e.g. https://mail.zoho.com' });
+    var notes = el('textarea', { rows: 2, value: h.notes || '', placeholder: 'Anything else for them (optional)' });
+    box.appendChild(el('div', { class: 'admin-grid' }, [field('Domain', domain), field('Registered with', registrar), field('Domain registered until', expires), field('Webmail', webmail)]));
+    box.appendChild(field('Business email addresses', emails));
+    box.appendChild(field('Note for the customer', notes));
+    var save = el('button', { class: 'admin-btn', type: 'button', text: 'Save handover details', onclick: function () {
+      update(r, { handover: { domain: domain.value, registrar: registrar.value, domain_expires: expires.value, emails: emails.value, webmail: webmail.value, notes: notes.value } }, 'Handover details saved');
+    } });
+    var ready = !locked && r.website_url;
+    var why = locked ? 'Unlocks when the balance is paid' : !r.website_url ? 'Add their website address above first' : null;
+    var acts = el('div', { class: 'admin-actions' }, [save,
+      el('button', { class: 'admin-btn', type: 'button', text: 'View', disabled: !ready, title: why, onclick: function () { docAction(r, 'handover', 'view'); } })]);
+    if (waNumber(r.contact)) acts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'WhatsApp', disabled: !ready, title: why, onclick: function () { docAction(r, 'handover', 'whatsapp'); } }));
+    if (emailOf(r)) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: sent ? 'Email again' : 'Email', disabled: !ready || !state.canEmail, title: why, onclick: function () { docAction(r, 'handover', 'email'); } }));
+    box.appendChild(acts);
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Save the details before sending. Send passwords separately on WhatsApp, never by email.' }));
+    return box;
   }
 
   // A small Markdown renderer for the draft: headings, bold, lists, rules, paragraphs.
@@ -705,6 +833,7 @@
       } })
     ]));
     card.appendChild(briefBlock(r));
+    card.appendChild(handoverBlock(r));
     return card;
   }
 
@@ -783,9 +912,11 @@
       text('account_number', 'Account number', '10 digits'),
       text('invoice_note', 'Note at the bottom of invoices', 'e.g. Work starts after the 70% deposit is received.', true),
       el('h2', { text: 'WhatsApp messages' }),
-      el('p', { class: 'admin-intro', text: 'Leave a box empty to use the standard message. You can use {name}, {package}, {amount}, {deposit}, {paid}, {balance}, {renewal_amount} and {renewal_due}.' })
+      el('p', { class: 'admin-intro', text: 'Leave a box empty to use the standard message. You can use {name}, {package}, {amount}, {deposit}, {paid}, {balance}, {renewal_amount}, {renewal_due}, {preview_link} and {website}.' })
     ]);
     Object.keys(TEMPLATES).forEach(function (k) { form.appendChild(text(k, TEMPLATES[k].label, TEMPLATES[k].text, true)); });
+    form.appendChild(el('h2', { text: 'Handover pack' }));
+    form.appendChild(text('handover_terms', 'Changes and support policy (shown in every handover pack)', DEFAULT_HANDOVER_TERMS, true));
     form.appendChild(el('button', { class: 'btn btn--navy', type: 'submit', text: 'Save settings' }));
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -834,11 +965,11 @@
     return api('POST', { action: 'doc_link', id: r.id }).then(function (row) { replaceRequest(row); return row; });
   }
   function docAction(r, type, how) {
-    var label = type === 'receipt' ? 'receipt' : 'invoice';
+    var label = type === 'receipt' ? 'receipt' : type === 'handover' ? 'handover pack' : 'invoice';
     if (how === 'email') {
       flash('Sending ' + label + '…');
       return api('POST', { action: 'send_doc', id: r.id, type: type })
-        .then(function (j) { setError(''); flash(cap(label) + ' emailed to ' + j.to); delete state.justPaid[r.id]; render(); })
+        .then(function (j) { if (j.row) replaceRequest(j.row); setError(''); flash(cap(label) + ' emailed to ' + j.to); delete state.justPaid[r.id]; render(); })
         .catch(fail);
     }
     // Open the new tab straight away (phones block tabs opened after a delay), then point it at the link.
@@ -846,7 +977,7 @@
     ensureDoc(r).then(function (row) {
       var url;
       if (how === 'whatsapp') {
-        var tpl = type === 'receipt' ? 'tpl_receipt' : type === 'renewal' ? 'tpl_renewal' : 'tpl_invoice';
+        var tpl = type === 'receipt' ? 'tpl_receipt' : type === 'renewal' ? 'tpl_renewal' : type === 'handover' ? 'tpl_handover' : 'tpl_invoice';
         var withLink = Object.assign({}, row, { _docType: type });
         var text = fill(state.settings[tpl] || TEMPLATES[tpl].text, withLink);
         if (text.indexOf(docUrl(row, type)) === -1) text += '\n' + docUrl(row, type);

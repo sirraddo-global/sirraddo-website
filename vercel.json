@@ -59,6 +59,23 @@
           "value": "no-referrer"
         }
       ]
+    },
+    {
+      "source": "/preview",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
     }
   ],
   "functions": {
@@ -76,6 +93,10 @@
     {
       "source": "/doc",
       "destination": "/api/doc"
+    },
+    {
+      "source": "/preview",
+      "destination": "/api/preview"
     }
   ]
 }

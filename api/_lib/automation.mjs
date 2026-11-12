@@ -32,6 +32,7 @@ export const TEMPLATES = {
   tpl_quoted: "Hello {name}, following up on your {package} quote of {amount}. To start, we need a 70% deposit of {deposit}, and the balance when your site is ready. Any questions, just ask.",
   tpl_brief: "Hello {name}, thank you for your deposit! Please fill in your project details here: {brief_link}\nIt takes about 10-15 minutes, and you can save and finish later with the same link.",
   tpl_invoice: "Hello {name}, here is your invoice for the {package} package. Total: {amount}. Paid: {paid}. Balance: {balance}. View or save it here: {doc_link}",
+  tpl_preview: "Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.",
   tpl_renewal: "Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.",
 };
 const projectPaid = (r) => (r.payments || []).filter((p) => p.kind !== "renewal").reduce((s, p) => s + Number(p.amount || 0), 0);
@@ -42,7 +43,8 @@ export function fill(text, r, extra = {}) {
     name: String(r.name || "").split(" ")[0], package: r.interest, amount: naira(q),
     deposit: q ? naira(Math.round(q * 0.7)) : "-", paid: naira(projectPaid(r)), balance: naira(balance(r)),
     renewal_amount: naira(r.renewal_amount), renewal_due: r.renewal_due ? niceDate(r.renewal_due) : "-",
-    brief_link: r.brief_token ? `${SITE}/brief?t=${r.brief_token}` : "", doc_link: "", ...extra,
+    brief_link: r.brief_token ? `${SITE}/brief?t=${r.brief_token}` : "", doc_link: "",
+    preview_link: r.preview_token ? `${SITE}/preview?t=${r.preview_token}` : "", website: r.website_url || "", ...extra,
   };
   return text.replace(/\{(\w+)\}/g, (m, k) => (k in vals ? vals[k] : m));
 }
@@ -94,7 +96,7 @@ export async function applyRules(row, changed) {
 }
 
 // ---------- Automatic emails to customers (only when LEAD_EMAIL_FROM is set) ----------
-function customerHtml(r, paragraphs, button) {
+export function customerHtml(r, paragraphs, button) {
   return `<div style="font-family:Arial,Helvetica,sans-serif;color:#1B2433;font-size:15px;line-height:1.55;max-width:560px">
     <div style="font-weight:900;font-size:22px;letter-spacing:-1px"><span style="color:#13254F">SI</span><span style="color:#D9A21B">RR</span><span style="color:#13254F">A</span><span style="color:#D9A21B">DD</span><span style="color:#13254F">O</span></div>
     <div style="font-weight:700;font-size:8px;letter-spacing:4px;color:#13254F;margin-bottom:16px">GLOBAL LIMITED</div>
@@ -272,6 +274,17 @@ export async function runDaily(now = new Date()) {
       const text = fill(tpl("tpl_renewal"), r) + (r.doc_token ? `\nInvoice: ${docLink(r, "renewal")}` : "");
       return item(r, `${naira(r.renewal_amount)} · ${when}. Renew their domain and hosting with your provider too.`, text);
     })),
+    section("Customers asked for changes to their preview", all.filter((r) => r.preview_status === "changes").map((r) => {
+      const last = (r.preview_feedback || []).slice(-1)[0];
+      return item(r, `“${esc(String(last?.text || "").slice(0, 300))}” Edit the text in admin, then send the preview again.`, null);
+    })),
+    section("Previews waiting for an answer (3+ days)", all.filter((r) => r.preview_status === "sent" && r.project_stage === "review" && r.updated_at && Date.now() - Date.parse(r.updated_at) > 3 * 86400000)
+      .map((r) => item(r, "no answer yet. Nudge them to look and approve.", fill(tpl("tpl_preview"), r)))),
+    section("Approved: collect the balance and put live", all.filter((r) => r.preview_status === "approved" && r.project_stage !== "live").map((r) => item(r,
+      balance(r) > 0 ? `balance ${naira(balance(r))} to pay${r.auto_sent?.balance_invoice ? " (invoice emailed)" : ""}` : "fully paid. Upload the site, connect the domain and mark it Live.",
+      balance(r) > 0 ? (r.doc_token ? fill(tpl("tpl_invoice"), r, { doc_link: docLink(r, "invoice") }) : fill(tpl("tpl_invoice"), r)) : null))),
+    section("Live sites without a handover pack", all.filter((r) => r.project_stage === "live" && !r.auto_sent?.handover && balance(r) === 0 && r.live_on && daysBetween(r.live_on, today) <= 30)
+      .map((r) => item(r, "send the handover pack from admin (Clients → Handover pack), then their logins privately on WhatsApp.", null))),
     section("Project forms received", briefs.map((r) => item(r, r.has_draft ? "ready to build. The AI draft of the website text is in admin (Project form → View text)." : "ready to build. Open View answers in admin.", null))),
     section("Client websites needing attention", siteProblems.map((x) => item(x.r,
       `${esc(x.r.website_url)} · ${esc(x.status)}${x.ssl ? ` · SSL ends ${niceDate(x.ssl)}` : ""}`, null))),

@@ -3,7 +3,7 @@
 // The site's public address, with no slash at the end.
 // When you move to your own domain, change only this line, e.g. "https://sirraddo.com.ng".
 // Used for canonical links, og:url, og:image, sitemap.xml and robots.txt.
-export const SITE_URL = "https://sirraddo-website.vercel.app";
+export const SITE_URL = "https://www.sirraddo.com.ng";
 
 // Show the Restaurant / School / Shop demo cards under "Our work" on /websites.
 // Set to true when the demos are ready.

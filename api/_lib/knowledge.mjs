@@ -47,6 +47,7 @@ Website packages (one-off price, first year included)
 - Every website includes: mobile-optimised design, SEO basics, free SSL, fast loading, daily backups, business email, training on how to edit, 1 month of free minor changes.
 - Renewal from year 2 covers domain, hosting, SSL, business email and backups. No hidden charges.
 - How it works: 1) chat on WhatsApp, 2) send logo, photos and business details, 3) pay 70% to start, 4) site is live in 7 working days, 5) pay the balance and get your logins.
+- Refunds (full policy at www.sirraddo.com.ng/terms#payments-refunds): full deposit refund before work starts (before the project form is sent); 50% of the deposit after work starts but before the preview; no refund after the preview is approved or the site is live (we fix problems free instead); domain and renewal fees are not refundable once paid to the registrar. Refunds go to the paying account within 7 working days; ask on WhatsApp or email with the reference number.
 - Timeline: usually 7 working days after the content is received.
 - Customers can edit their website themselves; the team trains them after handover.
 - An existing domain can be used.

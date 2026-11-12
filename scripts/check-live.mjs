@@ -100,6 +100,17 @@ while (true) {
   console.log(`Attempt ${attempt}: ${results.filter(([, ok]) => !ok).length} check(s) not passing yet, retrying in ${RETRY_MS / 1000}s`);
   await new Promise((r) => setTimeout(r, RETRY_MS));
 }
+if (results.every(([, ok]) => ok)) {
+  // The preview page answers (an invalid link shows the friendly "not valid" page), and Terms has the Paystack policies.
+  try {
+    const r = await fetch(`${BASE}/preview?t=live-check-invalid-token-0000`);
+    results.push(["6. /preview is served (invalid link page)", r.status === 404 && (await r.text()).includes("preview link is not valid")]);
+  } catch (e) { results.push([`6. /preview: ${e.message}`, false]); }
+  try {
+    const t = await (await fetch(`${BASE}/terms?check=${Date.now()}`)).text();
+    results.push(["7. Terms has the delivery and refunds policies", t.includes('id="delivery"') && t.includes('id="payments-refunds"')]);
+  } catch (e) { results.push([`7. /terms: ${e.message}`, false]); }
+}
 if (process.env.LAYOUT_CHECK === "1" && results.every(([, ok]) => ok)) results.push(...(await layoutChecks()));
 
 console.log(`\nLive check of ${PAGE}\n`);

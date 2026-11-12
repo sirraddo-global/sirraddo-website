@@ -10,6 +10,7 @@ import {
 import { buildSiteModel, renderPage } from "./_lib/sitegen.mjs";
 import { buildDoc, balance, naira } from "./_lib/docs.mjs";
 import { SITE, customerHtml } from "./_lib/automation.mjs";
+import { payButton } from "./_lib/paystack.mjs";
 
 function message(res, code, text) {
   res.statusCode = code;
@@ -80,7 +81,7 @@ export default async function handler(req, res) {
                 "Thank you for approving your website design!",
                 `To put it live on your domain, please pay the balance of <b>${naira(bal)}</b>. Your invoice is below, and you can also <a href="${link}">view, print or save it as a PDF</a>.`,
                 "As soon as the payment is confirmed we put the site live and send you everything you need to manage it.",
-              ]) + doc.html);
+              ]) + payButton(withDoc) + doc.html);
             await markSent(row.id, "balance_invoice");
             message = `Thank you! You approved your website. We've emailed your balance invoice (${naira(bal)}) to ${to}.`;
           }

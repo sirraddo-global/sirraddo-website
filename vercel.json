@@ -76,6 +76,23 @@
           "value": "no-referrer"
         }
       ]
+    },
+    {
+      "source": "/pay",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
     }
   ],
   "functions": {
@@ -97,6 +114,10 @@
     {
       "source": "/preview",
       "destination": "/api/preview"
+    },
+    {
+      "source": "/pay",
+      "destination": "/api/pay"
     }
   ],
   "redirects": [

@@ -23,18 +23,18 @@
     tpl_won: { label: 'Send your content', text: 'Hello {name}, thank you for choosing SIRRADDO! To begin, please send your logo, photos, a short business description and your contact details. Your website will be live within 7 working days after we receive them.' },
     tpl_payment: { label: 'Payment received', text: 'Hello {name}, we have received your payment, thank you. Total paid: {paid}. Balance: {balance}.' },
     tpl_brief: { label: 'Send project form', text: 'Hello {name}, thank you for your deposit! Please fill in your project details here: {brief_link}\nIt takes about 10-15 minutes, and you can save and finish later with the same link.' },
-    tpl_invoice: { label: 'Send invoice', text: 'Hello {name}, here is your invoice for the {package} package. Total: {amount}. Paid: {paid}. Balance: {balance}. View or save it here: {doc_link}' },
+    tpl_invoice: { label: 'Send invoice', text: 'Hello {name}, here is your invoice for the {package} package. Total: {amount}. Paid: {paid}. Balance: {balance}. View or save it here: {doc_link}\nPay online: {pay_link}' },
     tpl_receipt: { label: 'Send receipt', text: 'Hello {name}, thank you for your payment of {last_payment}. Your receipt: {doc_link}' },
     tpl_preview: { label: 'Send website preview', text: 'Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.' },
     tpl_handover: { label: 'Website is live (handover)', text: 'Hello {name}, your website is now live at {website}! Here is your handover pack with your domain, email and renewal details: {doc_link}\nI will send your logins in a separate message. Please change the passwords the first time you log in.' },
-    tpl_renewal: { label: 'Renewal reminder', text: 'Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.' }
+    tpl_renewal: { label: 'Renewal reminder', text: 'Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.\nPay online: {pay_link}' }
   };
 
   var password = null;
   try { password = sessionStorage.getItem(KEY); } catch (e) { /* storage blocked */ }
   var state = {
     tab: 'dashboard', requests: [], unanswered: [], settings: {}, statuses: [], stages: [], chats: null,
-    open: {}, filters: { q: '', status: '', interest: '', due: false }, chatQuery: '', canEmail: false, justPaid: {}
+    open: {}, filters: { q: '', status: '', interest: '', due: false }, chatQuery: '', canEmail: false, canPay: false, justPaid: {}
   };
 
   // ---------- Small helpers ----------
@@ -133,6 +133,7 @@
       state.statuses = j.statuses || [];
       state.stages = j.stages || [];
       state.canEmail = Boolean(j.can_email_customers);
+      state.canPay = Boolean(j.can_pay_online);
       showApp(true);
       render();
     }).catch(function (err) {
@@ -348,6 +349,7 @@
 
   function fill(text, r) {
     var quote = r.quote_amount;
+    if (!state.canPay || !r.doc_token) text = text.split('\n').filter(function (l) { return l.indexOf('{pay_link}') === -1; }).join('\n');
     var vals = {
       name: (r.name || '').split(' ')[0], package: r.interest, amount: naira(quote),
       deposit: quote ? naira(Math.round(quote * 0.7)) : '-', paid: naira(paid(r, 'project')), balance: naira(balance(r)),
@@ -356,7 +358,8 @@
       last_payment: payments(r).length ? naira(payments(r)[payments(r).length - 1].amount) : '-',
       doc_link: r._docType && r.doc_token ? docUrl(r, r._docType) : '',
       preview_link: r.preview_token ? previewUrl(r) : '(no preview link yet)',
-      website: r.website_url || '(add their website address)'
+      website: r.website_url || '(add their website address)',
+      pay_link: r.doc_token ? location.origin + '/pay?t=' + r.doc_token + (r._docType === 'renewal' ? '&for=renewal' : '') : ''
     };
     return text.replace(/\{(\w+)\}/g, function (m, k) { return k in vals ? vals[k] : m; });
   }
@@ -1003,6 +1006,15 @@
     }
     box.appendChild(line('receipt', 'Receipt', hasPay, 'Record a payment first'));
     box.appendChild(line('invoice', 'Invoice', hasQuote, 'Add a quote first'));
+    if (state.canPay && hasQuote && (balance(r) > 0 || !paid(r, 'project'))) {
+      var payRow = el('div', { class: 'admin-doc-row' }, [el('span', { text: 'Pay online' })]);
+      payRow.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy pay link', onclick: function (e) {
+        var b = e.currentTarget;
+        ensureDoc(r).then(function (row) { copyText(location.origin + '/pay?t=' + row.doc_token, 'Pay link', b); }).catch(fail);
+      } }));
+      box.appendChild(payRow);
+      box.appendChild(el('p', { class: 'admin-hint', text: 'Payments made on Paystack are recorded here automatically, with the receipt emailed. No need to add them by hand.' }));
+    }
     if (!mail) box.appendChild(el('p', { class: 'admin-hint', text: 'No email for this customer. Add one under "Edit customer details" to email documents.' }));
     else if (!state.canEmail) box.appendChild(el('p', { class: 'admin-hint', text: 'Emailing customers starts once your domain is verified in Resend (LEAD_EMAIL_FROM).' }));
     return box;

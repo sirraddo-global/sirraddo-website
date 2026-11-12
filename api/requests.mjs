@@ -20,6 +20,7 @@ import {
 import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automation.mjs";
 import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
+import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
 import { getBriefById } from "./_lib/store.mjs";
 
@@ -111,6 +112,7 @@ function cleanFields(body) {
         amount,
         kind: p.kind === "renewal" ? "renewal" : "project",
         note: text(p.note, 200),
+        ...(typeof p.ref === "string" && /^[\w-]{6,80}$/.test(p.ref) ? { ref: p.ref } : {}), // Paystack reference, kept so it is never counted twice
       };
     });
   }
@@ -170,7 +172,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ draft_md: row.draft_md, draft_at: row.draft_at, draft_error: row.draft_error });
       }
       const [requests, unanswered, settings] = await Promise.all([listRequests(), listUnanswered(), getSettings()]);
-      return res.status(200).json({ requests, unanswered, settings, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured() });
+      return res.status(200).json({ requests, unanswered, settings, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured() });
     }
 
     if (req.method === "PATCH") {
@@ -264,7 +266,7 @@ export default async function handler(req, res) {
           : "Please find your invoice below.";
         await sendCustomerEmail(to, doc.subject, `<p style="font-family:Arial,sans-serif">Hello ${row.name.split(" ")[0]},</p>
           <p style="font-family:Arial,sans-serif">${intro}
-          You can also <a href="${link}">view, print or save it as a PDF</a>.</p>${doc.html}`);
+          You can also <a href="${link}">view, print or save it as a PDF</a>.</p>${body.type === "invoice" ? payButton(row) : body.type === "renewal" ? payButton(row, "renewal") : ""}${doc.html}`);
         if (body.type === "handover") await markSent(id, "handover");
         return res.status(200).json({ ok: true, to, row: body.type === "handover" ? await getRequest(id) : undefined });
       }

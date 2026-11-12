@@ -172,7 +172,7 @@ export function buildDoc(r, type, settings = {}) {
 }
 
 // A full web page around the document, with Print / Save as PDF.
-export function docPage(doc, r) {
+export function docPage(doc, r, opts = {}) {
   return `<!doctype html>
 <html lang="en-NG"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer">
@@ -184,11 +184,12 @@ export function docPage(doc, r) {
   .bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;font-family:Inter,Arial,sans-serif;}
   .bar button,.bar a{font:inherit;font-weight:700;border-radius:10px;padding:10px 16px;border:1px solid #13254F;background:#13254F;color:#fff;text-decoration:none;cursor:pointer;}
   .bar a{background:#fff;color:#13254F;}
+  .bar a.pay{background:#D9A21B;border-color:#D9A21B;color:#13254F;}
   .note{font-family:Inter,Arial,sans-serif;font-size:13px;color:#4A5568;margin:10px 0 0;}
   @media print{body{background:#fff}.bar,.note{display:none}.wrap{padding:0}.sheet{border:0;padding:0}@page{margin:14mm}}
 </style></head>
 <body><div class="wrap">
-  <div class="bar"><button type="button" onclick="window.print()">Print / Save as PDF</button><a href="https://wa.me/2348167550937">WhatsApp us</a></div>
+  <div class="bar">${opts.payUrl ? `<a class="pay" href="${opts.payUrl}">Pay ${opts.payAmount} online</a>` : ""}<button type="button" onclick="window.print()">Print / Save as PDF</button><a href="https://wa.me/2348167550937">WhatsApp us</a></div>
   <div class="sheet">${doc.html}</div>
   <p class="note">To save a copy, tap "Print / Save as PDF" and choose "Save as PDF".</p>
 </div></body></html>`;

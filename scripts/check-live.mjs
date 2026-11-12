@@ -85,22 +85,8 @@ async function layoutChecks() {
   return results;
 }
 
-const deadline = Date.now() + WAIT_MS;
-let results, attempt = 0;
-while (true) {
-  attempt++;
-  try {
-    const res = await fetch(`${PAGE}?check=${Date.now()}`, { headers: { "cache-control": "no-cache" } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    results = contentChecks(await res.text());
-  } catch (e) {
-    results = [[`Load ${PAGE}: ${e.message}`, false]];
-  }
-  if (results.every(([, ok]) => ok) || Date.now() >= deadline) break;
-  console.log(`Attempt ${attempt}: ${results.filter(([, ok]) => !ok).length} check(s) not passing yet, retrying in ${RETRY_MS / 1000}s`);
-  await new Promise((r) => setTimeout(r, RETRY_MS));
-}
-if (results.every(([, ok]) => ok)) {
+async function extraChecks() {
+  const results = [];
   // The preview page answers (an invalid link shows the friendly "not valid" page), and Terms has the Paystack policies.
   try {
     const r = await fetch(`${BASE}/preview?t=live-check-invalid-token-0000`);
@@ -114,6 +100,24 @@ if (results.every(([, ok]) => ok)) {
     const t = await (await fetch(`${BASE}/terms?check=${Date.now()}`)).text();
     results.push(["7. Terms has the delivery and refunds policies", t.includes('id="delivery"') && t.includes('id="payments-refunds"')]);
   } catch (e) { results.push([`7. /terms: ${e.message}`, false]); }
+  return results;
+}
+
+const deadline = Date.now() + WAIT_MS;
+let results, attempt = 0;
+while (true) {
+  attempt++;
+  try {
+    const res = await fetch(`${PAGE}?check=${Date.now()}`, { headers: { "cache-control": "no-cache" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    results = contentChecks(await res.text());
+    if (results.every(([, ok]) => ok)) results.push(...(await extraChecks())); // new pages may still be deploying: retried too
+  } catch (e) {
+    results = [[`Load ${PAGE}: ${e.message}`, false]];
+  }
+  if (results.every(([, ok]) => ok) || Date.now() >= deadline) break;
+  console.log(`Attempt ${attempt}: ${results.filter(([, ok]) => !ok).length} check(s) not passing yet, retrying in ${RETRY_MS / 1000}s`);
+  await new Promise((r) => setTimeout(r, RETRY_MS));
 }
 if (process.env.LAYOUT_CHECK === "1" && results.every(([, ok]) => ok)) results.push(...(await layoutChecks()));
 

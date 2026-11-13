@@ -26,14 +26,16 @@ export function parseDraft(md) {
     if (/^---+\s*$/.test(line)) { page = null; sec = null; extra = null; continue; }
     if (/^#\s/.test(line)) continue;
     if (!page) { if (extra) extras[extra].push(line); continue; }
-    if ((m = line.match(/^\*\*(SEO title|Meta description):?\*\*:?\s*(.*)/i))) {
+    if ((m = line.match(/^(?:\*\*)?(SEO title|Meta description):?(?:\*\*)?:?\s*(.*)/i))) {
       page[/seo/i.test(m[1]) ? "title" : "meta"] = m[2].trim(); continue;
     }
     if ((m = line.match(/^###\s+(.+)/))) { sec = { name: m[1].trim(), fields: {}, body: [] }; page.sections.push(sec); continue; }
     if (!line.trim()) { if (sec) sec.body.push(""); continue; }
     if (!sec) { sec = { name: "", fields: {}, body: [] }; page.sections.push(sec); }
-    if ((m = line.match(/^\*\*([^*]{1,40}?):?\*\*:?\s*(.*)/))) {
-      const key = m[1].trim().toLowerCase();
+    if ((m = line.match(/^\*\*([^*]{1,40}?):?\*\*:?\s*(.*)/)) || (m = line.match(/^(headline|subheadline|sub-headline|button text|button|heading|text):\s*(.*)/i))) {
+      let key = m[1].trim().toLowerCase();
+      if (key === "sub-headline") key = "subheadline";
+      if (key === "button") key = "button text";
       if (FIELD_KEYS.includes(key)) { sec.fields[key] = m[2].trim(); continue; }
       if (key === "text") { sec.body.push(m[2].trim()); continue; }
     }
@@ -108,6 +110,12 @@ export function waNumber(v) {
   if (d.length === 10 && /^[789]/.test(d)) d = "234" + d;
   return d.length >= 10 ? d : "";
 }
+// "4100" -> "₦4,100"; text like "from ₦5k" or "Call for price" stays as written.
+export function naira(p) {
+  const s = String(p ?? "").trim();
+  const n = s.replace(/^(₦|N|NGN)\s*/i, "").replace(/,/g, "");
+  return /^\d+(\.\d{1,2})?$/.test(n) ? "₦" + Number(n).toLocaleString("en-NG") : s;
+}
 const isImage = (f) => /^image\//.test(f?.type || "") || /\.(jpe?g|png|webp|gif|svg)$/i.test(f?.name || f?.url || "");
 
 function inline(text, mode) {
@@ -123,7 +131,8 @@ function blocks(lines, mode) {
     const m = line.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)/);
     if (m) {
       if (!list) { out.push("<ul>"); list = true; }
-      out.push(`<li>${inline(m[1], mode)}</li>`);
+      const qa = m[1].match(/^(?:\*\*)?(.{6,160}?\?)(?:\*\*)?\s+(.+)$/);
+      out.push(qa ? `<li class="qa"><strong>${inline(qa[1], mode)}</strong><br>${inline(qa[2], mode)}</li>` : `<li>${inline(m[1], mode)}</li>`);
       continue;
     }
     if (list) { out.push("</ul>"); list = null; }
@@ -230,11 +239,13 @@ footer{background:#111827;color:#D1D5DB;padding:32px 0 90px;font-size:.95rem}foo
 .credit{font-size:.8rem;opacity:.7}
 .wa{position:fixed;right:16px;bottom:16px;z-index:9;background:#25D366;color:#fff;font-weight:700;text-decoration:none;padding:13px 18px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 mark.todo{background:#FFF1B8;color:#5C4400;padding:1px 4px;border-radius:4px}
-article.post{margin-bottom:28px}`;
+article.post{margin-bottom:28px}
+li.qa{margin-bottom:12px}h3+p{margin-top:-.2em}
+section.block:empty,section.block .wrap:empty{display:none}`;
 }
 
 const PREVIEW_CSS = `.pv-top{background:#FFF1B8;color:#3D2E00;font:600 14px/1.4 system-ui,Arial,sans-serif;padding:10px 16px;text-align:center}
-.pv{background:#0F172A;color:#fff;padding:24px 0 96px;font-family:system-ui,Arial,sans-serif}.pv h2{color:#fff;font-size:1.3rem}
+.pv{background:#0F172A;color:#fff;padding:24px 0 28px;font-family:system-ui,Arial,sans-serif}.pv h2{color:#fff;font-size:1.3rem}
 .pv textarea{width:100%;min-height:110px;border-radius:10px;border:0;padding:12px;font:inherit;margin:8px 0}
 .pv .row{display:flex;gap:10px;flex-wrap:wrap}.pv .ok{background:#22C55E;color:#062E14}.pv .chg{background:#fff;color:#0F172A}
 .pv .msg{margin-top:10px;font-weight:600}`;
@@ -258,13 +269,13 @@ function contactCard(site, mode) {
 }
 function serviceCards(site, showPrice) {
   if (!site.services.length) return "";
-  return `<div class="cards">${site.services.map((s) => `<div class="card"><h3>${esc(s.name)}</h3>${s.details ? `<p>${esc(s.details)}</p>` : ""}${showPrice && s.price ? `<p class="price">${esc(s.price)}</p>` : ""}</div>`).join("")}</div>`;
+  return `<div class="cards">${site.services.map((s) => `<div class="card"><h3>${esc(s.name)}</h3>${s.details ? `<p>${esc(s.details)}</p>` : ""}${showPrice && s.price ? `<p class="price">${esc(naira(s.price))}</p>` : ""}</div>`).join("")}</div>`;
 }
 function productCards(site, img) {
   return `<div class="cards">${site.products.map((p, i) => {
     const photo = site.productPhotos[i];
-    const order = waLink(site, `Hello ${site.name}, I'd like to order: ${p.name}${p.price ? " (₦" + p.price.replace(/^₦/, "") + ")" : ""}`);
-    return `<div class="card">${photo ? `<img src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy">` : ""}<h3>${esc(p.name)}</h3>${p.text || p.details ? `<p>${esc(p.text || p.details)}</p>` : ""}${p.price ? `<p class="price">₦${esc(p.price.replace(/^₦/, ""))}</p>` : ""}${order ? `<p><a class="btn" href="${order}">Order on WhatsApp</a></p>` : ""}</div>`;
+    const order = waLink(site, `Hello ${site.name}, I'd like to order: ${p.name}${p.price ? " (" + naira(p.price) + ")" : ""}`);
+    return `<div class="card">${photo ? `<img src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy">` : ""}<h3>${esc(p.name)}</h3>${p.text || p.details ? `<p>${esc(p.text || p.details)}</p>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${order ? `<p><a class="btn" href="${order}">Order on WhatsApp</a></p>` : ""}</div>`;
   }).join("")}</div>`;
 }
 const gallery = (photos, img) => `<div class="gallery">${photos.map((p) => `<a href="${img(p.url)}"><img src="${img(p.url)}" alt="${esc(p.name || "Photo")}" loading="lazy"></a>`).join("")}</div>`;
@@ -280,7 +291,18 @@ function pageBody(site, page, mode, link, img) {
   const out = [];
   let sections = page.sections;
   if (page.kind === "home") {
-    const heroSec = sections.find((s) => s.fields.headline) || null;
+    let heroSec = sections.find((s) => s.fields.headline) || null;
+    if (!heroSec) {
+      // No "**Headline:**" labels: use the Hero section's lines (headline, subheadline, short button text).
+      const h = sections.find((s) => /^(hero|banner|welcome)/i.test(s.name));
+      const lines = h ? h.body.map((l) => l.trim()).filter(Boolean) : [];
+      if (h && lines.length) {
+        heroSec = h;
+        h.fields.headline = lines[0].replace(/^#+\s*/, "");
+        if (lines[1]) h.fields.subheadline = lines[1];
+        if (lines[2] && lines[2].length <= 30) h.fields["button text"] = lines[2];
+      }
+    }
     sections = sections.filter((s) => s !== heroSec);
     const headline = heroSec?.fields.headline || site.name;
     const sub = heroSec?.fields.subheadline || site.tagline;
@@ -291,7 +313,26 @@ function pageBody(site, page, mode, link, img) {
   } else {
     out.push(`<div class="page-head"><div class="wrap"><h1>${esc(page.name)}</h1></div></div>`);
   }
-  for (const s of sections) out.push(sectionHtml(s, mode));
+  // The cards below already show services/prices and contact details: skip AI sections that only repeat them.
+  const cardsHere = (site.services.length && (page.kind === "home" || page.kind === "services" || page.kind === "prices"))
+    || (site.products.length && (page.kind === "home" || page.kind === "shop"));
+  const names = [...site.services, ...site.products].map((x) => x.name.toLowerCase().trim()).filter(Boolean);
+  const contactBits = [site.phone, site.email].map((x) => String(x || "").toLowerCase().replace(/\s/g, "")).filter(Boolean);
+  const repeats = (s) => {
+    const items = s.body.filter((l) => /^\s*(?:[-*•]|\d+\.)\s+/.test(l)).map((l) => l.toLowerCase());
+    if (items.length < 2) return false;
+    if (cardsHere && names.length && items.filter((i) => names.some((n) => i.includes(n))).length >= Math.ceil(items.length * 0.6)) return true;
+    if ((page.kind === "contact" || page.kind === "location") && contactBits.length && items.filter((i) => contactBits.some((c) => i.replace(/\s/g, "").includes(c)) || /hours|address|phone|email|whatsapp/.test(i)).length >= Math.ceil(items.length * 0.6)) return true;
+    return false;
+  };
+  for (const s of sections) {
+    if (repeats(s)) {
+      const rest = { ...s, body: s.body.filter((l) => !/^\s*(?:[-*•]|\d+\.)\s+/.test(l)) };
+      if (rest.body.some((l) => l.trim()) || rest.fields.heading) out.push(sectionHtml({ ...rest, fields: { ...rest.fields, heading: page.kind === "home" ? "" : rest.fields.heading } }, mode));
+      continue;
+    }
+    out.push(sectionHtml(s, mode));
+  }
   const has = (k) => site.pages.some((p) => p.kind === k);
   const extra = (title, html) => out.push(`<section class="block"><div class="wrap">${title ? `<h2>${esc(title)}</h2>` : ""}${html}</div></section>`);
   if (page.kind === "home") {

@@ -9,6 +9,7 @@ import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
 import { dailyHosting, hostingRef } from "./golive.mjs";
 import { reconcileOrders } from "./shop.mjs";
 import { monthlyReports, cleanupStats } from "./stats.mjs";
+import { weeklyBackup } from "./backup.mjs";
 import { openChangeCounts } from "./changes.mjs";
 import { buildDoc, naira, balance } from "./docs.mjs";
 import { generateDraft } from "./drafts.mjs";
@@ -304,6 +305,7 @@ export async function runDaily(now = new Date()) {
   // Monthly visitor reports to customers (1st of the month), tidy old counts, and open change requests.
   if (Date.now() - started < 45000) report.monthlyReports = await monthlyReports().catch((e) => { console.error("monthly reports failed", e); return 0; });
   await cleanupStats().catch((e) => console.error("stats cleanup failed", e));
+  if (Date.now() - started < 45000) report.backup = await weeklyBackup().catch((e) => { console.error("weekly backup failed", e); return null; });
   const openChanges = await openChangeCounts().catch(() => []);
   const byId = new Map(all.map((r) => [r.id, r]));
 

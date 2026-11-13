@@ -22,6 +22,7 @@ import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automatio
 import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { ensureStoreToken, setShopPayments, listOrders } from "./_lib/shop.mjs";
 import { ensureStatsKey, siteSummary, reportHtml, dashboardTotals } from "./_lib/stats.mjs";
+import { buildBackup } from "./_lib/backup.mjs";
 import { changeLink, listChanges, markChange, freeUntil } from "./_lib/changes.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
@@ -174,6 +175,12 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       if (query.view === "chats") return res.status(200).json({ chats: await listChats() });
+      if (query.view === "backup") {
+        const b = await buildBackup();
+        res.setHeader("Content-Type", "application/gzip");
+        res.setHeader("Content-Disposition", `attachment; filename="${b.filename}"`);
+        return res.status(200).send(b.gz);
+      }
       if (query.view === "export") {
         await ensureStoreToken(Number(query.id));
         await ensureStatsKey(Number(query.id));

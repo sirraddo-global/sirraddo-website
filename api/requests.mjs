@@ -10,7 +10,7 @@
 //   POST   { action: "preview_link", id }  create the website preview link (stage -> waiting for approval)
 //   POST   { action: "send_preview", id }  email the preview link to the customer
 //   GET    ?view=export&id=123  the website as a .zip (pages + images) to upload to any host
-import { timingSafeEqual, createHash } from "node:crypto";
+import { timingSafeEqual, createHash, createHmac } from "node:crypto";
 import {
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
@@ -41,10 +41,26 @@ function depositPaid(row) {
 
 const failed = new Map(); // ip -> timestamps of wrong passwords
 
+// "Keep me logged in": a signed token that lasts 30 days instead of the password itself.
+// Signed with a key made from ADMIN_PASSWORD, so changing the password logs out every device.
+const SESSION_DAYS = 30;
+const sessionKey = () => createHash("sha256").update("sirraddo-admin-session:" + (process.env.ADMIN_PASSWORD || "")).digest();
+function makeSession() {
+  const exp = Date.now() + SESSION_DAYS * 86400000;
+  const sig = createHmac("sha256", sessionKey()).update(String(exp)).digest("base64url");
+  return `s1.${exp}.${sig}`;
+}
+function validSession(given) {
+  const m = /^s1\.(\d{10,16})\.([\w-]{43})$/.exec(given);
+  if (!m || Number(m[1]) < Date.now()) return false;
+  const want = createHmac("sha256", sessionKey()).update(m[1]).digest("base64url");
+  return timingSafeEqual(Buffer.from(want), Buffer.from(m[2]));
+}
 function authorised(req) {
   const expected = process.env.ADMIN_PASSWORD || "";
   if (expected.length < 12) return false; // refuse weak or missing passwords
   const given = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  if (given.startsWith("s1.")) return validSession(given);
   const a = createHash("sha256").update(given).digest();
   const b = createHash("sha256").update(expected).digest();
   return timingSafeEqual(a, b);
@@ -272,6 +288,11 @@ export default async function handler(req, res) {
         const result = await changeDesignOptions(id, body.action === "design_clear" ? "clear" : String(body.op || ""), String(body.option || ""));
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(await getRequest(id));
+      }
+      if (body.action === "session") {
+        // Only with the real password (not with another session), so a stolen token can't renew itself forever.
+        if (String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").startsWith("s1.")) throw new Bad("Log in with your password");
+        return res.status(200).json({ token: makeSession(), days: SESSION_DAYS });
       }
       if (body.action === "assistant") {
         const raw = Array.isArray(body.messages) ? body.messages.slice(-20) : [];

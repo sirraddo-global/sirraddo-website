@@ -244,6 +244,12 @@ li.qa{margin-bottom:12px}h3+p{margin-top:-.2em}
 section.block:empty,section.block .wrap:empty{display:none}`;
 }
 
+// Applied last, after any AI design: keeps every page usable on small phones whatever the design does.
+const GUARD_CSS = `body{overflow-x:clip}img,video{max-width:100%;height:auto}
+.contact dl{grid-template-columns:max-content minmax(0,1fr)}.contact dd,.card,footer span{min-width:0;overflow-wrap:anywhere}
+@media(max-width:700px){.top{position:relative!important;top:auto!important}.contact dl{grid-template-columns:1fr}.contact dt{margin-top:6px}}
+.wa{right:16px!important;left:auto!important;max-width:calc(100vw - 32px);white-space:nowrap}`;
+
 const PREVIEW_CSS = `.pv-top{background:#FFF1B8;color:#3D2E00;font:600 14px/1.4 system-ui,Arial,sans-serif;padding:10px 16px;text-align:center}
 .pv{background:#0F172A;color:#fff;padding:24px 0 28px;font-family:system-ui,Arial,sans-serif}.pv h2{color:#fff;font-size:1.3rem}
 .pv textarea{width:100%;min-height:110px;border-radius:10px;border:0;padding:12px;font:inherit;margin:8px 0}
@@ -410,7 +416,8 @@ export function renderPage(site, slug, { mode = "export", link, img = (u) => u, 
 <meta property="og:title" content="${esc(title)}">${desc ? `<meta property="og:description" content="${esc(desc)}">` : ""}<meta property="og:type" content="website">
 ${preview ? '<meta name="robots" content="noindex, nofollow">' : ""}<meta name="theme-color" content="${site.theme.primary}">
 ${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}
-<style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}</head>
+<style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}
+<style id="guard">${GUARD_CSS}</style></head>
 <body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a></div>` : ""}
 ${header(site, page, link, img)}
 <main>${pageBody(site, page, mode, link, img)}</main>

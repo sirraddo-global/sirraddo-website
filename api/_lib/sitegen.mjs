@@ -215,6 +215,24 @@ export function buildSiteModel(row) {
   };
 }
 
+// A ready-made dark look in the customer's own accent colour (offered as one of the preview designs).
+export function darkDesignCss(t) {
+  const glow = luminance(t.accent) > 0.12 ? t.accent : "#E8C268";
+  return `/* Dark design */
+body{background:#0E1116;color:#D7DCE4}
+h1,h2,h3{color:#F4F6FA}a{color:${glow}}
+.top{background:#090B0F;border-bottom:1px solid #222833}
+.brand img{background:#fff}
+nav a[aria-current]{background:rgba(255,255,255,.1);box-shadow:inset 0 -2px 0 ${glow}}
+.hero{background:radial-gradient(1200px 500px at 85% -10%,${t.primary} 0%,#0E1116 65%);border-bottom:1px solid #222833}
+.page-head{background:#090B0F;border-bottom:3px solid ${glow}}
+section.block:nth-of-type(even){background:#141922}
+.card,blockquote{background:#171C26;border-color:#262E3C;color:#D7DCE4}
+.card .price{color:${glow}}
+.contact dt{color:#F4F6FA}
+footer{background:#07090C;border-top:1px solid #1C222C}`;
+}
+
 // ---------- Rendering ----------
 export function css(t) {
   return `*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#1F2933;line-height:1.6;background:#fff}

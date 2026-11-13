@@ -731,6 +731,7 @@
           .catch(function (e) { dbtn.disabled = false; dbtn.textContent = label; fail(e); });
       } });
       dz.appendChild(dbtn);
+      if (!choices.some(function (c) { return c.by === 'Dark'; })) dz.appendChild(el('button', { class: 'admin-btn', type: 'button', text: choices.length ? 'Add dark design' : 'Offer standard + dark designs', onclick: function (e) { designAct({ action: 'design_option', op: 'add_dark' }, choices.length ? 'Dark design added as an option' : 'Standard and dark designs added. The customer can switch between them on the preview.', e.currentTarget); } }));
       if (choices.length && !choices.some(function (c) { return c.standard; })) dz.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Add standard design as an option', onclick: function (e) { designAct({ action: 'design_option', op: 'add_standard' }, 'Standard design added as an option', e.currentTarget); } }));
     }
     if (choices.length) dz.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Remove all designs', onclick: function (e) {

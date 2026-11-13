@@ -5,6 +5,7 @@
 import { dbConfigured, esc } from "./_lib/store.mjs";
 import { shopConfig, startCheckout, confirmOrder } from "./_lib/shop.mjs";
 import { SITE_URL } from "../site.config.mjs";
+import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
 
 const hits = new Map();
 function rateLimited(ip) {
@@ -25,7 +26,7 @@ function page(res, code, title, body, back) {
 <style>body{margin:0;background:#F5F7FB;font-family:system-ui,Arial,sans-serif;color:#1B2433;line-height:1.5}.w{max-width:480px;margin:0 auto;padding:24px 16px}
 .c{background:#fff;border:1px solid #E1E6EF;border-radius:16px;padding:22px}h1{font-size:1.4rem;margin:0 0 8px}td{padding:6px 0;border-bottom:1px solid #EEF1F5}
 table{width:100%;border-collapse:collapse;margin:10px 0}.r{text-align:right}a.b{display:block;text-align:center;margin-top:16px;background:#111827;color:#fff;border-radius:12px;padding:14px;font-weight:700;text-decoration:none}
-.m{color:#4A5568;font-size:.9rem}</style></head><body><div class="w"><div class="c">${body}${back ? `<a class="b" href="${esc(back)}">Back to the shop</a>` : ""}</div>
+.m{color:#4A5568;font-size:.9rem}${DARK_PAGE_CSS}</style><script src="/assets/theme.js"></script></head><body><div class="w"><div class="c">${body}${back ? `<a class="b" href="${esc(back)}">Back to the shop</a>` : ""}</div>
 <p class="m" style="text-align:center">Secure payment by Paystack · Website by <a href="${SITE_URL}">SIRRADDO</a></p></div></body></html>`);
 }
 

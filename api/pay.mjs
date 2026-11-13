@@ -5,6 +5,7 @@
 import { getByDocToken, updateRequest, esc } from "./_lib/store.mjs";
 import { amountDue, paystackConfigured, startPayment, verifyPayment, recordPayment } from "./_lib/paystack.mjs";
 import { naira, COMPANY } from "./_lib/docs.mjs";
+import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -15,12 +16,13 @@ function page(res, code, title, body) {
 <meta name="robots" content="noindex, nofollow"><title>${esc(title)} · SIRRADDO</title>
 <style>body{margin:0;background:#F5F7FB;font-family:Inter,system-ui,Arial,sans-serif;color:#1B2433;line-height:1.5}
 .w{max-width:480px;margin:0 auto;padding:20px 16px}.c{background:#fff;border:1px solid #E1E6EF;border-radius:16px;padding:22px}
-.logo{font-weight:900;font-size:26px;letter-spacing:-1px}.logo b{color:#D9A21B}.sub{font-weight:700;font-size:9px;letter-spacing:5px;color:#13254F;margin:2px 0 18px}
+.logo{font-weight:900;font-size:26px;letter-spacing:-1px}.ln{color:#13254F}.logo b{color:#D9A21B}.sub{font-weight:700;font-size:9px;letter-spacing:5px;color:#13254F;margin:2px 0 18px}
 h1{color:#13254F;font-size:1.4rem;margin:0 0 6px}.amt{font-size:2rem;font-weight:800;color:#13254F;margin:6px 0 14px}
 label{display:block;font-weight:600;margin:12px 0 6px}input{width:100%;box-sizing:border-box;font:inherit;padding:12px;border:1px solid #C8D0DC;border-radius:10px}
 button,.btn{display:block;width:100%;box-sizing:border-box;text-align:center;margin-top:16px;background:#D9A21B;color:#13254F;font:inherit;font-weight:800;border:0;border-radius:12px;padding:14px;cursor:pointer;text-decoration:none}
-.muted{color:#4A5568;font-size:.9rem}.err{color:#B42318;font-weight:600;min-height:1.2em}.ok{color:#127A3E}</style></head>
-<body><div class="w"><div class="c"><div class="logo"><span style="color:#13254F">SI</span><b>RR</b><span style="color:#13254F">A</span><b>DD</b><span style="color:#13254F">O</span></div><div class="sub">GLOBAL LIMITED</div>
+.muted{color:#4A5568;font-size:.9rem}.err{color:#B42318;font-weight:600;min-height:1.2em}.ok{color:#127A3E}
+${DARK_PAGE_CSS}</style><script src="/assets/theme.js"></script></head>
+<body><div class="w"><div class="c"><div class="logo"><span class="ln">SI</span><b>RR</b><span class="ln">A</span><b>DD</b><span class="ln">O</span></div><div class="sub">GLOBAL LIMITED</div>
 ${body}</div><p class="muted" style="text-align:center">${COMPANY.name} · ${COMPANY.rc} · <a href="https://wa.me/2348167550937">WhatsApp us</a></p></div></body></html>`);
 }
 

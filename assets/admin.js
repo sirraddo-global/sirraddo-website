@@ -606,6 +606,24 @@
     } }));
     acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Download site (.zip)', onclick: function (e) { downloadSite(r, e.currentTarget); } }));
     box.appendChild(acts);
+    // Custom look by AI (CSS only: the text, prices and photos stay as checked).
+    var dz = el('div', { class: 'admin-actions' });
+    var dbtn = el('button', { class: 'admin-btn', type: 'button', text: r.has_design ? 'New AI design' : 'AI design (custom look)', onclick: function () {
+      if (r.has_design && !window.confirm('Replace the current custom design with a new one?')) return;
+      dbtn.disabled = true; dbtn.textContent = 'Designing… (up to a minute)';
+      api('POST', { action: 'design', id: r.id }).then(function (row) { replaceRequest(row); flash('New design ready. Tap "Open preview" to see it.'); render(); })
+        .catch(function (e) { dbtn.disabled = false; dbtn.textContent = r.has_design ? 'New AI design' : 'AI design (custom look)'; fail(e); });
+    } });
+    dz.appendChild(dbtn);
+    if (r.has_design) dz.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Use standard design', onclick: function (e) {
+      var b = e.currentTarget; b.disabled = true;
+      api('POST', { action: 'design_clear', id: r.id }).then(function (row) { replaceRequest(row); flash('Back to the standard design'); render(); })
+        .catch(function (err) { b.disabled = false; fail(err); });
+    } }));
+    box.appendChild(dz);
+    box.appendChild(el('p', { class: 'admin-hint', text: r.has_design
+      ? 'Custom design by ' + (r.design_by || 'AI') + ' · ' + when(r.design_at) + '. The preview and the download use it. Not happy? Tap "New AI design" for another, or go back to the standard design.'
+      : (r.design_error ? 'Last try failed: ' + r.design_error + ' ' : '') + 'Optional: the AI designs a unique look for this customer. Only the look changes; your checked text, prices and photos stay the same.' }));
     box.appendChild(el('p', { class: 'admin-hint', text: r.preview_status === 'approved'
       ? 'Approved. Once the balance is paid, upload the .zip to the host, connect their domain, mark the project Live and send the handover pack.'
       : 'Opening or sending the preview moves the project to "Preview sent". The customer approves or asks for changes on the page itself, and you get an email.' }));

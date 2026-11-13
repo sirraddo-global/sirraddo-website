@@ -153,6 +153,10 @@ Other notes:
 
 The morning email lists previews with change requests, previews not answered for 3+ days, approved jobs waiting for the balance, and live sites without a handover pack.
 
+## AI design (custom look)
+
+In admin → Website preview, **AI design** asks the AI for a custom look for that customer: CSS only, applied on top of the generated pages, so the checked text, prices and photos never change. It uses Claude when `ANTHROPIC_API_KEY` is set (model `ANTHROPIC_DESIGN_MODEL`, default `claude-haiku-5-5`; try `claude-sonnet-5-5` for richer designs if it finishes within the time limit), otherwise Gemini. The CSS is cleaned (no files, imports or scripts); up to 2 Google Fonts are loaded. **New AI design** tries again; **Use standard design** removes it. The preview and the .zip download both use it.
+
 ## Online payments (Paystack)
 
 Set `PAYSTACK_SECRET_KEY` in Vercel (Paystack → Settings → API Keys & Webhooks → Live Secret Key) and, on the same Paystack page, the **Live Webhook URL** `https://www.sirraddo.com.ng/api/paystack-webhook`.

@@ -15,13 +15,14 @@ import {
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
   ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
-  ensurePreviewToken, getPreviewById, markSent,
+  ensurePreviewToken, getPreviewById, markSent, saveDesign,
 } from "./_lib/store.mjs";
 import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automation.mjs";
 import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
+import { generateDesign } from "./_lib/design.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
 import { getBriefById } from "./_lib/store.mjs";
 
@@ -244,6 +245,18 @@ export default async function handler(req, res) {
         const result = await generateDraft(id, 50000);
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(await getRequest(id));
+      }
+      if (body.action === "design") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        const result = await generateDesign(id);
+        if (!result.ok) throw new Bad(result.error);
+        return res.status(200).json(await getRequest(id));
+      }
+      if (body.action === "design_clear") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        return res.status(200).json(await saveDesign(id, null, null));
       }
       if (body.action === "doc_link") {
         const id = Number(body.id);

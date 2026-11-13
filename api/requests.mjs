@@ -20,6 +20,7 @@ import {
 import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automation.mjs";
 import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
+import { ensureStoreToken, setShopPayments, listOrders } from "./_lib/shop.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
@@ -172,6 +173,7 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       if (query.view === "chats") return res.status(200).json({ chats: await listChats() });
       if (query.view === "export") {
+        await ensureStoreToken(Number(query.id));
         const row = await getPreviewById(Number(query.id));
         if (!row) return res.status(404).json({ error: "Not found" });
         if (!row.draft_md) throw new Bad("Write the website text first");
@@ -315,6 +317,15 @@ export default async function handler(req, res) {
           console.error("admin assistant failed", e.code, e.message);
           throw new Bad(friendlyAiError(e));
         }
+      }
+      if (body.action === "shop_settings" || body.action === "shop_orders") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
+        if (body.action === "shop_orders") return res.status(200).json({ orders: await listOrders(id, 20) });
+        try {
+          const row = await setShopPayments(id, { secretKey: body.secretKey, deliveryFee: body.deliveryFee, notify: body.notify, remove: Boolean(body.remove) });
+          return res.status(200).json({ row, orders: await listOrders(id, 20) });
+        } catch (e) { throw new Bad(e.message); }
       }
       if (String(body.action || "").startsWith("host_")) {
         const id = Number(body.id);

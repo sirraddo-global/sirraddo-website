@@ -7,6 +7,7 @@ import {
 } from "./store.mjs";
 import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
 import { dailyHosting, hostingRef } from "./golive.mjs";
+import { reconcileOrders } from "./shop.mjs";
 import { buildDoc, naira, balance } from "./docs.mjs";
 import { generateDraft } from "./drafts.mjs";
 
@@ -294,6 +295,9 @@ export async function runDaily(now = new Date()) {
       }
     }
   }
+
+  // Online Store payments where the buyer closed the page before coming back: confirm and email the order.
+  if (Date.now() - started < 45000) report.storeOrdersConfirmed = await reconcileOrders().catch((e) => { console.error("store reconcile failed", e); return 0; });
 
   // The morning email
   const sections = [

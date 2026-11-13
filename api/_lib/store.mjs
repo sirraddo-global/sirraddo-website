@@ -8,7 +8,7 @@ import { randomBytes } from "node:crypto";
 // q(text, params) runs one parameterised query and returns the rows.
 // Tests can set globalThis.__TEST_DB__ to any object with query(text, params) -> { rows }.
 let neonSql = null;
-async function q(text, params = []) {
+export async function q(text, params = []) {
   if (globalThis.__TEST_DB__) return (await globalThis.__TEST_DB__.query(text, params)).rows;
   if (!neonSql) neonSql = neon(process.env.DATABASE_URL);
   return neonSql.query(text, params);
@@ -66,6 +66,19 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_options JSONB NOT NULL DEFAULT '[]'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS hosting JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS chat_ideas JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS shop JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `CREATE TABLE IF NOT EXISTS store_orders (
+     id SERIAL PRIMARY KEY,
+     request_id INTEGER NOT NULL,
+     ref TEXT NOT NULL UNIQUE,
+     items JSONB NOT NULL DEFAULT '[]'::jsonb,
+     subtotal INTEGER NOT NULL DEFAULT 0,
+     delivery INTEGER NOT NULL DEFAULT 0,
+     total INTEGER NOT NULL DEFAULT 0,
+     buyer JSONB NOT NULL DEFAULT '{}'::jsonb,
+     status TEXT NOT NULL DEFAULT 'pending',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     paid_at TIMESTAMPTZ)`,
   `CREATE TABLE IF NOT EXISTS chat_logs (
      session_id TEXT PRIMARY KEY,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -109,6 +122,7 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   handover, preview_token, preview_status, preview_feedback, preview_approved_at,
   COALESCE((length(draft_md) - length(replace(draft_md, '[ADD:', ''))) / 5, 0) AS draft_gaps,
   (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, hosting, chat_ideas,
+  (shop - 'key') || jsonb_build_object('online', COALESCE(shop->>'key', '') <> '') AS shop,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('id', o->>'id', 'by', o->>'by', 'at', o->>'at', 'standard', COALESCE(o->>'css', '') = '',
     'current', COALESCE(o->>'css', '') = COALESCE(design_css, ''))) FROM jsonb_array_elements(design_options) o), '[]'::jsonb) AS design_choices`;
 
@@ -307,7 +321,8 @@ export async function addPaymentOnce(id, payment) {
 
 // ---------- Preview sites (/preview?t=...) ----------
 const PREVIEW_COLUMNS = `id, name, business, contact, email, interest, status, quote_amount, payments, project_stage, doc_token, auto_sent,
-  brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at, design_css, design_options, design_by, hosting, draft_at, design_at`;
+  brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at, design_css, design_options, design_by, hosting, draft_at, design_at,
+  shop->>'token' AS shop_token`;
 export async function ensurePreviewToken(id) {
   await ensureSchema();
   const rows = await q(
@@ -336,6 +351,13 @@ export async function saveDesign(id, css, by, error = null) {
 export async function saveHosting(id, patch) {
   await ensureSchema();
   await q(`UPDATE customer_requests SET hosting = hosting || $1::jsonb, updated_at = now() WHERE id = $2`, [JSON.stringify(patch), id]);
+}
+
+// Online Store settings (token for the store's basket, encrypted Paystack key, delivery fee). Merges the given fields.
+export async function updateRequestShop(id, patch) {
+  await ensureSchema();
+  const rows = await q(`UPDATE customer_requests SET shop = shop || $1::jsonb, updated_at = now() WHERE id = $2 RETURNING ${REQUEST_COLUMNS}`, [JSON.stringify(patch), id]);
+  return rows[0] ?? null;
 }
 
 // Up to 3 designs the customer can choose from on the preview page. Each: { id, css ("" = standard), by, at }.
@@ -523,15 +545,17 @@ export const emailConfigured = () => Boolean(process.env.RESEND_API_KEY && proce
 export const customerEmailConfigured = () => Boolean(process.env.RESEND_API_KEY && process.env.LEAD_EMAIL_FROM);
 
 // Send to a customer (needs LEAD_EMAIL_FROM). Replies go to LEAD_EMAIL_TO.
-export async function sendCustomerEmail(to, subject, html) {
+export async function sendCustomerEmail(to, subject, html, replyTo, fromName) {
   if (!customerEmailConfigured()) return null;
+  const sender = process.env.LEAD_EMAIL_FROM;
+  const from = fromName ? `${String(fromName).replace(/[<>"\r\n]/g, "").slice(0, 60)} <${(sender.match(/<([^>]+)>/) || [, sender])[1].trim()}>` : sender;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: process.env.LEAD_EMAIL_FROM,
+      from,
       to: [to],
-      reply_to: (process.env.LEAD_EMAIL_TO || "").split(",")[0].trim() || undefined,
+      reply_to: replyTo || (process.env.LEAD_EMAIL_TO || "").split(",")[0].trim() || undefined,
       subject,
       html,
     }),

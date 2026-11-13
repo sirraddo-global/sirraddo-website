@@ -170,8 +170,65 @@
     var view = $('view');
     view.textContent = '';
     var fn = { dashboard: renderDashboard, requests: renderRequests, clients: renderClients,
-      questions: renderQuestions, chats: renderChats, settings: renderSettings }[state.tab];
+      questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant }[state.tab];
     fn(view);
+  }
+
+  // ---------- Assistant (advice from lead to handover; it sees the chosen job, never keys) ----------
+  var asst = { id: null, msgs: [], busy: false };
+  function askAbout(r, question) {
+    if (asst.id !== r.id) asst = { id: r.id, msgs: [], busy: false };
+    setTab('assistant');
+    if (question) sendAssistant(question);
+  }
+  function sendAssistant(text) {
+    text = String(text || '').trim();
+    if (!text || asst.busy) return;
+    asst.msgs.push({ role: 'user', content: text });
+    asst.busy = true; render();
+    api('POST', { action: 'assistant', id: asst.id, messages: asst.msgs }).then(function (j) {
+      asst.msgs.push({ role: 'assistant', content: j.reply });
+    }).catch(function (e) {
+      asst.msgs.push({ role: 'assistant', content: '⚠ ' + (e.message || 'Something went wrong') });
+    }).then(function () { asst.busy = false; if (state.tab === 'assistant') { render(); var l = document.querySelector('.asst-log'); if (l) l.scrollTop = l.scrollHeight; } });
+  }
+  function renderAssistant(view) {
+    var job = asst.id ? state.requests.filter(function (r) { return r.id === asst.id; })[0] : null;
+    var pick = select([['', 'All jobs (general help)']].concat(state.requests.slice(0, 200).map(function (r) {
+      return [String(r.id), r.name + ' · ' + r.interest + ' · ' + r.status];
+    })), job ? String(job.id) : '', null);
+    pick.addEventListener('change', function () { asst = { id: pick.value ? Number(pick.value) : null, msgs: [], busy: false }; render(); });
+    view.appendChild(el('div', { class: 'admin-card asst' }, [
+      el('p', { class: 'admin-hint', text: 'Ask anything about running a job: what to do next, what went wrong, or how to set something up in Cloudflare, Whogohost, another domain seller, Paystack or Vercel. It can see the job you pick (never any keys), but it can\'t press buttons for you. Never paste keys or passwords here.' }),
+      field('About', pick)
+    ]));
+    var log = el('div', { class: 'asst-log', 'aria-live': 'polite' });
+    if (!asst.msgs.length) {
+      var starters = job
+        ? ['What should I do next for this job?', 'Is anything wrong with this job?', 'Their domain is stuck on waiting for nameservers. What should I check?', 'Write a WhatsApp message asking them for the missing details.']
+        : ['Walk me through a job from lead to handover', 'How do I change nameservers at Whogohost?', 'A customer bought their domain on GoDaddy. What do they need to do?', 'Which jobs need my attention today?'];
+      log.appendChild(el('div', { class: 'asst-starters' }, starters.map(function (q) {
+        return el('button', { class: 'admin-btn', type: 'button', text: q, onclick: function () { sendAssistant(q); } });
+      })));
+    }
+    asst.msgs.forEach(function (m) {
+      var b = el('div', { class: 'asst-msg asst-msg--' + m.role });
+      if (m.role === 'assistant') { b.innerHTML = mdToHtml(m.content); b.appendChild(el('button', { class: 'admin-btn admin-btn--small', type: 'button', text: 'Copy', onclick: function (e) { copyText(m.content, 'Answer', e.currentTarget); } })); }
+      else b.textContent = m.content;
+      log.appendChild(b);
+    });
+    if (asst.busy) log.appendChild(el('div', { class: 'asst-msg asst-msg--assistant', text: 'Thinking…' }));
+    view.appendChild(log);
+    var input = el('textarea', { rows: 3, placeholder: 'Ask a question, or describe what went wrong…', 'aria-label': 'Your question' });
+    var form = el('form', { class: 'asst-form', onsubmit: function (e) { e.preventDefault(); var t = input.value; input.value = ''; sendAssistant(t); } }, [
+      input,
+      el('div', { class: 'admin-actions' }, [
+        el('button', { class: 'btn btn--navy', type: 'submit', text: asst.busy ? 'Waiting…' : 'Ask', disabled: asst.busy }),
+        asst.msgs.length ? el('button', { class: 'admin-btn', type: 'button', text: 'New conversation', onclick: function () { asst.msgs = []; render(); } }) : null
+      ])
+    ]);
+    view.appendChild(form);
+    var l = view.querySelector('.asst-log'); if (l) l.scrollTop = l.scrollHeight;
   }
 
   // ---------- Dashboard ----------
@@ -363,6 +420,7 @@
     card.appendChild(meta);
     card.appendChild(el('p', { class: 'admin-details', text: r.details }));
     card.appendChild(whatsAppRow(r));
+    card.appendChild(el('button', { class: 'admin-btn admin-btn--small admin-ask', type: 'button', text: 'Ask assistant about this job', onclick: function () { askAbout(r, 'What should I do next for this job, and is anything wrong?'); } }));
 
     var details = el('details', { class: 'admin-manage' });
     details.open = Boolean(state.open[r.id]);
@@ -952,6 +1010,7 @@
     card.appendChild(badges);
     card.appendChild(el('p', { class: 'admin-meta', text: r.contact + (r.business ? ' · ' + r.business : '') }));
     card.appendChild(whatsAppRow(r));
+    card.appendChild(el('button', { class: 'admin-btn admin-btn--small admin-ask', type: 'button', text: 'Ask assistant about this job', onclick: function () { askAbout(r, 'What should I do next for this job, and is anything wrong?'); } }));
 
     var stage = select(state.stages.length ? [['', 'Not started']].concat(state.stages.map(function (s) { return [s, STAGE_LABEL[s]]; })) : [['', 'Not started']], r.project_stage || '', null);
     stage.addEventListener('change', function () {

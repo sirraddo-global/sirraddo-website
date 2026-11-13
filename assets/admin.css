@@ -193,3 +193,16 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .admin-golive { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
 .admin-golive-btn { padding: 12px 18px; }
 .admin-ns { margin: 0; padding: 10px 12px; background: #F5F7FB; border-radius: 8px; font: 600 .95rem/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+
+.asst { display: grid; gap: 8px; margin-bottom: 12px; }
+.asst-log { display: grid; gap: 10px; margin-bottom: 12px; }
+.asst-msg { padding: 12px 14px; border-radius: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.asst-msg--user { background: var(--navy, #13254F); color: #fff; justify-self: end; max-width: 88%; white-space: pre-wrap; }
+.asst-msg--assistant { background: #fff; border: 1px solid var(--line); }
+.asst-msg--assistant p, .asst-msg--assistant ul, .asst-msg--assistant ol { margin: 0 0 .6em; }
+.asst-msg--assistant h2, .asst-msg--assistant h3 { font-size: 1rem; margin: .4em 0; }
+.asst-starters { display: grid; gap: 8px; }
+.asst-starters .admin-btn { text-align: left; }
+.asst-form { display: grid; gap: 8px; position: sticky; bottom: 0; background: var(--bg, #F5F7FB); padding: 8px 0; }
+.asst-form textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.admin-ask { margin-top: 6px; justify-self: start; }

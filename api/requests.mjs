@@ -15,13 +15,15 @@ import {
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
   ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
-  ensurePreviewToken, getPreviewById, markSent, saveDesign,
+  ensurePreviewToken, getPreviewById, markSent, saveDesign, saveHosting,
 } from "./_lib/store.mjs";
 import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automation.mjs";
 import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
+import { assistantSystem } from "./_lib/assistant.mjs";
+import { pickProvider, friendlyAiError } from "./_lib/providers.mjs";
 import { generateDesign, changeDesignOptions } from "./_lib/design.mjs";
 import { addDomain, checkHosting, publish, pause, restore, setupEmail, afterProjectPayment, GoLiveError } from "./_lib/golive.mjs";
 import { cloudflareConfigured } from "./_lib/cloudflare.mjs";
@@ -271,6 +273,28 @@ export default async function handler(req, res) {
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(await getRequest(id));
       }
+      if (body.action === "assistant") {
+        const raw = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
+        const msgs = [];
+        for (const m of raw) {
+          if (!m || (m.role !== "user" && m.role !== "assistant") || typeof m.content !== "string" || !m.content.trim()) continue;
+          const content = m.content.trim().slice(0, 4000);
+          if (msgs.length && msgs[msgs.length - 1].role === m.role) msgs[msgs.length - 1].content += "\n" + content;
+          else msgs.push({ role: m.role, content });
+        }
+        while (msgs.length && msgs[0].role !== "user") msgs.shift();
+        if (!msgs.length || msgs[msgs.length - 1].role !== "user") throw new Bad("Ask a question");
+        const provider = pickProvider();
+        if (!provider) throw new Bad("No AI key is set in Vercel (GEMINI_API_KEY or ANTHROPIC_API_KEY)");
+        const id = Number.isInteger(Number(body.id)) && Number(body.id) > 0 ? Number(body.id) : null;
+        try {
+          const out = await provider.call(provider.start(msgs), await assistantSystem(id), [], 45000, { maxTokens: 1500, attemptMs: 40000 });
+          return res.status(200).json({ reply: (out.text || "").trim() || "Sorry, I couldn't answer that. Try asking another way." });
+        } catch (e) {
+          console.error("admin assistant failed", e.code, e.message);
+          throw new Bad(friendlyAiError(e));
+        }
+      }
       if (String(body.action || "").startsWith("host_")) {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");
@@ -285,6 +309,7 @@ export default async function handler(req, res) {
           else throw new Bad("Unknown action");
           return res.status(200).json(out);
         } catch (e) {
+          if (/^Cloudflare:/.test(e.message) || !(e instanceof GoLiveError)) await saveHosting(id, { lastError: String(e.message).slice(0, 300), lastErrorAt: new Date().toISOString() }).catch(() => {});
           if (e instanceof GoLiveError || /^Cloudflare:/.test(e.message)) throw new Bad(e.message);
           throw e;
         }

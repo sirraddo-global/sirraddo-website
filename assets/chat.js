@@ -43,6 +43,13 @@
 
   // ----- Build the widget -----
   var launcher = el('button', 'chat-launcher');
+  // Fade the button while the page scrolls, so it doesn't sit on top of the text being read.
+  var scrollTimer;
+  window.addEventListener('scroll', function () {
+    launcher.classList.add('is-scrolling');
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(function () { launcher.classList.remove('is-scrolling'); }, 700);
+  }, { passive: true });
   launcher.type = 'button';
   launcher.setAttribute('aria-expanded', 'false');
   launcher.setAttribute('aria-controls', 'chat-panel');

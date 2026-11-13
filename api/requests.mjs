@@ -21,7 +21,7 @@ import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automation.mjs";
 import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { ensureStoreToken, setShopPayments, listOrders } from "./_lib/shop.mjs";
-import { ensureStatsKey, siteSummary, reportHtml } from "./_lib/stats.mjs";
+import { ensureStatsKey, siteSummary, reportHtml, dashboardTotals } from "./_lib/stats.mjs";
 import { changeLink, listChanges, markChange, freeUntil } from "./_lib/changes.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
@@ -199,8 +199,8 @@ export default async function handler(req, res) {
         if (!row) return res.status(404).json({ error: "Not found" });
         return res.status(200).json({ draft_md: row.draft_md, draft_at: row.draft_at, draft_error: row.draft_error });
       }
-      const [requests, unanswered, settings, setup] = await Promise.all([listRequests(), listUnanswered(), getSettings(), setupStatus()]);
-      return res.status(200).json({ requests, unanswered, settings, setup, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
+      const [requests, unanswered, settings, setup, totals] = await Promise.all([listRequests(), listUnanswered(), getSettings(), setupStatus(), dashboardTotals().catch(() => null)]);
+      return res.status(200).json({ requests, unanswered, settings, setup, totals, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
     }
 
     if (req.method === "PATCH") {

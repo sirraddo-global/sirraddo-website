@@ -144,6 +144,7 @@
       state.requests = j.requests || [];
       state.unanswered = j.unanswered || [];
       state.settings = j.settings || {};
+      state.totals = j.totals || null;
       state.statuses = j.statuses || [];
       state.stages = j.stages || [];
       state.canEmail = Boolean(j.can_email_customers);
@@ -258,6 +259,7 @@
     if (problems) d.open = true;
     d.appendChild(el('summary', null, [el('strong', { text: 'Setup status' }), ' ',
       badge(problems ? problems + ' to check' : 'All set', problems ? 'is-due' : 'is-won')]));
+    items = items.filter(function (s) { return !s.ok; }).concat(items.filter(function (s) { return s.ok && s.warn; }), items.filter(function (s) { return s.ok && !s.warn; }));
     d.appendChild(el('ul', null, items.map(function (s) {
       var mark = !s.ok ? '✗' : s.warn ? '!' : '✓';
       return el('li', { class: !s.ok ? 'is-bad' : s.warn ? 'is-warn' : 'is-ok' }, [
@@ -297,8 +299,12 @@
       tile('Outstanding', naira(outstanding), 'balances on won jobs'),
       tile('Renewals in 30 days', renewals.length, null, function () { setTab('clients'); }),
       tile('Unanswered questions', openQs, null, function () { setTab('questions'); }),
-      tile('Client sites down', rs.filter(function (r) { return r.status === 'won' && r.site_status && r.site_status !== 'up'; }).length, 'checked every morning', function () { setTab('clients'); })
-    ]));
+      tile('Client sites down', rs.filter(function (r) { return r.status === 'won' && r.site_status && r.site_status !== 'up'; }).length, 'checked every morning', function () { setTab('clients'); }),
+      tile('Change requests waiting', rs.reduce(function (s, r) { return s + (r.open_changes || 0); }, 0), 'from clients\' change links', function () { setTab('clients'); })
+    ].concat(state.totals ? [
+      tile('Visitors this month', state.totals.visitorsMonth.toLocaleString('en-NG'), 'across all client websites'),
+      tile('Store orders this month', state.totals.ordersMonth, state.totals.ordersMonth ? naira(state.totals.salesMonth) + ' paid online' : 'paid online')
+    ] : [])));
 
     var counts = {};
     rs.forEach(function (r) { counts[r.interest] = (counts[r.interest] || 0) + 1; });
@@ -893,11 +899,23 @@
     return box;
   }
 
+  // A tap-to-open section of a client card. The block's own heading moves into the bar, beside its status.
+  function fold(r, key, title, block, status, attention) {
+    state.folds = state.folds || {};
+    var id = r.id + ':' + key;
+    var d = el('details', { class: 'admin-fold' });
+    d.open = state.folds[id] !== undefined ? state.folds[id] : Boolean(attention);
+    d.addEventListener('toggle', function () { state.folds[id] = d.open; });
+    var label = block.querySelector(':scope > .admin-label');
+    if (label) label.remove();
+    d.appendChild(el('summary', null, [el('span', { class: 'admin-fold-title', text: title }), status ? badge(status[0], status[1]) : null]));
+    d.appendChild(block);
+    return d;
+  }
+
   // After launch: the customer's change requests and their visitor numbers.
   function aftercareBlock(r) {
     var box = el('div', { class: 'admin-golive admin-aftercare' }, [el('span', { class: 'admin-label', text: 'After launch: changes & visitors' })]);
-    var open = r.open_changes || 0;
-    box.appendChild(el('p', { class: 'admin-meta' }, [open ? badge(open + ' change request' + (open === 1 ? '' : 's') + ' waiting', 'is-due') : badge('No open change requests', 'is-won')]));
     var out = el('div', { class: 'admin-changes' });
     function drawChanges(j) {
       out.innerHTML = '';
@@ -1221,11 +1239,24 @@
         state.filters = { q: r.contact, status: '', interest: '', due: false }; state.open[r.id] = true; setTab('requests');
       } })
     ]));
-    card.appendChild(briefBlock(r));
-    if (r.has_draft || (r.hosting && r.hosting.project)) card.appendChild(goLiveBlock(r));
-    if (r.interest === 'Online Store' && (r.has_draft || r.brief_submitted_at)) card.appendChild(storeBlock(r));
-    if (r.website_url || r.live_on) card.appendChild(aftercareBlock(r));
-    card.appendChild(handoverBlock(r));
+    // Each part of the job folds away, with its status on the closed bar; parts that need you open by themselves.
+    var h = r.hosting || {};
+    card.appendChild(fold(r, 'brief', 'Project form', briefBlock(r), r.brief_submitted_at ? ['Received', 'is-won'] : r.brief_saved_at ? ['In progress', 'is-new'] : ['Waiting', ''], false));
+    if (r.has_draft || h.project) {
+      var changed = h.publishedAt && [r.draft_at, r.design_at].some(function (t) { return t && Date.parse(t) > Date.parse(h.publishedAt); });
+      card.appendChild(fold(r, 'golive', 'Go live', goLiveBlock(r),
+        h.pausedAt ? ['Paused', 'is-due'] : h.lastError ? ['Problem', 'is-due'] : changed ? ['Changes not published', 'is-new'] : h.publishedAt ? [h.attached ? 'Live on ' + h.domain : 'Published', 'is-won'] : ['Not published', ''],
+        Boolean(h.pausedAt || h.lastError || changed)));
+    }
+    if (r.interest === 'Online Store' && (r.has_draft || r.brief_submitted_at)) {
+      card.appendChild(fold(r, 'store', 'Store payments', storeBlock(r), r.shop && r.shop.online ? ['Pay online ON', 'is-won'] : ['WhatsApp orders only', ''], false));
+    }
+    if (r.website_url || r.live_on) {
+      var oc = r.open_changes || 0;
+      card.appendChild(fold(r, 'after', 'After launch', aftercareBlock(r), oc ? [oc + ' change' + (oc === 1 ? '' : 's') + ' waiting', 'is-due'] : ['Up to date', 'is-won'], oc > 0));
+    }
+    var hsent = (r.auto_sent || {}).handover, hbal = balance(r), hlocked = r.quote_amount == null || hbal > 0;
+    card.appendChild(fold(r, 'handover', 'Handover pack', handoverBlock(r), hsent ? ['Sent', 'is-won'] : hlocked ? ['Locked', ''] : ['Ready to send', 'is-new'], !hsent && !hlocked));
     return card;
   }
 

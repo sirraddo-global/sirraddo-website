@@ -21,6 +21,7 @@
 
 /* Tabs */
 .admin-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 8px; scrollbar-width: none; }
+@media (max-width: 640px) { .admin-tabs { flex-wrap: wrap; overflow-x: visible; } }
 .admin-tabs button {
   flex: none; border: 1px solid var(--line); background: var(--white); color: var(--navy);
   border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer;
@@ -217,3 +218,14 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .admin-change { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 6px; }
 .admin-change-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0; }
 .admin-change a { overflow-wrap: anywhere; }
+/* Client card sections that fold away */
+.admin-fold { border: 1px solid var(--line); border-radius: 10px; margin-top: 8px; background: var(--white, #fff); }
+.admin-fold > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 12px; cursor: pointer; list-style: none; min-height: 48px; box-sizing: border-box; }
+.admin-fold > summary::-webkit-details-marker { display: none; }
+.admin-fold > summary::after { content: "▸"; margin-left: auto; color: var(--muted); transition: transform .15s; }
+.admin-fold[open] > summary::after { transform: rotate(90deg); }
+.admin-fold-title { font-weight: 700; color: var(--navy, #13254F); }
+.admin-fold > summary .admin-badge { order: 2; }
+.admin-fold > summary::after { order: 3; margin-left: 0; }
+.admin-fold > summary .admin-fold-title { flex: 1 1 auto; }
+.admin-fold > div { border: 0 !important; margin-top: 0 !important; padding: 0 12px 12px !important; }

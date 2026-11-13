@@ -97,8 +97,12 @@ const gemini = {
     let res;
     let lastErr;
     const trace = []; // e.g. "gemini-flash-latest:503@1s", returned in the error code for diagnosis
-    for (const model of models) {
+    // Long jobs (website text, designs): if every model is busy, wait a moment and go round once more.
+    const rounds = (opts.attemptMs || 0) >= 30000 ? [...models, ...models] : models;
+    for (let i = 0; i < rounds.length; i++) {
+      const model = rounds[i];
       if (deadline - Date.now() < 4000) break;
+      if (i === models.length) await new Promise((r) => setTimeout(r, 2500));
       const t0 = Date.now();
       try {
       // Gemini 3 models think at "high" by default, which is slow for a chat. Ask for "minimal";
@@ -165,6 +169,16 @@ const gemini = {
 };
 
 const PROVIDERS = { anthropic, gemini };
+
+// A short, plain message for admin when the AI fails.
+export function friendlyAiError(err) {
+  const m = String(err?.code || "") + " " + String(err?.message || "");
+  if (/timeout/i.test(m)) return "The AI took too long. Please try again.";
+  if (/_(503|500)|\b503\b|overloaded|high demand|UNAVAILABLE/i.test(m)) return "The AI service is busy right now (this happens at peak times). Please wait a minute and try again.";
+  if (/_429|\b429\b|quota|rate/i.test(m)) return "The AI's free limit was reached for now. Please try again in a few minutes.";
+  if (/_40[13]|API key|permission/i.test(m)) return "The AI key in Vercel isn't working. Check GEMINI_API_KEY / ANTHROPIC_API_KEY.";
+  return "The AI couldn't finish this time. Please try again.";
+}
 
 export function pickProvider() {
   const wanted = (process.env.AI_PROVIDER || "").trim().toLowerCase();

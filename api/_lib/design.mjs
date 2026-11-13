@@ -4,7 +4,7 @@
 import { randomBytes } from "node:crypto";
 import { getPreviewById, saveDesign, setDesignOptions, MAX_DESIGN_OPTIONS } from "./store.mjs";
 import { pickProvider, friendlyAiError } from "./providers.mjs";
-import { buildSiteModel, renderPage, css as baseCss } from "./sitegen.mjs";
+import { buildSiteModel, renderPage, css as baseCss, darkDesignCss } from "./sitegen.mjs";
 
 const SYSTEM = `You are a senior web designer for small Nigerian businesses. You restyle an existing website by writing CSS only.
 Rules:
@@ -99,6 +99,13 @@ export async function changeDesignOptions(id, action, optionId) {
     if (options.some((o) => !o.css)) return { ok: false, error: "The standard design is already an option" };
     if (options.length >= MAX_DESIGN_OPTIONS) return { ok: false, error: `You already have ${MAX_DESIGN_OPTIONS} designs. Remove one first.` };
     options = [...options, { id: newId(), css: "", by: "Standard", at: new Date().toISOString() }];
+    if (!current) current = options[0];
+  } else if (action === "add_dark") {
+    if (options.some((o) => o.by === "Dark")) return { ok: false, error: "The dark design is already an option" };
+    // On its own the customer would have nothing to compare, so the standard look comes along as the first option.
+    if (!options.length) options = [{ id: newId(), css: "", by: "Standard", at: new Date().toISOString() }];
+    if (options.length >= MAX_DESIGN_OPTIONS) return { ok: false, error: `You already have ${MAX_DESIGN_OPTIONS} designs. Remove one first.` };
+    options = [...options, { id: newId(), css: darkDesignCss(buildSiteModel(row).theme), by: "Dark", at: new Date().toISOString() }];
     if (!current) current = options[0];
   } else if (action === "remove") {
     const gone = options.find((o) => o.id === optionId);

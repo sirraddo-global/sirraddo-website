@@ -9,6 +9,7 @@ import { dbConfigured, getByPreviewToken, esc } from "./_lib/store.mjs";
 import { recordHit } from "./_lib/stats.mjs";
 import { addChange, listChanges, freeUntil, isFree, MAX_CHANGE_FILES } from "./_lib/changes.mjs";
 import { uploadsEnabled } from "./brief.mjs";
+import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
 
 const MAX_BYTES = 4 * 1024 * 1024;
 const TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"];
@@ -45,7 +46,8 @@ textarea{width:100%;box-sizing:border-box;min-height:140px;border:1px solid #CBD
 .btn.gold{background:#D9A21B;color:#13254F}.btn:disabled{opacity:.5}.up{display:inline-block;border:2px dashed #CBD2DE;border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:600}
 .up input{display:none}.files{margin:8px 0;padding:0;list-style:none}.files li{font-size:.9rem;padding:4px 0;overflow-wrap:anywhere}.m{color:#4A5568;font-size:.92rem}
 .tag{display:inline-block;border-radius:999px;padding:2px 10px;font-size:.8rem;font-weight:700}.ok{background:#DCFCE7;color:#14532D}.open{background:#FEF3C7;color:#713F12}
-.item{border-top:1px solid #EEF1F5;padding:10px 0}.item p{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}.msg{font-weight:700;margin-top:10px}</style></head>
+.item{border-top:1px solid #EEF1F5;padding:10px 0}.item p{margin:4px 0;white-space:pre-wrap;overflow-wrap:anywhere}.msg{font-weight:700;margin-top:10px}
+${DARK_PAGE_CSS}:root[data-theme="dark"] .btn:not(.gold){background:#22407F}</style><script src="/assets/theme.js"></script></head>
 <body><div class="w"><div class="logo"><span>SI</span><b>RR</b><span>A</span><b>DD</b><span>O</span></div>${body}
 <p class="m" style="text-align:center;margin-top:18px">Need to talk instead? <a href="${WA}">WhatsApp SIRRADDO</a></p></div></body></html>`;
 }

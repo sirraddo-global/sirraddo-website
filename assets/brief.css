@@ -1,48 +1,48 @@
 /* Project brief page (brief.html) */
-.brief { background: var(--grey); }
+.brief { background: var(--bg-soft); }
 .brief-main { max-width: 760px; padding-top: 24px; padding-bottom: 64px; }
-.brief-card, .brief-section { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+.brief-card, .brief-section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
 .brief-intro h1 { font-size: clamp(1.7rem, 5vw, 2.4rem); margin-bottom: .3em; }
 .brief-intro .eyebrow { color: var(--gold-text); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; margin: 0 0 6px; }
 .brief-status { background: #E3F4EA; border: 1px solid #A9DABC; color: #17663A; border-radius: 10px; padding: 10px 14px; font-weight: 600; }
-.brief-progress { height: 8px; background: var(--white); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-top: 12px; }
+.brief-progress { height: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; margin-top: 12px; }
 .brief-progress span { display: block; height: 100%; width: 0; background: var(--gold); transition: width .3s; }
 .brief-small { font-size: .85rem; color: var(--muted); margin: 6px 0 0; }
 #brief-form { display: grid; gap: 16px; margin-top: 18px; }
 .brief-section h2 { font-size: 1.2rem; margin: 0 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--gold); }
 .brief-field { display: grid; gap: 6px; margin-bottom: 16px; }
 .brief-field:last-child { margin-bottom: 0; }
-.brief-field > label, .brief-field > legend { font-weight: 600; color: var(--navy); padding: 0; }
+.brief-field > label, .brief-field > legend { font-weight: 600; color: var(--ink); padding: 0; }
 .brief-field fieldset, fieldset.brief-field { border: 0; margin: 0 0 16px; padding: 0; min-width: 0; }
 .brief-req { color: #B42318; }
 .brief-hint { font-size: .85rem; color: var(--muted); margin: -2px 0 0; }
 .brief input[type="text"], .brief input[type="email"], .brief input[type="tel"], .brief select, .brief textarea {
-  font: inherit; font-size: 1rem; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; width: 100%; color: var(--text); background: var(--white);
+  font: inherit; font-size: 1rem; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; width: 100%; color: var(--text); background: var(--surface);
 }
 .brief textarea { min-height: 90px; resize: vertical; }
 .brief input:focus, .brief select:focus, .brief textarea:focus { outline: 2px solid var(--gold); outline-offset: 0; border-color: var(--gold); }
 .brief [aria-invalid="true"] { border-color: #B42318; }
 .brief-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px 12px; }
 .brief-option { display: flex; align-items: center; gap: 8px; font-weight: 400; color: var(--text); }
-.brief-option input { width: 18px; height: 18px; accent-color: var(--navy); }
-.brief-confirm { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; color: var(--navy); }
-.brief-confirm input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--navy); flex: none; }
+.brief-option input { width: 18px; height: 18px; accent-color: var(--ink); }
+.brief-confirm { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; color: var(--ink); }
+.brief-confirm input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--ink); flex: none; }
 .brief-rows { display: grid; gap: 10px; }
-.brief-row { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--grey); position: relative; }
-.brief-row input { background: var(--white); }
+.brief-row { display: grid; gap: 6px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--bg-soft); position: relative; }
+.brief-row input { background: var(--surface); }
 .brief-row-remove { position: absolute; top: 4px; right: 4px; border: 0; background: none; color: #B42318; font-size: 1.3rem; cursor: pointer; padding: 4px 8px; }
 .brief-row .brief-row-num { font-size: .78rem; font-weight: 700; color: var(--muted); }
-.brief-add { justify-self: start; border: 1px dashed var(--navy); background: var(--white); color: var(--navy); border-radius: 10px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+.brief-add { justify-self: start; border: 1px dashed var(--ink); background: var(--surface); color: var(--ink); border-radius: 10px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
 .brief-files { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
-.brief-file { position: relative; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--grey); aspect-ratio: 1; display: grid; place-items: center; font-size: .75rem; text-align: center; padding: 4px; overflow-wrap: anywhere; }
+.brief-file { position: relative; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg-soft); aspect-ratio: 1; display: grid; place-items: center; font-size: .75rem; text-align: center; padding: 4px; overflow-wrap: anywhere; }
 .brief-file img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
 .brief-file button { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(11,23,51,.75); color: #fff; font-size: 1rem; cursor: pointer; z-index: 1; }
-.brief-upload { display: inline-flex; align-items: center; gap: 8px; justify-self: start; border: 1px solid var(--navy); color: var(--navy); background: var(--white); border-radius: 10px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+.brief-upload { display: inline-flex; align-items: center; gap: 8px; justify-self: start; border: 1px solid var(--ink); color: var(--ink); background: var(--surface); border-radius: 10px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
 .brief-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .brief-upload:focus-within { outline: 3px solid var(--gold); outline-offset: 2px; }
 .brief-file-status { font-size: .85rem; color: var(--muted); }
 .brief-file-status.is-error { color: #B42318; }
-.brief-actions { background: var(--grey); padding: 14px 0 6px; display: grid; gap: 8px; margin-top: 8px; }
+.brief-actions { background: var(--bg-soft); padding: 14px 0 6px; display: grid; gap: 8px; margin-top: 8px; }
 .brief-message { margin: 0; font-weight: 600; min-height: 1.2em; }
 .brief-message.is-error { color: #B42318; }
 .brief-message.is-ok { color: #17663A; }
@@ -50,7 +50,13 @@
   .brief-actions { grid-template-columns: 1fr 1fr; position: sticky; bottom: 0; }
   .brief-actions .brief-message, .brief-actions .brief-small { grid-column: 1 / -1; }
 }
-.brief-field-title { font-weight: 600; color: var(--navy); }
+.brief-field-title { font-weight: 600; color: var(--ink); }
 
 .brief-chat { background: #FFF8E6; border-color: #F0D58A; }
 .brief-chat ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+
+/* Dark theme */
+:root[data-theme="dark"] .brief-status { background: #12382A; border-color: #23664A; color: #8FE0B0; }
+:root[data-theme="dark"] .brief-req, :root[data-theme="dark"] .brief-row-remove, :root[data-theme="dark"] .brief-file-status.is-error, :root[data-theme="dark"] .brief-message.is-error { color: #FF8A80; }
+:root[data-theme="dark"] .brief-message.is-ok { color: #8FE0B0; }
+:root[data-theme="dark"] .brief-chat { background: #2E2510; border-color: #6B5418; }

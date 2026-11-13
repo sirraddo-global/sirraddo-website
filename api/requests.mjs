@@ -23,6 +23,9 @@ import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
 import { generateDesign, changeDesignOptions } from "./_lib/design.mjs";
+import { addDomain, checkHosting, publish, pause, restore, setupEmail, GoLiveError } from "./_lib/golive.mjs";
+import { cloudflareConfigured } from "./_lib/cloudflare.mjs";
+import { todayLagos } from "./_lib/automation.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
 import { getBriefById } from "./_lib/store.mjs";
 
@@ -174,7 +177,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ draft_md: row.draft_md, draft_at: row.draft_at, draft_error: row.draft_error });
       }
       const [requests, unanswered, settings, setup] = await Promise.all([listRequests(), listUnanswered(), getSettings(), setupStatus()]);
-      return res.status(200).json({ requests, unanswered, settings, setup, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured() });
+      return res.status(200).json({ requests, unanswered, settings, setup, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
     }
 
     if (req.method === "PATCH") {
@@ -188,6 +191,10 @@ export default async function handler(req, res) {
       if (!row.brief_token && depositPaid(row)) {
         row = (await ensureBriefToken(id)) || row;
         await emailBriefLink(row); // emails the project form when customer emailing is set up
+      }
+      // Renewal marked paid by hand: switch a paused website back on now.
+      if (changed.renewal_due && row.hosting?.pausedAt && changed.renewal_due > todayLagos() && cloudflareConfigured()) {
+        row = await restore(id).catch((e) => { console.error("restore failed", e); return row; });
       }
       return res.status(200).json(row);
     }
@@ -259,6 +266,24 @@ export default async function handler(req, res) {
         const result = await changeDesignOptions(id, body.action === "design_clear" ? "clear" : String(body.op || ""), String(body.option || ""));
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(await getRequest(id));
+      }
+      if (String(body.action || "").startsWith("host_")) {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        try {
+          let out = { ok: true };
+          if (body.action === "host_domain") out.row = await addDomain(id, body.domain);
+          else if (body.action === "host_check") out.row = await checkHosting(id);
+          else if (body.action === "host_publish") Object.assign(out, await publish(id, { force: Boolean(body.force) }));
+          else if (body.action === "host_pause") out.row = await pause(id);
+          else if (body.action === "host_restore") out.row = await restore(id);
+          else if (body.action === "host_email") out.row = await setupEmail(id, body.locals, body.to);
+          else throw new Bad("Unknown action");
+          return res.status(200).json(out);
+        } catch (e) {
+          if (e instanceof GoLiveError || /^Cloudflare:/.test(e.message)) throw new Bad(e.message);
+          throw e;
+        }
       }
       if (body.action === "doc_link") {
         const id = Number(body.id);

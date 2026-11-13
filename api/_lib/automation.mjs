@@ -6,6 +6,7 @@ import {
   sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta,
 } from "./store.mjs";
 import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
+import { dailyHosting, hostingRef } from "./golive.mjs";
 import { buildDoc, naira, balance } from "./docs.mjs";
 import { generateDraft } from "./drafts.mjs";
 
@@ -271,8 +272,30 @@ export async function runDaily(now = new Date()) {
     if (res.ok) { needsDraft.has_draft = true; report.draftsWritten = 1; }
   }
 
+  // Customer websites on Cloudflare: domains that went active, pause overdue renewals, restore paid ones.
+  const host = Date.now() - started < 35000 ? await dailyHosting(all, now) : null;
+  if (host) {
+    for (const r of host.paused) {
+      const to = customerEmail(r);
+      if (to && customerEmailConfigured()) {
+        await sendCustomerEmail(to, "Your website has been paused", customerHtml(r, [
+          `Your website renewal was due on <b>${esc(r.renewal_due)}</b> and hasn't been paid, so your website${r.hosting?.email ? " and business email forwarding are" : " is"} now paused.`,
+          "Nothing is deleted. We keep your website for 60 days, and it comes back as soon as the renewal is paid.",
+        ], paystackConfigured() && r.doc_token ? { url: payLink(r, "renewal"), label: `Pay ${naira(r.renewal_amount)} and restore` } : null)).catch(() => {});
+      }
+    }
+  }
+
   // The morning email
   const sections = [
+    ...(host ? [
+      section("Customer domains now active", host.activated.map((r) => item(r, `${esc(r.hosting.domain)} is active on Cloudflare.${r.hosting.project ? " Their website is now connected to it." : " You can publish their website now."}`, null))),
+      section("Ready to go live (approved and paid)", host.ready.map((r) => item(r, "Admin → Clients → Go live → Publish website.", null))),
+      section("Live sites with changes not yet published", host.unpublished.map((r) => item(r, "You edited the text or design after publishing. Tap Update live site.", null))),
+      section("Sites paused today (renewal 15+ days overdue)", host.paused.map((r) => item(r, `${esc(r.hosting?.domain || r.website_url || "")} paused. It restores itself when the renewal is paid.`, fill(tpl("tpl_renewal"), r)))),
+      section("Sites restored (renewal paid)", host.restored.map((r) => item(r, `${esc(r.hosting?.domain || "")} is back online.`, null))),
+      section("Hosting problems", host.errors.map(({ r, msg }) => item(r, esc(msg), null))),
+    ] : []),
     section("New requests", fresh.map((r) => item(r, `${esc(r.contact)}${r.email ? " · " + esc(r.email) : ""} · ${esc(r.details || "")}`, fill(tpl("tpl_new"), r)))),
     section("Follow up today", due.map((r) => item(r, `${esc(r.status)} · due ${r.follow_up_on === today ? "today" : `since ${niceDate(r.follow_up_on)}`}`,
       fill(tpl(r.status === "quoted" ? "tpl_quoted" : "tpl_new"), r)))),

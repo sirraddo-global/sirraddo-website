@@ -1,7 +1,7 @@
 // AI drafts of a customer's website text, written from their project form.
 // Runs when the form is sent (in the background), from admin ("Write website text"), or in the daily run.
 // The draft is for YOU to check and paste into the site; it is never shown to the customer directly.
-import { pickProvider } from "./providers.mjs";
+import { pickProvider, friendlyAiError } from "./providers.mjs";
 import { getBriefById, saveDraft } from "./store.mjs";
 import { kindFor, schemaFor, KIND_LABEL } from "./brief-schema.mjs";
 
@@ -132,7 +132,7 @@ export async function generateDraft(id, budgetMs = 50000) {
   try {
     const [pages, blog] = await Promise.all([
       ask(provider, pagesPrompt(kind, row, answers), budgetMs, kind === "store" ? 6000 : 4000),
-      wantBlog ? ask(provider, blogPrompt(row, answers), budgetMs, 3500).catch((e) => `## Blog posts\n\n[Not written: ${e.code || e.message}. Use "Rewrite" to try again.]`) : null,
+      wantBlog ? ask(provider, blogPrompt(row, answers), budgetMs, 3500).catch((e) => `## Blog posts\n\n[Not written: ${friendlyAiError(e)} Use "Rewrite" to try again.]`) : null,
     ]);
     const md = [pages, blog].filter(Boolean).join("\n\n") +
       `\n\n---\n*Draft written by AI from the project form on ${new Date().toISOString().slice(0, 10)}. Check every fact, replace each [ADD: …] and read it through before it goes on the site.*`;
@@ -140,7 +140,7 @@ export async function generateDraft(id, budgetMs = 50000) {
     return { ok: true };
   } catch (err) {
     console.error("draft failed", id, err);
-    await saveDraft(id, null, err.code || err.message);
-    return { ok: false, error: "The AI couldn't write it right now (" + (err.code || "error") + "). Try again in a minute." };
+    await saveDraft(id, null, friendlyAiError(err));
+    return { ok: false, error: friendlyAiError(err) + " Any text already written is kept." };
   }
 }

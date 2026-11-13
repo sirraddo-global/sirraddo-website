@@ -2,7 +2,7 @@
 // already produces, so the checked text, prices and photos can't change. Uses Claude when ANTHROPIC_API_KEY
 // is set (model: ANTHROPIC_DESIGN_MODEL, default claude-haiku-5-5), otherwise Gemini.
 import { getPreviewById, saveDesign } from "./store.mjs";
-import { pickProvider } from "./providers.mjs";
+import { pickProvider, friendlyAiError } from "./providers.mjs";
 import { buildSiteModel, renderPage, css as baseCss } from "./sitegen.mjs";
 
 const SYSTEM = `You are a senior web designer for small Nigerian businesses. You restyle an existing website by writing CSS only.
@@ -70,7 +70,8 @@ export async function generateDesign(id, budgetMs = 52000) {
     await saveDesign(id, cssText, by);
     return { ok: true, by };
   } catch (err) {
-    const msg = err.code === "timeout" ? "The AI took too long. Please try again." : err.message || "AI error";
+    console.error("design failed", err.code, err.message);
+    const msg = /usable design/.test(err.message || "") ? err.message : friendlyAiError(err);
     await saveDesign(id, null, null, msg).catch(() => {});
     return { ok: false, error: msg };
   }

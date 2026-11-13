@@ -92,6 +92,7 @@
   function setError(msg) { $('app-error').textContent = msg || ''; }
   var statusTimer;
   function flash(msg) {
+    setError(''); // a success clears any old error message
     $('app-status').textContent = msg;
     clearTimeout(statusTimer);
     statusTimer = setTimeout(function () { $('app-status').textContent = ''; }, 2500);

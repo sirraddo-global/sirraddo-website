@@ -214,3 +214,6 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .admin-ideas dt { font-weight: 600; color: var(--muted); }
 .admin-ideas dd { margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 520px) { .admin-ideas dl { grid-template-columns: 1fr; } .admin-ideas dd { margin-bottom: 6px; } }
+.admin-change { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 6px; }
+.admin-change-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0; }
+.admin-change a { overflow-wrap: anywhere; }

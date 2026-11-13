@@ -204,6 +204,7 @@ export function buildSiteModel(row) {
       ...p, pos, amount: priceAmount(p.price), text: (productText[p.name.toLowerCase()] || []).join(" "),
     })),
     shopToken: row.shop_token || row.shop?.token || "",
+    statsKey: row.hosting?.statsKey || "",
     testimonials: String(b.testimonials || "").split(/\n+/).map((s) => s.trim()).filter(Boolean),
     delivery: b.delivery_areas || "",
     returns: b.returns || "",
@@ -504,7 +505,7 @@ ${header(site, page, link, img)}
 <main>${notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
 ${preview ? previewPanel(row, token, choice) : ""}
 ${footer(site, link)}
-${hasCart(site) ? cartScript(site, mode) : ""}
+${hasCart(site) ? cartScript(site, mode) : ""}${mode === "export" && !notFound ? statsScript(site) : ""}
 </body></html>`;
 }
 
@@ -559,6 +560,16 @@ function notFoundBody(site, link) {
   return `<section class="section"><div class="wrap" style="text-align:center;padding-top:48px;padding-bottom:48px">
 <h1>Sorry, we can't find that page</h1><p>The link may be old or mistyped. These might help:</p>
 <p style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px"><a class="btn" href="${link("index")}">Go to the home page</a>${wa ? `<a class="btn" href="${wa}">Ask us on WhatsApp</a>` : ""}</p></div></section>`;
+}
+
+// Private visitor counts for the monthly report: no cookies, nothing personal (see api/_lib/stats.mjs).
+function statsScript(site) {
+  if (!site.statsKey) return "";
+  return `<script>(function(){if(location.protocol==='file:'||/^(localhost|127\\.)/.test(location.hostname))return;var K=${JSON.stringify(site.statsKey)},A=${JSON.stringify(SITE_URL + "/api/site?hit=1")};
+function s(e){try{var b=JSON.stringify({k:K,e:e,p:location.pathname,r:e==='view'?document.referrer:''});if(navigator.sendBeacon)navigator.sendBeacon(A,b);else fetch(A,{method:'POST',body:b,keepalive:true})}catch(_){}}
+s('view');document.addEventListener('click',function(ev){var a=ev.target.closest&&ev.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href')||'';
+if(/wa\\.me|whatsapp/i.test(h))s('wa');else if(/^tel:/i.test(h))s('call');else if(/^mailto:/i.test(h))s('email')},true);
+var w=document.querySelector('.cart .waorder');if(w)w.addEventListener('click',function(){s('wa')})})();</script>`;
 }
 
 const hasCart = (site) => site.kind === "store" && site.products.some((p) => p.amount);

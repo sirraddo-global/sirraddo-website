@@ -4,6 +4,7 @@
 import { getPreviewById, getRequest, updateRequest, saveHosting, esc, reference } from "./store.mjs";
 import { buildSiteModel, exportFiles, slugify } from "./sitegen.mjs";
 import { ensureStoreToken } from "./shop.mjs";
+import { ensureStatsKey } from "./stats.mjs";
 import { balance } from "./docs.mjs";
 import { applyRules, todayLagos, daysBetween } from "./automation.mjs";
 import {
@@ -105,6 +106,7 @@ async function pickProject(row, h) {
 export async function publish(id, { force = false } = {}) {
   need();
   await ensureStoreToken(id);
+  await ensureStatsKey(id);
   const row = await getPreviewById(id);
   if (!row) throw new Bad("Not found");
   if (!row.draft_md) throw new Bad("Write the website text first");

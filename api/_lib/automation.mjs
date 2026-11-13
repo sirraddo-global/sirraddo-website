@@ -8,6 +8,8 @@ import {
 import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
 import { dailyHosting, hostingRef } from "./golive.mjs";
 import { reconcileOrders } from "./shop.mjs";
+import { monthlyReports, cleanupStats } from "./stats.mjs";
+import { openChangeCounts } from "./changes.mjs";
 import { buildDoc, naira, balance } from "./docs.mjs";
 import { generateDraft } from "./drafts.mjs";
 
@@ -299,8 +301,16 @@ export async function runDaily(now = new Date()) {
   // Online Store payments where the buyer closed the page before coming back: confirm and email the order.
   if (Date.now() - started < 45000) report.storeOrdersConfirmed = await reconcileOrders().catch((e) => { console.error("store reconcile failed", e); return 0; });
 
+  // Monthly visitor reports to customers (1st of the month), tidy old counts, and open change requests.
+  if (Date.now() - started < 45000) report.monthlyReports = await monthlyReports().catch((e) => { console.error("monthly reports failed", e); return 0; });
+  await cleanupStats().catch((e) => console.error("stats cleanup failed", e));
+  const openChanges = await openChangeCounts().catch(() => []);
+  const byId = new Map(all.map((r) => [r.id, r]));
+
   // The morning email
   const sections = [
+    section("Change requests waiting", openChanges.map((c) => item(byId.get(c.request_id) || { id: c.request_id, name: c.name, business: c.business },
+      `${c.n} open request${c.n === 1 ? "" : "s"}, oldest from ${niceDate(new Date(c.oldest).toISOString().slice(0, 10))}. Admin → Clients → Change requests.`, null))),
     ...(host ? [
       section("Customer domains now active", host.activated.map((r) => item(r, `${esc(r.hosting.domain)} is active on Cloudflare.${r.hosting.project ? " Their website is now connected to it." : " You can publish their website now."}`, null))),
       section("Ready to go live (approved and paid)", host.ready.map((r) => item(r, "Admin → Clients → Go live → Publish website.", null))),

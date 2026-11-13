@@ -78,7 +78,7 @@ function handoverDoc(r, settings) {
     row("Next renewal due", r.renewal_due ? niceDate(r.renewal_due) : ""),
     row("What it covers", "Domain, hosting, SSL certificate (the padlock), business email and backups. We remind you before it is due."),
   ])}
-  ${section("Changes and support", [row("Our policy", esc(settings.handover_terms || DEFAULT_HANDOVER_TERMS)), row("Contact us", `WhatsApp ${COMPANY.phone} · ${COMPANY.email}`)])}
+  ${section("Changes and support", [row("Our policy", esc(settings.handover_terms || DEFAULT_HANDOVER_TERMS)), r.change_link ? row("Request a change", `<a href="${esc(r.change_link)}">Your private change request link</a> (keep it; send text and photos any time)`) : "", row("Contact us", `WhatsApp ${COMPANY.phone} · ${COMPANY.email}`)])}
   <h2 style="font-size:17px;color:#13254F;margin:22px 0 6px">Getting more customers from your website</h2>
   <ul style="margin:0 0 10px;padding-left:20px">
     <li>Put your website link on your WhatsApp profile, status and social media bios.</li>

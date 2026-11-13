@@ -242,6 +242,11 @@
       ])
     ]);
     view.appendChild(form);
+    view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
+      el('h2', { text: 'Backup' }),
+      el('p', { class: 'admin-intro', text: 'Every Monday a backup of all your business data (customers, quotes, payments, website text, orders, change requests) is emailed to you as a file. Keep those emails. You can also download one now. It contains customer details, so keep it private.' }),
+      el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Download backup now', onclick: function (e) { downloadFile('/api/requests?view=backup', 'sirraddo-backup.json.gz', e.currentTarget); } })])
+    ]));
     var l = view.querySelector('.asst-log'); if (l) l.scrollTop = l.scrollHeight;
   }
 
@@ -746,11 +751,12 @@
     box.appendChild(dsg);
     return box;
   }
-  function downloadSite(r, btn) {
+  function downloadSite(r, btn) { downloadFile('/api/requests?view=export&id=' + r.id, 'website.zip', btn); }
+  function downloadFile(url, fallback, btn) {
     var was = btn.textContent; btn.disabled = true; btn.textContent = 'Preparing…';
-    fetch('/api/requests?view=export&id=' + r.id, { headers: { 'Authorization': 'Bearer ' + password } }).then(function (res) {
+    fetch(url, { headers: { 'Authorization': 'Bearer ' + password } }).then(function (res) {
       if (!res.ok) return res.json().catch(function () { return {}; }).then(function (j) { throw Object.assign(new Error(j.error || 'Download failed'), { status: res.status }); });
-      var name = ((res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/) || [])[1] || 'website.zip';
+      var name = ((res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/) || [])[1] || fallback;
       return res.blob().then(function (b) {
         var a = el('a', { href: URL.createObjectURL(b), download: name });
         document.body.appendChild(a); a.click(); a.remove();

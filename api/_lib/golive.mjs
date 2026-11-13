@@ -230,6 +230,7 @@ export async function dailyHosting(all, now = new Date()) {
     } catch (e) {
       console.error("hosting check failed", r.id, e);
       out.errors.push({ r, msg: e.message });
+      await saveHosting(r.id, { lastError: String(e.message).slice(0, 300), lastErrorAt: new Date().toISOString() }).catch(() => {});
     }
   }
   return out;

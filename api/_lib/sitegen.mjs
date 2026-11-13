@@ -251,6 +251,9 @@ const GUARD_CSS = `body{overflow-x:clip}img,video{max-width:100%;height:auto}
 .wa{right:16px!important;left:auto!important;max-width:calc(100vw - 32px);white-space:nowrap}`;
 
 const PREVIEW_CSS = `.pv-top{background:#FFF1B8;color:#3D2E00;font:600 14px/1.4 system-ui,Arial,sans-serif;padding:10px 16px;text-align:center}
+.pv-opts{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:8px}
+.pv-opts a{font:700 14px/1 system-ui,Arial,sans-serif;text-decoration:none;color:#3D2E00;background:#fff;border:2px solid #E0C766;border-radius:999px;padding:9px 16px}
+.pv-opts a[aria-current]{background:#3D2E00;color:#FFF1B8;border-color:#3D2E00}
 .pv{background:#0F172A;color:#fff;padding:24px 0 28px;font-family:system-ui,Arial,sans-serif}.pv h2{color:#fff;font-size:1.3rem}
 .pv textarea{width:100%;min-height:110px;border-radius:10px;border:0;padding:12px;font:inherit;margin:8px 0}
 .pv .row{display:flex;gap:10px;flex-wrap:wrap}.pv .ok{background:#22C55E;color:#062E14}.pv .chg{background:#fff;color:#0F172A}
@@ -378,7 +381,7 @@ ${socials ? `<span>${socials}</span>` : ""}<span>© ${new Date().getFullYear()} 
 ${site.whatsapp ? `<a class="wa" href="${waLink(site)}" aria-label="Chat on WhatsApp">WhatsApp</a>` : ""}`;
 }
 
-function previewPanel(row, token) {
+function previewPanel(row, token, choice) {
   const status = row.preview_status;
   const todo = /\[ADD:/.test(row.draft_md || "");
   const done = status === "approved"
@@ -386,26 +389,27 @@ function previewPanel(row, token) {
     : "";
   return `<div class="pv" id="review"><div class="wrap">
 <h2>${status === "approved" ? "Approved" : "What do you think?"}</h2>
+${status !== "approved" && choice ? `<p><strong>We made ${choice.count} designs for you.</strong> Switch between them with the buttons at the top of the page. You're looking at <strong>${choice.label}</strong>.</p>` : ""}
 ${status === "approved" ? "" : `<p>Look through every page. If you're happy, tap <strong>Approve</strong>. If anything should change, write it below and tap <strong>Send changes</strong>.${todo ? " The yellow parts are details we still need from you." : ""}</p>`}
 ${done}
 <form id="pv-form"${status === "approved" ? " hidden" : ""}>
 <label for="pv-text">Changes you'd like (optional)</label>
 <textarea id="pv-text" maxlength="3000" placeholder="e.g. Change the opening hours to 9am–7pm, use the second photo at the top…"></textarea>
-<div class="row"><button class="btn ok" type="button" data-act="approved">Approve my website</button><button class="btn chg" type="button" data-act="changes">Send changes</button></div>
+<div class="row"><button class="btn ok" type="button" data-act="approved">${choice ? "Approve " + choice.label : "Approve my website"}</button><button class="btn chg" type="button" data-act="changes">Send changes</button></div>
 <p class="msg" id="pv-msg" role="status"></p></form></div></div>
 <script>(function(){var f=document.getElementById('pv-form');if(!f)return;var m=document.getElementById('pv-msg');
 f.addEventListener('click',function(e){var b=e.target.closest('button[data-act]');if(!b)return;var act=b.getAttribute('data-act');var t=document.getElementById('pv-text').value.trim();
 if(act==='changes'&&!t){m.textContent='Please write what you would like changed.';return;}
-if(act==='approved'&&!confirm('Approve this website design?'+(t?' Your note will be sent too.':'')))return;
+if(act==='approved'&&!confirm('Approve ${choice ? choice.label : "this website design"}?'+(t?' Your note will be sent too.':'')))return;
 Array.prototype.forEach.call(f.querySelectorAll('button'),function(x){x.disabled=true});m.textContent='Sending…';
-fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:${JSON.stringify(token)},action:act,text:t})})
+fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:${JSON.stringify(token)},action:act,text:t,option:${JSON.stringify(choice ? choice.id : "")}})})
 .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Error');return j})})
 .then(function(j){m.textContent=j.message;f.querySelector('textarea').value='';if(act==='approved')f.querySelector('.row').hidden=true;else Array.prototype.forEach.call(f.querySelectorAll('button'),function(x){x.disabled=false})})
 .catch(function(err){m.textContent=err.message+'. Please try again or message us on WhatsApp.';Array.prototype.forEach.call(f.querySelectorAll('button'),function(x){x.disabled=false})});});})();</script>`;
 }
 
 // mode: "preview" (served at /preview, with the approval panel) or "export" (plain files for hosting).
-export function renderPage(site, slug, { mode = "export", link, img = (u) => u, row, token } = {}) {
+export function renderPage(site, slug, { mode = "export", link, img = (u) => u, row, token, choice, switcher = "" } = {}) {
   const page = site.pages.find((p) => p.slug === slug) || site.pages[0];
   const title = page.title || (page.kind === "home" ? site.name : `${page.name} | ${site.name}`);
   const desc = page.meta || site.tagline || "";
@@ -418,10 +422,10 @@ ${preview ? '<meta name="robots" content="noindex, nofollow">' : ""}<meta name="
 ${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}
 <style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}
 <style id="guard">${GUARD_CSS}</style></head>
-<body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a></div>` : ""}
+<body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}</div>` : ""}
 ${header(site, page, link, img)}
 <main>${pageBody(site, page, mode, link, img)}</main>
-${preview ? previewPanel(row, token) : ""}
+${preview ? previewPanel(row, token, choice) : ""}
 ${footer(site, link)}
 </body></html>`;
 }

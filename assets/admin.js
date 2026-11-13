@@ -607,27 +607,45 @@
     } }));
     acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Download site (.zip)', onclick: function (e) { downloadSite(r, e.currentTarget); } }));
     box.appendChild(acts);
-    // Custom look by AI (CSS only: the text, prices and photos stay as checked).
+    // Designs (up to 3). With 2 or more, the customer switches between them on the preview and approves one.
+    var choices = r.design_choices || [];
+    var LET = 'ABC';
+    var dsg = el('div', { class: 'admin-designs' }, [el('span', { class: 'admin-label', text: 'Designs' })]);
+    function designAct(body, okMsg, btn) {
+      if (btn) btn.disabled = true;
+      return api('POST', Object.assign({ id: r.id }, body)).then(function (row) { replaceRequest(row); flash(okMsg); render(); })
+        .catch(function (err) { if (btn) btn.disabled = false; fail(err); });
+    }
+    if (choices.length) dsg.appendChild(el('ul', { class: 'admin-design-list' }, choices.map(function (c, i) {
+      var li = el('li', null, [el('b', { text: 'Design ' + LET[i] }), ' ' + (c.standard ? 'Standard' : (c.by || 'AI')) + ' · ' + when(c.at) + ' ',
+        c.current ? badge(r.preview_status === 'approved' ? 'Chosen' : 'In download', 'is-won') : null]);
+      if (!c.current) li.appendChild(el('button', { class: 'admin-btn admin-btn--small', type: 'button', text: 'Use for download', onclick: function (e) { designAct({ action: 'design_option', op: 'use', option: c.id }, 'Design ' + LET[i] + ' is now used for the download', e.currentTarget); } }));
+      li.appendChild(el('button', { class: 'admin-btn admin-btn--small', type: 'button', text: 'Remove', onclick: function (e) {
+        if (!window.confirm('Remove Design ' + LET[i] + '?')) return;
+        designAct({ action: 'design_option', op: 'remove', option: c.id }, 'Design removed', e.currentTarget);
+      } }));
+      return li;
+    })));
     var dz = el('div', { class: 'admin-actions' });
-    var dbtn = el('button', { class: 'admin-btn', type: 'button', text: r.has_design ? 'New AI design' : 'AI design (custom look)', onclick: function () {
-      if (r.has_design && !window.confirm('Replace the current custom design with a new one?')) return;
-      dbtn.disabled = true; dbtn.textContent = 'Designing… (up to a minute)';
-      api('POST', { action: 'design', id: r.id }).then(function (row) { replaceRequest(row); flash('New design ready. Tap "Open preview" to see it.'); render(); })
-        .catch(function (e) { dbtn.disabled = false; dbtn.textContent = r.has_design ? 'New AI design' : 'AI design (custom look)'; fail(e); });
-    } });
-    dz.appendChild(dbtn);
-    if (r.has_design) dz.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Use standard design', onclick: function (e) {
-      var b = e.currentTarget; b.disabled = true;
-      api('POST', { action: 'design_clear', id: r.id }).then(function (row) { replaceRequest(row); flash('Back to the standard design'); render(); })
-        .catch(function (err) { b.disabled = false; fail(err); });
+    if (choices.length < 3) {
+      var dbtn = el('button', { class: 'admin-btn', type: 'button', text: choices.length ? 'Add another AI design' : 'AI design (custom look)', onclick: function () {
+        var label = dbtn.textContent; dbtn.disabled = true; dbtn.textContent = 'Designing… (up to a minute)';
+        api('POST', { action: 'design', id: r.id }).then(function (row) { replaceRequest(row); flash('New design ready. Tap "Open preview" to see it.'); render(); })
+          .catch(function (e) { dbtn.disabled = false; dbtn.textContent = label; fail(e); });
+      } });
+      dz.appendChild(dbtn);
+      if (choices.length && !choices.some(function (c) { return c.standard; })) dz.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Add standard design as an option', onclick: function (e) { designAct({ action: 'design_option', op: 'add_standard' }, 'Standard design added as an option', e.currentTarget); } }));
+    }
+    if (choices.length) dz.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Remove all designs', onclick: function (e) {
+      if (!window.confirm('Remove all designs and go back to the standard look?')) return;
+      designAct({ action: 'design_clear' }, 'Back to the standard design', e.currentTarget);
     } }));
-    box.appendChild(dz);
-    box.appendChild(el('p', { class: 'admin-hint', text: r.has_design
-      ? 'Custom design by ' + (r.design_by || 'AI') + ' · ' + when(r.design_at) + '. The preview and the download use it. Not happy? Tap "New AI design" for another, or go back to the standard design.'
-      : (r.design_error ? 'Last try failed: ' + r.design_error + ' ' : '') + 'Optional: the AI designs a unique look for this customer. Only the look changes; your checked text, prices and photos stay the same.' }));
-    box.appendChild(el('p', { class: 'admin-hint', text: r.preview_status === 'approved'
-      ? 'Approved. Once the balance is paid, upload the .zip to the host, connect their domain, mark the project Live and send the handover pack.'
-      : 'Opening or sending the preview moves the project to "Preview sent". The customer approves or asks for changes on the page itself, and you get an email.' }));
+    dsg.appendChild(dz);
+    dsg.appendChild(el('p', { class: 'admin-hint', text: (r.design_error && !choices.length ? 'Last try failed: ' + r.design_error + ' ' : '') + (
+      choices.length >= 2 ? 'The customer sees "Design A / B' + (choices.length > 2 ? ' / C' : '') + '" buttons on the preview, switches between them, and approves the one they like. Their choice is used for the download.'
+      : choices.length === 1 ? 'Add another design (AI or the standard one) to let the customer choose between them. Only the look changes; your checked text, prices and photos stay the same.'
+      : 'Optional: the AI designs a unique look. Make 2 or 3 and the customer picks their favourite on the preview. Only the look changes; your checked text, prices and photos stay the same.') }));
+    box.appendChild(dsg);
     return box;
   }
   function downloadSite(r, btn) {

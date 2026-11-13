@@ -63,6 +63,7 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_at TIMESTAMPTZ`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_by TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_error TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_options JSONB NOT NULL DEFAULT '[]'::jsonb`,
   `CREATE TABLE IF NOT EXISTS chat_logs (
      session_id TEXT PRIMARY KEY,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -105,7 +106,9 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   draft_at, draft_error, (draft_md IS NOT NULL) AS has_draft,
   handover, preview_token, preview_status, preview_feedback, preview_approved_at,
   COALESCE((length(draft_md) - length(replace(draft_md, '[ADD:', ''))) / 5, 0) AS draft_gaps,
-  (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error`;
+  (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error,
+  COALESCE((SELECT jsonb_agg(jsonb_build_object('id', o->>'id', 'by', o->>'by', 'at', o->>'at', 'standard', COALESCE(o->>'css', '') = '',
+    'current', COALESCE(o->>'css', '') = COALESCE(design_css, ''))) FROM jsonb_array_elements(design_options) o), '[]'::jsonb) AS design_choices`;
 
 // ---------- Customer requests ----------
 // Insert or update the request for this session. Returns { id, inserted }, or null if there is no database.
@@ -302,7 +305,7 @@ export async function addPaymentOnce(id, payment) {
 
 // ---------- Preview sites (/preview?t=...) ----------
 const PREVIEW_COLUMNS = `id, name, business, contact, email, interest, status, quote_amount, payments, project_stage, doc_token, auto_sent,
-  brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at, design_css`;
+  brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at, design_css, design_options, design_by`;
 export async function ensurePreviewToken(id) {
   await ensureSchema();
   const rows = await q(
@@ -324,6 +327,18 @@ export async function saveDesign(id, css, by, error = null) {
       : `UPDATE customer_requests SET design_css = $1, design_by = $3, design_at = CASE WHEN $1::text IS NULL THEN NULL ELSE now() END,
            design_error = NULL, updated_at = now() WHERE id = $2 RETURNING ${REQUEST_COLUMNS}`,
     error ? [String(error).slice(0, 300), id] : [css, id, css ? by : null]
+  );
+  return rows[0] ?? null;
+}
+// Up to 3 designs the customer can choose from on the preview page. Each: { id, css ("" = standard), by, at }.
+export const MAX_DESIGN_OPTIONS = 3;
+export async function setDesignOptions(id, options, current) {
+  await ensureSchema();
+  const rows = await q(
+    `UPDATE customer_requests SET design_options = $1::jsonb, design_css = $2, design_by = $3,
+       design_at = CASE WHEN $2::text IS NULL THEN NULL ELSE now() END, design_error = NULL, updated_at = now()
+     WHERE id = $4 RETURNING ${REQUEST_COLUMNS}`,
+    [JSON.stringify(options), current?.css || null, current?.css ? current.by : null, id]
   );
   return rows[0] ?? null;
 }

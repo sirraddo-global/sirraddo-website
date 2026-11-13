@@ -22,7 +22,7 @@ import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automatio
 import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
-import { generateDesign } from "./_lib/design.mjs";
+import { generateDesign, changeDesignOptions } from "./_lib/design.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
 import { getBriefById } from "./_lib/store.mjs";
 
@@ -253,10 +253,12 @@ export default async function handler(req, res) {
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(await getRequest(id));
       }
-      if (body.action === "design_clear") {
+      if (body.action === "design_clear" || body.action === "design_option") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");
-        return res.status(200).json(await saveDesign(id, null, null));
+        const result = await changeDesignOptions(id, body.action === "design_clear" ? "clear" : String(body.op || ""), String(body.option || ""));
+        if (!result.ok) throw new Bad(result.error);
+        return res.status(200).json(await getRequest(id));
       }
       if (body.action === "doc_link") {
         const id = Number(body.id);

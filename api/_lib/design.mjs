@@ -1,7 +1,8 @@
 // "AI design": a custom look for a customer's website. The AI writes CSS only, for the HTML our generator
 // already produces, so the checked text, prices and photos can't change. Uses Claude when ANTHROPIC_API_KEY
 // is set (model: ANTHROPIC_DESIGN_MODEL, default claude-haiku-5-5), otherwise Gemini.
-import { getPreviewById, saveDesign } from "./store.mjs";
+import { randomBytes } from "node:crypto";
+import { getPreviewById, saveDesign, setDesignOptions, MAX_DESIGN_OPTIONS } from "./store.mjs";
 import { pickProvider, friendlyAiError } from "./providers.mjs";
 import { buildSiteModel, renderPage, css as baseCss } from "./sitegen.mjs";
 
@@ -59,6 +60,8 @@ export async function generateDesign(id, budgetMs = 52000) {
   if (!row.draft_md) return { ok: false, error: "Write the website text first" };
   const provider = pickProvider();
   if (!provider) return { ok: false, error: "No AI key is set in Vercel (ANTHROPIC_API_KEY or GEMINI_API_KEY)" };
+  const options = currentOptions(row);
+  if (options.length >= MAX_DESIGN_OPTIONS) return { ok: false, error: `You already have ${MAX_DESIGN_OPTIONS} designs. Remove one first.` };
   const site = buildSiteModel({ ...row, design_css: null });
   const model = provider.name === "anthropic" ? process.env.ANTHROPIC_DESIGN_MODEL || "claude-haiku-5-5" : undefined;
   try {
@@ -67,7 +70,8 @@ export async function generateDesign(id, budgetMs = 52000) {
     const cssText = cleanCss(out.text);
     if (cssText.replace(/\/\*[\s\S]*?\*\//g, "").trim().length < 200) throw new Error("The AI didn't return a usable design");
     const by = provider.name === "anthropic" ? `Claude (${model})` : "Gemini";
-    await saveDesign(id, cssText, by);
+    const opt = { id: newId(), css: cssText, by, at: new Date().toISOString() };
+    await setDesignOptions(id, [...options, opt], opt);
     return { ok: true, by };
   } catch (err) {
     console.error("design failed", err.code, err.message);
@@ -75,4 +79,38 @@ export async function generateDesign(id, budgetMs = 52000) {
     await saveDesign(id, null, null, msg).catch(() => {});
     return { ok: false, error: msg };
   }
+}
+
+const newId = () => randomBytes(4).toString("hex");
+// Designs made before options existed count as the first option.
+export function currentOptions(row) {
+  const list = Array.isArray(row.design_options) ? row.design_options : [];
+  if (!list.length && row.design_css) return [{ id: "first", css: row.design_css, by: row.design_by || "AI", at: new Date().toISOString() }];
+  return list;
+}
+
+// Admin actions on the list: add the standard design, remove one, make one current, or clear all.
+export async function changeDesignOptions(id, action, optionId) {
+  const row = await getPreviewById(id);
+  if (!row) return { ok: false, error: "Not found" };
+  let options = currentOptions(row);
+  let current = options.find((o) => (o.css || "") === (row.design_css || "")) || null;
+  if (action === "add_standard") {
+    if (options.some((o) => !o.css)) return { ok: false, error: "The standard design is already an option" };
+    if (options.length >= MAX_DESIGN_OPTIONS) return { ok: false, error: `You already have ${MAX_DESIGN_OPTIONS} designs. Remove one first.` };
+    options = [...options, { id: newId(), css: "", by: "Standard", at: new Date().toISOString() }];
+    if (!current) current = options[0];
+  } else if (action === "remove") {
+    const gone = options.find((o) => o.id === optionId);
+    if (!gone) return { ok: false, error: "That design is no longer there" };
+    options = options.filter((o) => o !== gone);
+    if (current === gone) current = options.find((o) => o.css) || null;
+  } else if (action === "use") {
+    current = options.find((o) => o.id === optionId);
+    if (!current) return { ok: false, error: "That design is no longer there" };
+  } else if (action === "clear") {
+    options = []; current = null;
+  } else return { ok: false, error: "Unknown action" };
+  await setDesignOptions(id, options, current);
+  return { ok: true };
 }

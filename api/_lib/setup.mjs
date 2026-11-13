@@ -3,6 +3,7 @@ import { dbConfigured, emailConfigured, customerEmailConfigured, getMeta } from 
 import { pickProvider } from "./providers.mjs";
 import { paystackConfigured } from "./paystack.mjs";
 import { SITE } from "./automation.mjs";
+import { cloudflareConfigured } from "./cloudflare.mjs";
 
 const VERCEL = "Vercel → your project → Environment Variables, then Redeploy.";
 
@@ -26,6 +27,8 @@ export async function setupStatus() {
       note: paystackConfigured() ? (live ? "Live key: real payments." : "TEST key: payments are not real. Switch to the live key before customers pay.") +
         (meta.paystack_webhook ? ` Last payment notice from Paystack: ${meta.paystack_webhook}.` : " No payment notice received from Paystack yet.") : "",
       fix: `Add PAYSTACK_SECRET_KEY (Paystack → Settings → API Keys & Webhooks → Live Secret Key). ${VERCEL} In Paystack, set the Live Webhook URL to ${SITE}/api/paystack-webhook` },
+    { label: "Customer websites (Cloudflare: publish, domains, email forwarding)", ok: cloudflareConfigured(), note: "Go live in one tap from Clients.",
+      fix: `In Cloudflare: My Profile → API Tokens → Create Token → Custom token with: Account · Cloudflare Pages · Edit; Account · Email Routing Addresses · Edit; Zone · Zone · Edit; Zone · DNS · Edit; Zone · Email Routing Rules · Edit (Zone resources: All zones from your account). Add it as CLOUDFLARE_API_TOKEN, and your Account ID (Cloudflare home → your account → ⋯ → Copy account ID) as CLOUDFLARE_ACCOUNT_ID. ${VERCEL}` },
     { label: "Daily automation (reminders, morning email, site checks)", ok: (env.CRON_SECRET || "").length >= 16, warn: ranHoursAgo !== null && ranHoursAgo > 30,
       note: meta.daily_run ? `Last ran ${meta.daily_run}${ranHoursAgo > 30 ? ". That is over a day ago: check Vercel → Settings → Cron Jobs." : "."}` : "Hasn't run yet. It runs every morning at 7am.",
       fix: `Add CRON_SECRET (any long random text, at least 16 characters). ${VERCEL}` },

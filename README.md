@@ -153,6 +153,16 @@ Other notes:
 
 The morning email lists previews with change requests, previews not answered for 3+ days, approved jobs waiting for the balance, and live sites without a handover pack.
 
+## Going live on Cloudflare (one tap)
+
+Set `CLOUDFLARE_API_TOKEN` (custom token: Account · Cloudflare Pages · Edit; Account · Email Routing Addresses · Edit; Zone · Zone · Edit; Zone · DNS · Edit; Zone · Email Routing Rules · Edit; zone resources: all zones in the account) and `CLOUDFLARE_ACCOUNT_ID` in Vercel. Then in admin → Clients → **Go live**:
+
+1. **Add domain to Cloudflare** — creates the zone and shows the 2 nameservers to set at the registrar (copy, or send to the customer on WhatsApp). Status updates every morning or with **Check now**.
+2. **Publish website** — uploads the approved design (pages + photos) to a Cloudflare Pages project via the Direct Upload API (`api/_lib/cloudflare.mjs`), connects the domain and `www` (custom domains + CNAME records, replacing old A/CNAME records at those names) once the zone is active, marks the project Live (renewal date set) and fills *Their website*. Asks first if the balance isn't paid. **Update live site** re-publishes after edits (only changed files are uploaded).
+3. **Email forwarding** — e.g. info@ and sales@ → their Gmail (Cloudflare Email Routing). Cloudflare emails them a link to confirm; forwarding starts by itself once confirmed.
+
+Automatic: domains that become active get connected; renewals 15+ days overdue are paused (a "temporarily unavailable" page, email forwarding off, customer emailed) and restored as soon as the renewal is paid (Paystack, or "Renewal paid" in admin); the morning email lists active domains, jobs ready to go live, unpublished changes, pauses and restores.
+
 ## AI design (custom look)
 
 In admin → Website preview, **AI design** asks the AI for a custom look for that customer: CSS only, applied on top of the generated pages, so the checked text, prices and photos never change. It uses Claude when `ANTHROPIC_API_KEY` is set (model `ANTHROPIC_DESIGN_MODEL`, default `claude-haiku-5-5`; try `claude-sonnet-5-5` for richer designs if it finishes within the time limit), otherwise Gemini. The CSS is cleaned (no files, imports or scripts); up to 2 Google Fonts are loaded. **New AI design** tries again; **Use standard design** removes it. The preview and the .zip download both use it.

@@ -135,6 +135,7 @@
       state.stages = j.stages || [];
       state.canEmail = Boolean(j.can_email_customers);
       state.canPay = Boolean(j.can_pay_online);
+      state.canHost = Boolean(j.can_host);
       state.setup = j.setup || [];
       showApp(true);
       render();
@@ -662,6 +663,94 @@
     }).catch(fail).then(function () { btn.disabled = false; btn.textContent = was; });
   }
 
+  // Go live on Cloudflare: domain -> publish -> (email forwarding). Pause/restore for renewals.
+  function goLiveBlock(r) {
+    var h = r.hosting || {};
+    var box = el('div', { class: 'admin-golive' }, [el('span', { class: 'admin-label', text: 'Go live' })]);
+    if (!state.canHost) {
+      box.appendChild(el('p', { class: 'admin-hint', text: 'Connect Cloudflare once (Dashboard → Setup status → Customer websites) to publish customer websites in one tap. Until then, use "Download site (.zip)" and upload it by hand.' }));
+      return box;
+    }
+    function act(body, okMsg, btn, busy) {
+      var was = btn ? btn.textContent : '';
+      if (btn) { btn.disabled = true; if (busy) btn.textContent = busy; }
+      return api('POST', Object.assign({ id: r.id }, body)).then(function (j) {
+        if (j.row) replaceRequest(j.row);
+        flash(typeof okMsg === 'function' ? okMsg(j) : okMsg); render(); return j;
+      }).catch(function (e) { if (btn) { btn.disabled = false; btn.textContent = was; } fail(e); });
+    }
+    // 1. Domain
+    if (!h.domain) {
+      var guess = (r.handover && r.handover.domain) || '';
+      var din = el('input', { value: guess, placeholder: 'theirbusiness.com.ng', autocapitalize: 'none', spellcheck: 'false' });
+      box.appendChild(field('1. Their domain', din, 'Buy it first (in their business name) if they don\'t have one. You can also publish without a domain and add it later.'));
+      box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Add domain to Cloudflare', onclick: function (e) {
+        act({ action: 'host_domain', domain: din.value }, 'Domain added. Now set the nameservers below.', e.currentTarget, 'Adding…');
+      } })]));
+    } else {
+      var active = h.zoneStatus === 'active';
+      var meta = [el('b', { text: h.domain }), ' ', active ? badge('Active', 'is-won') : badge('Waiting for nameservers', 'is-due')];
+      if (h.attached) meta.push(' ', badge(h.domainStatus === 'active' || !h.domainStatus ? 'Connected' : 'Connecting (' + h.domainStatus + ')', h.domainStatus && h.domainStatus !== 'active' ? 'is-new' : 'is-won'));
+      box.appendChild(el('p', { class: 'admin-meta' }, meta));
+      if (!active && (h.nameservers || []).length) {
+        var ns = h.nameservers.join('\n');
+        box.appendChild(el('p', { class: 'admin-hint', text: 'At the domain company (e.g. Whogohost → Domains → Nameservers → custom), replace the nameservers with these 2. It usually takes 1–24 hours; this updates by itself every morning, or tap Check now.' }));
+        box.appendChild(el('pre', { class: 'admin-ns', text: ns }));
+        var nsActs = el('div', { class: 'admin-actions' }, [
+          el('button', { class: 'admin-btn', type: 'button', text: 'Copy nameservers', onclick: function (e) { copyText(ns, 'Nameservers', e.currentTarget); } }),
+          el('button', { class: 'admin-btn', type: 'button', text: 'Check now', onclick: function (e) { act({ action: 'host_check' }, function (j) { return j.row && j.row.hosting && j.row.hosting.zoneStatus === 'active' ? 'Domain is active!' : 'Still waiting for the nameservers'; }, e.currentTarget, 'Checking…'); } })]);
+        var num = waNumber(r.contact);
+        if (num) nsActs.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Ask customer on WhatsApp', onclick: function () {
+          window.open('https://wa.me/' + num + '?text=' + encodeURIComponent('Hello ' + String(r.name).split(' ')[0] + ', to connect your website to ' + h.domain + ', please log in where you bought the domain and change its nameservers to:\n' + ns + '\nOr send me the login and I will do it for you.'), '_blank');
+        } }));
+        box.appendChild(nsActs);
+      }
+    }
+    // 2. Publish / update
+    var bal = balance(r), owing = r.quote_amount != null && bal > 0;
+    var changed = h.publishedAt && [r.draft_at, r.design_at].some(function (t) { return t && Date.parse(t) > Date.parse(h.publishedAt); });
+    if (h.publishedAt) {
+      var info = [el('span', { text: (h.pausedAt ? 'Paused ' + when(h.pausedAt) : 'Published ' + when(h.publishedAt)) + ' · ' })];
+      info.push(el('a', { href: h.attached ? 'https://' + h.domain : h.pagesUrl, target: '_blank', rel: 'noopener', text: h.attached ? h.domain : String(h.pagesUrl || '').replace('https://', '') }));
+      if (changed && !h.pausedAt) info.push(' ', badge('Changes not published', 'is-due'));
+      box.appendChild(el('p', { class: 'admin-meta' }, info));
+    }
+    var pubActs = el('div', { class: 'admin-actions' });
+    if (!h.pausedAt) pubActs.appendChild(el('button', { class: 'btn btn--navy admin-golive-btn', type: 'button', text: h.publishedAt ? 'Update live site' : '2. Publish website', onclick: function (e) {
+      var force = false;
+      if (owing) { if (!window.confirm('The balance (' + naira(bal) + ') isn\'t paid yet. Publish anyway?')) return; force = true; }
+      act({ action: 'host_publish', force: force }, function (j) { return (j.firstTime ? 'Live! Marked Live, renewal date set. ' : 'Updated. ') + (j.waitingForDomain ? 'It\'s on ' + j.url + ' until the domain is active, then it connects by itself.' : j.url); }, e.currentTarget, 'Publishing… (up to a minute)');
+    } }));
+    if (h.publishedAt && !h.pausedAt) pubActs.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Pause site', onclick: function (e) {
+      if (!window.confirm('Pause ' + (h.domain || 'this site') + '? Visitors will see "temporarily unavailable" and email forwarding stops until you restore it.')) return;
+      act({ action: 'host_pause' }, 'Site paused', e.currentTarget, 'Pausing…');
+    } }));
+    if (h.pausedAt) pubActs.appendChild(el('button', { class: 'btn btn--navy admin-golive-btn', type: 'button', text: 'Restore site', onclick: function (e) { act({ action: 'host_restore' }, 'Site restored', e.currentTarget, 'Restoring…'); } }));
+    box.appendChild(pubActs);
+    box.appendChild(el('p', { class: 'admin-hint', text: h.pausedAt ? 'Paused because the renewal is overdue. It restores by itself when the renewal is paid (online or "Renewal paid").'
+      : h.publishedAt ? 'After editing the text or design, tap "Update live site". Sites pause automatically 15 days after an unpaid renewal and come back when paid.'
+      : 'Publishing uploads the approved design to Cloudflare, connects their domain (once active), marks the project Live and sets the renewal date.' + (owing ? ' Balance still owed: ' + naira(bal) + '.' : '') }));
+    // 3. Email forwarding
+    if (h.domain && h.zoneStatus === 'active') {
+      var em = h.email;
+      if (em && em.status) {
+        var lbl = em.status === 'active' ? badge('Working', 'is-won') : em.status === 'paused' ? badge('Paused', 'is-due') : badge('Waiting for them to confirm', 'is-new');
+        box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Email: ' }), em.locals.map(function (l) { return l + '@' + h.domain; }).join(', ') + ' → ' + em.to + ' ', lbl]));
+        if (em.status === 'verifying') box.appendChild(el('p', { class: 'admin-hint', text: 'Cloudflare emailed ' + em.to + ' a link to confirm. Once they tap it, forwarding starts by itself (or tap Check now).' }));
+      }
+      if (!em || em.status === 'verifying') {
+        var lin = el('input', { value: em ? em.locals.join(', ') : 'info', placeholder: 'info, sales' });
+        var tin = el('input', { type: 'email', value: em ? em.to : (r.email || ''), placeholder: 'theirname@gmail.com' });
+        box.appendChild(el('div', { class: 'admin-grid' }, [field('3. Business email addresses', lin, 'Before the @, e.g. info, sales'), field('Forward to (their inbox)', tin)]));
+        var eacts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: em ? 'Save and check' : 'Set up email forwarding', onclick: function (e) {
+          act({ action: 'host_email', locals: lin.value, to: tin.value }, function (j) { var s = j.row && j.row.hosting && j.row.hosting.email; return s && s.status === 'active' ? 'Email forwarding is working' : 'Cloudflare sent them a confirmation email'; }, e.currentTarget, 'Setting up…');
+        } })]);
+        box.appendChild(eacts);
+      }
+    }
+    return box;
+  }
+
   // Everything the customer needs after the balance is paid. Passwords never go in here.
   function handoverBlock(r) {
     var h = r.handover || {};
@@ -897,6 +986,7 @@
       } })
     ]));
     card.appendChild(briefBlock(r));
+    if (r.has_draft || (r.hosting && r.hosting.project)) card.appendChild(goLiveBlock(r));
     card.appendChild(handoverBlock(r));
     return card;
   }

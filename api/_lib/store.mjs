@@ -64,6 +64,7 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_by TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_error TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_options JSONB NOT NULL DEFAULT '[]'::jsonb`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS hosting JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `CREATE TABLE IF NOT EXISTS chat_logs (
      session_id TEXT PRIMARY KEY,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -106,7 +107,7 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   draft_at, draft_error, (draft_md IS NOT NULL) AS has_draft,
   handover, preview_token, preview_status, preview_feedback, preview_approved_at,
   COALESCE((length(draft_md) - length(replace(draft_md, '[ADD:', ''))) / 5, 0) AS draft_gaps,
-  (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error,
+  (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, hosting,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('id', o->>'id', 'by', o->>'by', 'at', o->>'at', 'standard', COALESCE(o->>'css', '') = '',
     'current', COALESCE(o->>'css', '') = COALESCE(design_css, ''))) FROM jsonb_array_elements(design_options) o), '[]'::jsonb) AS design_choices`;
 
@@ -305,7 +306,7 @@ export async function addPaymentOnce(id, payment) {
 
 // ---------- Preview sites (/preview?t=...) ----------
 const PREVIEW_COLUMNS = `id, name, business, contact, email, interest, status, quote_amount, payments, project_stage, doc_token, auto_sent,
-  brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at, design_css, design_options, design_by`;
+  brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at, design_css, design_options, design_by, hosting, draft_at, design_at`;
 export async function ensurePreviewToken(id) {
   await ensureSchema();
   const rows = await q(
@@ -330,6 +331,12 @@ export async function saveDesign(id, css, by, error = null) {
   );
   return rows[0] ?? null;
 }
+// Where and how the customer's website is hosted (Cloudflare). Merges the given fields.
+export async function saveHosting(id, patch) {
+  await ensureSchema();
+  await q(`UPDATE customer_requests SET hosting = hosting || $1::jsonb, updated_at = now() WHERE id = $2`, [JSON.stringify(patch), id]);
+}
+
 // Up to 3 designs the customer can choose from on the preview page. Each: { id, css ("" = standard), by, at }.
 export const MAX_DESIGN_OPTIONS = 3;
 export async function setDesignOptions(id, options, current) {

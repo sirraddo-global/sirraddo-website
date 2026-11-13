@@ -59,6 +59,10 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS preview_status TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS preview_feedback JSONB NOT NULL DEFAULT '[]'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS preview_approved_at TIMESTAMPTZ`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_css TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_at TIMESTAMPTZ`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_by TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_error TEXT`,
   `CREATE TABLE IF NOT EXISTS chat_logs (
      session_id TEXT PRIMARY KEY,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -100,7 +104,8 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   website_url, site_status, site_checked_at, ssl_expires::text AS ssl_expires, auto_sent,
   draft_at, draft_error, (draft_md IS NOT NULL) AS has_draft,
   handover, preview_token, preview_status, preview_feedback, preview_approved_at,
-  COALESCE((length(draft_md) - length(replace(draft_md, '[ADD:', ''))) / 5, 0) AS draft_gaps`;
+  COALESCE((length(draft_md) - length(replace(draft_md, '[ADD:', ''))) / 5, 0) AS draft_gaps,
+  (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error`;
 
 // ---------- Customer requests ----------
 // Insert or update the request for this session. Returns { id, inserted }, or null if there is no database.
@@ -297,7 +302,7 @@ export async function addPaymentOnce(id, payment) {
 
 // ---------- Preview sites (/preview?t=...) ----------
 const PREVIEW_COLUMNS = `id, name, business, contact, email, interest, status, quote_amount, payments, project_stage, doc_token, auto_sent,
-  brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at`;
+  brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at, design_css`;
 export async function ensurePreviewToken(id) {
   await ensureSchema();
   const rows = await q(
@@ -307,6 +312,18 @@ export async function ensurePreviewToken(id) {
        updated_at = now()
      WHERE id = $2 RETURNING ${REQUEST_COLUMNS}`,
     [randomBytes(18).toString("base64url"), id]
+  );
+  return rows[0] ?? null;
+}
+// A custom look made by AI for this customer's site (CSS only). css = null removes it; error records a failed try.
+export async function saveDesign(id, css, by, error = null) {
+  await ensureSchema();
+  const rows = await q(
+    error
+      ? `UPDATE customer_requests SET design_error = $1, updated_at = now() WHERE id = $2 RETURNING ${REQUEST_COLUMNS}`
+      : `UPDATE customer_requests SET design_css = $1, design_by = $3, design_at = CASE WHEN $1::text IS NULL THEN NULL ELSE now() END,
+           design_error = NULL, updated_at = now() WHERE id = $2 RETURNING ${REQUEST_COLUMNS}`,
+    error ? [String(error).slice(0, 300), id] : [css, id, css ? by : null]
   );
   return rows[0] ?? null;
 }

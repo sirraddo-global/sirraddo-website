@@ -38,7 +38,7 @@ const anthropic = {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
+        model: opts.model || process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
         max_tokens: opts.maxTokens || 700,
         system,
         ...(tools.length ? { tools } : {}),

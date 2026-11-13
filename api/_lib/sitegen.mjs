@@ -188,11 +188,12 @@ export function buildSiteModel(row) {
     blogPosts,
     theme: themeFor(b),
     pages: outPages,
+    designCss: row.design_css || "",
   };
 }
 
 // ---------- Rendering ----------
-function css(t) {
+export function css(t) {
   return `*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#1F2933;line-height:1.6;background:#fff}
 img{max-width:100%;display:block}a{color:${t.primary}}
 h1,h2,h3{font-family:${t.head};font-weight:${t.weight};line-height:1.2;color:${t.primary};margin:0 0 .5em}
@@ -368,13 +369,25 @@ export function renderPage(site, slug, { mode = "export", link, img = (u) => u, 
 <meta property="og:title" content="${esc(title)}">${desc ? `<meta property="og:description" content="${esc(desc)}">` : ""}<meta property="og:type" content="website">
 ${preview ? '<meta name="robots" content="noindex, nofollow">' : ""}<meta name="theme-color" content="${site.theme.primary}">
 ${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}
-<style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style></head>
-<body>${preview ? `<div class="pv-top">Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a></div>` : ""}
+<style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}</head>
+<body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a></div>` : ""}
 ${header(site, page, link, img)}
 <main>${pageBody(site, page, mode, link, img)}</main>
 ${preview ? previewPanel(row, token) : ""}
 ${footer(site, link)}
 </body></html>`;
+}
+
+// Google Fonts named in the custom design ("/* fonts: Playfair Display, Inter */") are loaded with <link>.
+export function fontNames(designCss) {
+  const m = String(designCss || "").match(/\/\*\s*fonts:\s*([^*]{1,200})\*\//i);
+  return m ? m[1].split(",").map((f) => f.trim()).filter((f) => /^[A-Za-z0-9 ]{2,40}$/.test(f)).slice(0, 2) : [];
+}
+function fontLinks(designCss) {
+  const fams = fontNames(designCss);
+  if (!fams.length) return "";
+  const q = fams.map((f) => "family=" + f.replace(/ /g, "+") + ":wght@400;600;700;800").join("&");
+  return `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?${q}&display=swap">`;
 }
 
 // Every page and image, for the download. Images are given local names under images/.

@@ -15,7 +15,7 @@ RULES
 - Where a page needs a fact the form doesn't give, write a short placeholder in square brackets, e.g. [ADD: year started], so the builder can see it.
 - Clear, warm, professional Nigerian English. Short paragraphs (1–3 sentences). Active voice. No emojis, no hype words like "world-class" or "best in Nigeria".
 - Mention the city or area naturally where the form gives it (good for local search).
-- Prices only exactly as given in the form.
+- Prices only exactly as given in the form, written in naira with commas, e.g. ₦4,100.
 - Output plain Markdown only, in exactly the structure asked for. No commentary before or after.`;
 
 function answersText(kind, brief, files) {
@@ -82,7 +82,14 @@ For each page:
 ## Page: <page name>
 **SEO title:** (max 60 characters, includes the business type and city if given)
 **Meta description:** (max 155 characters)
-Then the page's sections, each as "### <section name>" with its text. The Home page starts with "### Hero" containing: a headline (max 8 words), a one-sentence subheadline, and button text. Use services from the form on the Home and Services pages. The Contact page lists the contact details from the form exactly, plus one inviting sentence.
+Then the page's sections, each as "### <section name>" with its text. Inside a section you may start with "**Heading:** <section heading>", then "**Text:** <paragraph>" (more paragraphs or "- " bullet points can follow).
+The Home page starts with exactly:
+### Hero
+**Headline:** <max 8 words>
+**Subheadline:** <one sentence>
+**Button text:** <2–4 words>
+IMPORTANT: the website automatically shows every service/product with its price as cards (Home, Services, Prices and Shop pages), and the contact details (phone, WhatsApp, email, address, hours) as a card on the Contact page. So don't list the services, prices or contact details again: write a short introduction for those pages instead (what makes them good, who they're for, how to order or visit).
+For an FAQ page, write each question as "#### <question>" followed by its answer as a paragraph.
 ${extras.length ? "\nAfter the pages, add:\n" + extras.join("\n") : ""}`;
 }
 

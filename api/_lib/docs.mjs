@@ -72,7 +72,7 @@ function handoverDoc(r, settings) {
     row(emails.length > 1 ? "Addresses" : "Address", emails.map(esc).join("<br>")),
     row("Read your email at", h.webmail ? link(h.webmail) : ""),
   ])}
-  ${section("Logins", [row("Passwords", "For your safety, we send passwords privately on WhatsApp, never by email. Please change each password the first time you log in, and don't share it.")])}
+  ${h.has_logins ? section("Logins", [row("Passwords", "For your safety, we send passwords privately on WhatsApp, never by email. Please change each password the first time you log in, and don't share it.")]) : section("Changes to your website", [row("How", "We look after your website for you, so there's nothing to log in to. Send us the change on WhatsApp and we'll update it.")])}
   ${section("Renewal", [
     row("Yearly renewal", r.renewal_amount ? naira(r.renewal_amount) : ""),
     row("Next renewal due", r.renewal_due ? niceDate(r.renewal_due) : ""),

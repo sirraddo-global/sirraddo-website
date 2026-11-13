@@ -275,6 +275,15 @@ export async function runDaily(now = new Date()) {
   // Customer websites on Cloudflare: domains that went active, pause overdue renewals, restore paid ones.
   const host = Date.now() - started < 35000 ? await dailyHosting(all, now) : null;
   if (host) {
+    for (const r of host.balancePaused) {
+      const to = customerEmail(r);
+      if (to && customerEmailConfigured()) {
+        await sendCustomerEmail(to, "Your website is paused until the balance is paid", customerHtml(r, [
+          `Your website has been online for ${7} days, but the balance of <b>${naira(balance(r))}</b> hasn't been paid yet, so we've paused it.`,
+          "Nothing is lost. As soon as the balance is paid, your website comes back and goes live on your own domain.",
+        ], paystackConfigured() && r.doc_token ? { url: payLink(r), label: `Pay ${naira(balance(r))} now` } : null)).catch(() => {});
+      }
+    }
     for (const r of host.paused) {
       const to = customerEmail(r);
       if (to && customerEmailConfigured()) {
@@ -293,7 +302,8 @@ export async function runDaily(now = new Date()) {
       section("Ready to go live (approved and paid)", host.ready.map((r) => item(r, "Admin → Clients → Go live → Publish website.", null))),
       section("Live sites with changes not yet published", host.unpublished.map((r) => item(r, "You edited the text or design after publishing. Tap Update live site.", null))),
       section("Sites paused today (renewal 15+ days overdue)", host.paused.map((r) => item(r, `${esc(r.hosting?.domain || r.website_url || "")} paused. It restores itself when the renewal is paid.`, fill(tpl("tpl_renewal"), r)))),
-      section("Sites restored (renewal paid)", host.restored.map((r) => item(r, `${esc(r.hosting?.domain || "")} is back online.`, null))),
+      section("Sites paused for an unpaid balance (7+ days)", host.balancePaused.map((r) => item(r, `balance ${naira(balance(r))}. It comes back by itself once paid.`, r.doc_token ? fill(tpl("tpl_invoice"), r, { doc_link: docLink(r, "invoice") }) : fill(tpl("tpl_invoice"), r)))),
+      section("Sites restored (paid)", host.restored.map((r) => item(r, `${esc(r.hosting?.domain || "")} is back online.`, null))),
       section("Hosting problems", host.errors.map(({ r, msg }) => item(r, esc(msg), null))),
     ] : []),
     section("New requests", fresh.map((r) => item(r, `${esc(r.contact)}${r.email ? " · " + esc(r.email) : ""} · ${esc(r.details || "")}`, fill(tpl("tpl_new"), r)))),

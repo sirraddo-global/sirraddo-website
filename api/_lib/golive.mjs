@@ -17,6 +17,10 @@ export function normDomain(input) {
   const d = String(input || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/[/?#].*$/, "").replace(/\.$/, "");
   return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/.test(d) ? d : "";
 }
+// Money still owed on the project: the site may go on the free .pages.dev address, never on their domain.
+export const owing = (r) => r?.quote_amount != null && balance(r) > 0;
+export const BALANCE_GRACE_DAYS = 7;
+
 const need = () => {
   if (!cloudflareConfigured()) throw new Bad("Cloudflare isn't connected yet. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in Vercel (see Setup status).");
 };
@@ -46,7 +50,7 @@ export async function checkHosting(id) {
     if (z.name_servers?.length) patch.nameservers = z.name_servers;
   }
   const active = (patch.zoneStatus || h.zoneStatus) === "active";
-  if (active && h.project && !h.attached && !h.pausedAt) {
+  if (active && h.project && !h.attached && !h.pausedAt && !owing(row)) {
     await attachDomain(h.project, h.zoneId, h.domain);
     patch.attached = true;
     await updateRequest(id, { website_url: `https://${h.domain}` });
@@ -105,15 +109,18 @@ export async function publish(id, { force = false } = {}) {
   const full = await getRequest(id);
   const h = full.hosting || {};
   if (h.pausedAt && !force) throw new Bad("This site is paused. Use Restore instead.");
-  if (!force && full.quote_amount != null && balance(full) > 0) throw new Bad(`The balance (${balance(full)}) isn't paid yet.`);
+  const owed = owing(full);
+  if (!force && owed) throw new Bad(`The balance (${balance(full)}) isn't paid yet.`);
   const { pages, images } = filesFor(row);
   const files = [...pages.map((p) => ({ path: p.name, data: p.html })), ...(await fetchImages(images))];
   files.push({ path: "404.html", data: pages[0].html });
   const project = await pickProject(row, h);
   const dep = await deploy(project, files);
-  const patch = { project, pagesUrl: `https://${project}.pages.dev`, publishedAt: new Date().toISOString(), deploymentId: dep?.id || null, pausedAt: null };
+  const patch = { project, pagesUrl: `https://${project}.pages.dev`, publishedAt: new Date().toISOString(), deploymentId: dep?.id || null, pausedAt: null, pauseReason: null,
+    // When it first went online with money still owed (auto-pauses after BALANCE_GRACE_DAYS).
+    owingSince: owed ? h.owingSince || new Date().toISOString() : null };
   let attached = h.attached && h.project === project;
-  if (h.zoneId && !attached) {
+  if (h.zoneId && !attached && !owed) {
     const z = await zoneStatus(h.zoneId).catch(() => null);
     if (z) patch.zoneStatus = z.status;
     if (z?.status === "active") { await attachDomain(project, h.zoneId, h.domain); attached = true; }
@@ -128,7 +135,7 @@ export async function publish(id, { force = false } = {}) {
     await setRulesEnabled(h.zoneId, h.email.rules, true).catch(() => {});
     await saveHosting(id, { email: { ...h.email, status: "active" } });
   }
-  return { row: await getRequest(id), url: fields.website_url, firstTime: Boolean(fields.project_stage), waitingForDomain: Boolean(h.domain && !attached) };
+  return { row: await getRequest(id), url: fields.website_url, firstTime: Boolean(fields.project_stage), waitingForDomain: Boolean(h.domain && !attached), owed };
 }
 
 function holdingPage(name) {
@@ -140,7 +147,7 @@ function holdingPage(name) {
 }
 
 // 3. Pause (renewal overdue) and restore (paid). Pausing shows a short "temporarily unavailable" page and stops email forwarding.
-export async function pause(id) {
+export async function pause(id, reason = "manual") {
   need();
   const row = await getRequest(id);
   const h = row.hosting || {};
@@ -150,10 +157,13 @@ export async function pause(id) {
   const page = holdingPage(name);
   await deploy(h.project, [{ path: "index.html", data: page }, { path: "404.html", data: page }]);
   if (h.email?.rules?.length) await setRulesEnabled(h.zoneId, h.email.rules, false).catch(() => {});
-  await saveHosting(id, { pausedAt: new Date().toISOString(), ...(h.email ? { email: { ...h.email, status: h.email.rules?.length ? "paused" : h.email.status } } : {}) });
+  await saveHosting(id, { pausedAt: new Date().toISOString(), pauseReason: reason, ...(h.email ? { email: { ...h.email, status: h.email.rules?.length ? "paused" : h.email.status } } : {}) });
   return getRequest(id);
 }
 export async function restore(id) {
+  // Restored by hand with money still owed: a fresh 7 days before it pauses again.
+  const row = await getRequest(id);
+  if (owing(row)) await saveHosting(id, { owingSince: null });
   const out = await publish(id, { force: true });
   return out.row;
 }
@@ -177,10 +187,24 @@ export async function setupEmail(id, localsText, to) {
   return checkHosting(id);
 }
 
+// After a project payment: put a balance-paused site back, or connect the domain now that it's paid.
+export async function afterProjectPayment(id) {
+  if (!cloudflareConfigured()) return null;
+  const row = await getRequest(id);
+  const h = row?.hosting || {};
+  if (!h.project || owing(row)) return row;
+  if (h.pausedAt && h.pauseReason === "balance") return restore(id);
+  if (!h.pausedAt) {
+    if (h.owingSince) await saveHosting(id, { owingSince: null });
+    if (h.zoneId && !h.attached) return checkHosting(id);
+  }
+  return getRequest(id);
+}
+
 // ---------- Daily ----------
 // Returns lines for the morning email.
 export async function dailyHosting(all, now = new Date()) {
-  const out = { activated: [], paused: [], restored: [], unpublished: [], ready: [], errors: [] };
+  const out = { activated: [], paused: [], balancePaused: [], restored: [], unpublished: [], ready: [], errors: [] };
   if (!cloudflareConfigured()) return out;
   const today = todayLagos(now);
   for (const r of all) {
@@ -191,10 +215,15 @@ export async function dailyHosting(all, now = new Date()) {
         const after = await checkHosting(r.id);
         if (before !== "active" && after.hosting?.zoneStatus === "active") out.activated.push(after);
       }
-      if (h.project && !h.pausedAt && r.renewal_due && daysBetween(r.renewal_due, today) >= 15) {
-        out.paused.push(await pause(r.id));
-      } else if (h.project && h.pausedAt && r.renewal_due && daysBetween(today, r.renewal_due) > 0) {
+      const reason = h.pauseReason || "renewal"; // pauses from before reasons were kept were all renewals
+      if (h.project && !h.pausedAt && owing(r) && h.owingSince && daysBetween(h.owingSince.slice(0, 10), today) >= BALANCE_GRACE_DAYS) {
+        out.balancePaused.push(await pause(r.id, "balance"));
+      } else if (h.project && !h.pausedAt && r.renewal_due && daysBetween(r.renewal_due, today) >= 15) {
+        out.paused.push(await pause(r.id, "renewal"));
+      } else if (h.project && h.pausedAt && reason === "renewal" && r.renewal_due && daysBetween(today, r.renewal_due) > 0) {
         out.restored.push(await restore(r.id)); // renewal paid (due date moved on)
+      } else if (h.project && h.pausedAt && reason === "balance" && !owing(r)) {
+        out.restored.push(await restore(r.id)); // balance paid
       }
       if (h.project && !h.pausedAt && h.publishedAt && [r.draft_at, r.design_at].some((t) => t && Date.parse(t) > Date.parse(h.publishedAt))) out.unpublished.push(r);
       if (!h.project && r.preview_status === "approved" && r.quote_amount != null && balance(r) === 0) out.ready.push(r);

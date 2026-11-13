@@ -96,10 +96,15 @@ export async function recordPayment(tx) {
     row = (await updateRequest(id, { renewal_due: addYear(meta.renewal_due) })) || row;
   }
   row = await applyRules(row, changed); // deposit -> won, renewal defaults, stage
-  if (kind === "renewal" && row.hosting?.pausedAt) {
+  if (kind === "renewal" && row.hosting?.pausedAt && (row.hosting.pauseReason || "renewal") === "renewal") {
     // Paid: switch their website (and email forwarding) back on straight away.
     const { restore } = await import("./golive.mjs");
     row = await restore(id).catch((e) => { console.error("restore after renewal failed", e); return row; });
+  }
+  if (kind === "project" && row.hosting?.project) {
+    // Balance paid: connect their domain now, or bring back a site paused for the unpaid balance.
+    const { afterProjectPayment } = await import("./golive.mjs");
+    row = (await afterProjectPayment(id).catch((e) => { console.error("after payment hosting failed", e); return null; })) || row;
   }
   const paidProject = projectPaid(row);
   if (!row.brief_token && paidProject > 0 && (!row.quote_amount || paidProject >= Math.round(row.quote_amount * 0.7))) {

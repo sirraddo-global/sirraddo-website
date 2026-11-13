@@ -65,6 +65,7 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_error TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_options JSONB NOT NULL DEFAULT '[]'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS hosting JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS chat_ideas JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `CREATE TABLE IF NOT EXISTS chat_logs (
      session_id TEXT PRIMARY KEY,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -107,7 +108,7 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   draft_at, draft_error, (draft_md IS NOT NULL) AS has_draft,
   handover, preview_token, preview_status, preview_feedback, preview_approved_at,
   COALESCE((length(draft_md) - length(replace(draft_md, '[ADD:', ''))) / 5, 0) AS draft_gaps,
-  (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, hosting,
+  (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, hosting, chat_ideas,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('id', o->>'id', 'by', o->>'by', 'at', o->>'at', 'standard', COALESCE(o->>'css', '') = '',
     'current', COALESCE(o->>'css', '') = COALESCE(design_css, ''))) FROM jsonb_array_elements(design_options) o), '[]'::jsonb) AS design_choices`;
 
@@ -118,16 +119,16 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
 export async function saveRequest(r) {
   if (!(await ensureSchema())) return null;
   const rows = await q(
-    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript, email, follow_up_on)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, (now() AT TIME ZONE 'Africa/Lagos')::date + 1)
+    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript, email, chat_ideas, follow_up_on)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, (now() AT TIME ZONE 'Africa/Lagos')::date + 1)
      ON CONFLICT (session_id) DO UPDATE SET
        name = EXCLUDED.name, contact = EXCLUDED.contact, business = EXCLUDED.business,
        email = COALESCE(EXCLUDED.email, customer_requests.email),
        interest = EXCLUDED.interest, details = EXCLUDED.details, page = EXCLUDED.page,
-       transcript = EXCLUDED.transcript, updated_at = now()
+       transcript = EXCLUDED.transcript, chat_ideas = customer_requests.chat_ideas || EXCLUDED.chat_ideas, updated_at = now()
      RETURNING id, (xmax = 0) AS inserted`,
     [r.sessionId, r.source || "chat", r.name, r.contact, r.business || null, r.interest, r.details || "", r.page || null,
-      JSON.stringify(r.transcript || []), r.email || null]
+      JSON.stringify(r.transcript || []), r.email || null, JSON.stringify(r.ideas || {})]
   );
   return rows[0] ? { id: rows[0].id, inserted: rows[0].inserted === true } : null;
 }
@@ -227,7 +228,7 @@ export async function getBrief(token) {
   if (!token || token.length < 20) return null;
   await ensureSchema();
   const rows = await q(
-    `SELECT id, name, business, contact, interest, status, project_stage, brief, brief_files, brief_saved_at, brief_submitted_at
+    `SELECT id, name, business, contact, interest, status, project_stage, brief, brief_files, brief_saved_at, brief_submitted_at, chat_ideas
      FROM customer_requests WHERE brief_token = $1`,
     [token]
   );
@@ -280,7 +281,7 @@ export async function removeBriefFile(token, field, url) {
 export async function getBriefById(id) {
   await ensureSchema();
   const rows = await q(
-    `SELECT id, name, business, contact, interest, status, brief, brief_files, brief_submitted_at, draft_md, draft_at, draft_error
+    `SELECT id, name, business, contact, interest, status, brief, brief_files, brief_submitted_at, draft_md, draft_at, draft_error, chat_ideas, details
      FROM customer_requests WHERE id = $1`,
     [id]
   );

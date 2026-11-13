@@ -74,7 +74,7 @@ const gemini = {
   async call(convo, system, tools, ms = 20000, opts = {}) {
     // Models to try in order. If one is busy (503), rate-limited (429) or gone (404), try the next.
     // Override with GEMINI_MODEL (a model name or a comma-separated list).
-    const models = (process.env.GEMINI_MODEL || "gemini-flash-lite-latest,gemini-flash-latest")
+    const models = (opts.models || process.env.GEMINI_MODEL || "gemini-flash-lite-latest,gemini-flash-latest")
       .split(",").map((m) => m.trim()).filter(Boolean);
     // Within one reply, keep using the model that answered first (its thought signatures must match).
     if (convo._model) models.unshift(...models.splice(models.indexOf(convo._model), 1));
@@ -179,6 +179,15 @@ export function friendlyAiError(err) {
   if (/_40[13]|API key|permission/i.test(m)) return "The AI key in Vercel isn't working. Check GEMINI_API_KEY / ANTHROPIC_API_KEY.";
   return "The AI couldn't finish this time. Please try again.";
 }
+
+// The customer chat on the website: the cheapest option first. Gemini's free Flash-Lite model, then Claude Haiku
+// (the cheapest Claude) only if Gemini isn't set up or fails. Override with CHAT_PROVIDER = "anthropic" | "gemini".
+export function chatProviders() {
+  const wanted = (process.env.CHAT_PROVIDER || "").trim().toLowerCase();
+  const order = wanted === "anthropic" ? [anthropic, gemini] : [gemini, anthropic];
+  return order.filter((p) => p.configured());
+}
+export const CHAT_MODELS = { gemini: process.env.CHAT_GEMINI_MODEL || "gemini-flash-lite-latest,gemini-flash-latest", anthropic: process.env.CHAT_ANTHROPIC_MODEL || "claude-haiku-5-5" };
 
 export function pickProvider() {
   const wanted = (process.env.AI_PROVIDER || "").trim().toLowerCase();

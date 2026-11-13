@@ -153,6 +153,11 @@ Other notes:
 
 The morning email lists previews with change requests, previews not answered for 3+ days, approved jobs waiting for the balance, and live sites without a handover pack.
 
+## Website chat: cost, ideas and package advice
+
+- The customer chat uses the cheapest AI first: Gemini Flash-Lite (free tier), then Claude Haiku only if Gemini fails or isn't set. Override with `CHAT_PROVIDER` (`gemini`/`anthropic`), `CHAT_GEMINI_MODEL`, `CHAT_ANTHROPIC_MODEL`. Replies are capped short.
+- While chatting it gathers the visitor's ideas (business, goals, pages, products, style, hours, domain…) and recommends one package with a reason. Saved in `chat_ideas` (merged on each save) and shown on the request card ("From the chat"), at the top of their project form ("What you told our assistant"), to the admin assistant, and to the AI that writes their website text (the form wins where they differ).
+
 ## Going live on Cloudflare (one tap)
 
 Set `CLOUDFLARE_API_TOKEN` (custom token: Account · Cloudflare Pages · Edit; Account · Email Routing Addresses · Edit; Zone · Zone · Edit; Zone · DNS · Edit; Zone · Email Routing Rules · Edit; zone resources: all zones in the account) and `CLOUDFLARE_ACCOUNT_ID` in Vercel. Then in admin → Clients → **Go live**:

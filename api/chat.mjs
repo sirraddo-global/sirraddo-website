@@ -3,8 +3,9 @@
 // Returns: { reply, saved }
 import { SYSTEM_PROMPT, SAVE_TOOL, QUESTION_TOOL } from "./_lib/knowledge.mjs";
 import { saveRequest, emailRequest, logChat, addUnanswered, reference } from "./_lib/store.mjs";
-import { pickProvider } from "./_lib/providers.mjs";
+import { chatProviders, CHAT_MODELS } from "./_lib/providers.mjs";
 import { acknowledgeLead } from "./_lib/automation.mjs";
+import { cleanIdeas } from "./_lib/ideas.mjs";
 
 const MAX_MESSAGES = 30; // per conversation
 const MAX_CHARS = 1500; // per message
@@ -52,6 +53,7 @@ async function handleSave(input, ctx) {
     email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str(input.email, 200)) ? str(input.email, 200).toLowerCase() : null,
     interest: str(input.interest, 60) || "Other",
     details: str(input.details, 2000),
+    ideas: cleanIdeas({ ...(input.ideas || {}), recommended: input.recommended }),
   };
   if (!r.name || !(/\d{7,}/.test(r.contact.replace(/\D/g, "")) || /\S+@\S+\.\S+/.test(r.contact))) {
     return { ok: false, text: "Not saved: a name and a valid phone number or email are needed. Ask the visitor for them." };
@@ -115,8 +117,8 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
-  const provider = pickProvider();
-  if (!provider) return res.status(200).json({ reply: FALLBACK, saved: false });
+  const providers = chatProviders();
+  if (!providers.length) return res.status(200).json({ reply: FALLBACK, saved: false });
 
   const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
   if (rateLimited(ip)) {
@@ -136,35 +138,42 @@ export default async function handler(req, res) {
     transcript: messages,
   };
 
-  try {
-    const deadline = Date.now() + 50000; // stay under Vercel's 60 s limit
-    const convo = provider.start(messages);
-    let saved = false;
-    for (let step = 0; step < 3; step++) {
-      const left = deadline - Date.now();
-      if (left < 5000) throw Object.assign(new Error("Out of time"), { code: "timeout" });
-      const out = await provider.call(convo, SYSTEM_PROMPT, [SAVE_TOOL, QUESTION_TOOL], Math.min(25000, left));
-      if (out.toolCalls.length === 0) {
-        await record(ctx, out.text || FALLBACK, !out.text, saved);
-        return res.status(200).json({ reply: out.text || FALLBACK, saved });
+  const deadline = Date.now() + 50000; // stay under Vercel's 60 s limit
+  let saved = false;
+  let lastErr = null;
+  // Cheapest first; if it fails, the next one answers (saving is safe to repeat: same chat, same request).
+  for (const provider of providers) {
+    try {
+      const opts = { maxTokens: 600, models: provider.name === "gemini" ? CHAT_MODELS.gemini : undefined, model: provider.name === "anthropic" ? CHAT_MODELS.anthropic : undefined };
+      const convo = provider.start(messages);
+      for (let step = 0; step < 3; step++) {
+        const left = deadline - Date.now();
+        if (left < 5000) throw Object.assign(new Error("Out of time"), { code: "timeout" });
+        const out = await provider.call(convo, SYSTEM_PROMPT, [SAVE_TOOL, QUESTION_TOOL], Math.min(25000, left), opts);
+        if (out.toolCalls.length === 0) {
+          await record(ctx, out.text || FALLBACK, !out.text, saved);
+          return res.status(200).json({ reply: out.text || FALLBACK, saved });
+        }
+        const results = [];
+        for (const t of out.toolCalls) {
+          const r =
+            t.name === SAVE_TOOL.name ? await handleSave(t.input, ctx)
+            : t.name === QUESTION_TOOL.name ? await handleQuestion(t.input, ctx)
+            : { ok: false, text: "Unknown tool" };
+          if (r.ok && t.name === SAVE_TOOL.name) saved = true;
+          results.push({ id: t.id, name: t.name, ok: r.ok, text: r.text });
+        }
+        provider.addToolResults(convo, out.raw, results);
       }
-      const results = [];
-      for (const t of out.toolCalls) {
-        const r =
-          t.name === SAVE_TOOL.name ? await handleSave(t.input, ctx)
-          : t.name === QUESTION_TOOL.name ? await handleQuestion(t.input, ctx)
-          : { ok: false, text: "Unknown tool" };
-        if (r.ok && t.name === SAVE_TOOL.name) saved = true;
-        results.push({ id: t.id, name: t.name, ok: r.ok, text: r.text });
-      }
-      provider.addToolResults(convo, out.raw, results);
+      await record(ctx, FALLBACK, true, saved);
+      return res.status(200).json({ reply: FALLBACK, saved });
+    } catch (err) {
+      console.error(`chat failed (${provider.name})`, err.code || "", err.message);
+      lastErr = err;
+      if (deadline - Date.now() < 8000) break;
     }
-    await record(ctx, FALLBACK, true, saved);
-    return res.status(200).json({ reply: FALLBACK, saved });
-  } catch (err) {
-    console.error(`chat failed (${provider.name})`, err);
-    await record(ctx, FALLBACK, true, false);
-    // A short code (e.g. "gemini_429", "timeout") helps diagnose problems; it holds no secrets.
-    return res.status(200).json({ reply: FALLBACK, saved: false, error: err.code || "error" });
   }
+  await record(ctx, FALLBACK, true, saved);
+  // A short code (e.g. "gemini_429", "timeout") helps diagnose problems; it holds no secrets.
+  return res.status(200).json({ reply: FALLBACK, saved, error: lastErr?.code || "error" });
 }

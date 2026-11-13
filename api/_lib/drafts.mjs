@@ -2,6 +2,7 @@
 // Runs when the form is sent (in the background), from admin ("Write website text"), or in the daily run.
 // The draft is for YOU to check and paste into the site; it is never shown to the customer directly.
 import { pickProvider, friendlyAiError } from "./providers.mjs";
+import { ideasText } from "./ideas.mjs";
 import { getBriefById, saveDraft } from "./store.mjs";
 import { kindFor, schemaFor, KIND_LABEL } from "./brief-schema.mjs";
 
@@ -127,7 +128,9 @@ export async function generateDraft(id, budgetMs = 50000) {
     return { ok: false, error: "No AI key is set in Vercel (GEMINI_API_KEY or ANTHROPIC_API_KEY)" };
   }
   const kind = kindFor(row.interest);
-  const answers = answersText(kind, row.brief, row.brief_files);
+  const chat = ideasText(row.chat_ideas);
+  const answers = answersText(kind, row.brief, row.brief_files) +
+    (chat ? `\n\nAlso from their earlier chat with our assistant (use where the form is silent; the form wins if they differ):\n${chat}` : "");
   const wantBlog = (kind === "business" || kind === "store") && row.brief.blog === "Please write the first 2 posts for me";
   try {
     const [pages, blog] = await Promise.all([

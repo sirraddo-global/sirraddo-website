@@ -278,6 +278,13 @@
     $('brief-lead').textContent = 'Thank you for your deposit. Please tell us about ' + (d.business || 'your business') +
       ' so we can build your ' + d.kind_label + '. It takes about 10–15 minutes, and you can save and come back later with the same link. Questions marked * are required.';
     var form = $('brief-form');
+    if ((d.chat_ideas || []).length) {
+      form.appendChild(el('section', { class: 'brief-section brief-chat' }, [
+        el('h2', { text: 'What you told our assistant' }),
+        el('p', { text: 'We\'ve kept these from your chat and will use them too, so you only need to add what\'s missing or changed.' }),
+        el('ul', null, d.chat_ideas.map(function (x) { return el('li', null, [el('b', { text: x.label + ': ' }), x.value]); }))
+      ]));
+    }
     d.sections.forEach(function (s) {
       var sec = el('section', { class: 'brief-section' }, [el('h2', { text: s.title })]);
       s.fields.forEach(function (f) { sec.appendChild(renderField(f)); });

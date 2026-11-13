@@ -51,3 +51,6 @@
   .brief-actions .brief-message, .brief-actions .brief-small { grid-column: 1 / -1; }
 }
 .brief-field-title { font-weight: 600; color: var(--navy); }
+
+.brief-chat { background: #FFF8E6; border-color: #F0D58A; }
+.brief-chat ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }

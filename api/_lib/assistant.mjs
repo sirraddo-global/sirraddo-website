@@ -5,6 +5,7 @@ import { getRequest, reference, listRequests } from "./store.mjs";
 import { setupStatus } from "./setup.mjs";
 import { balance } from "./docs.mjs";
 import { todayLagos } from "./automation.mjs";
+import { ideasText } from "./ideas.mjs";
 
 export const REGISTRAR_GUIDE = `CHANGING NAMESERVERS AT DOMAIN SELLERS (menu names change over time; if a step doesn't match, ask for a screenshot, or tell them to search the seller's help for "change nameservers" or ask its support chat)
 - General: log in where the domain was bought → find the domain (Domains / My Domains / Domain list) → Manage → Nameservers (or DNS / Name servers) → choose custom nameservers → replace ALL existing ones with exactly the 2 Cloudflare nameservers → Save. Leave extra boxes empty. Turn DNSSEC off first if it's on.
@@ -82,6 +83,7 @@ export function jobFacts(r) {
     r.website_url ? `Website: ${r.website_url}${r.site_status ? " (last check: " + r.site_status + ")" : ""}.` : "",
     `Handover pack: ${r.auto_sent?.handover ? "sent" : "not sent"}.`,
     r.notes ? `Owner notes: ${String(r.notes).slice(0, 300)}` : "",
+    Object.keys(r.chat_ideas || {}).length ? `From their website chat:\n${ideasText(r.chat_ideas)}` : "",
   ];
   return lines.filter(Boolean).join("\n");
 }

@@ -13,6 +13,11 @@
   };
   var PACKAGES = ['Starter website', 'Business website', 'Online Store', 'Custom app', 'Business software', 'ZAPPI PAY', 'Other'];
   var DEFAULT_QUOTE = { 'Starter website': 50000, 'Business website': 100000, 'Online Store': 150000 };
+  // "Business: wants Google Maps…" (from the chat assistant) -> 'Business website'
+  function recommendedPackage(text) {
+    var t = String(text || '').split(':')[0].toLowerCase();
+    return /store|shop/.test(t) ? 'Online Store' : /business/.test(t) ? 'Business website' : /starter/.test(t) ? 'Starter website' : null;
+  }
   var DEFAULT_RENEWAL = { 'Starter website': 25000, 'Business website': 40000 };
   var IDEA_LABELS = { recommended: 'Package suggested', business_name: 'Business name', what_they_do: 'What they do', location: 'Location', customers: 'Customers',
     goals: 'Goals', pages: 'Pages wanted', products_services: 'Products / services', style: 'Colours and style', examples: 'Websites they like',
@@ -432,6 +437,19 @@
       var idd = el('details', { class: 'admin-ideas' }, [el('summary', { text: 'From the chat (' + ik.length + ')' + (ideas.recommended ? ' · suggested: ' + ideas.recommended.split(':')[0] : '') })]);
       idd.appendChild(el('dl', null, ik.reduce(function (a, k) { a.push(el('dt', { text: IDEA_LABELS[k] })); a.push(el('dd', { text: ideas[k] })); return a; }, [])));
       card.appendChild(idd);
+      var rec = recommendedPackage(ideas.recommended);
+      if (rec && (r.quote_amount == null || r.interest !== rec) && r.status !== 'won' && r.status !== 'lost') {
+        card.appendChild(el('div', { class: 'admin-actions admin-rec' }, [el('button', { class: 'admin-btn admin-btn--small', type: 'button',
+          text: 'Use suggested ' + rec.replace(' website', '') + ' · ' + naira(DEFAULT_QUOTE[rec]),
+          onclick: function () {
+            var f = { interest: rec, quote_amount: DEFAULT_QUOTE[rec] };
+            if (r.status === 'new' || r.status === 'contacted') f.status = 'quoted';
+            update(r, f, 'Package and quote set. Send the invoice from the card.');
+          } })]));
+      } else if (rec && r.quote_amount != null && r.status === 'quoted' && !(r.payments || []).length && waNumber(r.contact)) {
+        card.appendChild(el('div', { class: 'admin-actions admin-rec' }, [el('button', { class: 'admin-btn admin-btn--small admin-btn--wa', type: 'button',
+          text: 'Send invoice on WhatsApp (' + naira(r.quote_amount) + ')', onclick: function () { docAction(r, 'invoice', 'whatsapp'); } })]));
+      }
     }
     card.appendChild(whatsAppRow(r));
     card.appendChild(el('button', { class: 'admin-btn admin-btn--small admin-ask', type: 'button', text: 'Ask assistant about this job', onclick: function () { askAbout(r, 'What should I do next for this job, and is anything wrong?'); } }));

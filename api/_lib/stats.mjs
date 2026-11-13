@@ -135,3 +135,14 @@ export async function cleanupStats() {
   await q(`DELETE FROM site_visitors WHERE day < CURRENT_DATE - 100`, []);
   await q(`DELETE FROM site_stats WHERE day < CURRENT_DATE - 800`, []);
 }
+
+// Dashboard: this month (Lagos time) across all client sites.
+export async function dashboardTotals() {
+  await ensureSchema();
+  const start = lagosDay().slice(0, 8) + "01";
+  const [v, o] = await Promise.all([
+    q(`SELECT count(*)::int AS n FROM site_visitors WHERE day >= $1`, [start]),
+    q(`SELECT count(*)::int AS n, COALESCE(sum(total), 0)::int AS total FROM store_orders WHERE status = 'paid' AND (paid_at + interval '1 hour')::date >= $1`, [start]),
+  ]);
+  return { visitorsMonth: v[0].n, ordersMonth: o[0].n, salesMonth: o[0].total };
+}

@@ -830,6 +830,51 @@
     return box;
   }
 
+  // Online Store: "Order on WhatsApp" always works; "Pay online" turns on once their own Paystack secret key is added.
+  function storeBlock(r) {
+    var sh = r.shop || {};
+    var box = el('div', { class: 'admin-golive admin-store' }, [el('span', { class: 'admin-label', text: 'Online store payments' })]);
+    box.appendChild(el('p', { class: 'admin-meta' }, sh.online
+      ? [badge('Pay online is ON', 'is-won'), ' Their Paystack key …' + (sh.keyEnd || '') + (sh.keyMode === 'test' ? ' (TEST key: no real money)' : '')]
+      : [badge('WhatsApp orders only', 'is-new'), ' Add their Paystack secret key to switch on "Pay online".']));
+    function save(body, okMsg, btn, busy) {
+      var was = btn.textContent; btn.disabled = true; btn.textContent = busy;
+      return api('POST', Object.assign({ action: 'shop_settings', id: r.id }, body)).then(function (j) {
+        if (j.row) replaceRequest(j.row); flash(okMsg); render();
+      }).catch(function (e) { btn.disabled = false; btn.textContent = was; fail(e); });
+    }
+    var key = el('input', { type: 'password', placeholder: sh.online ? 'Paste a new key to replace it' : 'sk_live_…', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' });
+    var fee = el('input', { type: 'number', min: '0', step: '100', value: sh.deliveryFee == null ? '' : sh.deliveryFee, placeholder: 'e.g. 2000 (leave empty to agree it later)' });
+    var notify = el('input', { type: 'email', value: sh.notify || '', placeholder: r.email || 'owner@gmail.com' });
+    box.appendChild(field('Their Paystack secret key', key, 'From THEIR Paystack: Settings → API Keys & Webhooks → Live Secret Key. Get it from them privately (WhatsApp), paste it here and delete the message. It\'s checked with Paystack, stored encrypted and never shown again. Money goes straight to their account.'));
+    box.appendChild(el('div', { class: 'admin-grid' }, [field('Delivery fee (₦, flat)', fee), field('Email new orders to', notify, 'Empty = the order-alert email from their form, else their email')]));
+    var acts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Save store settings', onclick: function (e) {
+      var body = { deliveryFee: fee.value.trim(), notify: notify.value.trim() };
+      if (key.value.trim()) body.secretKey = key.value.trim();
+      save(body, key.value.trim() ? 'Key accepted. "Pay online" is now on their website.' : 'Store settings saved', e.currentTarget, 'Checking…');
+    } })]);
+    if (sh.online) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Turn off Pay online', onclick: function (e) {
+      if (!window.confirm('Remove their Paystack key? Their website goes back to WhatsApp orders only.')) return;
+      save({ remove: true }, 'Pay online turned off', e.currentTarget, 'Removing…');
+    } }));
+    var list = el('div', { class: 'admin-orders' });
+    acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Show recent orders', onclick: function (e) {
+      var b = e.currentTarget; b.disabled = true;
+      api('POST', { action: 'shop_orders', id: r.id }).then(function (j) {
+        b.disabled = false; list.innerHTML = '';
+        if (!j.orders.length) { list.appendChild(el('p', { class: 'admin-hint', text: 'No online orders yet. (WhatsApp orders go straight to their WhatsApp.)' })); return; }
+        j.orders.forEach(function (o) {
+          var items = o.items.map(function (l) { return l.name + ' ×' + l.qty; }).join(', ');
+          list.appendChild(el('p', { class: 'admin-meta' }, [badge(o.status === 'paid' ? 'Paid' : o.status, o.status === 'paid' ? 'is-won' : ''), ' ' + naira(o.total) + ' · ' + (o.buyer.name || '') + ' · ' + items + ' · ' + when(o.paid_at || o.created_at)]));
+        });
+      }).catch(function (e2) { b.disabled = false; fail(e2); });
+    } }));
+    box.appendChild(acts);
+    box.appendChild(list);
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Every product with a plain price (e.g. 4500) gets "Add to basket". Buyers then choose "Pay online" (only when a key is set) or "Order on WhatsApp". Products priced like "from 5k" stay WhatsApp-only. Paid orders are emailed to the store and the buyer. No need to republish after changing these settings.' }));
+    return box;
+  }
+
   // Everything the customer needs after the balance is paid. Passwords never go in here.
   function handoverBlock(r) {
     var h = r.handover || {};
@@ -1069,6 +1114,7 @@
     ]));
     card.appendChild(briefBlock(r));
     if (r.has_draft || (r.hosting && r.hosting.project)) card.appendChild(goLiveBlock(r));
+    if (r.interest === 'Online Store' && (r.has_draft || r.brief_submitted_at)) card.appendChild(storeBlock(r));
     card.appendChild(handoverBlock(r));
     return card;
   }

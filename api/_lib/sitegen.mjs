@@ -2,6 +2,7 @@
 // Used for the preview link (/preview?t=...) and for "Download site" in admin (a .zip ready to upload to any host).
 // No AI here: it only lays out what is already written, so the result is predictable.
 import { kindFor } from "./brief-schema.mjs";
+import { SITE_URL } from "../../site.config.mjs";
 
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -116,6 +117,11 @@ export function naira(p) {
   const n = s.replace(/^(₦|N|NGN)\s*/i, "").replace(/,/g, "");
   return /^\d+(\.\d{1,2})?$/.test(n) ? "₦" + Number(n).toLocaleString("en-NG") : s;
 }
+// "₦4,100" / "4100" -> 4100. Anything else (e.g. "from 5k") -> null: those products are ordered on WhatsApp only.
+export function priceAmount(p) {
+  const s = String(p ?? "").trim().replace(/^(₦|N|NGN)\s*/i, "").replace(/,/g, "");
+  return /^\d{1,9}$/.test(s) && Number(s) > 0 ? Number(s) : null;
+}
 const isImage = (f) => /^image\//.test(f?.type || "") || /\.(jpe?g|png|webp|gif|svg)$/i.test(f?.name || f?.url || "");
 
 function inline(text, mode) {
@@ -190,7 +196,11 @@ export function buildSiteModel(row) {
     photos: (files.photos || []).filter(isImage),
     productPhotos: (files.product_photos || []).filter(isImage),
     services: (b.services || []).filter((s) => s.name),
-    products: (b.products || []).filter((p) => p.name).map((p) => ({ ...p, text: (productText[p.name.toLowerCase()] || []).join(" ") })),
+    // i = position in the form (the basket and checkout use it); amount = price as a number, if it is one.
+    products: (b.products || []).map((p, i) => ({ ...p, i })).filter((p) => p.name).map((p, pos) => ({
+      ...p, pos, amount: priceAmount(p.price), text: (productText[p.name.toLowerCase()] || []).join(" "),
+    })),
+    shopToken: row.shop_token || row.shop?.token || "",
     testimonials: String(b.testimonials || "").split(/\n+/).map((s) => s.trim()).filter(Boolean),
     delivery: b.delivery_areas || "",
     returns: b.returns || "",
@@ -281,11 +291,75 @@ function serviceCards(site, showPrice) {
   return `<div class="cards">${site.services.map((s) => `<div class="card"><h3>${esc(s.name)}</h3>${s.details ? `<p>${esc(s.details)}</p>` : ""}${showPrice && s.price ? `<p class="price">${esc(naira(s.price))}</p>` : ""}</div>`).join("")}</div>`;
 }
 function productCards(site, img) {
-  return `<div class="cards">${site.products.map((p, i) => {
-    const photo = site.productPhotos[i];
+  return `<div class="cards">${site.products.map((p) => {
+    const photo = site.productPhotos[p.pos];
     const order = waLink(site, `Hello ${site.name}, I'd like to order: ${p.name}${p.price ? " (" + naira(p.price) + ")" : ""}`);
-    return `<div class="card">${photo ? `<img src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy">` : ""}<h3>${esc(p.name)}</h3>${p.text || p.details ? `<p>${esc(p.text || p.details)}</p>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${order ? `<p><a class="btn" href="${order}">Order on WhatsApp</a></p>` : ""}</div>`;
+    const buy = p.amount
+      ? `<p class="buy"><button class="btn add" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}">Add to basket</button></p>`
+      : order ? `<p class="buy"><a class="btn" href="${order}">${p.price ? "Order on WhatsApp" : "Ask on WhatsApp"}</a></p>` : "";
+    return `<div class="card">${photo ? `<img src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy">` : ""}<h3>${esc(p.name)}</h3>${p.text || p.details ? `<p>${esc(p.text || p.details)}</p>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
   }).join("")}</div>`;
+}
+
+// ---------- Basket (Online Store) ----------
+// Every store page gets a basket. "Order on WhatsApp" always works. "Pay online" appears only once online payment is
+// switched on for the store in admin (the page asks our API), and payments go to the store owner's Paystack account.
+const CART_CSS = `body{padding-bottom:72px}.cart-btn{position:fixed;left:16px;bottom:16px;z-index:60;background:#111827;color:#fff;border:0;border-radius:999px;padding:12px 18px;font:700 15px/1 system-ui,Arial,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer}
+.cart-btn[hidden],.cart[hidden]{display:none!important}.cart-btn b{background:#22C55E;color:#062E14;border-radius:999px;padding:2px 8px;margin-left:6px}
+.cart{position:fixed;inset:0;z-index:70;background:rgba(15,23,42,.55);display:flex;justify-content:flex-end;font:15px/1.5 system-ui,Arial,sans-serif;color:#1F2933}
+.cart .panel{background:#fff;width:min(420px,100vw);height:100%;overflow:auto;padding:20px;box-shadow:-8px 0 24px rgba(0,0,0,.2)}
+.cart h2{font:800 1.3rem/1.2 system-ui,Arial,sans-serif;color:#111827;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center}
+.cart .x{background:none;border:0;font-size:28px;line-height:1;cursor:pointer;color:#111827}
+.cart .line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:10px 0;border-bottom:1px solid #E5E7EB}
+.cart .line span{overflow-wrap:anywhere}.cart .qty{display:flex;align-items:center;gap:6px}
+.cart .qty button{width:32px;height:32px;border-radius:8px;border:1px solid #D1D5DB;background:#F9FAFB;font-size:18px;cursor:pointer;color:#111827}
+.cart .tot{display:flex;justify-content:space-between;font-weight:800;margin:12px 0}
+.cart label{display:block;font-weight:600;margin:10px 0 4px}.cart input,.cart textarea{width:100%;border:1px solid #D1D5DB;border-radius:8px;padding:10px;font:inherit}
+.cart .acts{display:grid;gap:10px;margin-top:16px}.cart .acts button{border:0;border-radius:10px;padding:14px;font:700 16px/1 system-ui,Arial,sans-serif;cursor:pointer}
+.cart .pay{background:#0BA4DB;color:#fff}.cart .waorder{background:#25D366;color:#063B1C}.cart .acts button:disabled{opacity:.5;cursor:default}
+.cart .note{font-size:13px;color:#4B5563;margin-top:8px}.cart .err{color:#B91C1C;font-weight:600}
+.card .buy{margin-top:auto}.btn.add.added{background:#22C55E!important;color:#062E14!important}`;
+
+function cartScript(site, mode) {
+  const cfg = { s: site.shopToken, api: SITE_URL, wa: site.whatsapp, name: site.name, preview: mode === "preview", key: "basket-" + (site.shopToken || slugify(site.name)) };
+  return `<button class="cart-btn" type="button" hidden aria-label="Open basket">Basket <b>0</b></button>
+<div class="cart" hidden role="dialog" aria-modal="true" aria-label="Your basket"><div class="panel">
+<h2>Your basket <button class="x" type="button" aria-label="Close">×</button></h2><div class="lines"></div>
+<p class="tot"><span>Total</span><span class="sum"></span></p><p class="note dl"></p>
+<label for="cb-name">Your name</label><input id="cb-name" autocomplete="name">
+<label for="cb-phone">Phone number</label><input id="cb-phone" type="tel" autocomplete="tel">
+<label for="cb-email">Email (for your receipt)</label><input id="cb-email" type="email" autocomplete="email">
+<label for="cb-addr">Delivery address</label><textarea id="cb-addr" rows="2" autocomplete="street-address"></textarea>
+<div class="acts"><button class="pay" type="button" hidden>Pay online now</button><button class="waorder" type="button">Order on WhatsApp</button></div>
+<p class="note msg" role="status"></p></div></div>
+<script>(function(){var C=${JSON.stringify(cfg).replace(/</g, "\\u003c")};
+var B=[];try{B=JSON.parse(localStorage.getItem(C.key)||'[]')}catch(e){}
+var $=function(q){return document.querySelector(q)},btn=$('.cart-btn'),box=$('.cart'),msg=$('.cart .msg'),pay=$('.cart .pay'),online=false,fee=null;
+function money(n){return '\u20a6'+Number(n).toLocaleString('en-NG')}
+function save(){try{localStorage.setItem(C.key,JSON.stringify(B))}catch(e){}}
+function count(){return B.reduce(function(s,l){return s+l.q},0)}
+function sub(){return B.reduce(function(s,l){return s+l.q*l.p},0)}
+function draw(){var n=count();btn.hidden=!n;btn.querySelector('b').textContent=n;
+$('.cart .lines').innerHTML=B.length?B.map(function(l,k){return '<div class="line"><span>'+l.n.replace(/[&<>]/g,'')+'</span><span>'+money(l.p*l.q)+'</span><span class="qty"><button type="button" data-k="'+k+'" data-d="-1" aria-label="One less">\u2212</button>'+l.q+'<button type="button" data-k="'+k+'" data-d="1" aria-label="One more">+</button></span></div>'}).join(''):'<p>Your basket is empty.</p>';
+$('.cart .sum').textContent=money(sub()+(online&&fee?fee:0));
+$('.cart .dl').textContent=fee&&online?'Includes delivery: '+money(fee):'Delivery cost, if any, is confirmed by the store.';
+pay.hidden=!online;pay.disabled=!B.length;$('.cart .waorder').hidden=!C.wa;$('.cart .waorder').disabled=!B.length;}
+document.addEventListener('click',function(e){var a=e.target.closest('.btn.add');if(!a)return;var i=+a.getAttribute('data-i'),l=B.filter(function(x){return x.i===i})[0];
+if(l)l.q=Math.min(99,l.q+1);else B.push({i:i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:1});save();draw();a.classList.add('added');a.textContent='Added \u2713';setTimeout(function(){a.classList.remove('added');a.textContent='Add to basket'},1500);});
+box.addEventListener('click',function(e){if(e.target===box||e.target.closest('.x')){box.hidden=true;return}var q=e.target.closest('.qty button');if(!q)return;var l=B[+q.getAttribute('data-k')];l.q+=+q.getAttribute('data-d');if(l.q<1)B.splice(B.indexOf(l),1);save();draw();});
+btn.addEventListener('click',function(){box.hidden=false;msg.textContent='';});
+function buyer(){return{name:$('#cb-name').value.trim(),phone:$('#cb-phone').value.trim(),email:$('#cb-email').value.trim(),address:$('#cb-addr').value.trim()}}
+$('.cart .waorder').addEventListener('click',function(){var b=buyer(),t='Hello '+C.name+', I would like to order:\\n'+B.map(function(l){return '- '+l.n+' x'+l.q+' ('+money(l.p*l.q)+')'}).join('\\n')+'\\nItems total: '+money(sub())+(b.name?'\\nName: '+b.name:'')+(b.phone?'\\nPhone: '+b.phone:'')+(b.address?'\\nDeliver to: '+b.address:'');
+window.open('https://wa.me/'+C.wa+'?text='+encodeURIComponent(t),'_blank');});
+pay.addEventListener('click',function(){var b=buyer();if(C.preview){msg.textContent='This is a preview, so payment is switched off here.';return}
+if(!b.name||!b.phone||!/@/.test(b.email)){msg.innerHTML='<span class="err">Please enter your name, phone number and email.</span>';return}
+pay.disabled=true;msg.textContent='Opening secure payment\u2026';
+fetch(C.api+'/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s:C.s,items:B.map(function(l){return{i:l.i,q:l.q}}),buyer:b})})
+.then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Error');return j})})
+.then(function(j){B=[];save();location.href=j.url}).catch(function(err){pay.disabled=false;msg.innerHTML='<span class="err">'+String(err.message).replace(/[&<>]/g,'')+'</span>'});});
+if(C.s&&!C.preview)fetch(C.api+'/api/shop?config=1&s='+encodeURIComponent(C.s)).then(function(r){return r.json()}).then(function(j){online=!!j.online;fee=j.deliveryFee;draw()}).catch(function(){});
+if(C.preview){online=true}
+draw();})();</script>`;
 }
 const gallery = (photos, img) => `<div class="gallery">${photos.map((p) => `<a href="${img(p.url)}"><img src="${img(p.url)}" alt="${esc(p.name || "Photo")}" loading="lazy"></a>`).join("")}</div>`;
 
@@ -421,14 +495,17 @@ export function renderPage(site, slug, { mode = "export", link, img = (u) => u, 
 ${preview ? '<meta name="robots" content="noindex, nofollow">' : ""}<meta name="theme-color" content="${site.theme.primary}">
 ${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}
 <style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}
-<style id="guard">${GUARD_CSS}</style></head>
+<style id="guard">${GUARD_CSS}${hasCart(site) ? CART_CSS : ""}</style></head>
 <body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}</div>` : ""}
 ${header(site, page, link, img)}
 <main>${pageBody(site, page, mode, link, img)}</main>
 ${preview ? previewPanel(row, token, choice) : ""}
 ${footer(site, link)}
+${hasCart(site) ? cartScript(site, mode) : ""}
 </body></html>`;
 }
+
+const hasCart = (site) => site.kind === "store" && site.products.some((p) => p.amount);
 
 // Google Fonts named in the custom design ("/* fonts: Playfair Display, Inter */") are loaded with <link>.
 export function fontNames(designCss) {

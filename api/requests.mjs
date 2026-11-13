@@ -23,7 +23,7 @@ import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
 import { generateDesign, changeDesignOptions } from "./_lib/design.mjs";
-import { addDomain, checkHosting, publish, pause, restore, setupEmail, GoLiveError } from "./_lib/golive.mjs";
+import { addDomain, checkHosting, publish, pause, restore, setupEmail, afterProjectPayment, GoLiveError } from "./_lib/golive.mjs";
 import { cloudflareConfigured } from "./_lib/cloudflare.mjs";
 import { todayLagos } from "./_lib/automation.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
@@ -104,7 +104,7 @@ function cleanFields(body) {
     if (webmail && !/^https?:\/\//i.test(webmail)) webmail = "https://" + webmail;
     out.handover = {
       domain: text(h.domain, 200).toLowerCase(), registrar: text(h.registrar, 120), domain_expires: date(h.domain_expires),
-      emails: text(h.emails, 1000), webmail, notes: text(h.notes, 2000),
+      emails: text(h.emails, 1000), webmail, notes: text(h.notes, 2000), has_logins: h.has_logins === true,
     };
   }
   if (has("payments")) {
@@ -193,8 +193,12 @@ export default async function handler(req, res) {
         await emailBriefLink(row); // emails the project form when customer emailing is set up
       }
       // Renewal marked paid by hand: switch a paused website back on now.
-      if (changed.renewal_due && row.hosting?.pausedAt && changed.renewal_due > todayLagos() && cloudflareConfigured()) {
+      if (changed.renewal_due && row.hosting?.pausedAt && (row.hosting.pauseReason || "renewal") === "renewal" && changed.renewal_due > todayLagos() && cloudflareConfigured()) {
         row = await restore(id).catch((e) => { console.error("restore failed", e); return row; });
+      }
+      // Balance marked paid by hand: connect their domain, or bring back a site paused for the balance.
+      if ((changed.payments || changed.quote_amount !== undefined) && row.hosting?.project) {
+        row = (await afterProjectPayment(id).catch((e) => { console.error("after payment hosting failed", e); return null; })) || row;
       }
       return res.status(200).json(row);
     }
@@ -275,7 +279,7 @@ export default async function handler(req, res) {
           if (body.action === "host_domain") out.row = await addDomain(id, body.domain);
           else if (body.action === "host_check") out.row = await checkHosting(id);
           else if (body.action === "host_publish") Object.assign(out, await publish(id, { force: Boolean(body.force) }));
-          else if (body.action === "host_pause") out.row = await pause(id);
+          else if (body.action === "host_pause") out.row = await pause(id, "manual");
           else if (body.action === "host_restore") out.row = await restore(id);
           else if (body.action === "host_email") out.row = await setupEmail(id, body.locals, body.to);
           else throw new Bad("Unknown action");
@@ -303,7 +307,7 @@ export default async function handler(req, res) {
         if (doc.error) throw new Bad(doc.error);
         const link = `${SITE}/doc?t=${row.doc_token}&type=${body.type}`;
         const intro = body.type === "receipt" ? "Thank you for your payment. Your receipt is below."
-          : body.type === "handover" ? `Your website is live at <a href="${row.website_url}">${row.website_url}</a>. Below is your handover pack with everything you need to know. Your passwords will come separately on WhatsApp.`
+          : body.type === "handover" ? `Your website is live at <a href="${row.website_url}">${row.website_url}</a>. Below is your handover pack with everything you need to know.${row.handover?.has_logins ? " Your passwords will come separately on WhatsApp." : ""}`
           : "Please find your invoice below.";
         await sendCustomerEmail(to, doc.subject, `<p style="font-family:Arial,sans-serif">Hello ${row.name.split(" ")[0]},</p>
           <p style="font-family:Arial,sans-serif">${intro}

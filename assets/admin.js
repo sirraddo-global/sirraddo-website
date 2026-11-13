@@ -26,7 +26,7 @@
     tpl_invoice: { label: 'Send invoice', text: 'Hello {name}, here is your invoice for the {package} package. Total: {amount}. Paid: {paid}. Balance: {balance}. View or save it here: {doc_link}\nPay online: {pay_link}' },
     tpl_receipt: { label: 'Send receipt', text: 'Hello {name}, thank you for your payment of {last_payment}. Your receipt: {doc_link}' },
     tpl_preview: { label: 'Send website preview', text: 'Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.' },
-    tpl_handover: { label: 'Website is live (handover)', text: 'Hello {name}, your website is now live at {website}! Here is your handover pack with your domain, email and renewal details: {doc_link}\nI will send your logins in a separate message. Please change the passwords the first time you log in.' },
+    tpl_handover: { label: 'Website is live (handover)', text: 'Hello {name}, your website is now live at {website}! Here is your handover pack with your domain, email and renewal details: {doc_link}' },
     tpl_renewal: { label: 'Renewal reminder', text: 'Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.\nPay online: {pay_link}' }
   };
 
@@ -713,13 +713,17 @@
       var info = [el('span', { text: (h.pausedAt ? 'Paused ' + when(h.pausedAt) : 'Published ' + when(h.publishedAt)) + ' · ' })];
       info.push(el('a', { href: h.attached ? 'https://' + h.domain : h.pagesUrl, target: '_blank', rel: 'noopener', text: h.attached ? h.domain : String(h.pagesUrl || '').replace('https://', '') }));
       if (changed && !h.pausedAt) info.push(' ', badge('Changes not published', 'is-due'));
+      if (owing && !h.pausedAt && h.owingSince) {
+        var left = 7 - Math.floor((Date.now() - Date.parse(h.owingSince)) / 86400000);
+        info.push(' ', badge('Balance owed: pauses in ' + Math.max(0, left) + ' day' + (left === 1 ? '' : 's'), 'is-due'));
+      }
       box.appendChild(el('p', { class: 'admin-meta' }, info));
     }
     var pubActs = el('div', { class: 'admin-actions' });
     if (!h.pausedAt) pubActs.appendChild(el('button', { class: 'btn btn--navy admin-golive-btn', type: 'button', text: h.publishedAt ? 'Update live site' : '2. Publish website', onclick: function (e) {
       var force = false;
-      if (owing) { if (!window.confirm('The balance (' + naira(bal) + ') isn\'t paid yet. Publish anyway?')) return; force = true; }
-      act({ action: 'host_publish', force: force }, function (j) { return (j.firstTime ? 'Live! Marked Live, renewal date set. ' : 'Updated. ') + (j.waitingForDomain ? 'It\'s on ' + j.url + ' until the domain is active, then it connects by itself.' : j.url); }, e.currentTarget, 'Publishing… (up to a minute)');
+      if (owing) { if (!window.confirm('The balance (' + naira(bal) + ') isn\'t paid yet.\n\nThe site will go only on the free .pages.dev address, not their domain. Their domain connects by itself once the balance is paid. If it\'s still unpaid after 7 days, the site pauses itself.\n\nPublish on .pages.dev now?')) return; force = true; }
+      act({ action: 'host_publish', force: force }, function (j) { return (j.firstTime ? 'Live! Marked Live, renewal date set. ' : 'Updated. ') + (j.owed ? 'On ' + j.url + ' only until the balance is paid.' : j.waitingForDomain ? 'It\'s on ' + j.url + ' until the domain is active, then it connects by itself.' : j.url); }, e.currentTarget, 'Publishing… (up to a minute)');
     } }));
     if (h.publishedAt && !h.pausedAt) pubActs.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Pause site', onclick: function (e) {
       if (!window.confirm('Pause ' + (h.domain || 'this site') + '? Visitors will see "temporarily unavailable" and email forwarding stops until you restore it.')) return;
@@ -727,9 +731,12 @@
     } }));
     if (h.pausedAt) pubActs.appendChild(el('button', { class: 'btn btn--navy admin-golive-btn', type: 'button', text: 'Restore site', onclick: function (e) { act({ action: 'host_restore' }, 'Site restored', e.currentTarget, 'Restoring…'); } }));
     box.appendChild(pubActs);
-    box.appendChild(el('p', { class: 'admin-hint', text: h.pausedAt ? 'Paused because the renewal is overdue. It restores by itself when the renewal is paid (online or "Renewal paid").'
+    var why = h.pauseReason === 'balance' ? 'Paused because the balance wasn\'t paid within 7 days. It comes back by itself when the balance is paid.'
+      : h.pauseReason === 'manual' ? 'Paused by you. Tap Restore to switch it back on.'
+      : 'Paused because the renewal is overdue. It restores by itself when the renewal is paid (online or "Renewal paid").';
+    box.appendChild(el('p', { class: 'admin-hint', text: h.pausedAt ? why
       : h.publishedAt ? 'After editing the text or design, tap "Update live site". Sites pause automatically 15 days after an unpaid renewal and come back when paid.'
-      : 'Publishing uploads the approved design to Cloudflare, connects their domain (once active), marks the project Live and sets the renewal date.' + (owing ? ' Balance still owed: ' + naira(bal) + '.' : '') }));
+      : 'Publishing uploads the approved design to Cloudflare, connects their domain (once active and the balance is paid), marks the project Live and sets the renewal date.' + (owing ? ' Balance still owed: ' + naira(bal) + ', so it can only go on the free .pages.dev address for now.' : '') }));
     // 3. Email forwarding
     if (h.domain && h.zoneStatus === 'active') {
       var em = h.email;
@@ -766,11 +773,13 @@
     var emails = el('textarea', { rows: 2, value: h.emails || '', placeholder: 'info@theirbusiness.com.ng (addresses only, no passwords)' });
     var webmail = el('input', { value: h.webmail || '', placeholder: 'Webmail link, e.g. https://mail.zoho.com' });
     var notes = el('textarea', { rows: 2, value: h.notes || '', placeholder: 'Anything else for them (optional)' });
+    var logins = el('input', { type: 'checkbox' }); logins.checked = Boolean(h.has_logins);
     box.appendChild(el('div', { class: 'admin-grid' }, [field('Domain', domain), field('Registered with', registrar), field('Domain registered until', expires), field('Webmail', webmail)]));
     box.appendChild(field('Business email addresses', emails));
     box.appendChild(field('Note for the customer', notes));
+    box.appendChild(el('label', { class: 'admin-check' }, [logins, ' I set up logins for them (e.g. Zoho mailboxes). The pack then says passwords come privately on WhatsApp.']));
     var save = el('button', { class: 'admin-btn', type: 'button', text: 'Save handover details', onclick: function () {
-      update(r, { handover: { domain: domain.value, registrar: registrar.value, domain_expires: expires.value, emails: emails.value, webmail: webmail.value, notes: notes.value } }, 'Handover details saved');
+      update(r, { handover: { domain: domain.value, registrar: registrar.value, domain_expires: expires.value, emails: emails.value, webmail: webmail.value, notes: notes.value, has_logins: logins.checked } }, 'Handover details saved');
     } });
     var ready = !locked && r.website_url;
     var why = locked ? 'Unlocks when the balance is paid' : !r.website_url ? 'Add their website address above first' : null;
@@ -779,7 +788,7 @@
     if (waNumber(r.contact)) acts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'WhatsApp', disabled: !ready, title: why, onclick: function () { docAction(r, 'handover', 'whatsapp'); } }));
     if (emailOf(r)) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: sent ? 'Email again' : 'Email', disabled: !ready || !state.canEmail, title: why, onclick: function () { docAction(r, 'handover', 'email'); } }));
     box.appendChild(acts);
-    box.appendChild(el('p', { class: 'admin-hint', text: 'Save the details before sending. Send passwords separately on WhatsApp, never by email.' }));
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Save the details before sending. Usually there are no passwords: the website is managed by you and email forwarding goes to their own inbox. If you did set up logins, send them privately on WhatsApp, never by email.' }));
     return box;
   }
 

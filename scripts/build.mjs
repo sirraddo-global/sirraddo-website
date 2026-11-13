@@ -21,6 +21,7 @@ if (!/^https:\/\/[^/\s]+$/.test(SITE_URL)) {
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out);
 cpSync(join(root, "assets"), join(out, "assets"), { recursive: true });
+cpSync(join(root, "admin-sw.js"), join(out, "admin-sw.js")); // the installable Admin app
 
 const DEMO_BLOCK = /[ \t]*<!-- DEMO_CARDS:START[\s\S]*?<!-- DEMO_CARDS:END -->\n?/g;
 const DEMO_MARKERS = /[ \t]*<!-- DEMO_CARDS:(START|END)[^>]*-->\n?/g;

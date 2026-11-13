@@ -34,7 +34,12 @@
   };
 
   var password = null;
-  try { password = sessionStorage.getItem(KEY); } catch (e) { /* storage blocked */ }
+  var LONG = 'sirraddo-admin-session'; // "keep me logged in": a 30-day token (never the password) in this device's storage
+  try { password = localStorage.getItem(LONG) || sessionStorage.getItem(KEY); } catch (e) { /* storage blocked */ }
+  // The installable Admin app (Add to Home screen / Install app).
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('/admin-sw.js', { scope: '/admin' }).catch(function () {}); });
+  }
   var state = {
     tab: 'dashboard', requests: [], unanswered: [], settings: {}, statuses: [], stages: [], chats: null,
     open: {}, filters: { q: '', status: '', interest: '', due: false }, chatQuery: '', canEmail: false, canPay: false, justPaid: {}
@@ -152,7 +157,7 @@
   }
   function logout() {
     password = null;
-    try { sessionStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+    try { sessionStorage.removeItem(KEY); localStorage.removeItem(LONG); } catch (e) { /* ignore */ }
     showApp(false);
   }
   function setTab(tab) {
@@ -1253,9 +1258,19 @@
     e.preventDefault();
     $('login-error').textContent = '';
     password = $('password').value;
-    try { sessionStorage.setItem(KEY, password); } catch (err) { /* ignore */ }
+    var remember = $('remember') && $('remember').checked;
     $('password').value = '';
-    load();
+    if (!remember) {
+      try { sessionStorage.setItem(KEY, password); localStorage.removeItem(LONG); } catch (err) { /* ignore */ }
+      load();
+      return;
+    }
+    // Swap the password for a 30-day token and keep only the token on this device.
+    api('POST', { action: 'session' }).then(function (j) {
+      password = j.token;
+      try { localStorage.setItem(LONG, j.token); sessionStorage.removeItem(KEY); } catch (err) { /* ignore */ }
+      load();
+    }).catch(fail);
   });
   $('logout').addEventListener('click', logout);
   Array.prototype.forEach.call(document.querySelectorAll('.admin-tabs button'), function (b) {

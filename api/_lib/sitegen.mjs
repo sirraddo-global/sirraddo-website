@@ -182,8 +182,11 @@ export function buildSiteModel(row) {
     body: lines.filter((l) => !/^\*\*meta description/i.test(l)),
   }));
   const socials = String(b.socials || "").split(/\n|,/).map((s) => s.trim()).filter(Boolean);
+  const domain = row.hosting?.domain;
   return {
     kind,
+    // Where the site lives (for Google: canonical links, sitemap, share previews). Empty until it has an address.
+    baseUrl: domain ? `https://${domain}` : row.hosting?.pagesUrl || (/^https:\/\//.test(row.website_url || "") ? row.website_url.replace(/\/+$/, "") : ""),
     name: b.business_name || row.business || row.name,
     tagline: b.tagline || "",
     phone: b.phone || row.contact || "",
@@ -297,14 +300,14 @@ function productCards(site, img) {
     const buy = p.amount
       ? `<p class="buy"><button class="btn add" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}">Add to basket</button></p>`
       : order ? `<p class="buy"><a class="btn" href="${order}">${p.price ? "Order on WhatsApp" : "Ask on WhatsApp"}</a></p>` : "";
-    return `<div class="card">${photo ? `<img src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy">` : ""}<h3>${esc(p.name)}</h3>${p.text || p.details ? `<p>${esc(p.text || p.details)}</p>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
+    return `<div class="card">${photo ? `<img src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3>${esc(p.name)}</h3>${p.text || p.details ? `<p>${esc(p.text || p.details)}</p>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
   }).join("")}</div>`;
 }
 
 // ---------- Basket (Online Store) ----------
 // Every store page gets a basket. "Order on WhatsApp" always works. "Pay online" appears only once online payment is
 // switched on for the store in admin (the page asks our API), and payments go to the store owner's Paystack account.
-const CART_CSS = `body{padding-bottom:72px}.cart-btn{position:fixed;left:16px;bottom:16px;z-index:60;background:#111827;color:#fff;border:0;border-radius:999px;padding:12px 18px;font:700 15px/1 system-ui,Arial,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer}
+const CART_CSS = `.cart-btn{position:fixed;left:16px;bottom:16px;z-index:60;background:#111827;color:#fff;border:0;border-radius:999px;padding:12px 18px;font:700 15px/1 system-ui,Arial,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer}
 .cart-btn[hidden],.cart[hidden]{display:none!important}.cart-btn b{background:#22C55E;color:#062E14;border-radius:999px;padding:2px 8px;margin-left:6px}
 .cart{position:fixed;inset:0;z-index:70;background:rgba(15,23,42,.55);display:flex;justify-content:flex-end;font:15px/1.5 system-ui,Arial,sans-serif;color:#1F2933}
 .cart .panel{background:#fff;width:min(420px,100vw);height:100%;overflow:auto;padding:20px;box-shadow:-8px 0 24px rgba(0,0,0,.2)}
@@ -361,7 +364,7 @@ if(C.s&&!C.preview)fetch(C.api+'/api/shop?config=1&s='+encodeURIComponent(C.s)).
 if(C.preview){online=true}
 draw();})();</script>`;
 }
-const gallery = (photos, img) => `<div class="gallery">${photos.map((p) => `<a href="${img(p.url)}"><img src="${img(p.url)}" alt="${esc(p.name || "Photo")}" loading="lazy"></a>`).join("")}</div>`;
+const gallery = (photos, img) => `<div class="gallery">${photos.map((p) => `<a href="${img(p.url)}"><img src="${img(p.url)}" alt="${esc(p.name || "Photo")}" loading="lazy" decoding="async"></a>`).join("")}</div>`;
 
 function sectionHtml(sec, mode) {
   const heading = sec.fields.heading || (sec.name && !/^hero$/i.test(sec.name) ? sec.name : "");
@@ -392,7 +395,7 @@ function pageBody(site, page, mode, link, img) {
     const btn = heroSec?.fields["button text"] || "Contact us";
     const contactPage = site.pages.find((p) => p.kind === "contact");
     const href = site.whatsapp ? waLink(site) : contactPage ? link(contactPage.slug) : "#";
-    out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}<a class="btn" href="${href}">${inline(btn, mode)}</a></div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}">` : ""}</div></section>`);
+    out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}<a class="btn" href="${href}">${inline(btn, mode)}</a></div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}" fetchpriority="high" decoding="async">` : ""}</div></section>`);
   } else {
     out.push(`<div class="page-head"><div class="wrap"><h1>${esc(page.name)}</h1></div></div>`);
   }
@@ -483,26 +486,79 @@ fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},
 }
 
 // mode: "preview" (served at /preview, with the approval panel) or "export" (plain files for hosting).
-export function renderPage(site, slug, { mode = "export", link, img = (u) => u, row, token, choice, switcher = "" } = {}) {
-  const page = site.pages.find((p) => p.slug === slug) || site.pages[0];
+export function renderPage(site, slug, { mode = "export", link, img = (u) => u, row, token, choice, switcher = "", notFound = false } = {}) {
+  const page = notFound ? NOT_FOUND_PAGE : site.pages.find((p) => p.slug === slug) || site.pages[0];
   const title = page.title || (page.kind === "home" ? site.name : `${page.name} | ${site.name}`);
   const desc = page.meta || site.tagline || "";
   const preview = mode === "preview";
   return `<!doctype html>
 <html lang="en-NG"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(preview ? "Preview: " + title : title)}</title>${desc ? `\n<meta name="description" content="${esc(desc)}">` : ""}
-<meta property="og:title" content="${esc(title)}">${desc ? `<meta property="og:description" content="${esc(desc)}">` : ""}<meta property="og:type" content="website">
-${preview ? '<meta name="robots" content="noindex, nofollow">' : ""}<meta name="theme-color" content="${site.theme.primary}">
+${seoHead(site, page, { title, desc, img, preview, notFound })}
+${preview || notFound ? '<meta name="robots" content="noindex, nofollow">' : ""}<meta name="theme-color" content="${site.theme.primary}">
 ${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}
 <style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}
 <style id="guard">${GUARD_CSS}${hasCart(site) ? CART_CSS : ""}</style></head>
 <body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}</div>` : ""}
 ${header(site, page, link, img)}
-<main>${pageBody(site, page, mode, link, img)}</main>
+<main>${notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
 ${preview ? previewPanel(row, token, choice) : ""}
 ${footer(site, link)}
 ${hasCart(site) ? cartScript(site, mode) : ""}
 </body></html>`;
+}
+
+// ---------- Google and share previews ----------
+const NOT_FOUND_PAGE = { slug: "404", kind: "notfound", name: "Page not found", title: "", meta: "", sections: [] };
+const jsonLd = (o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, "\\u003c")}</script>`;
+const pagePath = (slug) => (slug === "index" ? "/" : `/${slug}`);
+
+function seoHead(site, page, { title, desc, img, preview, notFound }) {
+  const base = site.baseUrl;
+  const abs = (u) => (!u ? "" : /^https?:\/\//.test(u) ? u : base ? `${base}/${String(u).replace(/^\/+/, "")}` : "");
+  const url = base && !notFound ? base + pagePath(page.slug) : "";
+  const shareImg = abs(site.photos[0] ? img(site.photos[0].url) : site.productPhotos[0] ? img(site.productPhotos[0].url) : site.logo ? img(site.logo.url) : "");
+  const out = [];
+  if (url && !preview) out.push(`<link rel="canonical" href="${esc(url)}">`);
+  out.push(`<meta property="og:type" content="website"><meta property="og:site_name" content="${esc(site.name)}"><meta property="og:title" content="${esc(title)}">`);
+  if (desc) out.push(`<meta property="og:description" content="${esc(desc)}">`);
+  if (url) out.push(`<meta property="og:url" content="${esc(url)}">`);
+  out.push(`<meta property="og:locale" content="en_NG">`);
+  if (shareImg) out.push(`<meta property="og:image" content="${esc(shareImg)}"><meta property="og:image:alt" content="${esc(site.name)}">`);
+  out.push(`<meta name="twitter:card" content="${shareImg ? "summary_large_image" : "summary"}">`);
+  if (preview || notFound) return out.join("\n");
+  // Business details for Google (home page), and products with prices (shop page).
+  if (page.slug === "index") {
+    const biz = { "@context": "https://schema.org", "@type": site.kind === "store" ? "Store" : "LocalBusiness", name: site.name };
+    if (base) biz.url = base + "/";
+    if (site.tagline || desc) biz.description = site.tagline || desc;
+    if (site.phone) biz.telephone = site.phone;
+    if (site.email) biz.email = site.email;
+    if (site.address) biz.address = { "@type": "PostalAddress", streetAddress: site.address.replace(/\s*\n\s*/g, ", "), addressCountry: "NG" };
+    if (shareImg) biz.image = shareImg;
+    if (site.logo && abs(img(site.logo.url))) biz.logo = abs(img(site.logo.url));
+    const same = site.socials.filter((x) => /^https?:\/\//i.test(x));
+    if (same.length) biz.sameAs = same;
+    out.push(jsonLd(biz));
+  }
+  if (page.kind === "shop") {
+    const items = site.products.filter((p) => p.amount).slice(0, 50).map((p) => {
+      const o = { "@type": "Product", name: p.name, offers: { "@type": "Offer", price: String(p.amount), priceCurrency: "NGN", availability: "https://schema.org/InStock" } };
+      if (p.text || p.details) o.description = String(p.text || p.details).slice(0, 300);
+      const ph = site.productPhotos[p.pos];
+      if (ph && abs(img(ph.url))) o.image = abs(img(ph.url));
+      return o;
+    });
+    if (items.length) out.push(jsonLd({ "@context": "https://schema.org", "@type": "ItemList", itemListElement: items.map((item, i) => ({ "@type": "ListItem", position: i + 1, item })) }));
+  }
+  return out.join("\n");
+}
+
+function notFoundBody(site, link) {
+  const wa = waLink(site, `Hello ${site.name}, I was looking for something on your website.`);
+  return `<section class="section"><div class="wrap" style="text-align:center;padding-top:48px;padding-bottom:48px">
+<h1>Sorry, we can't find that page</h1><p>The link may be old or mistyped. These might help:</p>
+<p style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px"><a class="btn" href="${link("index")}">Go to the home page</a>${wa ? `<a class="btn" href="${wa}">Ask us on WhatsApp</a>` : ""}</p></div></section>`;
 }
 
 const hasCart = (site) => site.kind === "store" && site.products.some((p) => p.amount);
@@ -531,6 +587,15 @@ export function exportFiles(site) {
   };
   const link = (slug) => (slug === "index" ? "index.html" : `${slug}.html`);
   const pages = site.pages.map((p) => ({ name: link(p.slug), html: renderPage(site, p.slug, { mode: "export", link, img }) }));
+  // The "page not found" page is shown at any address, so its links start from the site root.
+  const rootLink = (slug) => (slug === "index" ? "/" : `/${slug}`);
+  pages.push({ name: "404.html", html: renderPage(site, "index", { mode: "export", link: rootLink, img: (u) => "/" + img(u), notFound: true }) });
+  const base = site.baseUrl;
+  const today = new Date().toISOString().slice(0, 10);
+  pages.push({ name: "robots.txt", html: `User-agent: *\nAllow: /\n${base ? `Sitemap: ${base}/sitemap.xml\n` : ""}` });
+  if (base) {
+    pages.push({ name: "sitemap.xml", html: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${site.pages.map((p) => `  <url><loc>${esc(base + pagePath(p.slug))}</loc><lastmod>${today}</lastmod></url>`).join("\n")}\n</urlset>\n` });
+  }
   return { pages, images: [...images.entries()].map(([url, path]) => ({ url, path })) };
 }
 

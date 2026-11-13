@@ -115,7 +115,6 @@ export async function publish(id, { force = false } = {}) {
   if (!force && owed) throw new Bad(`The balance (${balance(full)}) isn't paid yet.`);
   const { pages, images } = filesFor(row);
   const files = [...pages.map((p) => ({ path: p.name, data: p.html })), ...(await fetchImages(images))];
-  files.push({ path: "404.html", data: pages[0].html });
   const project = await pickProject(row, h);
   const dep = await deploy(project, files);
   const patch = { project, pagesUrl: `https://${project}.pages.dev`, publishedAt: new Date().toISOString(), deploymentId: dep?.id || null, pausedAt: null, pauseReason: null,

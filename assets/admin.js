@@ -875,6 +875,97 @@
     return box;
   }
 
+  // After launch: the customer's change requests and their visitor numbers.
+  function aftercareBlock(r) {
+    var box = el('div', { class: 'admin-golive admin-aftercare' }, [el('span', { class: 'admin-label', text: 'After launch: changes & visitors' })]);
+    var open = r.open_changes || 0;
+    box.appendChild(el('p', { class: 'admin-meta' }, [open ? badge(open + ' change request' + (open === 1 ? '' : 's') + ' waiting', 'is-due') : badge('No open change requests', 'is-won')]));
+    var out = el('div', { class: 'admin-changes' });
+    function drawChanges(j) {
+      out.innerHTML = '';
+      out.appendChild(el('p', { class: 'admin-hint', text: j.free_until ? 'Free changes until ' + j.free_until + '. After that, requests are marked "Quote first".' : 'Free month starts when you set the go-live date.' }));
+      if (!j.changes.length) out.appendChild(el('p', { class: 'admin-hint', text: 'No requests yet. Send them their link so they can ask for edits any time.' }));
+      j.changes.forEach(function (c) {
+        var item = el('div', { class: 'admin-change' }, [
+          el('p', { class: 'admin-meta' }, [badge(c.status === 'done' ? 'Done' : 'Open', c.status === 'done' ? 'is-won' : 'is-due'), ' ', badge(c.free ? 'Free' : 'Quote first', c.free ? '' : 'is-new'), ' ' + when(c.created_at)]),
+          el('p', { class: 'admin-change-text', text: c.body })
+        ]);
+        if (c.files && c.files.length) item.appendChild(el('p', { class: 'admin-meta' }, c.files.map(function (f, i) { return el('a', { href: f.url, target: '_blank', rel: 'noopener', text: (i ? ' · ' : '') + f.name }); })));
+        if (c.note) item.appendChild(el('p', { class: 'admin-hint', text: 'Note to customer: ' + c.note }));
+        item.appendChild(el('div', { class: 'admin-actions' }, [c.status === 'done'
+          ? el('button', { class: 'admin-btn', type: 'button', text: 'Reopen', onclick: function (e) { mark(c, false, null, e.currentTarget); } })
+          : el('button', { class: 'admin-btn', type: 'button', text: 'Mark done & tell customer', onclick: function (e) {
+              var note = window.prompt('Optional note for the customer (e.g. "New photo is on the home page"). Leave empty to skip.', '');
+              if (note === null) return;
+              mark(c, true, note.trim(), e.currentTarget);
+            } })]));
+        out.appendChild(item);
+      });
+    }
+    function mark(c, done, note, btn) {
+      btn.disabled = true;
+      api('POST', { action: 'change_mark', id: r.id, change_id: c.id, done: done, note: note || undefined }).then(function (j) {
+        r.open_changes = j.changes.filter(function (x) { return x.status === 'open'; }).length;
+        flash(done ? 'Marked done. The customer has been emailed.' : 'Reopened');
+        drawChanges({ changes: j.changes, free_until: state.changeInfo && state.changeInfo[r.id] });
+      }).catch(function (e) { btn.disabled = false; fail(e); });
+    }
+    function withLink(fn, btn) {
+      btn.disabled = true;
+      api('POST', { action: 'changes', id: r.id }).then(function (j) {
+        btn.disabled = false; state.changeInfo = state.changeInfo || {}; state.changeInfo[r.id] = j.free_until; fn(j);
+      }).catch(function (e) { btn.disabled = false; fail(e); });
+    }
+    var num = waNumber(r.contact);
+    var acts = el('div', { class: 'admin-actions' }, [
+      el('button', { class: 'admin-btn', type: 'button', text: 'Show change requests', onclick: function (e) { withLink(drawChanges, e.currentTarget); } }),
+      el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send change link on WhatsApp', disabled: !num, onclick: function (e) {
+        var w = window.open('', '_blank');
+        withLink(function (j) {
+          var text = 'Hello ' + String(r.name).split(' ')[0] + ', here is your private link to request changes to your website any time (text, photos, prices):\n' + j.link + (j.free_until ? '\nChanges are free until ' + j.free_until + '.' : '') + '\nPlease keep it private.';
+          var url = 'https://wa.me/' + num + '?text=' + encodeURIComponent(text);
+          if (w) w.location = url; else window.open(url, '_blank');
+        }, e.currentTarget);
+      } }),
+      el('button', { class: 'admin-btn', type: 'button', text: 'Copy change link', onclick: function (e) {
+        withLink(function (j) {
+          (navigator.clipboard ? navigator.clipboard.writeText(j.link) : Promise.reject()).then(function () { flash('Link copied'); }).catch(function () { window.prompt('Copy this link:', j.link); });
+        }, e.currentTarget);
+      } })
+    ]);
+    box.appendChild(acts);
+    box.appendChild(out);
+
+    var stats = el('div', { class: 'admin-stats' });
+    var off = Boolean(r.hosting && r.hosting.reportsOff);
+    var toggle = el('input', { type: 'checkbox' });
+    toggle.checked = !off;
+    toggle.addEventListener('change', function () {
+      api('POST', { action: 'report_toggle', id: r.id, off: !toggle.checked }).then(function (j) { if (j.row) replaceRequest(j.row); flash(toggle.checked ? 'Monthly report on' : 'Monthly report off'); }).catch(fail);
+    });
+    box.appendChild(el('div', { class: 'admin-actions' }, [
+      el('button', { class: 'admin-btn', type: 'button', text: 'Visitors (last 30 days)', onclick: function (e) {
+        var b = e.currentTarget; b.disabled = true;
+        api('POST', { action: 'site_stats', id: r.id }).then(function (j) {
+          b.disabled = false; stats.innerHTML = '';
+          var s = j.stats;
+          if (!j.tracking) { stats.appendChild(el('p', { class: 'admin-hint', text: 'Counting starts after you publish (or tap Update live site) once.' })); return; }
+          stats.appendChild(el('p', { class: 'admin-meta', text: s.visitors + ' visitors · ' + s.views + ' page views · ' + s.wa + ' WhatsApp taps' + (s.calls ? ' · ' + s.calls + ' call tap' + (s.calls === 1 ? '' : 's') : '') + (s.orders ? ' · ' + s.orders + ' paid orders (' + naira(s.sales) + ')' : '') }));
+          if (s.pages.length) stats.appendChild(el('p', { class: 'admin-hint', text: 'Top pages: ' + s.pages.map(function (p) { return p.path + ' (' + p.n + ')'; }).join(', ') }));
+          if (s.sources.length) stats.appendChild(el('p', { class: 'admin-hint', text: 'From: ' + s.sources.map(function (x) { return x.source + ' (' + x.n + ')'; }).join(', ') }));
+        }).catch(function (e2) { b.disabled = false; fail(e2); });
+      } }),
+      el('button', { class: 'admin-btn', type: 'button', text: 'Email report now', onclick: function (e) {
+        var b = e.currentTarget; b.disabled = true;
+        api('POST', { action: 'report_send', id: r.id }).then(function (j) { b.disabled = false; flash('Report sent to ' + j.to); }).catch(function (e2) { b.disabled = false; fail(e2); });
+      } })
+    ]));
+    box.appendChild(stats);
+    box.appendChild(el('label', { class: 'admin-check' }, [toggle, ' Email them a visitor report on the 1st of every month']));
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Counts are private: no cookies or personal data. Sites published before this update start counting after one Update live site.' }));
+    return box;
+  }
+
   // Everything the customer needs after the balance is paid. Passwords never go in here.
   function handoverBlock(r) {
     var h = r.handover || {};
@@ -1115,6 +1206,7 @@
     card.appendChild(briefBlock(r));
     if (r.has_draft || (r.hosting && r.hosting.project)) card.appendChild(goLiveBlock(r));
     if (r.interest === 'Online Store' && (r.has_draft || r.brief_submitted_at)) card.appendChild(storeBlock(r));
+    if (r.website_url || r.live_on) card.appendChild(aftercareBlock(r));
     card.appendChild(handoverBlock(r));
     return card;
   }

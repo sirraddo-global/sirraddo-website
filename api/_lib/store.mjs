@@ -67,6 +67,29 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS hosting JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS chat_ideas JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS shop JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `CREATE TABLE IF NOT EXISTS change_requests (
+     id SERIAL PRIMARY KEY,
+     request_id INTEGER NOT NULL,
+     body TEXT NOT NULL,
+     files JSONB NOT NULL DEFAULT '[]'::jsonb,
+     free BOOLEAN NOT NULL DEFAULT true,
+     status TEXT NOT NULL DEFAULT 'open',
+     note TEXT,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     done_at TIMESTAMPTZ)`,
+  `CREATE TABLE IF NOT EXISTS site_stats (
+     request_id INTEGER NOT NULL,
+     day DATE NOT NULL,
+     path TEXT NOT NULL DEFAULT '',
+     kind TEXT NOT NULL,
+     source TEXT NOT NULL DEFAULT '',
+     n INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (request_id, day, path, kind, source))`,
+  `CREATE TABLE IF NOT EXISTS site_visitors (
+     request_id INTEGER NOT NULL,
+     day DATE NOT NULL,
+     vid TEXT NOT NULL,
+     PRIMARY KEY (request_id, day, vid))`,
   `CREATE TABLE IF NOT EXISTS store_orders (
      id SERIAL PRIMARY KEY,
      request_id INTEGER NOT NULL,
@@ -123,6 +146,7 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   COALESCE((length(draft_md) - length(replace(draft_md, '[ADD:', ''))) / 5, 0) AS draft_gaps,
   (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, hosting, chat_ideas,
   (shop - 'key') || jsonb_build_object('online', COALESCE(shop->>'key', '') <> '') AS shop,
+  (SELECT count(*)::int FROM change_requests c WHERE c.request_id = customer_requests.id AND c.status = 'open') AS open_changes,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('id', o->>'id', 'by', o->>'by', 'at', o->>'at', 'standard', COALESCE(o->>'css', '') = '',
     'current', COALESCE(o->>'css', '') = COALESCE(design_css, ''))) FROM jsonb_array_elements(design_options) o), '[]'::jsonb) AS design_choices`;
 
@@ -322,7 +346,13 @@ export async function addPaymentOnce(id, payment) {
 // ---------- Preview sites (/preview?t=...) ----------
 const PREVIEW_COLUMNS = `id, name, business, contact, email, interest, status, quote_amount, payments, project_stage, doc_token, auto_sent,
   brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at, design_css, design_options, design_by, hosting, draft_at, design_at,
-  website_url, shop->>'token' AS shop_token`;
+  website_url, live_on::text AS live_on, shop->>'token' AS shop_token`;
+// The same private token, without touching the preview/stage (used for the "request a change" link).
+export async function ensureLinkToken(id) {
+  await ensureSchema();
+  const rows = await q(`UPDATE customer_requests SET preview_token = COALESCE(preview_token, $1) WHERE id = $2 RETURNING preview_token`, [randomBytes(18).toString("base64url"), id]);
+  return rows[0]?.preview_token ?? null;
+}
 export async function ensurePreviewToken(id) {
   await ensureSchema();
   const rows = await q(

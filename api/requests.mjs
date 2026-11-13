@@ -21,6 +21,8 @@ import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automation.mjs";
 import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { ensureStoreToken, setShopPayments, listOrders } from "./_lib/shop.mjs";
+import { ensureStatsKey, siteSummary, reportHtml } from "./_lib/stats.mjs";
+import { changeLink, listChanges, markChange, freeUntil } from "./_lib/changes.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
@@ -174,6 +176,7 @@ export default async function handler(req, res) {
       if (query.view === "chats") return res.status(200).json({ chats: await listChats() });
       if (query.view === "export") {
         await ensureStoreToken(Number(query.id));
+        await ensureStatsKey(Number(query.id));
         const row = await getPreviewById(Number(query.id));
         if (!row) return res.status(404).json({ error: "Not found" });
         if (!row.draft_md) throw new Bad("Write the website text first");
@@ -318,6 +321,31 @@ export default async function handler(req, res) {
           throw new Bad(friendlyAiError(e));
         }
       }
+      if (["changes", "change_mark", "site_stats", "report_send", "report_toggle"].includes(body.action)) {
+        const id = Number(body.id);
+        if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
+        const row = await getRequest(id);
+        if (!row) return res.status(404).json({ error: "Not found" });
+        if (body.action === "changes") return res.status(200).json({ link: await changeLink(id), free_until: freeUntil(row), changes: await listChanges(id, 20) });
+        if (body.action === "change_mark") {
+          const c = await markChange(id, Number(body.change_id), { done: Boolean(body.done), note: body.note });
+          if (!c) return res.status(404).json({ error: "Not found" });
+          return res.status(200).json({ change: c, changes: await listChanges(id, 20) });
+        }
+        if (body.action === "report_toggle") {
+          await saveHosting(id, { reportsOff: body.off ? new Date().toISOString() : null });
+          return res.status(200).json({ row: await getRequest(id) });
+        }
+        const to = new Date(Date.now() + 3600 * 1000);
+        const from = new Date(to.getTime() - 29 * 86400000);
+        const s = await siteSummary(id, from.toISOString().slice(0, 10), to.toISOString().slice(0, 10));
+        if (body.action === "site_stats") return res.status(200).json({ stats: s, tracking: Boolean(row.hosting?.statsKey) });
+        const email = customerEmail(row);
+        if (!email) throw new Bad("This customer has no email address. Add one under Edit customer details.");
+        if (!customerEmailConfigured()) throw new Bad("Emailing customers isn't set up yet.");
+        await sendCustomerEmail(email, `Your website in the last 30 days: ${s.visitors} visitor${s.visitors === 1 ? "" : "s"}`, reportHtml(row, s, "the last 30 days"));
+        return res.status(200).json({ ok: true, to: email });
+      }
       if (body.action === "shop_settings" || body.action === "shop_orders") {
         const id = Number(body.id);
         if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
@@ -360,6 +388,7 @@ export default async function handler(req, res) {
         if (!row) return res.status(404).json({ error: "Not found" });
         const to = customerEmail(row);
         if (!to) throw new Bad("This customer has no email address. Add one under Edit customer details.");
+        if (body.type === "handover") row.change_link = await changeLink(id);
         const doc = buildDoc(row, body.type, await getSettings());
         if (doc.error) throw new Bad(doc.error);
         const link = `${SITE}/doc?t=${row.doc_token}&type=${body.type}`;

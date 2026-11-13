@@ -2,6 +2,7 @@
 // they can open from WhatsApp or email, print, or save as PDF. (/doc is rewritten here in vercel.json.)
 import { getByDocToken, getSettings, esc } from "./_lib/store.mjs";
 import { buildDoc, docPage, DOC_TYPES, naira } from "./_lib/docs.mjs";
+import { changeLink } from "./_lib/changes.mjs";
 import { amountDue, paystackConfigured } from "./_lib/paystack.mjs";
 
 function message(res, code, text) {
@@ -21,6 +22,7 @@ export default async function handler(req, res) {
   try {
     const r = await getByDocToken(String(query.t || ""));
     if (!r) return message(res, 404, "This link is not valid");
+    if (type === "handover") r.change_link = await changeLink(r.id);
     const doc = buildDoc(r, type, await getSettings());
     if (doc.error) return message(res, 404, "This document is not ready yet");
     res.statusCode = 200;

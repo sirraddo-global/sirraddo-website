@@ -202,7 +202,8 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .asst-msg--assistant p, .asst-msg--assistant ul, .asst-msg--assistant ol { margin: 0 0 .6em; }
 .asst-msg--assistant h2, .asst-msg--assistant h3 { font-size: 1rem; margin: .4em 0; }
 .asst-starters { display: grid; gap: 8px; }
-.asst-starters .admin-btn { text-align: left; }
+.asst-starters .admin-btn { text-align: left; white-space: normal; width: 100%; max-width: 100%; box-sizing: border-box; line-height: 1.35; padding: 12px 14px; display: block; overflow-wrap: anywhere; }
+.asst, .asst-log, .asst-form { min-width: 0; max-width: 100%; }
 .asst-form { display: grid; gap: 8px; position: sticky; bottom: 0; background: var(--bg, #F5F7FB); padding: 8px 0; }
 .asst-form textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
 .admin-ask { margin-top: 6px; justify-self: start; }

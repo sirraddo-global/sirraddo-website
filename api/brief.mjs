@@ -4,6 +4,7 @@
 // The token in the link is the only key, so it is long and random. No other login is needed.
 import { getBrief, saveBrief, removeBriefFile, sendEmail, emailConfigured, esc } from "./_lib/store.mjs";
 import { kindFor, KIND_LABEL, schemaFor, cleanAnswers, missingRequired, fileField } from "./_lib/brief-schema.mjs";
+import { IDEA_LABELS } from "./_lib/ideas.mjs";
 import { waitUntil } from "@vercel/functions";
 import { generateDraft } from "./_lib/drafts.mjs";
 
@@ -24,6 +25,7 @@ function publicView(row) {
     saved_at: row.brief_saved_at,
     submitted_at: row.brief_submitted_at,
     uploads_enabled: uploadsEnabled(),
+    chat_ideas: Object.entries(IDEA_LABELS).filter(([k]) => k !== "recommended" && row.chat_ideas?.[k]).map(([k, label]) => ({ label, value: row.chat_ideas[k] })),
   };
 }
 

@@ -207,3 +207,10 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .asst-form { display: grid; gap: 8px; position: sticky; bottom: 0; background: var(--bg, #F5F7FB); padding: 8px 0; }
 .asst-form textarea { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
 .admin-ask { margin-top: 6px; justify-self: start; }
+
+.admin-ideas { margin: 6px 0; font-size: .92rem; }
+.admin-ideas summary { cursor: pointer; font-weight: 700; color: var(--navy); }
+.admin-ideas dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 8px 0 0; }
+.admin-ideas dt { font-weight: 600; color: var(--muted); }
+.admin-ideas dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) { .admin-ideas dl { grid-template-columns: 1fr; } .admin-ideas dd { margin-bottom: 6px; } }

@@ -14,6 +14,9 @@
   var PACKAGES = ['Starter website', 'Business website', 'Online Store', 'Custom app', 'Business software', 'ZAPPI PAY', 'Other'];
   var DEFAULT_QUOTE = { 'Starter website': 50000, 'Business website': 100000, 'Online Store': 150000 };
   var DEFAULT_RENEWAL = { 'Starter website': 25000, 'Business website': 40000 };
+  var IDEA_LABELS = { recommended: 'Package suggested', business_name: 'Business name', what_they_do: 'What they do', location: 'Location', customers: 'Customers',
+    goals: 'Goals', pages: 'Pages wanted', products_services: 'Products / services', style: 'Colours and style', examples: 'Websites they like',
+    slogan: 'Slogan', hours: 'Opening hours', domain: 'Domain', has_logo: 'Logo', special: 'Other wishes' };
   var STAGE_LABEL = { '': 'Not started', content: 'Waiting for content', building: 'Building', review: 'Preview sent', live: 'Live' };
   var PREVIEW_LABEL = { sent: ['Waiting for customer', 'is-new'], changes: ['Changes asked', 'is-due'], approved: ['Approved', 'is-won'] };
   var DEFAULT_HANDOVER_TERMS = "Small fixes to text and photos are free for 30 days after your website goes live. After that, tell us what you'd like changed and we'll quote it before we start. Your yearly renewal keeps your domain, hosting, SSL certificate, business email and backups running.";
@@ -419,6 +422,12 @@
     var meta = el('p', { class: 'admin-meta' }, [r.contact + (r.email && r.email !== r.contact ? ' · ' + r.email : '') + ' · ' + (r.business || 'No business given') + ' · ' + when(r.created_at)]);
     card.appendChild(meta);
     card.appendChild(el('p', { class: 'admin-details', text: r.details }));
+    var ideas = r.chat_ideas || {}, ik = Object.keys(IDEA_LABELS).filter(function (k) { return ideas[k]; });
+    if (ik.length) {
+      var idd = el('details', { class: 'admin-ideas' }, [el('summary', { text: 'From the chat (' + ik.length + ')' + (ideas.recommended ? ' · suggested: ' + ideas.recommended.split(':')[0] : '') })]);
+      idd.appendChild(el('dl', null, ik.reduce(function (a, k) { a.push(el('dt', { text: IDEA_LABELS[k] })); a.push(el('dd', { text: ideas[k] })); return a; }, [])));
+      card.appendChild(idd);
+    }
     card.appendChild(whatsAppRow(r));
     card.appendChild(el('button', { class: 'admin-btn admin-btn--small admin-ask', type: 'button', text: 'Ask assistant about this job', onclick: function () { askAbout(r, 'What should I do next for this job, and is anything wrong?'); } }));
 

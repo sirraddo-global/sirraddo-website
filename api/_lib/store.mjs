@@ -322,7 +322,7 @@ export async function addPaymentOnce(id, payment) {
 // ---------- Preview sites (/preview?t=...) ----------
 const PREVIEW_COLUMNS = `id, name, business, contact, email, interest, status, quote_amount, payments, project_stage, doc_token, auto_sent,
   brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at, design_css, design_options, design_by, hosting, draft_at, design_at,
-  shop->>'token' AS shop_token`;
+  website_url, shop->>'token' AS shop_token`;
 export async function ensurePreviewToken(id) {
   await ensureSchema();
   const rows = await q(

@@ -251,3 +251,4 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .mk-caption { margin: 4px 0; font-size: .9rem; color: var(--muted); }
 .mk-card .admin-actions { margin-top: auto; }
 .admin-check input[type=checkbox] { width: 22px; height: 22px; flex: none; margin: 0; accent-color: var(--ink); }
+.admin-nudge p { margin: 6px 0 0; }

@@ -21,7 +21,9 @@ export default async function handler(req, res) {
   if (!authorised(req)) return res.status(401).json({ error: "Unauthorised" });
   if (!dbConfigured()) return res.status(503).json({ error: "DATABASE_URL is not set" });
   try {
-    return res.status(200).json(await runDaily());
+    // Vercel's own cron (while both hosts run) uses the once-a-day lock; a manual call always runs.
+    const scheduled = /vercel-cron/i.test(String(req.headers["user-agent"] || ""));
+    return res.status(200).json(await runDaily(new Date(), { once: scheduled }));
   } catch (err) {
     console.error("daily cron failed", err);
     return res.status(500).json({ error: "Daily job failed" });

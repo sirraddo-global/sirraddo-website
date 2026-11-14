@@ -8,7 +8,7 @@ export default async (request, context) => {
   globalThis.__requestContext = context;
   if (!dbConfigured()) { console.error("daily: DATABASE_URL is not set"); return new Response("no database", { status: 503 }); }
   try {
-    const report = await runDaily();
+    const report = await runDaily(new Date(), { once: true });
     console.log("daily run", JSON.stringify(report));
     return new Response("ok");
   } catch (err) {

@@ -522,6 +522,12 @@ export async function setMeta(key, value) {
   if (!(await ensureSchema())) return;
   await q(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, ["_" + key, String(value)]);
 }
+// Sets a key only if it isn't set yet. Returns true for the one caller that set it (used as a lock).
+export async function claimMeta(key, value) {
+  if (!(await ensureSchema())) return false;
+  const rows = await q(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING RETURNING key`, ["_" + key, String(value)]);
+  return rows.length > 0;
+}
 export async function getMeta(keys) {
   if (!(await ensureSchema())) return {};
   const rows = await q(`SELECT key, value FROM settings WHERE key = ANY($1)`, [keys.map((k) => "_" + k)]);

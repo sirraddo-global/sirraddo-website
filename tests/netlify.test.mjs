@@ -35,6 +35,17 @@ test("every API handler has a Netlify function with its paths, plus the daily sc
   assert.match(toml, /publish = "public"/);
 });
 
+test("the scheduled daily run happens once a day even if two hosts start it", async () => {
+  const { runDaily } = await import("../api/_lib/automation.mjs");
+  const day = new Date("2026-11-18T06:00:00Z");
+  const [a, b] = await Promise.all([runDaily(day, { once: true }), runDaily(day, { once: true })]);
+  assert.equal([a, b].filter((r) => r.skipped).length, 1);
+  const vercel = await h.call("GET", "/api/cron-daily", undefined, { authorization: "Bearer cronsecretcronsecret", "user-agent": "vercel-cron/1.0" });
+  assert.equal(vercel.json.skipped, undefined, "a different day (today) still runs");
+  const again = await h.call("GET", "/api/cron-daily", undefined, { authorization: "Bearer cronsecretcronsecret", "user-agent": "vercel-cron/1.0" });
+  assert.equal(again.json.skipped, "already ran today");
+});
+
 test("/files refuses path tricks", async () => {
   const files = (await import(join(ROOT, "netlify/functions/files.mjs"))).default;
   assert.equal((await files(new Request("https://x.test/files/a%2F..%2Fsecret"))).status, 404);

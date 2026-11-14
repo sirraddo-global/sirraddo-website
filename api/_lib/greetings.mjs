@@ -1,6 +1,6 @@
 // Festive greetings. During each festival a greeting banner shows on sirraddo.com.ng automatically.
 // Emailing it to customers is optional: you tap "Email everyone" in Admin → Settings (any time before), and the
-// emails go out from the day before the festival in daily batches, so the free email plan's 100-a-day limit is
+// emails go out from the festival day in daily batches, so the free email plan's 100-a-day limit is
 // never used up by greetings.
 import { createHmac } from "node:crypto";
 import { q, ensureSchema, getMeta, setMeta, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail, esc } from "./store.mjs";
@@ -21,19 +21,19 @@ function easterSunday(y) { // Anonymous Gregorian algorithm
   return `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-// before/after = days the website banner shows around the day.
+// The banner starts on the day itself and stays up for a few days after (before = days earlier, after = days later).
 export const FESTIVALS = [
-  { id: "new_year", name: "New Year", emoji: "🎉", title: "Happy New Year", before: 1, after: 3, date: (y) => `${y}-01-01`,
+  { id: "new_year", name: "New Year", emoji: "🎉", title: "Happy New Year", before: 0, after: 3, date: (y) => `${y}-01-01`,
     message: "Thank you for being part of our story. We wish you and your business a prosperous new year." },
-  { id: "eid_fitr", name: "Eid al-Fitr (Sallah)", emoji: "🌙", title: "Eid Mubarak", before: 1, after: 2, date: (y) => EID_FITR[y], moon: true,
+  { id: "eid_fitr", name: "Eid al-Fitr (Sallah)", emoji: "🌙", title: "Eid Mubarak", before: 0, after: 3, date: (y) => EID_FITR[y], moon: true,
     message: "Barka da Sallah! We wish you and your family peace, joy and blessings this Eid." },
-  { id: "easter", name: "Easter", emoji: "🌿", title: "Happy Easter", before: 2, after: 1, date: easterSunday,
+  { id: "easter", name: "Easter", emoji: "🌿", title: "Happy Easter", before: 0, after: 3, date: easterSunday,
     message: "Wishing you and your family a joyful, peaceful Easter celebration." },
-  { id: "eid_adha", name: "Eid al-Adha (Sallah)", emoji: "🌙", title: "Eid Mubarak", before: 1, after: 2, date: (y) => EID_ADHA[y], moon: true,
+  { id: "eid_adha", name: "Eid al-Adha (Sallah)", emoji: "🌙", title: "Eid Mubarak", before: 0, after: 3, date: (y) => EID_ADHA[y], moon: true,
     message: "Barka da Sallah! May this Eid bring you and your loved ones happiness and blessings." },
-  { id: "independence", name: "Independence Day", emoji: "🇳🇬", title: "Happy Independence Day", before: 0, after: 1, date: (y) => `${y}-10-01`,
+  { id: "independence", name: "Independence Day", emoji: "🇳🇬", title: "Happy Independence Day", before: 0, after: 3, date: (y) => `${y}-10-01`,
     message: "Happy Independence Day, Nigeria! Proud to help Nigerian businesses grow online." },
-  { id: "christmas", name: "Christmas", emoji: "🎄", title: "Merry Christmas", before: 5, after: 1, date: (y) => `${y}-12-25`,
+  { id: "christmas", name: "Christmas", emoji: "🎄", title: "Merry Christmas", before: 0, after: 4, date: (y) => `${y}-12-25`,
     message: "Thank you for your support this year. We wish you a merry Christmas and a wonderful festive season." },
 ];
 
@@ -57,7 +57,7 @@ export function occurrences(config, now = new Date()) {
       const from = addDays(date, -f.before), to = addDays(date, f.after);
       if (to < today) continue;
       out.push({ id: f.id, key: `${f.id}:${year}`, year, name: f.name, emoji: f.emoji, title: f.title, date, from, to, moon: Boolean(f.moon),
-        sendFrom: addDays(date, -1), on: c.on !== false, message: c.message || f.message, defaultMessage: f.message, showing: today >= from && today <= to });
+        sendFrom: date, on: c.on !== false, message: c.message || f.message, defaultMessage: f.message, showing: today >= from && today <= to });
       break; // only the next one for each festival
     }
   }
@@ -137,9 +137,9 @@ export async function sendBatch(limit = GREETING_EMAILS_PER_DAY, now = new Date(
   await ensureSchema();
   const config = await getConfig();
   const live = new Map(occurrences(config, now).map((o) => [o.key, o]));
-  // Emails go out from the day before the festival until the banner ends; earlier ones wait.
+  // Emails go out from the festival day until the banner ends; earlier ones wait.
   const today = lagosToday(now);
-  const due = new Set([...live.values()].filter((o) => today >= addDays(o.date, -1) && today <= o.to).map((o) => o.key));
+  const due = new Set([...live.values()].filter((o) => today >= o.date && today <= o.to).map((o) => o.key));
   // A festival that has passed: anything still waiting is dropped (a late Christmas greeting is worse than none).
   await q(`UPDATE greeting_sends SET status = 'skipped' WHERE status = 'pending' AND NOT (festival_key = ANY($1))`, [[...live.keys()]]);
   if (!due.size) return 0;

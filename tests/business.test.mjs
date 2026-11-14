@@ -225,8 +225,11 @@ test("backup: download has every table; Monday's email goes once with the file a
 
 test("festive greetings: banner during the festival, optional emails in batches, opt-out works", async () => {
   const { currentGreeting, occurrences, getConfig, sendBatch } = await import("../api/_lib/greetings.mjs");
-  const xmas = await currentGreeting(new Date("2026-12-23T09:00:00Z"));
+  const xmas = await currentGreeting(new Date("2026-12-27T09:00:00Z"));
   assert.equal(xmas.id, "christmas");
+  assert.equal(await currentGreeting(new Date("2026-12-24T09:00:00Z")), null, "not before the day");
+  assert.equal((await currentGreeting(new Date("2026-12-29T20:00:00Z"))).id, "christmas", "up to 29 Dec");
+  assert.equal(await currentGreeting(new Date("2026-12-30T09:00:00Z")), null);
   assert.equal(await currentGreeting(new Date("2026-12-10T09:00:00Z")), null, "nothing between festivals");
   const occ = occurrences({}, new Date("2027-01-05T09:00:00Z"));
   assert.equal(occ.find((o) => o.id === "easter").date, "2027-03-28", "Easter worked out");
@@ -234,7 +237,7 @@ test("festive greetings: banner during the festival, optional emails in batches,
 
   const r = await h.action({ action: "greetings_save", changes: { christmas: { on: false } } });
   assert.equal(r.json.festivals.find((f) => f.id === "christmas").on, false);
-  assert.equal(await currentGreeting(new Date("2026-12-23T09:00:00Z")), null, "switched off");
+  assert.equal(await currentGreeting(new Date("2026-12-26T09:00:00Z")), null, "switched off");
   await h.action({ action: "greetings_save", changes: { christmas: { on: true, message: "Merry Christmas to all our customers!" } } });
   await h.action({ action: "greetings_save", changes: { eid_fitr: { year: 2027, date: "2027-03-11" } } });
   assert.equal(occurrences(await getConfig(), new Date("2027-01-05T09:00:00Z")).find((o) => o.id === "eid_fitr").date, "2027-03-11", "moon date can be corrected");
@@ -245,13 +248,15 @@ test("festive greetings: banner during the festival, optional emails in batches,
   assert.equal(q.status, 200, q.text);
   assert.equal(h.newMail(n).length, 0, "nothing goes out weeks early");
   await sendBatch(20, new Date("2026-12-24T07:00:00Z"));
+  assert.equal(h.newMail(n).length, 0, "not the day before");
+  await sendBatch(20, new Date("2026-12-25T07:00:00Z"));
   const mails = h.newMail(n);
   assert.ok(mails.length > 0 && mails.length <= 20, "first batch only");
   assert.match(mails[0].html, /Merry Christmas to all our customers!/);
   const stop = mails[0].html.match(/api\/site\?nogreet=([\w.-]+)/)[1];
   assert.equal((await h.call("GET", `/api/site?nogreet=${stop}`)).status, 200);
   assert.equal((await h.call("GET", `/api/site?nogreet=${stop}x`)).status, 404, "forged opt-out link refused");
-  await sendBatch(60, new Date("2026-12-25T07:00:00Z"));
+  await sendBatch(60, new Date("2026-12-26T07:00:00Z"));
   const again = await h.action({ action: "greetings_email", key });
   const st = again.json.festivals.find((f) => f.key === key).email;
   assert.equal(st.pending, 0);

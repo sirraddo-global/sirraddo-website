@@ -192,7 +192,27 @@ export const CHAT_MODELS = { gemini: process.env.CHAT_GEMINI_MODEL || "gemini-fl
 export function pickProvider() {
   const wanted = (process.env.AI_PROVIDER || "").trim().toLowerCase();
   if (wanted) return PROVIDERS[wanted]?.configured() ? PROVIDERS[wanted] : null;
+  if (anthropic.configured() && gemini.configured()) return withBackup(anthropic, gemini);
   if (anthropic.configured()) return anthropic;
   if (gemini.configured()) return gemini;
   return null;
+}
+
+// For one-off jobs (admin assistant, website text, designs): if the first AI's key is wrong or not allowed
+// (401/403), answer with the other one instead of failing. The reply says which one answered (out.provider).
+function withBackup(first, backup) {
+  return {
+    name: first.name,
+    configured: () => true,
+    start: (messages) => ({ messages }),
+    async call(convo, system, tools, ms, opts = {}) {
+      try {
+        return { ...(await first.call(first.start(convo.messages), system, tools, ms, opts)), provider: first.name };
+      } catch (err) {
+        if (!/_40[13]$/.test(String(err.code || ""))) throw err;
+        console.error(`${first.name} key refused (${err.code}); using ${backup.name} instead. Fix or remove the ${first.name.toUpperCase()}_API_KEY setting.`);
+        return { ...(await backup.call(backup.start(convo.messages), system, tools, ms, { ...opts, model: undefined })), provider: backup.name };
+      }
+    },
+  };
 }

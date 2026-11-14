@@ -311,7 +311,7 @@
     })), job ? String(job.id) : '', null);
     pick.addEventListener('change', function () { asst = { id: pick.value ? Number(pick.value) : null, msgs: [], busy: false }; render(); });
     view.appendChild(el('div', { class: 'admin-card asst' }, [
-      el('p', { class: 'admin-hint', text: 'Ask anything about running a job: what to do next, what went wrong, or how to set something up in Cloudflare, Whogohost, another domain seller, Paystack or Vercel. It can see the job you pick (never any keys), but it can\'t press buttons for you. Never paste keys or passwords here.' }),
+      el('p', { class: 'admin-hint', text: 'Ask anything about running a job: what to do next, what went wrong, or how to set something up in Cloudflare, Whogohost, another domain seller, Paystack or Netlify. It can see the job you pick (never any keys), but it can\'t press buttons for you. Never paste keys or passwords here.' }),
       field('About', pick)
     ]));
     var log = el('div', { class: 'asst-log', 'aria-live': 'polite' });

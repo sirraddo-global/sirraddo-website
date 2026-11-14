@@ -263,3 +263,23 @@ test("festive greetings: banner during the festival, optional emails in batches,
   const aud = (await h.action({ action: "greetings" })).json.audience;
   assert.ok(aud < st.queued, "opted-out customer is no longer in the audience");
 });
+
+test("handover pack fills itself from Go live, Settings and the go-live date", async () => {
+  await h.action({ action: "settings", settings: { default_registrar: "Whogohost" } });
+  await h.sql(`UPDATE customer_requests SET live_on = '2026-11-20', handover = '{}'::jsonb, hosting = hosting || $1::jsonb WHERE id = $2`,
+    [JSON.stringify({ email: { locals: ["info", "sales"], to: "ada@gmail.com", status: "active" } }), ada]);
+  const t = (await h.action({ action: "doc_link", id: ada })).json.doc_token;
+  let page = (await h.call("GET", `/doc?t=${t}&type=handover`)).text;
+  assert.match(page, /adasalon\.com\.ng/);
+  assert.match(page, /info@adasalon\.com\.ng/);
+  assert.match(page, /Whogohost/, "usual registrar");
+  assert.match(page, /ada@gmail\.com/, "inbox shown");
+  assert.match(page, /20 November 2027|20 Nov 2027/, "registered until = go-live + 1 year");
+  assert.match(page, /Home/, "pages listed");
+  assert.match(page, /sitemap\.xml/);
+  assert.match(page, /monthly report/i);
+  await h.admin("PATCH", "/api/requests", { id: ada, handover: { domain_by: "customer", registrar: "Qservers" } });
+  page = (await h.call("GET", `/doc?t=${t}&type=handover`)).text;
+  assert.match(page, /Qservers/, "what you typed wins");
+  assert.doesNotMatch(page, /20 November 2027|20 Nov 2027/, "no guessed expiry for their own domain");
+});

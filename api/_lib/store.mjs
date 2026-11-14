@@ -510,7 +510,7 @@ export async function deleteUnanswered(id) {
 export const SETTING_KEYS = [
   "bank_name", "account_name", "account_number", "invoice_note",
   "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief", "tpl_receipt", "tpl_invoice",
-  "tpl_preview", "tpl_handover", "handover_terms",
+  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar",
 ];
 export async function getSettings() {
   await ensureSchema();

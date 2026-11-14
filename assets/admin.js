@@ -370,10 +370,30 @@
     return d;
   }
 
+  // Hosting stays on Vercel's free Hobby plan until sales are regular. From the 2nd paid website project, remind
+  // to upgrade to Pro (Hobby is for non-commercial use) until "I've upgraded" is tapped. TEST records don't count.
+  function vercelNudge(rs) {
+    if ((state.settings || {}).vercel_pro_at) return null;
+    var paidProjects = rs.filter(function (r) { return r.status === 'won' && paid(r) > 0 && !/test/i.test((r.name || '') + ' ' + (r.business || '')); }).length;
+    if (paidProjects < 2) return null;
+    return el('div', { class: 'admin-card admin-callout admin-nudge' }, [
+      el('strong', { text: 'Time to upgrade Vercel to Pro' }),
+      el('p', { text: 'You now have ' + paidProjects + ' paid website projects. Vercel\'s free Hobby plan is for personal use only, so move your site to Pro (about $20 a month): Vercel → sirraddo17\'s projects → Settings → Billing → Upgrade to Pro. Nothing on the site needs redoing.' }),
+      el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: "I've upgraded", onclick: function (e) {
+        e.currentTarget.disabled = true;
+        api('POST', { action: 'settings', settings: { vercel_pro_at: new Date().toISOString().slice(0, 10) } }).then(function (j) {
+          state.settings = j.settings; flash('Great, reminder removed'); render();
+        }).catch(fail);
+      } })])
+    ]);
+  }
+
   function renderDashboard(view) {
     var rs = state.requests;
     var sc = setupCard();
     if (sc) view.appendChild(sc);
+    var vn = vercelNudge(rs);
+    if (vn) view.appendChild(vn);
     var weekAgo = Date.now() - 7 * 86400000;
     var thisWeek = rs.filter(function (r) { return new Date(r.created_at) > weekAgo; }).length;
     var open = rs.filter(isOpen).length;

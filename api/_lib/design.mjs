@@ -1,6 +1,7 @@
 // "AI design": a custom look for a customer's website. The AI writes CSS only, for the HTML our generator
 // already produces, so the checked text, prices and photos can't change. Uses Claude when ANTHROPIC_API_KEY
 // is set (model: ANTHROPIC_DESIGN_MODEL, default claude-haiku-5-5), otherwise Gemini.
+import { FUNCTION_BUDGET_MS } from "./platform.mjs";
 import { randomBytes } from "node:crypto";
 import { getPreviewById, saveDesign, setDesignOptions, MAX_DESIGN_OPTIONS } from "./store.mjs";
 import { pickProvider, friendlyAiError } from "./providers.mjs";
@@ -54,19 +55,19 @@ export function cleanCss(text) {
   return c;
 }
 
-export async function generateDesign(id, budgetMs = 52000) {
+export async function generateDesign(id, budgetMs = FUNCTION_BUDGET_MS() - 2000) {
   const row = await getPreviewById(id);
   if (!row) return { ok: false, error: "Not found" };
   if (!row.draft_md) return { ok: false, error: "Write the website text first" };
   const provider = pickProvider();
-  if (!provider) return { ok: false, error: "No AI key is set in Vercel (ANTHROPIC_API_KEY or GEMINI_API_KEY)" };
+  if (!provider) return { ok: false, error: "No AI key is set in Netlify (ANTHROPIC_API_KEY or GEMINI_API_KEY)" };
   const options = currentOptions(row);
   if (options.length >= MAX_DESIGN_OPTIONS) return { ok: false, error: `You already have ${MAX_DESIGN_OPTIONS} designs. Remove one first.` };
   const site = buildSiteModel({ ...row, design_css: null });
   const model = provider.name === "anthropic" ? process.env.ANTHROPIC_DESIGN_MODEL || "claude-haiku-5-5" : undefined;
   try {
     const out = await provider.call(provider.start([{ role: "user", content: prompt(row, site) }]), SYSTEM, [], budgetMs,
-      { maxTokens: 6000, attemptMs: budgetMs - 2000, model });
+      { maxTokens: budgetMs < 40000 ? 4000 : 6000, attemptMs: budgetMs - 2000, model });
     const cssText = cleanCss(out.text);
     if (cssText.replace(/\/\*[\s\S]*?\*\//g, "").trim().length < 200) throw new Error("The AI didn't return a usable design");
     const by = provider.name === "anthropic" ? `Claude (${model})` : "Gemini";

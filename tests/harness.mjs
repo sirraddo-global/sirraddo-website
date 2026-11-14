@@ -6,6 +6,7 @@ import { join, extname, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { CF, cfFetch } from "./cloudflare-mock.mjs";
+import { adapt } from "../netlify/lib/adapter.mjs";
 
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const ADMIN = "testpassword123";
@@ -76,22 +77,23 @@ export async function startHarness() {
     "/pay": "pay", "/api/pay": "pay", "/api/paystack-webhook": "paystack-webhook", "/api/shop": "shop",
   })) handlers[path] = (await import(join(ROOT, "api", file + ".mjs"))).default;
 
-  const RAW = new Set(["/api/brief-upload", "/api/paystack-webhook"]);
+  // Every API call goes through the same Netlify adapter the live site uses (netlify/lib/adapter.mjs).
+  for (const k of Object.keys(handlers)) handlers[k] = adapt(handlers[k]);
   const TYPES = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".jpg": "image/jpeg", ".xml": "application/xml", ".txt": "text/plain" };
   server.on("request", async (req, res) => {
     const u = new URL(req.url, base);
     if (u.pathname.startsWith("/__blob/")) { const b = blobs.get(u.pathname.slice(8)); res.setHeader("content-type", b.type); return res.end(b.body); }
     const h = handlers[u.pathname];
     if (h) {
-      if (!RAW.has(u.pathname) && !u.searchParams.get("upload")) {
-        let raw = ""; for await (const c of req) raw += c;
-        try { req.body = raw ? JSON.parse(raw) : undefined; } catch { req.body = raw; }
-      }
-      req.query = Object.fromEntries(u.searchParams);
-      res.status = (c) => { res.statusCode = c; return res; };
-      res.send = (b) => { res.end(b); return res; };
-      res.json = (o) => { res.setHeader("content-type", "application/json"); res.end(JSON.stringify(o)); return res; };
-      try { await h(req, res); } catch (e) { console.error(e); res.statusCode = 500; res.end("handler crashed"); }
+      const chunks = []; for await (const c of req) chunks.push(c);
+      const headers = new Headers(); for (const [k, v] of Object.entries(req.headers)) headers.set(k, Array.isArray(v) ? v.join(", ") : v);
+      const request = new Request(u, { method: req.method, headers, body: ["GET", "HEAD"].includes(req.method) ? undefined : Buffer.concat(chunks) });
+      const waits = [];
+      const r = await h(request, { ip: String(req.headers["x-forwarded-for"] || "127.0.0.1").split(",")[0].trim(), waitUntil: (p) => waits.push(Promise.resolve(p).catch(() => {})) });
+      res.statusCode = r.status;
+      r.headers.forEach((v, k) => res.setHeader(k, v));
+      res.end(Buffer.from(await r.arrayBuffer()));
+      await Promise.all(waits);
       return;
     }
     let p = u.pathname === "/" ? "/index.html" : u.pathname;

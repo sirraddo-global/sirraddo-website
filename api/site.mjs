@@ -1,12 +1,12 @@
 // /api/site — things customers' live websites (and their owners) use. One function on purpose:
-// Vercel's Hobby plan allows 12 functions per deployment, so related small endpoints share this file.
+// (Kept as one function from the Vercel days, when the plan allowed only 12.)
 //   POST ?hit=1                      visitor ping from a customer website (no cookies; see _lib/stats.mjs)
 //   GET  /change?t=TOKEN             the owner's private "request a change" page (rewritten here in vercel.json)
 //   POST ?upload=1&t=TOKEN&name=&type=   a photo/file for a change request (body = the file)
 //   POST { t, text, files }          send the change request
 //   GET  ?greeting=1                 the festive greeting showing on sirraddo.com.ng now (or null)
 //   GET  ?nogreet=ID.SIG             stop festive greeting emails for that customer
-import { put } from "@vercel/blob";
+import { putFile } from "./_lib/platform.mjs";
 import { dbConfigured, getByPreviewToken, esc } from "./_lib/store.mjs";
 import { recordHit } from "./_lib/stats.mjs";
 import { addChange, listChanges, freeUntil, isFree, MAX_CHANGE_FILES } from "./_lib/changes.mjs";
@@ -139,8 +139,7 @@ export default async function handler(req, res) {
       const body = await readRaw(req, MAX_BYTES);
       if (!body.length) return res.status(400).json({ error: "Empty file" });
       const name = String(query.name || "file").replace(/[^\w.\- ]+/g, "_").slice(0, 80) || "file";
-      const doPut = globalThis.__TEST_BLOB__?.put || put;
-      const blob = await doPut(`changes/${r.id}/${name}`, body, { access: "public", addRandomSuffix: true, contentType: type });
+      const blob = await putFile(`changes/${r.id}/${name}`, body, { contentType: type });
       return res.status(200).json({ url: blob.url, name });
     }
 

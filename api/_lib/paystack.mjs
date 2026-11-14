@@ -1,5 +1,5 @@
 // Paystack: online payment of deposits, balances and renewals.
-// Needs PAYSTACK_SECRET_KEY in Vercel. Paystack's webhook (/api/paystack-webhook) and the return page (/pay)
+// Needs PAYSTACK_SECRET_KEY in Netlify. Paystack's webhook (/api/paystack-webhook) and the return page (/pay)
 // both record the payment; recordPayment() makes sure it is only counted once.
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {

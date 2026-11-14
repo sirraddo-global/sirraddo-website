@@ -5,6 +5,7 @@ import { pickProvider, friendlyAiError } from "./providers.mjs";
 import { ideasText } from "./ideas.mjs";
 import { getBriefById, saveDraft } from "./store.mjs";
 import { kindFor, schemaFor, KIND_LABEL } from "./brief-schema.mjs";
+import { FUNCTION_BUDGET_MS } from "./platform.mjs";
 
 const DEFAULT_PAGES = ["Home", "About us", "Services", "Contact"];
 
@@ -39,11 +40,13 @@ function answersText(kind, brief, files) {
   return lines.join("\n");
 }
 
-function pagesPrompt(kind, row, answers) {
+export function sitePages(row) {
   const b = row.brief || {};
-  const pages = (b.pages_10 || b.pages || []).length ? (b.pages_10 || b.pages) : DEFAULT_PAGES;
-  if (kind === "project") {
-    return `Customer: ${row.name}${row.business ? ` (${row.business})` : ""}. They want a custom app or business software.
+  return (b.pages_10 || b.pages || []).length ? (b.pages_10 || b.pages) : DEFAULT_PAGES;
+}
+
+function scopePrompt(row, answers) {
+  return `Customer: ${row.name}${row.business ? ` (${row.business})` : ""}. They want a custom app or business software.
 
 PROJECT FORM ANSWERS
 ${answers}
@@ -61,38 +64,56 @@ Write a first draft of the project scope for the builder to check with the custo
 ## Platforms
 ## Questions to confirm with the customer
 (bullets: anything unclear or missing that affects price or time)`;
-  }
-  const extras = [];
-  if (kind === "business" || kind === "store") {
-    extras.push(`## Google Business Profile description
-(one paragraph, 600–750 characters, no links, no prices, says what the business does, for whom and where)`);
-  }
-  if (kind === "store" && (b.products || []).length) {
-    extras.push(`## Product descriptions
-(for each product in the form, in the same order: "### Product name" then 1–2 sentences. Keep any sizes, colours and prices exactly as given.)`);
-  }
+}
+
+// The pages are written in small groups at the same time, so the whole draft is ready within the host's
+// 30-second limit (one long reply for every page could take a minute).
+function pagesPrompt(kind, row, answers, pages, allPages) {
+  const hasHome = pages.some((p) => /^home$/i.test(p));
   return `Customer: ${row.name}. Package: ${KIND_LABEL[kind]}.
 
 PROJECT FORM ANSWERS
 ${answers}
 
-Write the text for these pages, in this order: ${pages.join(", ")}.
-Structure:
-# Website text: ${b.business_name || row.business || row.name}
-For each page:
+The website has these pages: ${allPages.join(", ")}. Other writers are doing the other pages.
+Write the text for ONLY these pages, in this order: ${pages.join(", ")}.
+Structure, for each page:
 ## Page: <page name>
 **SEO title:** (max 60 characters, includes the business type and city if given)
 **Meta description:** (max 155 characters)
 Then the page's sections, each as "### <section name>" with its text. Inside a section you may start with "**Heading:** <section heading>", then "**Text:** <paragraph>" (more paragraphs or "- " bullet points can follow).
-The Home page starts with exactly:
+${hasHome ? `The Home page starts with exactly:
 ### Hero
 **Headline:** <max 8 words>
 **Subheadline:** <one sentence>
 **Button text:** <2–4 words>
-IMPORTANT: the website automatically shows every service/product with its price as cards (Home, Services, Prices and Shop pages), and the contact details (phone, WhatsApp, email, address, hours) as a card on the Contact page. So don't list the services, prices or contact details again: write a short introduction for those pages instead (what makes them good, who they're for, how to order or visit).
+` : ""}IMPORTANT: the website automatically shows every service/product with its price as cards (Home, Services, Prices and Shop pages), and the contact details (phone, WhatsApp, email, address, hours) as a card on the Contact page. So don't list the services, prices or contact details again: write a short introduction for those pages instead (what makes them good, who they're for, how to order or visit).
 For an FAQ page, write each question as "#### <question>" followed by its answer as a paragraph.
-${extras.length ? "\nAfter the pages, add:\n" + extras.join("\n") : ""}`;
+Don't add a title above the first page and don't add anything after the last one.`;
 }
+
+function extrasPrompt(kind, row, answers) {
+  const b = row.brief || {};
+  const parts = [];
+  if (kind === "business" || kind === "store") {
+    parts.push(`## Google Business Profile description
+(one paragraph, 600–750 characters, no links, no prices, says what the business does, for whom and where)`);
+  }
+  if (kind === "store" && (b.products || []).length) {
+    parts.push(`## Product descriptions
+(for each product in the form, in the same order: "### Product name" then 1–2 sentences. Keep any sizes, colours and prices exactly as given.)`);
+  }
+  if (!parts.length) return null;
+  return `Customer: ${row.name}. Package: ${KIND_LABEL[kind]}.
+
+PROJECT FORM ANSWERS
+${answers}
+
+Write only these sections, in this order:
+${parts.join("\n")}`;
+}
+
+const chunk = (list, n) => list.reduce((out, x, i) => (i % n ? out[out.length - 1].push(x) : out.push([x]), out), []);
 
 function blogPrompt(row, answers) {
   const b = row.brief || {};
@@ -113,32 +134,52 @@ Write 2 blog posts, each 400–600 words, helpful and practical, written for the
 }
 
 async function ask(provider, prompt, ms, maxTokens) {
-  const out = await provider.call(provider.start([{ role: "user", content: prompt }]), SYSTEM, [], ms, { maxTokens, attemptMs: 45000 });
+  const out = await provider.call(provider.start([{ role: "user", content: prompt }]), SYSTEM, [], ms, { maxTokens, attemptMs: Math.max(8000, ms - 1500) });
   if (!out.text) throw new Error("empty reply");
   return out.text.trim();
 }
 
 // Writes and saves the draft. Returns { ok, error }.
-export async function generateDraft(id, budgetMs = 50000) {
+export async function generateDraft(id, budgetMs = FUNCTION_BUDGET_MS() - 2000) {
   const row = await getBriefById(id);
   if (!row || !row.brief) return { ok: false, error: "No project form answers yet" };
   const provider = pickProvider();
   if (!provider) {
     await saveDraft(id, null, "No AI key set");
-    return { ok: false, error: "No AI key is set in Vercel (GEMINI_API_KEY or ANTHROPIC_API_KEY)" };
+    return { ok: false, error: "No AI key is set in Netlify (GEMINI_API_KEY or ANTHROPIC_API_KEY)" };
   }
   const kind = kindFor(row.interest);
   const chat = ideasText(row.chat_ideas);
   const answers = answersText(kind, row.brief, row.brief_files) +
     (chat ? `\n\nAlso from their earlier chat with our assistant (use where the form is silent; the form wins if they differ):\n${chat}` : "");
   const wantBlog = (kind === "business" || kind === "store") && row.brief.blog === "Please write the first 2 posts for me";
+  const notWritten = (what, e) => `[ADD: ${what} wasn't written (${friendlyAiError(e)}). Use "Rewrite" to try again.]`;
   try {
-    const [pages, blog] = await Promise.all([
-      ask(provider, pagesPrompt(kind, row, answers), budgetMs, kind === "store" ? 6000 : 4000),
-      wantBlog ? ask(provider, blogPrompt(row, answers), budgetMs, 3500).catch((e) => `## Blog posts\n\n[Not written: ${friendlyAiError(e)} Use "Rewrite" to try again.]`) : null,
-    ]);
-    const md = [pages, blog].filter(Boolean).join("\n\n") +
-      `\n\n---\n*Draft written by AI from the project form on ${new Date().toISOString().slice(0, 10)}. Check every fact, replace each [ADD: …] and read it through before it goes on the site.*`;
+    let body;
+    if (kind === "project") {
+      body = await ask(provider, scopePrompt(row, answers), budgetMs, 4000);
+    } else {
+      const all = sitePages(row);
+      const groups = chunk(all, 2);
+      const extras = extrasPrompt(kind, row, answers);
+      const jobs = [
+        ...groups.map((g) => ask(provider, pagesPrompt(kind, row, answers, g, all), budgetMs, kind === "store" ? 2600 : 2200)),
+        extras ? ask(provider, extras, budgetMs, kind === "store" ? 2200 : 900) : null,
+        wantBlog ? ask(provider, blogPrompt(row, answers), budgetMs, 3500) : null,
+      ];
+      const results = await Promise.allSettled(jobs.map((j) => j || Promise.resolve(null)));
+      const pageResults = results.slice(0, groups.length);
+      if (pageResults.every((r) => r.status === "rejected")) throw pageResults[0].reason;
+      const parts = [`# Website text: ${row.brief.business_name || row.business || row.name}`];
+      const noTitle = (t) => t.replace(/^#\s[^\n]*\n*/gm, "").trim(); // each group may repeat the title: keep only ours
+      pageResults.forEach((r, i) => parts.push(r.status === "fulfilled" ? noTitle(r.value)
+        : groups[i].map((p) => `## Page: ${p}\n${notWritten("This page", r.reason)}`).join("\n\n")));
+      const ex = results[groups.length], bl = results[groups.length + 1];
+      if (extras) parts.push(ex.status === "fulfilled" ? noTitle(ex.value) : `## Google Business Profile description\n${notWritten("This section", ex.reason)}`);
+      if (wantBlog) parts.push(bl.status === "fulfilled" ? noTitle(bl.value) : `## Blog posts\n\n[Not written: ${friendlyAiError(bl.reason)} Use "Rewrite" to try again.]`);
+      body = parts.join("\n\n");
+    }
+    const md = body + `\n\n---\n*Draft written by AI from the project form on ${new Date().toISOString().slice(0, 10)}. Check every fact, replace each [ADD: …] and read it through before it goes on the site.*`;
     await saveDraft(id, md, null);
     return { ok: true };
   } catch (err) {

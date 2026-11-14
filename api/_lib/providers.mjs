@@ -7,7 +7,7 @@
 //     tools may be [] (plain text); opts.maxTokens sets the reply length (default: a chat reply)
 //   addToolResults(convo, raw, results: [{ id, name, ok, text }])
 
-// Fetch with a time limit, so the chat answers before Vercel's own time limit.
+// Fetch with a time limit, so the chat answers before the host's own time limit.
 async function timedFetch(url, opts, ms = 20000) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), ms);
@@ -176,7 +176,7 @@ export function friendlyAiError(err) {
   if (/timeout/i.test(m)) return "The AI took too long. Please try again.";
   if (/_(503|500)|\b503\b|overloaded|high demand|UNAVAILABLE/i.test(m)) return "The AI service is busy right now (this happens at peak times). Please wait a minute and try again.";
   if (/_429|\b429\b|quota|rate/i.test(m)) return "The AI's free limit was reached for now. Please try again in a few minutes.";
-  if (/_40[13]|API key|permission/i.test(m)) return "The AI key in Vercel isn't working. Check GEMINI_API_KEY / ANTHROPIC_API_KEY.";
+  if (/_40[13]|API key|permission/i.test(m)) return "The AI key in Netlify isn't working. Check GEMINI_API_KEY / ANTHROPIC_API_KEY.";
   return "The AI couldn't finish this time. Please try again.";
 }
 

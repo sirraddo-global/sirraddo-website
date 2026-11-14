@@ -1,6 +1,7 @@
 // POST /api/chat — the website assistant.
 // Body: { sessionId, page, messages: [{ role: "user" | "assistant", content: "..." }] }
 // Returns: { reply, saved }
+import { FUNCTION_BUDGET_MS } from "./_lib/platform.mjs";
 import { SYSTEM_PROMPT, SAVE_TOOL, QUESTION_TOOL } from "./_lib/knowledge.mjs";
 import { saveRequest, emailRequest, logChat, addUnanswered, reference } from "./_lib/store.mjs";
 import { chatProviders, CHAT_MODELS } from "./_lib/providers.mjs";
@@ -138,7 +139,7 @@ export default async function handler(req, res) {
     transcript: messages,
   };
 
-  const deadline = Date.now() + 50000; // stay under Vercel's 60 s limit
+  const deadline = Date.now() + FUNCTION_BUDGET_MS() - 4000; // stay under the host's time limit
   let saved = false;
   let lastErr = null;
   // Cheapest first; if it fails, the next one answers (saving is safe to repeat: same chat, same request).

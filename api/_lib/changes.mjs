@@ -32,7 +32,7 @@ export async function openChangeCounts() {
 export async function addChange(r, body, files) {
   const text = String(body || "").trim().slice(0, 4000);
   if (text.length < 3) throw Object.assign(new Error("Please describe the change you'd like."), { status: 400 });
-  const clean = (Array.isArray(files) ? files : []).filter((f) => f && (/^https:\/\/[\w.-]+\.blob\.vercel-storage\.com\//.test(f.url || "") || (globalThis.__TEST_BLOB__ && /^http:\/\/localhost/.test(f.url || "")))).slice(0, MAX_CHANGE_FILES)
+  const clean = (Array.isArray(files) ? files : []).filter((f) => f && (/^https:\/\/[\w.-]+\.blob\.vercel-storage\.com\//.test(f.url || "") || /^https:\/\/[\w.-]+\/files\//.test(f.url || "") && [SITE, process.env.URL].filter(Boolean).some((s) => String(f.url).startsWith(`${s.replace(/\/$/, "")}/files/`)) || (globalThis.__TEST_BLOB__ && /^http:\/\/localhost/.test(f.url || "")))).slice(0, MAX_CHANGE_FILES)
     .map((f) => ({ url: String(f.url), name: String(f.name || "file").slice(0, 80) }));
   const recent = await q(`SELECT count(*)::int AS n FROM change_requests WHERE request_id = $1 AND created_at > now() - interval '1 day'`, [r.id]);
   if (recent[0].n >= 10) throw Object.assign(new Error("You've sent a lot of requests today. Please message us on WhatsApp."), { status: 429 });

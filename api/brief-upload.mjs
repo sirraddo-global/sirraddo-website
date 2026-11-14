@@ -1,7 +1,7 @@
 // POST /api/brief-upload?t=TOKEN&field=photos&name=shop.jpg&type=image/jpeg
-// Body: the file itself (application/octet-stream). Stored in Vercel Blob (BLOB_READ_WRITE_TOKEN).
+// Body: the file itself (application/octet-stream). Stored with putFile (Netlify Blobs; Vercel Blob if BLOB_READ_WRITE_TOKEN is set).
 // Images are resized in the browser first, so uploads stay well under Vercel's 4.5 MB request limit.
-import { put } from "@vercel/blob";
+import { putFile } from "./_lib/platform.mjs";
 import { getBrief, addBriefFile } from "./_lib/store.mjs";
 import { kindFor, fileField } from "./_lib/brief-schema.mjs";
 import { uploadsEnabled } from "./brief.mjs";
@@ -42,8 +42,7 @@ export default async function handler(req, res) {
     const body = await readRaw(req);
     if (!body.length) return res.status(400).json({ error: "Empty file" });
     const name = String(query.name || "file").replace(/[^\w.\- ]+/g, "_").slice(0, 80) || "file";
-    const doPut = globalThis.__TEST_BLOB__?.put || put;
-    const blob = await doPut(`briefs/${row.id}/${field.key}/${name}`, body, { access: "public", addRandomSuffix: true, contentType: type });
+    const blob = await putFile(`briefs/${row.id}/${field.key}/${name}`, body, { contentType: type });
     const files = await addBriefFile(token, field.key, { url: blob.url, name, size: body.length, type }, field.max);
     if (!files) return res.status(409).json({ error: `You can upload up to ${field.max} file(s) here.` });
     return res.status(200).json({ files });

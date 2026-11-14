@@ -3,8 +3,7 @@
 import tls from "node:tls";
 import {
   listRequests, updateRequest, ensureDocToken, getSettings, markSent, setSiteCheck, listUnansweredSince,
-  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta,
-} from "./store.mjs";
+  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta } from "./store.mjs";
 import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
 import { dailyHosting, hostingRef } from "./golive.mjs";
 import { reconcileOrders } from "./shop.mjs";
@@ -197,7 +196,10 @@ function item(r, text, wa) {
 }
 const section = (title, items) => (items.length ? `<h3 style="margin:18px 0 6px;color:#13254F">${esc(title)} (${items.length})</h3><ul style="padding-left:18px;margin:0">${items.join("")}</ul>` : "");
 
-export async function runDaily(now = new Date()) {
+// once: the scheduled runs (Netlify's, and Vercel's while both hosts are up) pass this, so customers and you
+// get one set of reminders a day even when two hosts start the run.
+export async function runDaily(now = new Date(), { once = false } = {}) {
+  if (once && !(await claimMeta(`daily_lock:${todayLagos(now)}`, new Date().toISOString()))) return { skipped: "already ran today" };
   const started = Date.now();
   const budget = FUNCTION_BUDGET_MS(); // Netlify stops a run at 30 s: later steps wait for tomorrow if time runs short
   const today = todayLagos(now);

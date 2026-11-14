@@ -206,6 +206,54 @@
       asst.msgs.push({ role: 'assistant', content: '⚠ ' + (e.message || 'Something went wrong') });
     }).then(function () { asst.busy = false; if (state.tab === 'assistant') { render(); var l = document.querySelector('.asst-log'); if (l) l.scrollTop = l.scrollHeight; } });
   }
+  // Festive greetings: a banner on the website during each festival (automatic) + optional emails you send.
+  function greetingsCard() {
+    var card = el('div', { class: 'admin-card admin-settings' }, [
+      el('h2', { text: 'Festive greetings' }),
+      el('p', { class: 'admin-intro', text: 'During each festival a greeting banner shows on your website by itself. Emailing it is optional: tap Email everyone any time before, and it goes to your clients and recent contacts from the day before the festival, a batch a day, so your daily email limit is never used up.' })
+    ]);
+    var box = el('div', null, [el('p', { class: 'admin-hint', text: 'Loading…' })]);
+    card.appendChild(box);
+    function draw(j) {
+      box.innerHTML = '';
+      j.festivals.forEach(function (f) {
+        var d = el('details', { class: 'admin-fold' });
+        var status = !f.on ? ['Off', ''] : f.showing ? ['Showing now', 'is-won'] : ['From ' + niceDay(f.from), ''];
+        d.appendChild(el('summary', null, [el('span', { class: 'admin-fold-title', text: f.emoji + ' ' + f.name + ' · ' + niceDay(f.date) }), badge(status[0], status[1])]));
+        var on = el('input', { type: 'checkbox' }); on.checked = f.on;
+        var date = el('input', { type: 'date', value: f.date });
+        var msg = el('textarea', { rows: '3', maxlength: '400' }); msg.value = f.message;
+        var inner = el('div', { class: 'admin-golive' }, [
+          el('label', { class: 'admin-check' }, [on, ' Show the banner on my website']),
+          field('Date' + (f.moon ? ' (moon sighting: change it when the Sultan announces)' : ''), date, 'Banner shows ' + niceDay(f.from) + ' to ' + niceDay(f.to) + '.'),
+          field('Message', msg, 'Shown after "' + f.emoji + ' ' + f.title + ' from SIRRADDO!"'),
+        ]);
+        var acts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Save', onclick: function (e) {
+          var ch = {}; ch[f.id] = { on: on.checked, message: msg.value, year: f.year, date: date.value === f.date ? undefined : date.value };
+          if (ch[f.id].date === undefined) delete ch[f.id].year;
+          act({ action: 'greetings_save', changes: ch }, 'Saved', e.currentTarget);
+        } })]);
+        var em = f.email || {};
+        if (em.queued) acts.appendChild(el('span', { class: 'admin-meta', text: 'Emails: ' + em.sent + ' sent' + (em.pending ? ', ' + em.pending + ' waiting (from ' + niceDay(f.sendFrom) + ', ' + j.per_day + ' a day)' : '') + (em.failed ? ', ' + em.failed + ' failed' : '') }));
+        else acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Email everyone (' + j.audience + ')', disabled: !j.can_email || !j.audience, onclick: function (e) {
+          if (!window.confirm('Email the ' + f.title + ' greeting to ' + j.audience + ' customers? They go out from ' + niceDay(f.sendFrom) + ', up to ' + j.per_day + ' a day.')) return;
+          act({ action: 'greetings_email', key: f.key }, 'Greeting emails scheduled', e.currentTarget);
+        } }));
+        inner.appendChild(acts);
+        d.appendChild(inner);
+        box.appendChild(d);
+      });
+      box.appendChild(el('p', { class: 'admin-hint', text: 'Emails go to clients and anyone who contacted you in the last year (not marked lost). Each email has a "stop festive greetings" link.' }));
+    }
+    function act(body, okMsg, btn) {
+      if (btn) btn.disabled = true;
+      api('POST', body).then(function (j) { flash(okMsg); draw(j); }).catch(function (e) { if (btn) btn.disabled = false; fail(e); });
+    }
+    api('POST', { action: 'greetings' }).then(draw).catch(function (e) { box.innerHTML = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
+    return card;
+  }
+  function niceDay(d) { return new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
+
   // Ready-made ads that lead to sirraddo.com.ng: share straight to WhatsApp Status / Instagram from a phone,
   // or download. Images live in /assets/marketing (made from the "SIRRADDO website ads" design canvas).
   var ADS = [
@@ -292,11 +340,6 @@
       ])
     ]);
     view.appendChild(form);
-    view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
-      el('h2', { text: 'Backup' }),
-      el('p', { class: 'admin-intro', text: 'Every Monday a backup of all your business data (customers, quotes, payments, website text, orders, change requests) is emailed to you as a file. Keep those emails. You can also download one now. It contains customer details, so keep it private.' }),
-      el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Download backup now', onclick: function (e) { downloadFile('/api/requests?view=backup', 'sirraddo-backup.json.gz', e.currentTarget); } })])
-    ]));
     var l = view.querySelector('.asst-log'); if (l) l.scrollTop = l.scrollHeight;
   }
 
@@ -1406,6 +1449,12 @@
       api('POST', { action: 'settings', settings: values }).then(function (j) { state.settings = j.settings || {}; setError(''); flash('Settings saved'); }).catch(fail);
     });
     view.appendChild(form);
+    view.appendChild(greetingsCard());
+    view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
+      el('h2', { text: 'Backup' }),
+      el('p', { class: 'admin-intro', text: 'Every Monday a backup of all your business data (customers, quotes, payments, website text, orders, change requests) is emailed to you as a file. Keep those emails. You can also download one now. It contains customer details, so keep it private.' }),
+      el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Download backup now', onclick: function (e) { downloadFile('/api/requests?view=backup', 'sirraddo-backup.json.gz', e.currentTarget); } })])
+    ]));
   }
 
   // ---------- CSV export ----------

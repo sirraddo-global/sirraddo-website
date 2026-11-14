@@ -23,6 +23,7 @@ import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { ensureStoreToken, setShopPayments, listOrders } from "./_lib/shop.mjs";
 import { ensureStatsKey, siteSummary, reportHtml, dashboardTotals } from "./_lib/stats.mjs";
 import { buildBackup } from "./_lib/backup.mjs";
+import { getConfig, saveConfig, occurrences, queueEmails, emailStatus, audience, GREETING_EMAILS_PER_DAY } from "./_lib/greetings.mjs";
 import { changeLink, listChanges, markChange, freeUntil } from "./_lib/changes.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
@@ -327,6 +328,15 @@ export default async function handler(req, res) {
           console.error("admin assistant failed", e.code, e.message);
           throw new Bad(friendlyAiError(e));
         }
+      }
+      if (body.action === "greetings" || body.action === "greetings_save" || body.action === "greetings_email") {
+        try {
+          if (body.action === "greetings_save") await saveConfig(body.changes);
+          if (body.action === "greetings_email") await queueEmails(String(body.key || ""));
+        } catch (e) { throw new Bad(e.message); }
+        const list = occurrences(await getConfig());
+        for (const o of list) o.email = await emailStatus(o.key);
+        return res.status(200).json({ festivals: list, audience: (await audience()).length, per_day: GREETING_EMAILS_PER_DAY, can_email: customerEmailConfigured() });
       }
       if (["changes", "change_mark", "site_stats", "report_send", "report_toggle"].includes(body.action)) {
         const id = Number(body.id);

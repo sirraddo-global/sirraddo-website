@@ -67,6 +67,14 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS hosting JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS chat_ideas JSONB NOT NULL DEFAULT '{}'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS shop JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS greetings_off BOOLEAN NOT NULL DEFAULT false`,
+  `CREATE TABLE IF NOT EXISTS greeting_sends (
+     request_id INTEGER NOT NULL,
+     festival_key TEXT NOT NULL,
+     status TEXT NOT NULL DEFAULT 'pending',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     sent_at TIMESTAMPTZ,
+     PRIMARY KEY (request_id, festival_key))`,
   `CREATE TABLE IF NOT EXISTS change_requests (
      id SERIAL PRIMARY KEY,
      request_id INTEGER NOT NULL,
@@ -144,7 +152,7 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   draft_at, draft_error, (draft_md IS NOT NULL) AS has_draft,
   handover, preview_token, preview_status, preview_feedback, preview_approved_at,
   COALESCE((length(draft_md) - length(replace(draft_md, '[ADD:', ''))) / 5, 0) AS draft_gaps,
-  (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, hosting, chat_ideas,
+  (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, hosting, chat_ideas, greetings_off,
   (shop - 'key') || jsonb_build_object('online', COALESCE(shop->>'key', '') <> '') AS shop,
   (SELECT count(*)::int FROM change_requests c WHERE c.request_id = customer_requests.id AND c.status = 'open') AS open_changes,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('id', o->>'id', 'by', o->>'by', 'at', o->>'at', 'standard', COALESCE(o->>'css', '') = '',

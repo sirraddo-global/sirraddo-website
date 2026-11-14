@@ -10,6 +10,9 @@ import { dailyHosting, hostingRef } from "./golive.mjs";
 import { reconcileOrders } from "./shop.mjs";
 import { monthlyReports, cleanupStats } from "./stats.mjs";
 import { weeklyBackup } from "./backup.mjs";
+import { sendBatch as sendGreetingBatch, occurrences, getConfig as getGreetingConfig } from "./greetings.mjs";
+const todayIso = () => new Date(Date.now() + 3600 * 1000).toISOString().slice(0, 10);
+const addDaysIso = (d, n) => { const t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
 import { openChangeCounts } from "./changes.mjs";
 import { buildDoc, naira, balance } from "./docs.mjs";
 import { generateDraft } from "./drafts.mjs";
@@ -305,12 +308,16 @@ export async function runDaily(now = new Date()) {
   // Monthly visitor reports to customers (1st of the month), tidy old counts, and open change requests.
   if (Date.now() - started < 45000) report.monthlyReports = await monthlyReports().catch((e) => { console.error("monthly reports failed", e); return 0; });
   await cleanupStats().catch((e) => console.error("stats cleanup failed", e));
+  // Festive greeting emails you chose to send go out in daily batches.
+  if (Date.now() - started < 45000) report.greetingEmails = await sendGreetingBatch().catch((e) => { console.error("greeting emails failed", e); return 0; });
+  const festive = occurrences(await getGreetingConfig().catch(() => ({}))).filter((o) => o.on && o.from === addDaysIso(todayIso(), 1));
   if (Date.now() - started < 45000) report.backup = await weeklyBackup().catch((e) => { console.error("weekly backup failed", e); return null; });
   const openChanges = await openChangeCounts().catch(() => []);
   const byId = new Map(all.map((r) => [r.id, r]));
 
   // The morning email
   const sections = [
+    festive.length ? `<h3 style="margin:18px 0 6px">${festive.map((o) => o.emoji + " " + o.title).join(", ")} banner starts on your website tomorrow</h3><p style="margin:0">${festive.map((o) => esc(o.message)).join("<br>")}</p><p style="margin:6px 0 0">Want to email it to your customers too? Admin → Settings → Festive greetings → Email everyone.</p>` : "",
     section("Change requests waiting", openChanges.map((c) => item(byId.get(c.request_id) || { id: c.request_id, name: c.name, business: c.business },
       `${c.n} open request${c.n === 1 ? "" : "s"}, oldest from ${niceDate(new Date(c.oldest).toISOString().slice(0, 10))}. Admin → Clients → Change requests.`, null))),
     ...(host ? [

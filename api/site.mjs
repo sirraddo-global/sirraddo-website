@@ -4,12 +4,15 @@
 //   GET  /change?t=TOKEN             the owner's private "request a change" page (rewritten here in vercel.json)
 //   POST ?upload=1&t=TOKEN&name=&type=   a photo/file for a change request (body = the file)
 //   POST { t, text, files }          send the change request
+//   GET  ?greeting=1                 the festive greeting showing on sirraddo.com.ng now (or null)
+//   GET  ?nogreet=ID.SIG             stop festive greeting emails for that customer
 import { put } from "@vercel/blob";
 import { dbConfigured, getByPreviewToken, esc } from "./_lib/store.mjs";
 import { recordHit } from "./_lib/stats.mjs";
 import { addChange, listChanges, freeUntil, isFree, MAX_CHANGE_FILES } from "./_lib/changes.mjs";
 import { uploadsEnabled } from "./brief.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
+import { currentGreeting, unsubscribe } from "./_lib/greetings.mjs";
 
 const MAX_BYTES = 4 * 1024 * 1024;
 const TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"];
@@ -106,8 +109,23 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
+  if (query.greeting) {
+    // The festive banner on sirraddo.com.ng asks this; cached at the edge for 10 minutes.
+    res.setHeader("Cache-Control", "public, s-maxage=600, max-age=300");
+    if (!dbConfigured()) return res.status(200).json({ greeting: null });
+    try { return res.status(200).json({ greeting: await currentGreeting() }); } catch { return res.status(200).json({ greeting: null }); }
+  }
+
   res.setHeader("X-Robots-Tag", "noindex, nofollow");
   if (!dbConfigured()) return res.status(503).json({ error: "Not available" });
+  if (query.nogreet) {
+    const ok = await unsubscribe(query.nogreet);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.statusCode = ok ? 200 : 404;
+    return res.end(shell("Festive greetings", ok
+      ? `<div class="c"><h1>Done</h1><p>You won't get festive greeting emails from us any more. You'll still get invoices, receipts and messages about your website.</p></div>`
+      : `<div class="c"><h1>This link isn't valid</h1><p>Please message us on <a href="${WA}">WhatsApp</a> and we'll stop the greetings for you.</p></div>`));
+  }
   try {
     if (req.method === "GET") return await changePage(res, String(query.t || ""));
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });

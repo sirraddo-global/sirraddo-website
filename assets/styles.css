@@ -524,3 +524,11 @@ p { margin: 0 0 1em; }
 :root[data-theme="dark"] .form-error, :root[data-theme="dark"] .lead-error, :root[data-theme="dark"] .chat-lead-error { color: #FF8A80; }
 :root[data-theme="dark"] .hero, :root[data-theme="dark"] .page-hero, :root[data-theme="dark"] .cta-band { background: #0E1D42; }
 :root[data-theme="dark"] .site-footer { background: #070D1D; }
+
+/* Festive greeting ribbon (assets/greeting.js) */
+.greeting-bar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: #D9A21B; color: #13254F; font-size: .95rem; line-height: 1.4; }
+.greeting-bar p { margin: 0 auto; max-width: 1100px; flex: 1; text-align: center; }
+.greeting-bar--christmas { background: #0F5132; color: #FFFFFF; }
+.greeting-bar--eid_fitr, .greeting-bar--eid_adha { background: #0E5E4F; color: #FFFFFF; }
+.greeting-bar--independence { background: #008751; color: #FFFFFF; }
+.greeting-close { flex: none; width: 40px; height: 40px; border: 0; border-radius: 8px; background: rgba(255,255,255,.18); color: inherit; font-size: 24px; line-height: 1; cursor: pointer; }

@@ -210,7 +210,7 @@
   function greetingsCard() {
     var card = el('div', { class: 'admin-card admin-settings' }, [
       el('h2', { text: 'Festive greetings' }),
-      el('p', { class: 'admin-intro', text: 'During each festival a greeting banner shows on your website by itself. Emailing it is optional: tap Email everyone any time before, and it goes to your clients and recent contacts from the day before the festival, a batch a day, so your daily email limit is never used up.' })
+      el('p', { class: 'admin-intro', text: 'During each festival a greeting banner shows on your website by itself. Emailing it is optional: tap Email everyone any time before, and it goes to your clients and recent contacts from the festival day, a batch a day, so your daily email limit is never used up.' })
     ]);
     var box = el('div', null, [el('p', { class: 'admin-hint', text: 'Loading…' })]);
     card.appendChild(box);

@@ -184,7 +184,7 @@
     var view = $('view');
     view.textContent = '';
     var fn = { dashboard: renderDashboard, requests: renderRequests, clients: renderClients,
-      questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant }[state.tab];
+      questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant, marketing: renderMarketing }[state.tab];
     fn(view);
   }
 
@@ -206,6 +206,56 @@
       asst.msgs.push({ role: 'assistant', content: '⚠ ' + (e.message || 'Something went wrong') });
     }).then(function () { asst.busy = false; if (state.tab === 'assistant') { render(); var l = document.querySelector('.asst-log'); if (l) l.scrollTop = l.scrollHeight; } });
   }
+  // Ready-made ads that lead to sirraddo.com.ng: share straight to WhatsApp Status / Instagram from a phone,
+  // or download. Images live in /assets/marketing (made from the "SIRRADDO website ads" design canvas).
+  var ADS = [
+    { file: 'story-websites.jpg', title: 'Status / Story: Websites', size: '1080 × 1920',
+      caption: 'Is your business on Google yet? Get a professional website from ₦50,000, live in 7 working days 👉 https://www.sirraddo.com.ng/websites' },
+    { file: 'story-online-store.jpg', title: 'Status / Story: Online Store', size: '1080 × 1920',
+      caption: 'Let customers order and pay you online, any time 🛒 Online Store websites from ₦150,000 👉 https://www.sirraddo.com.ng/websites' },
+    { file: 'post-starter.jpg', title: 'Post: Starter ₦50,000', size: '1080 × 1080',
+      caption: 'A professional website for your business: ₦50,000 with a free .com.ng domain, hosting, SSL and business email. Live in 7 working days 👉 https://www.sirraddo.com.ng/websites' },
+    { file: 'post-how-it-works.jpg', title: 'Post: How it works', size: '1080 × 1080',
+      caption: 'Your website in 4 easy steps: chat with us, pay 70% to start, approve your preview, then go live 👉 https://www.sirraddo.com.ng/websites' },
+    { file: 'post-see-it-first.jpg', title: 'Post: See it first', size: '1080 × 1080',
+      caption: 'No surprises: see your website and pick your favourite design before paying the balance 👉 https://www.sirraddo.com.ng/websites' },
+    { file: 'banner.jpg', title: 'Banner (Facebook, groups)', size: '1200 × 630',
+      caption: 'Websites for your business from ₦50,000. Domain, hosting and business email included 👉 https://www.sirraddo.com.ng/websites' }
+  ];
+  function renderMarketing(view) {
+    view.appendChild(el('p', { class: 'admin-intro', text: 'Ads that lead people to your website. On your phone, Share opens WhatsApp, Instagram or Facebook with the picture ready (the caption is copied, so paste it in). Post one Status a day and rotate them.' }));
+    var grid = el('div', { class: 'mk-grid' });
+    ADS.forEach(function (ad) {
+      var url = '/assets/marketing/' + ad.file;
+      var actions = el('div', { class: 'admin-actions' });
+      var canShareFiles = !!(navigator.canShare && window.File);
+      if (canShareFiles) actions.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Share', onclick: function (e) {
+        var b = e.currentTarget; b.disabled = true;
+        if (navigator.clipboard) navigator.clipboard.writeText(ad.caption).catch(function () {});
+        fetch(url).then(function (r) { return r.blob(); }).then(function (blob) {
+          var file = new File([blob], 'sirraddo-' + ad.file, { type: 'image/jpeg' });
+          var data = { files: [file], text: ad.caption };
+          if (!navigator.canShare(data)) data = { files: [file] };
+          if (!navigator.canShare(data)) throw new Error('This device can\'t share pictures. Use Download instead.');
+          return navigator.share(data);
+        }).then(function () { flash('Shared. The caption is copied: paste it in.'); })
+          .catch(function (err) { if (err && err.name !== 'AbortError') fail(err); })
+          .then(function () { b.disabled = false; });
+      } }));
+      actions.appendChild(el('a', { class: 'admin-btn', href: url, download: 'sirraddo-' + ad.file, text: 'Download' }));
+      actions.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy caption', onclick: function (e) { copyText(ad.caption, 'Caption', e.currentTarget); } }));
+      grid.appendChild(el('article', { class: 'admin-card mk-card' }, [
+        el('img', { src: url, alt: ad.title, loading: 'lazy', class: 'mk-img' }),
+        el('h3', { text: ad.title }),
+        el('p', { class: 'admin-meta', text: ad.size }),
+        el('p', { class: 'mk-caption', text: ad.caption }),
+        actions
+      ]));
+    });
+    view.appendChild(grid);
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Tip: to advertise, boost the Starter post on Facebook/Instagram with ₦5,000–10,000 for a week, targeted to Ibadan. To change the designs, edit the "SIRRADDO website ads" canvas in Claude, then ask Claude to update these pictures.' }));
+  }
+
   function renderAssistant(view) {
     var job = asst.id ? state.requests.filter(function (r) { return r.id === asst.id; })[0] : null;
     var pick = select([['', 'All jobs (general help)']].concat(state.requests.slice(0, 200).map(function (r) {

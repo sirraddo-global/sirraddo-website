@@ -18,8 +18,10 @@ export async function buildBackup(now = new Date()) {
 
 export async function weeklyBackup(now = new Date()) {
   const lagos = new Date(now.getTime() + 3600 * 1000);
-  if (lagos.getUTCDay() !== 1 || !emailConfigured()) return null; // Mondays
-  const key = `backup:${lagos.toISOString().slice(0, 10)}`;
+  if (!emailConfigured()) return null;
+  // Mondays; if Monday's run ran out of time (Netlify allows 30 s), the next day's run catches up.
+  const monday = new Date(lagos.getTime() - ((lagos.getUTCDay() + 6) % 7) * 86400000);
+  const key = `backup:${monday.toISOString().slice(0, 10)}`;
   if ((await getMeta([key]))[key]) return null;
   const b = await buildBackup(now);
   const list = Object.entries(b.counts).map(([k, n]) => `<li>${k.replace(/_/g, " ")}: ${n}</li>`).join("");

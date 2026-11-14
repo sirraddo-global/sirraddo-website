@@ -24,7 +24,7 @@ export const owing = (r) => r?.quote_amount != null && balance(r) > 0;
 export const BALANCE_GRACE_DAYS = 7;
 
 const need = () => {
-  if (!cloudflareConfigured()) throw new Bad("Cloudflare isn't connected yet. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in Vercel (see Setup status).");
+  if (!cloudflareConfigured()) throw new Bad("Cloudflare isn't connected yet. Add CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in Netlify (see Setup status).");
 };
 
 // 1. Add the customer's domain to Cloudflare. Returns the nameservers to set at the registrar.

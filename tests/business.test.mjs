@@ -215,11 +215,13 @@ test("backup: download has every table; Monday's email goes once with the file a
   assert.ok(data.tables.customer_requests.length >= 3);
   const { weeklyBackup } = await import("../api/_lib/backup.mjs");
   const n = h.sent.length;
-  assert.equal(await weeklyBackup(new Date("2026-11-17T06:00:00Z")), null, "not on a Tuesday");
   assert.ok(await weeklyBackup(new Date("2026-11-16T06:00:00Z")), "Monday");
   assert.equal(await weeklyBackup(new Date("2026-11-16T09:00:00Z")), null, "once per Monday");
+  assert.equal(await weeklyBackup(new Date("2026-11-17T06:00:00Z")), null, "not again on Tuesday");
+  assert.ok(await weeklyBackup(new Date("2026-11-24T06:00:00Z")), "Monday 23rd missed: Tuesday catches up");
+  assert.equal(await weeklyBackup(new Date("2026-11-25T06:00:00Z")), null, "and only once");
   const mail = h.newMail(n);
-  assert.equal(mail.length, 1);
+  assert.equal(mail.length, 2);
   assert.match(mail[0].attachments[0].filename, /sirraddo-backup-2026-11-16\.json\.gz/);
 });
 

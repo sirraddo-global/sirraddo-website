@@ -19,7 +19,7 @@ export function shopProducts(brief) {
 // ---------- The store owner's Paystack key, encrypted at rest ----------
 function cryptoKey() {
   const secret = process.env.STORE_KEYS_SECRET || process.env.CRON_SECRET || "";
-  if (secret.length < 16) throw new Error("Set STORE_KEYS_SECRET (or CRON_SECRET) in Vercel first");
+  if (secret.length < 16) throw new Error("Set STORE_KEYS_SECRET (or CRON_SECRET) in Netlify first");
   return createHash("sha256").update("sirraddo-store-keys:" + secret).digest();
 }
 export function sealKey(plain) {

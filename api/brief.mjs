@@ -5,10 +5,10 @@
 import { getBrief, saveBrief, removeBriefFile, sendEmail, emailConfigured, esc } from "./_lib/store.mjs";
 import { kindFor, KIND_LABEL, schemaFor, cleanAnswers, missingRequired, fileField } from "./_lib/brief-schema.mjs";
 import { IDEA_LABELS } from "./_lib/ideas.mjs";
-import { waitUntil } from "@vercel/functions";
+import { waitUntil, filesEnabled } from "./_lib/platform.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
 
-export const uploadsEnabled = () => Boolean(globalThis.__TEST_BLOB__ || process.env.BLOB_READ_WRITE_TOKEN);
+export const uploadsEnabled = filesEnabled;
 import { SITE } from "./_lib/automation.mjs";
 
 function publicView(row) {

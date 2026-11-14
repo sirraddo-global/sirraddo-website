@@ -1,5 +1,5 @@
 // Cloudflare: hosting customer websites on Cloudflare Pages (free), their domains (DNS zones) and email forwarding.
-// Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in Vercel. The token needs (Custom token):
+// Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in Netlify. The token needs (Custom token):
 //   Account · Cloudflare Pages · Edit
 //   Account · Email Routing Addresses · Edit
 //   Zone · Zone · Edit, Zone · DNS · Edit, Zone · Email Routing Rules · Edit   (Zone resources: All zones from the account)

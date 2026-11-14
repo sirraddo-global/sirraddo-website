@@ -10,6 +10,7 @@ import { dailyHosting, hostingRef } from "./golive.mjs";
 import { reconcileOrders } from "./shop.mjs";
 import { monthlyReports, cleanupStats } from "./stats.mjs";
 import { weeklyBackup } from "./backup.mjs";
+import { FUNCTION_BUDGET_MS } from "./platform.mjs";
 import { sendBatch as sendGreetingBatch, occurrences, getConfig as getGreetingConfig } from "./greetings.mjs";
 const todayIso = () => new Date(Date.now() + 3600 * 1000).toISOString().slice(0, 10);
 const addDaysIso = (d, n) => { const t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
@@ -198,6 +199,7 @@ const section = (title, items) => (items.length ? `<h3 style="margin:18px 0 6px;
 
 export async function runDaily(now = new Date()) {
   const started = Date.now();
+  const budget = FUNCTION_BUDGET_MS(); // Netlify stops a run at 30 s: later steps wait for tomorrow if time runs short
   const today = todayLagos(now);
   const settings = await getSettings();
   const tpl = (k) => settings[k] || TEMPLATES[k];
@@ -274,13 +276,13 @@ export async function runDaily(now = new Date()) {
 
   // Catch up on website text drafts that didn't get written when the form came in (one per run).
   const needsDraft = all.find((r) => r.brief_submitted_at && !r.has_draft);
-  if (needsDraft && Date.now() - started < 20000) {
-    const res = await generateDraft(needsDraft.id, 30000);
+  if (needsDraft && Date.now() - started < budget * 0.3) {
+    const res = await generateDraft(needsDraft.id, Math.min(30000, budget * 0.5));
     if (res.ok) { needsDraft.has_draft = true; report.draftsWritten = 1; }
   }
 
   // Customer websites on Cloudflare: domains that went active, pause overdue renewals, restore paid ones.
-  const host = Date.now() - started < 35000 ? await dailyHosting(all, now) : null;
+  const host = Date.now() - started < budget * 0.65 ? await dailyHosting(all, now) : null;
   if (host) {
     for (const r of host.balancePaused) {
       const to = customerEmail(r);
@@ -303,15 +305,15 @@ export async function runDaily(now = new Date()) {
   }
 
   // Online Store payments where the buyer closed the page before coming back: confirm and email the order.
-  if (Date.now() - started < 45000) report.storeOrdersConfirmed = await reconcileOrders().catch((e) => { console.error("store reconcile failed", e); return 0; });
+  if (Date.now() - started < budget * 0.82) report.storeOrdersConfirmed = await reconcileOrders().catch((e) => { console.error("store reconcile failed", e); return 0; });
 
   // Monthly visitor reports to customers (1st of the month), tidy old counts, and open change requests.
-  if (Date.now() - started < 45000) report.monthlyReports = await monthlyReports().catch((e) => { console.error("monthly reports failed", e); return 0; });
+  if (Date.now() - started < budget * 0.82) report.monthlyReports = await monthlyReports().catch((e) => { console.error("monthly reports failed", e); return 0; });
   await cleanupStats().catch((e) => console.error("stats cleanup failed", e));
   // Festive greeting emails you chose to send go out in daily batches.
-  if (Date.now() - started < 45000) report.greetingEmails = await sendGreetingBatch().catch((e) => { console.error("greeting emails failed", e); return 0; });
+  if (Date.now() - started < budget * 0.82) report.greetingEmails = await sendGreetingBatch().catch((e) => { console.error("greeting emails failed", e); return 0; });
   const festive = occurrences(await getGreetingConfig().catch(() => ({}))).filter((o) => o.on && o.from === addDaysIso(todayIso(), 1));
-  if (Date.now() - started < 45000) report.backup = await weeklyBackup().catch((e) => { console.error("weekly backup failed", e); return null; });
+  if (Date.now() - started < budget * 0.82) report.backup = await weeklyBackup().catch((e) => { console.error("weekly backup failed", e); return null; });
   const openChanges = await openChangeCounts().catch(() => []);
   const byId = new Map(all.map((r) => [r.id, r]));
 

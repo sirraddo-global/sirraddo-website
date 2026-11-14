@@ -23,6 +23,7 @@ import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { ensureStoreToken, setShopPayments, listOrders } from "./_lib/shop.mjs";
 import { ensureStatsKey, siteSummary, reportHtml, dashboardTotals } from "./_lib/stats.mjs";
 import { buildBackup } from "./_lib/backup.mjs";
+import { FUNCTION_BUDGET_MS } from "./_lib/platform.mjs";
 import { addHandoverExtras } from "./_lib/handover.mjs";
 import { getConfig, saveConfig, occurrences, queueEmails, emailStatus, audience, GREETING_EMAILS_PER_DAY } from "./_lib/greetings.mjs";
 import { changeLink, listChanges, markChange, freeUntil } from "./_lib/changes.mjs";
@@ -286,7 +287,7 @@ export default async function handler(req, res) {
       if (body.action === "write_draft") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");
-        const result = await generateDraft(id, 50000);
+        const result = await generateDraft(id, FUNCTION_BUDGET_MS() - 2000);
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(await getRequest(id));
       }
@@ -321,15 +322,19 @@ export default async function handler(req, res) {
         while (msgs.length && msgs[0].role !== "user") msgs.shift();
         if (!msgs.length || msgs[msgs.length - 1].role !== "user") throw new Bad("Ask a question");
         const provider = pickProvider();
-        if (!provider) throw new Bad("No AI key is set in Vercel (GEMINI_API_KEY or ANTHROPIC_API_KEY)");
+        if (!provider) throw new Bad("No AI key is set in Netlify (GEMINI_API_KEY or ANTHROPIC_API_KEY)");
         const id = Number.isInteger(Number(body.id)) && Number(body.id) > 0 ? Number(body.id) : null;
         try {
-          const out = await provider.call(provider.start(msgs), await assistantSystem(id), [], 45000, { maxTokens: 1500, attemptMs: 40000 });
+          const out = await provider.call(provider.start(msgs), await assistantSystem(id), [], FUNCTION_BUDGET_MS() - 3000, { maxTokens: 1500, attemptMs: FUNCTION_BUDGET_MS() - 5000 });
           return res.status(200).json({ reply: (out.text || "").trim() || "Sorry, I couldn't answer that. Try asking another way." });
         } catch (e) {
           console.error("admin assistant failed", e.code, e.message);
           throw new Bad(friendlyAiError(e));
         }
+      }
+      if (body.action === "move_files") {
+        const { moveOldFiles } = await import("./_lib/move-files.mjs");
+        return res.status(200).json(await moveOldFiles(FUNCTION_BUDGET_MS() - 6000));
       }
       if (body.action === "greetings" || body.action === "greetings_save" || body.action === "greetings_email") {
         try {
@@ -402,7 +407,7 @@ export default async function handler(req, res) {
       if (body.action === "send_doc") {
         const id = Number(body.id);
         if (!Number.isInteger(id) || !DOC_TYPES.includes(body.type)) throw new Bad("Missing id or document type");
-        if (!customerEmailConfigured()) throw new Bad("Emailing customers isn't set up yet: verify your domain in Resend and set LEAD_EMAIL_FROM in Vercel. Send it on WhatsApp for now.");
+        if (!customerEmailConfigured()) throw new Bad("Emailing customers isn't set up yet: verify your domain in Resend and set LEAD_EMAIL_FROM in Netlify. Send it on WhatsApp for now.");
         const row = (await ensureDocToken(id)) || (await getRequest(id));
         if (!row) return res.status(404).json({ error: "Not found" });
         const to = customerEmail(row);

@@ -43,8 +43,32 @@ const letterhead = () => `
 const footNote = `<p style="margin-top:28px;font-size:12px;color:#4A5568;border-top:1px solid #E1E6EF;padding-top:8px;">${COMPANY.name} is a private company limited by shares, registered with the Corporate Affairs Commission of Nigeria (${COMPANY.rc}).</p>`;
 
 // Everything the customer needs once their site is live. Passwords are never in here: they go privately on WhatsApp.
+// The handover details: what you typed wins; anything left empty is filled from what the admin already knows
+// (the Go live domain and email set-up, your usual registrar, go-live date + 1 year). Mirrored in admin.js.
+export function handoverAuto(r, settings = {}) {
+  const typed = r.handover || {};
+  const host = r.hosting || {};
+  const mail = host.email || {};
+  const ours = typed.domain_by !== "customer";
+  const auto = {
+    domain: host.domain || "",
+    registrar: ours ? settings.default_registrar || "" : "",
+    domain_expires: ours && r.live_on ? plusYear(r.live_on) : "",
+    emails: host.domain && mail.locals?.length ? mail.locals.map((l) => `${l}@${host.domain}`).join("\n") : "",
+    inbox: mail.to || "",
+  };
+  const out = { ...typed };
+  for (const [k, v] of Object.entries(auto)) if (!String(out[k] ?? "").trim() && v) out[k] = v;
+  return out;
+}
+function plusYear(d) {
+  const t = new Date(String(d).slice(0, 10) + "T12:00:00Z");
+  t.setUTCFullYear(t.getUTCFullYear() + 1);
+  return t.toISOString().slice(0, 10);
+}
+
 function handoverDoc(r, settings) {
-  const h = r.handover || {};
+  const h = handoverAuto(r, settings);
   const year = new Date().getFullYear();
   const number = `SGL-HND-${year}-${String(r.id).padStart(4, "0")}`;
   const td = "padding:9px 6px;border-bottom:1px solid #E1E6EF;vertical-align:top;";
@@ -62,6 +86,7 @@ function handoverDoc(r, settings) {
     row("Website", link(r.website_url)),
     row("Went live", r.live_on ? niceDate(r.live_on) : ""),
     row("Package", esc(r.interest)),
+    row("Your pages", (r.page_names || []).map(esc).join(" · ")),
   ])}
   ${section("Domain name", [
     row("Domain", h.domain ? esc(h.domain) : ""),
@@ -70,14 +95,25 @@ function handoverDoc(r, settings) {
   ])}
   ${section("Business email", [
     row(emails.length > 1 ? "Addresses" : "Address", emails.map(esc).join("<br>")),
+    row("Emails arrive in", h.inbox && emails.length ? `${esc(h.inbox)}<br><span style="color:#4A5568;font-size:13px">Messages sent to your business address come straight to this inbox, so there's nothing new to log in to.</span>` : ""),
     row("Read your email at", h.webmail ? link(h.webmail) : ""),
   ])}
+  ${r.interest === "Online Store" ? section("Your online store", [
+    row("Pay online", r.shop?.online ? "ON: customers pay by card, transfer or USSD, straight into your own Paystack account." : "Customers order on WhatsApp. We can switch on online payment (into your own Paystack account) any time."),
+    row("Delivery fee", r.shop?.online && r.shop?.deliveryFee ? naira(r.shop.deliveryFee) + " (added at checkout)" : ""),
+    row("Order alerts go to", esc(r.shop?.notify || r.brief?.order_alerts || r.email || "")),
+  ]) : ""}
+  ${r.website_url ? section("Found on Google", [
+    row("Your sitemap", link(r.website_url.replace(/\/$/, "") + "/sitemap.xml")),
+    row("Next step", "Add your business to Google Business Profile (free) with your website link, so you show up on Google Maps. Ask us if you'd like help."),
+  ]) : ""}
   ${h.has_logins ? section("Logins", [row("Passwords", "For your safety, we send passwords privately on WhatsApp, never by email. Please change each password the first time you log in, and don't share it.")]) : section("Changes to your website", [row("How", "We look after your website for you, so there's nothing to log in to. Send us the change on WhatsApp and we'll update it.")])}
   ${section("Renewal", [
     row("Yearly renewal", r.renewal_amount ? naira(r.renewal_amount) : ""),
     row("Next renewal due", r.renewal_due ? niceDate(r.renewal_due) : ""),
     row("What it covers", "Domain, hosting, SSL certificate (the padlock), business email and backups. We remind you before it is due."),
   ])}
+  ${r.hosting?.statsKey && !r.hosting?.reportsOff ? section("Your monthly report", [row("Visitors", "On the 1st of every month we email you how many people visited your website, which pages they looked at and how many tapped WhatsApp.")]) : ""}
   ${section("Changes and support", [row("Our policy", esc(settings.handover_terms || DEFAULT_HANDOVER_TERMS)), r.change_link ? row("Request a change", `<a href="${esc(r.change_link)}">Your private change request link</a> (keep it; send text and photos any time)`) : "", row("Contact us", `WhatsApp ${COMPANY.phone} · ${COMPANY.email}`)])}
   <h2 style="font-size:17px;color:#13254F;margin:22px 0 6px">Getting more customers from your website</h2>
   <ul style="margin:0 0 10px;padding-left:20px">

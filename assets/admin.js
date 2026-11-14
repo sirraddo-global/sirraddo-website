@@ -1111,19 +1111,29 @@
     var locked = r.quote_amount == null || bal > 0;
     box.appendChild(el('p', { class: 'admin-meta' }, [sent ? badge('Sent', 'is-won') : badge(locked ? 'Locked' : 'Ready to send', locked ? '' : 'is-new'),
       ' ' + (sent ? 'Emailed ' + when(sent) : locked ? (r.quote_amount == null ? 'Add the quote first.' : 'Unlocks when the balance (' + naira(bal) + ') is paid.') : 'Fill in the details, then send.')]));
-    var domain = el('input', { value: h.domain || '', placeholder: 'theirbusiness.com.ng' });
-    var registrar = el('input', { value: h.registrar || '', placeholder: 'e.g. Whogohost' });
-    var expires = el('input', { type: 'date', value: h.domain_expires || '' });
-    var emails = el('textarea', { rows: 2, value: h.emails || '', placeholder: 'info@theirbusiness.com.ng (addresses only, no passwords)' });
-    var webmail = el('input', { value: h.webmail || '', placeholder: 'Webmail link, e.g. https://mail.zoho.com' });
+    // Empty boxes are filled from Go live, your usual registrar (Settings) and the go-live date; what you type wins.
+    var auto = handoverAuto(r);
+    var by = el('select', null, [el('option', { value: 'us', text: 'We bought it for them' }), el('option', { value: 'customer', text: 'Their own domain' })]);
+    by.value = h.domain_by === 'customer' ? 'customer' : 'us';
+    var domain = el('input', { value: auto.domain || '', placeholder: 'theirbusiness.com.ng' });
+    var registrar = el('input', { value: auto.registrar || '', placeholder: 'e.g. Whogohost' });
+    var expires = el('input', { type: 'date', value: auto.domain_expires || '' });
+    var emails = el('textarea', { rows: 2, value: auto.emails || '', placeholder: 'info@theirbusiness.com.ng (addresses only, no passwords)' });
+    var inbox = el('input', { value: auto.inbox || '', placeholder: 'Where their business emails arrive, e.g. ada@gmail.com' });
+    var webmail = el('input', { value: h.webmail || '', placeholder: 'Only if they log in to a mailbox, e.g. https://mail.zoho.com' });
     var notes = el('textarea', { rows: 2, value: h.notes || '', placeholder: 'Anything else for them (optional)' });
     var logins = el('input', { type: 'checkbox' }); logins.checked = Boolean(h.has_logins);
-    box.appendChild(el('div', { class: 'admin-grid' }, [field('Domain', domain), field('Registered with', registrar), field('Domain registered until', expires), field('Webmail', webmail)]));
-    box.appendChild(field('Business email addresses', emails));
+    by.addEventListener('change', function () {
+      var t = handoverAuto({ handover: Object.assign({}, h, { domain_by: by.value, registrar: '', domain_expires: '' }), hosting: r.hosting, live_on: r.live_on });
+      registrar.value = t.registrar || ''; expires.value = t.domain_expires || '';
+    });
+    box.appendChild(el('div', { class: 'admin-grid' }, [field('Domain', domain), field('Who bought the domain?', by), field('Registered with', registrar), field('Domain registered until', expires)]));
+    box.appendChild(el('div', { class: 'admin-grid' }, [field('Business email addresses', emails), field('Emails arrive in', inbox), field('Webmail', webmail)]));
     box.appendChild(field('Note for the customer', notes));
     box.appendChild(el('label', { class: 'admin-check' }, [logins, ' I set up logins for them (e.g. Zoho mailboxes). The pack then says passwords come privately on WhatsApp.']));
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Filled in for you from Go live (domain, email set-up), your usual registrar in Settings and the go-live date + 1 year. Check and change anything that is different. The pack also lists their pages, their store settings, their sitemap and the monthly report.' }));
     var save = el('button', { class: 'admin-btn', type: 'button', text: 'Save handover details', onclick: function () {
-      update(r, { handover: { domain: domain.value, registrar: registrar.value, domain_expires: expires.value, emails: emails.value, webmail: webmail.value, notes: notes.value, has_logins: logins.checked } }, 'Handover details saved');
+      update(r, { handover: { domain_by: by.value, domain: domain.value, registrar: registrar.value, domain_expires: expires.value, emails: emails.value, inbox: inbox.value, webmail: webmail.value, notes: notes.value, has_logins: logins.checked } }, 'Handover details saved');
     } });
     var ready = !locked && r.website_url;
     var why = locked ? 'Unlocks when the balance is paid' : !r.website_url ? 'Add their website address above first' : null;
@@ -1134,6 +1144,24 @@
     box.appendChild(acts);
     box.appendChild(el('p', { class: 'admin-hint', text: 'Save the details before sending. Usually there are no passwords: the website is managed by you and email forwarding goes to their own inbox. If you did set up logins, send them privately on WhatsApp, never by email.' }));
     return box;
+  }
+
+  // Same rules as handoverAuto() in api/_lib/docs.mjs.
+  function handoverAuto(r) {
+    var typed = r.handover || {}, host = r.hosting || {}, mail = host.email || {};
+    var ours = typed.domain_by !== 'customer';
+    var expires = '';
+    if (ours && r.live_on) { var t = new Date(String(r.live_on).slice(0, 10) + 'T12:00:00Z'); t.setUTCFullYear(t.getUTCFullYear() + 1); expires = t.toISOString().slice(0, 10); }
+    var a = {
+      domain: host.domain || '',
+      registrar: ours ? (state.settings || {}).default_registrar || '' : '',
+      domain_expires: expires,
+      emails: host.domain && mail.locals && mail.locals.length ? mail.locals.map(function (l) { return l + '@' + host.domain; }).join('\n') : '',
+      inbox: mail.to || ''
+    };
+    var out = Object.assign({}, typed);
+    Object.keys(a).forEach(function (k) { if (!String(out[k] == null ? '' : out[k]).trim() && a[k]) out[k] = a[k]; });
+    return out;
   }
 
   // A small Markdown renderer for the draft: headings, bold, lists, rules, paragraphs.
@@ -1440,6 +1468,7 @@
     Object.keys(TEMPLATES).forEach(function (k) { form.appendChild(text(k, TEMPLATES[k].label, TEMPLATES[k].text, true)); });
     form.appendChild(el('h2', { text: 'Handover pack' }));
     form.appendChild(text('handover_terms', 'Changes and support policy (shown in every handover pack)', DEFAULT_HANDOVER_TERMS, true));
+    form.appendChild(text('default_registrar', 'Domains I buy for customers are registered with (fills the handover pack)', 'e.g. Whogohost'));
     form.appendChild(el('button', { class: 'btn btn--navy', type: 'submit', text: 'Save settings' }));
     form.addEventListener('submit', function (e) {
       e.preventDefault();

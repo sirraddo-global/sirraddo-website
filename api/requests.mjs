@@ -23,6 +23,7 @@ import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
 import { ensureStoreToken, setShopPayments, listOrders } from "./_lib/shop.mjs";
 import { ensureStatsKey, siteSummary, reportHtml, dashboardTotals } from "./_lib/stats.mjs";
 import { buildBackup } from "./_lib/backup.mjs";
+import { addHandoverExtras } from "./_lib/handover.mjs";
 import { getConfig, saveConfig, occurrences, queueEmails, emailStatus, audience, GREETING_EMAILS_PER_DAY } from "./_lib/greetings.mjs";
 import { changeLink, listChanges, markChange, freeUntil } from "./_lib/changes.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
@@ -127,7 +128,8 @@ function cleanFields(body) {
     if (webmail && !/^https?:\/\//i.test(webmail)) webmail = "https://" + webmail;
     out.handover = {
       domain: text(h.domain, 200).toLowerCase(), registrar: text(h.registrar, 120), domain_expires: date(h.domain_expires),
-      emails: text(h.emails, 1000), webmail, notes: text(h.notes, 2000), has_logins: h.has_logins === true,
+      emails: text(h.emails, 1000), inbox: text(h.inbox, 200), webmail, notes: text(h.notes, 2000), has_logins: h.has_logins === true,
+      domain_by: h.domain_by === "customer" ? "customer" : "us",
     };
   }
   if (has("payments")) {
@@ -405,7 +407,7 @@ export default async function handler(req, res) {
         if (!row) return res.status(404).json({ error: "Not found" });
         const to = customerEmail(row);
         if (!to) throw new Bad("This customer has no email address. Add one under Edit customer details.");
-        if (body.type === "handover") row.change_link = await changeLink(id);
+        if (body.type === "handover") await addHandoverExtras(row);
         const doc = buildDoc(row, body.type, await getSettings());
         if (doc.error) throw new Bad(doc.error);
         const link = `${SITE}/doc?t=${row.doc_token}&type=${body.type}`;

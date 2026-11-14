@@ -84,3 +84,16 @@ test("Move old uploads copies Vercel Blob files and swaps every link", async () 
   assert.equal(await (await fetch(row.brief_files.logo[0].url)).text(), "PNG");
   assert.equal((await h.action({ action: "move_files" })).json.found, 0, "second tap: nothing left");
 });
+
+test("a wrong ANTHROPIC_API_KEY falls back to Gemini instead of failing", async () => {
+  const prev = globalThis.fetch;
+  process.env.ANTHROPIC_API_KEY = "wrong";
+  globalThis.fetch = (u, o) => String(u).includes("api.anthropic.com")
+    ? Promise.resolve(new Response('{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}', { status: 401 }))
+    : prev(u, o);
+  try {
+    const r = await h.action({ action: "assistant", messages: [{ role: "user", content: "Which jobs need my attention today?" }] });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.ok(r.json.reply);
+  } finally { globalThis.fetch = prev; delete process.env.ANTHROPIC_API_KEY; }
+});

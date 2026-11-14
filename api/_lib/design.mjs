@@ -70,7 +70,7 @@ export async function generateDesign(id, budgetMs = FUNCTION_BUDGET_MS() - 2000)
       { maxTokens: budgetMs < 40000 ? 4000 : 6000, attemptMs: budgetMs - 2000, model });
     const cssText = cleanCss(out.text);
     if (cssText.replace(/\/\*[\s\S]*?\*\//g, "").trim().length < 200) throw new Error("The AI didn't return a usable design");
-    const by = provider.name === "anthropic" ? `Claude (${model})` : "Gemini";
+    const by = (out.provider || provider.name) === "anthropic" ? `Claude (${model})` : "Gemini";
     const opt = { id: newId(), css: cssText, by, at: new Date().toISOString() };
     await setDesignOptions(id, [...options, opt], opt);
     return { ok: true, by };

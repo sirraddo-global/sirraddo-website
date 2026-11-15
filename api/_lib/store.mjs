@@ -155,6 +155,7 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, hosting, chat_ideas, greetings_off,
   (shop - 'key') || jsonb_build_object('online', COALESCE(shop->>'key', '') <> '') AS shop,
   (SELECT count(*)::int FROM change_requests c WHERE c.request_id = customer_requests.id AND c.status = 'open') AS open_changes,
+  jsonb_build_object('emails', brief->>'email_names', 'emails5', brief->>'email_names_5', 'paystack', brief->>'paystack', 'gbp_gmail', brief->>'gbp_gmail') AS brief_wants,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('id', o->>'id', 'by', o->>'by', 'at', o->>'at', 'standard', COALESCE(o->>'css', '') = '',
     'current', COALESCE(o->>'css', '') = COALESCE(design_css, ''))) FROM jsonb_array_elements(design_options) o), '[]'::jsonb) AS design_choices`;
 

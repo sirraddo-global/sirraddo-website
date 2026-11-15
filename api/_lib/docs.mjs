@@ -1,6 +1,7 @@
 // Invoices and receipts. One builder for the web page (/doc?t=...), the customer email and printing.
 // Uses inline styles so the same HTML looks right in email apps.
 import { esc } from "./store.mjs";
+import { emailAllowance } from "./brief-schema.mjs";
 
 export const COMPANY = {
   name: "SIRRADDO GLOBAL LIMITED",
@@ -56,6 +57,7 @@ export function handoverAuto(r, settings = {}) {
     domain_expires: ours && r.live_on ? plusYear(r.live_on) : "",
     emails: host.domain && mail.locals?.length ? mail.locals.map((l) => `${l}@${host.domain}`).join("\n") : "",
     inbox: mail.to || "",
+    gbp_owner: r.brief_wants?.gbp_gmail || "",
   };
   const out = { ...typed };
   for (const [k, v] of Object.entries(auto)) if (!String(out[k] ?? "").trim() && v) out[k] = v;
@@ -97,15 +99,26 @@ function handoverDoc(r, settings) {
     row(emails.length > 1 ? "Addresses" : "Address", emails.map(esc).join("<br>")),
     row("Emails arrive in", h.inbox && emails.length ? `${esc(h.inbox)}<br><span style="color:#4A5568;font-size:13px">Messages sent to your business address come straight to this inbox, so there's nothing new to log in to.</span>` : ""),
     row("Read your email at", h.webmail ? link(h.webmail) : ""),
+    row("Replying", h.inbox && emails.length && !h.webmail ? `When you reply, the email goes out from ${esc(h.inbox)}. If you'd like to send from your business address too, ask us about a mailbox.` : ""),
+    row("More addresses", emailAllowance(r.interest) > emails.length && emails.length ? `Your package includes ${emailAllowance(r.interest)}. You can have ${emailAllowance(r.interest) - emails.length} more at no extra cost: just tell us the names (for example sales@).` : ""),
   ])}
   ${r.interest === "Online Store" ? section("Your online store", [
-    row("Pay online", r.shop?.online ? "ON: customers pay by card, transfer or USSD, straight into your own Paystack account." : "Customers order on WhatsApp. We can switch on online payment (into your own Paystack account) any time."),
+    row("Pay online", r.shop?.online ? "ON: customers pay by card, transfer or USSD, straight into your own Paystack account." : r.brief_wants?.paystack === "Please help me set one up" && !h.whatsapp_only ? "Being set up: as soon as Paystack approves your account, we switch on online payment. Until then customers order on WhatsApp." : "Customers order on WhatsApp. We can switch on online payment (into your own Paystack account) any time."),
+    row("Your Paystack account", r.shop?.online ? `It's yours, in your name: log in at ${link("https://dashboard.paystack.com")}${h.paystack_email ? " with " + esc(h.paystack_email) : ""} to see every payment and your payouts to your bank. We never hold your money. Never share your Paystack password or secret key with anyone.` : ""),
     row("Delivery fee", r.shop?.online && r.shop?.deliveryFee ? naira(r.shop.deliveryFee) + " (added at checkout)" : ""),
     row("Order alerts go to", esc(r.shop?.notify || r.brief?.order_alerts || r.email || "")),
   ]) : ""}
   ${r.website_url ? section("Found on Google", [
+    row("Google Business Profile", h.gbp_done ? `Set up${h.gbp_owner ? `, owned by ${esc(h.gbp_owner)}` : ""}. Manage it at ${link("https://business.google.com")} or in the Google Maps app with that Gmail: update your hours, add photos and reply to reviews. We're added as a manager so we can help.` : ""),
     row("Your sitemap", link(r.website_url.replace(/\/$/, "") + "/sitemap.xml")),
-    row("Next step", "Add your business to Google Business Profile (free) with your website link, so you show up on Google Maps. Ask us if you'd like help."),
+    row("Next step", h.gbp_done ? "" : "Add your business to Google Business Profile (free) with your website link, so you show up on Google Maps. Ask us if you'd like help."),
+  ]) : ""}
+  ${section("What belongs to you", [
+    row("Yours to keep", "Your domain name, logo, photos and website text belong to you. If you ever move to another provider, we give you the domain transfer code and a copy of your website files."),
+    row("Your logo and photos", (r.files || []).map((f) => `<a href="${esc(f.url)}" style="color:#13254F">${esc(f.name)}</a>`).join("<br>")),
+  ])}
+  ${r.quote_amount != null ? section("Payments", [
+    row("Paid", `${naira(projectPaid(r))} for your ${esc(r.interest)}: paid in full. A receipt was emailed for each payment; ask us if you need a copy.`),
   ]) : ""}
   ${h.has_logins ? section("Logins", [row("Passwords", "For your safety, we send passwords privately on WhatsApp, never by email. Please change each password the first time you log in, and don't share it.")]) : section("Changes to your website", [row("How", "We look after your website for you, so there's nothing to log in to. Send us the change on WhatsApp and we'll update it.")])}
   ${section("Renewal", [
@@ -122,6 +135,8 @@ function handoverDoc(r, settings) {
     <li>Tell us when your prices, hours or phone number change, so your site stays correct.</li>
   </ul>
   ${h.notes ? `<p style="background:#FFF8E6;border-left:4px solid #D9A21B;padding:10px 12px">${esc(h.notes).replace(/\n/g, "<br>")}</p>` : ""}
+  <h2 style="font-size:17px;color:#13254F;margin:22px 0 6px">Need help?</h2>
+  <p style="margin:0 0 10px">WhatsApp or call ${esc(COMPANY.phone)} · ${esc(COMPANY.email)}. Please quote No. ${number}.</p>
   ${footNote}
 </div>`;
   return { title: "WEBSITE HANDOVER", number, subject: `Your website is live: handover pack ${number}`, html };

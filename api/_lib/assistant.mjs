@@ -1,7 +1,8 @@
 // The admin assistant: helps the owner run every job from lead to handover, and fix things that go wrong.
 // It sees the state of the job it's asked about (never any keys or passwords) and the Setup status.
 // Advice only: it tells you what to tap or type; it doesn't change anything itself.
-import { getRequest, reference, listRequests } from "./store.mjs";
+import { getRequest, reference, listRequests, getSettings } from "./store.mjs";
+import { handoverChecklist, checklistText, wantedEmails, emailAllowance } from "./handover-check.mjs";
 import { setupStatus } from "./setup.mjs";
 import { balance } from "./docs.mjs";
 import { todayLagos } from "./automation.mjs";
@@ -17,6 +18,10 @@ export const REGISTRAR_GUIDE = `CHANGING NAMESERVERS AT DOMAIN SELLERS (menu nam
 - .ng / .com.ng changes usually show within 1–24 hours (occasionally 48). Admin checks every morning; "Check now" re-checks.`;
 
 const SYSTEM = `You are the operations assistant for SIRRADDO GLOBAL LIMITED's website-design business (Ibadan, Nigeria). You talk to the owner, Ridwan, inside his admin page at www.sirraddo.com.ng/admin. Help him run each job from lead to handover and fix anything that goes wrong.
+
+WHAT'S NEXT
+- When asked what's next (or what's left) for a job, go through its HANDOVER CHECKLIST below: list every ✗ item in order with its exact fix, and mention what's already ✓ in one line. Don't skip items. When every item is ✓, say the job is complete and only change requests remain (free small fixes for 30 days after going live, then quoted).
+- If no job is selected and it matters, ask which one (or answer for jobs whose checklist has ✗ items).
 
 HOW TO ANSWER
 - Short, practical, mobile-friendly. Lead with the answer or the next action. Numbered steps for procedures. Name the exact admin button or the exact setting.
@@ -36,9 +41,10 @@ THE JOB FLOW (admin names in quotes)
 6. Designs: Website preview → "AI design" (up to 3; or add the standard design). With 2+ the customer picks Design A/B/C on the preview.
 7. Preview: "Send on WhatsApp" or "Email preview". Customer taps Approve or Send changes; owner gets an email. On approval the balance invoice is emailed with Pay online. Changes asked → edit text/design → send preview again.
 8. Go live (Clients → "Go live"): "Add domain to Cloudflare" → set the 2 nameservers shown at their domain seller ("Copy nameservers", "Ask customer on WhatsApp", "Check now") → "Publish website". With a balance owed it only goes to the free .pages.dev address; their domain connects by itself once the balance is paid; if still unpaid 7 days after publishing, the site pauses itself and comes back when paid. First publish marks the project Live and sets the renewal date a year ahead.
-9. Business email: Go live → "Set up email forwarding" (e.g. info, sales → their Gmail). Cloudflare emails them a confirmation link; forwarding starts once they tap it.
+9. Business email: Starter includes 1 address, Business and Online Store up to 5. The names they want are in the project form ("info@, sales@"). Go live → "Set up email forwarding": type every name (info, sales, ada) and their own Gmail as the inbox; to add more later, set it up again with ALL the names (old + new). Cloudflare emails them a confirmation link once; forwarding starts when they tap it (check Spam). Forwarding only receives: their replies go out from their Gmail. If they must SEND from info@, they need a real mailbox (e.g. Zoho Mail): a separate setup that replaces forwarding; quote it as extra.
+9b. Online Store payments: the money goes to the store owner's OWN Paystack account, never ours. If they chose "I have a Paystack business account": they copy the Live Secret Key (Paystack → Settings → API Keys & Webhooks) and paste it in Clients → Online Store (or send it privately on WhatsApp, never email); admin checks it and shows only the last 4 characters. If they chose "Please help me set one up": open the account WITH them, in their name (paystack.com → Create account with their email; activation needs their BVN, a valid ID, a payout bank account in their or the business's name, address, and CAC papers if registered; approval usually takes a few days). Then the key as above. No webhook is needed in their Paystack. Test with a small order. A key starting sk_test_ moves no real money. Until it's ready the store takes orders on WhatsApp.
 10. Google Business Profile: create it with the description in the AI text; customer enters Google's verification code.
-11. Handover: Clients → "Handover pack" (unlocks when fully paid). Domain, registrar (Settings default when you bought the domain), expiry (go-live + 1 year), business emails and the inbox they arrive in fill in automatically from Go live; check them, Save, then Email / WhatsApp. The pack also lists their pages, store settings, sitemap and monthly report. Tick "I set up logins" only if you made mailboxes; send those passwords privately on WhatsApp.
+11. Handover: Clients → "Handover pack" (unlocks when fully paid). It hands over everything at once so the customer never needs to ask later: website link and pages, domain + registrar + expiry, business email addresses (+ how many more are free), where emails arrive and how replies work, store payments and their Paystack login, Google Business Profile owner Gmail, sitemap, monthly report, links to their logo and photos, what belongs to them (domain transfer code and files if they ever leave), payments made, renewal amount/date and what it covers, their private change-request link, the 30-day free-fixes policy, and our contact. Domain, registrar (Settings default when you bought the domain), expiry (go-live + 1 year), business emails and the inbox they arrive in fill in automatically from Go live; check them, Save, then Email / WhatsApp. The pack also lists their pages, store settings, sitemap and monthly report. Tick "I set up logins" only if you made mailboxes; send those passwords privately on WhatsApp.
 12. After launch: edits → "Update live site". Renewal reminders go 30 days, 7 days and on the due date with a pay link. 15 days overdue → the site pauses itself; paying the renewal (online or "Renewal paid") brings it back. "Pause site" / "Restore site" by hand.
 Every morning ~7am: summary email with what needs doing, site up/SSL checks, domains that went active, jobs ready to go live, pauses and restores.
 
@@ -64,7 +70,7 @@ TROUBLESHOOTING
 const naira = (n) => (n == null ? "-" : "₦" + Number(n).toLocaleString("en-NG"));
 
 // The job's state in plain lines (no tokens, links or secrets).
-export function jobFacts(r) {
+export function jobFacts(r, settings = {}) {
   const paid = (r.payments || []).filter((p) => p.kind !== "renewal").reduce((s, p) => s + Number(p.amount || 0), 0);
   const h = r.hosting || {};
   const lines = [
@@ -82,6 +88,10 @@ export function jobFacts(r) {
     r.renewal_due ? `Renewal ${naira(r.renewal_amount)} due ${r.renewal_due}.` : "",
     r.website_url ? `Website: ${r.website_url}${r.site_status ? " (last check: " + r.site_status + ")" : ""}.` : "",
     `Handover pack: ${r.auto_sent?.handover ? "sent" : "not sent"}.`,
+    emailAllowance(r.interest) ? `Business email on the project form: ${wantedEmails(r).map((x) => x + "@").join(", ") || "none named"} (package includes ${emailAllowance(r.interest)}).` : "",
+    r.brief_wants?.paystack ? `Paystack on the project form: "${r.brief_wants.paystack}". Pay online: ${r.shop?.online ? "ON (key …" + (r.shop.keyEnd || "") + (r.shop.keyMode === "test" ? ", TEST key" : "") + ")" : "off"}.` : "",
+    r.brief_wants?.gbp_gmail ? `Google Business Profile owner Gmail (form): ${r.brief_wants.gbp_gmail}.` : "",
+    handoverChecklist(r, settings).length ? `HANDOVER CHECKLIST:\n${checklistText(handoverChecklist(r, settings))}` : "",
     r.notes ? `Owner notes: ${String(r.notes).slice(0, 300)}` : "",
     Object.keys(r.chat_ideas || {}).length ? `From their website chat:\n${ideasText(r.chat_ideas)}` : "",
   ];
@@ -94,12 +104,15 @@ export async function assistantSystem(id) {
   let job = "";
   if (id) {
     const r = await getRequest(id);
-    if (r) job = `\n\nJOB BEING DISCUSSED (today is ${todayLagos()}):\n${jobFacts(r)}`;
+    if (r) job = `\n\nJOB BEING DISCUSSED (today is ${todayLagos()}):\n${jobFacts(r, await getSettings().catch(() => ({})))}`;
   } else {
-    const all = await listRequests(300).catch(() => []);
+    const [all, settings] = await Promise.all([listRequests(300).catch(() => []), getSettings().catch(() => ({}))]);
     const open = all.filter((r) => r.status !== "lost").slice(0, 40);
     job = `\n\nCURRENT JOBS (today is ${todayLagos()}; ask which one if it matters):\n` +
-      open.map((r) => `- ${reference(r.id)} ${r.name}, ${r.interest}, ${r.status}/${r.project_stage || "-"}${r.quote_amount != null ? ", balance " + naira(balance(r)) : ""}${r.hosting?.pausedAt ? ", PAUSED" : ""}`).join("\n");
+      open.map((r) => {
+        const left = handoverChecklist(r, settings).filter((i) => !i.done).map((i) => i.label);
+        return `- ${reference(r.id)} ${r.name}, ${r.interest}, ${r.status}/${r.project_stage || "-"}${r.quote_amount != null ? ", balance " + naira(balance(r)) : ""}${r.hosting?.pausedAt ? ", PAUSED" : ""}${left.length ? "; still to do: " + left.join("; ") : ""}`;
+      }).join("\n") + "\n(Pick the job in the About box for its full checklist with fixes.)";
   }
   return `${SYSTEM}\n\nSETUP STATUS NOW:\n${setupLines}${job}`;
 }

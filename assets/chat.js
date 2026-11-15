@@ -235,8 +235,12 @@
   close.addEventListener('click', function () { setOpen(false); });
   form.addEventListener('submit', function (e) { e.preventDefault(); send(input.value); });
   input.addEventListener('input', autosize);
+  // Phones and tablets: the Enter key starts a new line and the arrow button sends, so a long message
+  // can be written in one go. Computers: Enter sends, Shift+Enter makes a new line.
+  var touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  input.setAttribute('enterkeyhint', touch ? 'enter' : 'send');
   input.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input.value); }
+    if (e.key === 'Enter' && !e.shiftKey && !touch && !e.isComposing) { e.preventDefault(); send(input.value); }
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && !panel.hidden) setOpen(false);

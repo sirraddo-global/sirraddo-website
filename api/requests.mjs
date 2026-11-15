@@ -20,7 +20,7 @@ import {
 import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automation.mjs";
 import { buildSiteModel, exportFiles, zip, slugify } from "./_lib/sitegen.mjs";
-import { ensureStoreToken, setShopPayments, listOrders } from "./_lib/shop.mjs";
+import { ensureStoreToken, setShopPayments, listOrders, paystackConnectLink } from "./_lib/shop.mjs";
 import { ensureStatsKey, siteSummary, reportHtml, dashboardTotals } from "./_lib/stats.mjs";
 import { buildBackup } from "./_lib/backup.mjs";
 import { FUNCTION_BUDGET_MS } from "./_lib/platform.mjs";
@@ -340,6 +340,12 @@ export default async function handler(req, res) {
           console.error("admin assistant failed", e.code, e.message);
           throw new Bad(friendlyAiError(e));
         }
+      }
+      if (body.action === "paystack_link") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        const link = await paystackConnectLink(id);
+        return link ? res.status(200).json({ ...link, row: await getRequest(id) }) : res.status(404).json({ error: "Not found" });
       }
       if (body.action === "move_files") {
         const { moveOldFiles } = await import("./_lib/move-files.mjs");

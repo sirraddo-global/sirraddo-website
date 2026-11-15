@@ -1006,7 +1006,27 @@
     var key = el('input', { type: 'password', placeholder: sh.online ? 'Paste a new key to replace it' : 'sk_live_…', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' });
     var fee = el('input', { type: 'number', min: '0', step: '100', value: sh.deliveryFee == null ? '' : sh.deliveryFee, placeholder: 'e.g. 2000 (leave empty to agree it later)' });
     var notify = el('input', { type: 'email', value: sh.notify || '', placeholder: r.email || 'owner@gmail.com' });
-    box.appendChild(field('Their Paystack secret key', key, 'From THEIR Paystack: Settings → API Keys & Webhooks → Live Secret Key. Get it from them privately (WhatsApp), paste it here and delete the message. It\'s checked with Paystack, stored encrypted and never shown again. Money goes straight to their account.'));
+    // Best way: send them a private "Connect Paystack" link. They paste their own key, with step-by-step help
+    // (Live vs Test keys), so you never see or handle it. Pay online switches on by itself and you get an email.
+    if (!sh.online || sh.keyMode === 'test') {
+      var linkOut = el('p', { class: 'admin-hint', text: sh.connect && sh.connect.exp > Date.now() ? 'A Connect link was made; it works until ' + new Date(sh.connect.exp).toLocaleDateString('en-NG') + '.' : '' });
+      var getLink = function (then) {
+        return api('POST', { action: 'paystack_link', id: r.id }).then(function (j) { if (j.row) replaceRequest(j.row); linkOut.textContent = 'Link works until ' + new Date(j.expires).toLocaleDateString('en-NG') + ': ' + j.url; then(j.url); }).catch(fail);
+      };
+      var msg = function (url) { return 'Hello ' + String(r.name).split(' ')[0] + ', to switch on online payments for your store, open this private link and paste your Paystack Live Secret Key. It shows you exactly where to find it in Paystack:\n' + url + '\nPlease don\'t send the key to anyone by message. The link works once, for 14 days.'; };
+      var cacts = el('div', { class: 'admin-actions' });
+      if (waNumber(r.contact)) cacts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send "Connect Paystack" link', onclick: function () {
+        var win = window.open('', '_blank');
+        getLink(function (url) { var u = 'https://wa.me/' + waNumber(r.contact) + '?text=' + encodeURIComponent(msg(url)); if (win) win.location = u; else window.location = u; });
+      } }));
+      cacts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy link', onclick: function () {
+        getLink(function (url) { if (navigator.clipboard) navigator.clipboard.writeText(msg(url)).then(function () { flash('Message with the link copied'); }); });
+      } }));
+      box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Easiest: ' }), 'send them a private link to connect their own Paystack (with instructions to find the Live key). Pay online turns on by itself and you get an email.']));
+      box.appendChild(cacts);
+      box.appendChild(linkOut);
+    }
+    box.appendChild(field('Or paste their Paystack secret key yourself', key, 'From THEIR Paystack (Live mode): Settings → API Keys & Webhooks → Live Secret Key (starts sk_live_; sk_test_ = practice only, no real money; pk_ = public key, not this one). Get it privately, paste it here and delete the message. It\'s checked with Paystack, stored encrypted and never shown again. Money goes straight to their account.'));
     box.appendChild(el('div', { class: 'admin-grid' }, [field('Delivery fee (₦, flat)', fee), field('Email new orders to', notify, 'Empty = the order-alert email from their form, else their email')]));
     var acts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Save store settings', onclick: function (e) {
       var body = { deliveryFee: fee.value.trim(), notify: notify.value.trim() };

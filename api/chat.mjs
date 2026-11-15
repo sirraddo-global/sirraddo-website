@@ -3,6 +3,7 @@
 // Returns: { reply, saved }
 import { FUNCTION_BUDGET_MS } from "./_lib/platform.mjs";
 import { SYSTEM_PROMPT, SAVE_TOOL, QUESTION_TOOL } from "./_lib/knowledge.mjs";
+import { currentNotices } from "./_lib/notices.mjs";
 import { saveRequest, emailRequest, logChat, addUnanswered, reference } from "./_lib/store.mjs";
 import { chatProviders, CHAT_MODELS } from "./_lib/providers.mjs";
 import { acknowledgeLead } from "./_lib/automation.mjs";
@@ -140,6 +141,9 @@ export default async function handler(req, res) {
   };
 
   const deadline = Date.now() + FUNCTION_BUDGET_MS() - 4000; // stay under the host's time limit
+  // Service notices showing now (planned upgrade, service problem, holiday): the assistant can mention them.
+  const notices = await currentNotices().catch(() => []);
+  const system = notices.length ? `${SYSTEM_PROMPT}\n\nSERVICE NOTICES SHOWING ON THE WEBSITE NOW (mention them when relevant, e.g. if someone asks about delays, payments or availability):\n${notices.map((n) => `- ${n.title}: ${n.message}`).join("\n")}` : SYSTEM_PROMPT;
   let saved = false;
   let lastErr = null;
   // Cheapest first; if it fails, the next one answers (saving is safe to repeat: same chat, same request).
@@ -150,7 +154,7 @@ export default async function handler(req, res) {
       for (let step = 0; step < 3; step++) {
         const left = deadline - Date.now();
         if (left < 5000) throw Object.assign(new Error("Out of time"), { code: "timeout" });
-        const out = await provider.call(convo, SYSTEM_PROMPT, [SAVE_TOOL, QUESTION_TOOL], Math.min(25000, left), opts);
+        const out = await provider.call(convo, system, [SAVE_TOOL, QUESTION_TOOL], Math.min(25000, left), opts);
         if (out.toolCalls.length === 0) {
           await record(ctx, out.text || FALLBACK, !out.text, saved);
           return res.status(200).json({ reply: out.text || FALLBACK, saved });

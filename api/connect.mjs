@@ -52,7 +52,7 @@ ol,ul{padding-left:20px;margin:0}li{margin:4px 0}code{background:#EEF1F5;border-
 label{display:block;font-weight:700;margin:18px 0 6px}input{width:100%;box-sizing:border-box;font:inherit;padding:14px;border:1px solid #C9D1DE;border-radius:12px}
 button{width:100%;margin-top:12px;background:#13254F;color:#fff;border:0;border-radius:12px;padding:15px;font:inherit;font-weight:700}
 .err{background:#FDECEC;border-left:4px solid #C0392B;padding:10px 12px;border-radius:8px}.ok{background:#E8F6EC;border-left:4px solid #1E8E3E;padding:10px 12px;border-radius:8px}
-.m{color:#4A5568;font-size:.9rem}${DARK_PAGE_CSS}</style><script src="/assets/theme.js"></script></head><body><div class="w"><div class="c">${body}</div>
+.m{color:#4A5568;font-size:.9rem}${DARK_PAGE_CSS}</style><script src="/assets/theme.js"></script><script src="/assets/greeting.js" defer></script></head><body><div class="w"><div class="c">${body}</div>
 <p class="m" style="text-align:center">${esc(COMPANY.name)} · WhatsApp ${esc(COMPANY.phone)}</p></div></body></html>`);
 }
 

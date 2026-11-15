@@ -206,6 +206,66 @@
       asst.msgs.push({ role: 'assistant', content: '⚠ ' + (e.message || 'Something went wrong') });
     }).then(function () { asst.busy = false; if (state.tab === 'assistant') { render(); var l = document.querySelector('.asst-log'); if (l) l.scrollTop = l.scrollHeight; } });
   }
+  // Service notices: a banner on your website (and the project form, pay and change pages) for planned upgrades,
+  // service problems, holiday breaks or any news. It shows from a chosen day and hides itself when it ends.
+  function noticesCard() {
+    var card = el('div', { class: 'admin-card admin-settings' }, [
+      el('h2', { text: 'Service notices' }),
+      el('p', { class: 'admin-intro', text: 'Tell customers about a planned upgrade, a problem, a holiday break or any news. It shows as a banner at the top of your website, project form, pay and change pages, and the website chat knows about it. It appears from the day you choose (3 days before by default) and disappears by itself when it ends.' })
+    ]);
+    var box = el('div', null, [el('p', { class: 'admin-hint', text: 'Loading…' })]);
+    card.appendChild(box);
+    var kinds = {};
+    function form(n, into) {
+      n = n || {};
+      var kind = el('select', null, Object.keys(kinds).map(function (k) { return el('option', { value: k, text: kinds[k].emoji + ' ' + kinds[k].title }); }));
+      kind.value = n.kind || 'upgrade';
+      var title = el('input', { value: n.title || kinds[kind.value].title, maxlength: '80' });
+      var msg = el('textarea', { rows: '4', maxlength: '600' }); msg.value = n.message || kinds[kind.value].message;
+      var date = el('input', { type: 'date', value: n.date || '' });
+      var from = el('input', { type: 'time', value: n.from || '' });
+      var to = el('input', { type: 'time', value: n.to || '' });
+      var showFrom = el('input', { type: 'date', value: n.show_from || '' });
+      var on = el('input', { type: 'checkbox' }); on.checked = n.on !== false;
+      kind.addEventListener('change', function () {
+        var k = kinds[kind.value];
+        if (!n.id) { title.value = k.title; msg.value = k.message; }
+      });
+      into.appendChild(el('div', { class: 'admin-golive' }, [
+        el('div', { class: 'admin-grid' }, [field('Type', kind), field('Title', title, 'Shown in bold before the message')]),
+        field('Message', msg, 'You can write {date}, {from} and {to}: they become e.g. "Saturday 22 November", "10pm" and "2am".'),
+        el('div', { class: 'admin-grid' }, [field('Date', date, 'For upgrades and holidays'), field('From (Lagos time)', from), field('Until', to, 'Earlier than From = the next morning')]),
+        el('div', { class: 'admin-grid' }, [field('Show the banner from', showFrom, 'Empty = 3 days before the date (or now if no date)'), el('label', { class: 'admin-check' }, [on, ' Showing (untick to hide it)'])]),
+        el('div', { class: 'admin-actions' }, [
+          el('button', { class: 'admin-btn', type: 'button', text: n.id ? 'Save notice' : 'Add notice', onclick: function (e) {
+            act({ action: 'notice_save', notice: { id: n.id, kind: kind.value, title: title.value, message: msg.value, date: date.value, from: from.value, to: to.value, show_from: showFrom.value, on: on.checked } }, n.id ? 'Notice saved' : 'Notice added', e.currentTarget);
+          } }),
+          n.id ? el('button', { class: 'admin-btn', type: 'button', text: 'Delete', onclick: function (e) {
+            if (window.confirm('Delete this notice?')) act({ action: 'notice_delete', noticeId: n.id }, 'Notice deleted', e.currentTarget);
+          } }) : null
+        ])
+      ]));
+    }
+    function draw(j) {
+      kinds = j.kinds; box.innerHTML = '';
+      j.notices.forEach(function (n) {
+        var st = { showing: ['Showing now', 'is-won'], scheduled: ['Scheduled', 'is-new'], ended: ['Ended', ''], off: ['Hidden', ''] }[n.status] || ['', ''];
+        var d = el('details', { class: 'admin-fold' }, [el('summary', null, [el('span', { class: 'admin-fold-title', text: (kinds[n.kind] || {}).emoji + ' ' + n.title }), badge(st[0], st[1])])]);
+        d.appendChild(el('p', { class: 'admin-hint', text: 'Customers see: ' + n.preview }));
+        form(n, d);
+        box.appendChild(d);
+      });
+      var add = el('details', { class: 'admin-fold', open: !j.notices.length }, [el('summary', null, [el('span', { class: 'admin-fold-title', text: '+ New notice' })])]);
+      form(null, add);
+      box.appendChild(add);
+    }
+    function act(body, okMsg, btn) {
+      if (btn) btn.disabled = true;
+      api('POST', body).then(function (j) { flash(okMsg); draw(j); }).catch(function (e) { if (btn) btn.disabled = false; fail(e); });
+    }
+    api('POST', { action: 'notices' }).then(draw).catch(function (e) { box.innerHTML = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
+    return card;
+  }
   // Festive greetings: a banner on the website during each festival (automatic) + optional emails you send.
   function greetingsCard() {
     var card = el('div', { class: 'admin-card admin-settings' }, [
@@ -1568,6 +1628,7 @@
       api('POST', { action: 'settings', settings: values }).then(function (j) { state.settings = j.settings || {}; setError(''); flash('Settings saved'); }).catch(fail);
     });
     view.appendChild(form);
+    view.appendChild(noticesCard());
     view.appendChild(greetingsCard());
     view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
       el('h2', { text: 'Backup' }),

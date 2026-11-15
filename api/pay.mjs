@@ -21,7 +21,7 @@ h1{color:#13254F;font-size:1.4rem;margin:0 0 6px}.amt{font-size:2rem;font-weight
 label{display:block;font-weight:600;margin:12px 0 6px}input{width:100%;box-sizing:border-box;font:inherit;padding:12px;border:1px solid #C8D0DC;border-radius:10px}
 button,.btn{display:block;width:100%;box-sizing:border-box;text-align:center;margin-top:16px;background:#D9A21B;color:#13254F;font:inherit;font-weight:800;border:0;border-radius:12px;padding:14px;cursor:pointer;text-decoration:none}
 .muted{color:#4A5568;font-size:.9rem}.err{color:#B42318;font-weight:600;min-height:1.2em}.ok{color:#127A3E}
-${DARK_PAGE_CSS}</style><script src="/assets/theme.js"></script></head>
+${DARK_PAGE_CSS}</style><script src="/assets/theme.js"></script><script src="/assets/greeting.js" defer></script></head>
 <body><div class="w"><div class="c"><div class="logo"><span class="ln">SI</span><b>RR</b><span class="ln">A</span><b>DD</b><span class="ln">O</span></div><div class="sub">GLOBAL LIMITED</div>
 ${body}</div><p class="muted" style="text-align:center">${COMPANY.name} · ${COMPANY.rc} · <a href="https://wa.me/2348167550937">WhatsApp us</a></p></div></body></html>`);
 }

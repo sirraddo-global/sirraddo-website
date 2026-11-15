@@ -325,3 +325,25 @@ test("store checklist: Paystack help request and test keys are flagged", async (
   const { assistantSystem } = await import("../api/_lib/assistant.mjs");
   assert.match(await assistantSystem(null), /Bisi Store.*still to do: .*Business email/);
 });
+
+test("service notices: scheduled banner with {date}/{from}/{to}, hides itself after", async () => {
+  const bad = await h.action({ action: "notice_save", notice: { kind: "upgrade", message: "Upgrade on {date}" } });
+  assert.equal(bad.status, 400, "placeholders need a date");
+  const day = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+  const r = await h.action({ action: "notice_save", notice: { kind: "upgrade", title: "Planned upgrade",
+    message: "We're upgrading on {date} from {from} to {to}.", date: day, from: "22:00", to: "02:00" } });
+  assert.equal(r.status, 200);
+  const n = r.json.notices[0];
+  assert.equal(n.status, "showing", "default: shows from 3 days before");
+  assert.match(n.preview, /from 10pm to 2am on /, "overnight window ends the next morning");
+  let pub = (await h.call("GET", "/api/site?greeting=1")).json;
+  assert.equal(pub.notices.length, 1);
+  assert.match(pub.notices[0].message, /10pm/);
+  await h.action({ action: "notice_save", notice: { ...n, on: false } });
+  pub = (await h.call("GET", "/api/site?greeting=1")).json;
+  assert.equal(pub.notices.length, 0, "hidden");
+  const { noticeStatus } = await import("../api/_lib/notices.mjs");
+  assert.equal(noticeStatus({ ...n, on: true }, new Date(Date.now() + 5 * 86400000)), "ended");
+  await h.action({ action: "notice_delete", noticeId: n.id });
+  assert.equal((await h.action({ action: "notices" })).json.notices.length, 0);
+});

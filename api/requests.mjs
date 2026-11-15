@@ -26,6 +26,7 @@ import { buildBackup } from "./_lib/backup.mjs";
 import { FUNCTION_BUDGET_MS } from "./_lib/platform.mjs";
 import { addHandoverExtras } from "./_lib/handover.mjs";
 import { handoverChecklist } from "./_lib/handover-check.mjs";
+import { noticesForAdmin, saveNotice, deleteNotice, NOTICE_KINDS } from "./_lib/notices.mjs";
 import { getConfig, saveConfig, occurrences, queueEmails, emailStatus, audience, GREETING_EMAILS_PER_DAY } from "./_lib/greetings.mjs";
 import { changeLink, listChanges, markChange, freeUntil } from "./_lib/changes.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
@@ -340,6 +341,13 @@ export default async function handler(req, res) {
           console.error("admin assistant failed", e.code, e.message);
           throw new Bad(friendlyAiError(e));
         }
+      }
+      if (body.action === "notices" || body.action === "notice_save" || body.action === "notice_delete") {
+        try {
+          if (body.action === "notice_save") await saveNotice(body.notice || {});
+          if (body.action === "notice_delete") await deleteNotice(String(body.noticeId || ""));
+        } catch (e) { throw new Bad(e.message); }
+        return res.status(200).json({ notices: await noticesForAdmin(), kinds: NOTICE_KINDS });
       }
       if (body.action === "paystack_link") {
         const id = Number(body.id);

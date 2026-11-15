@@ -252,3 +252,12 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .mk-card .admin-actions { margin-top: auto; }
 .admin-check input[type=checkbox] { width: 22px; height: 22px; flex: none; margin: 0; accent-color: var(--ink); }
 .admin-nudge p { margin: 6px 0 0; }
+
+/* Handover checklist and folded email form */
+.admin-fold > .admin-grid, .admin-fold > p, .admin-fold > .admin-actions, .admin-fold > ul { margin-left: 12px; margin-right: 12px; }
+.admin-fold > .admin-actions:last-child, .admin-fold > ul:last-child { margin-bottom: 12px; }
+.admin-checklist { list-style: none; padding: 0; display: grid; gap: 8px; }
+.admin-checklist li { line-height: 1.4; }
+.admin-checklist li.is-done b { color: var(--muted); font-weight: 600; }
+.admin-checklist li.is-todo b { color: var(--ink); }
+.admin-checklist .admin-hint { display: block; margin-top: 2px; }

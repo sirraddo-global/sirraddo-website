@@ -7,7 +7,7 @@ const SECURITY = {
   "x-frame-options": "DENY",
 };
 // Private pages: never cached, never indexed, never leak their link to other sites.
-const PRIVATE = /^\/(preview|pay|change|doc|brief|admin)(\/|$)/;
+const PRIVATE = /^\/(preview|pay|change|doc|brief|admin|connect)(\/|$)/;
 
 function parseBody(buf, type) {
   if (!buf.length) return undefined;

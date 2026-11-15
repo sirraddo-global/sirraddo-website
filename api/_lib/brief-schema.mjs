@@ -14,6 +14,8 @@ export const KINDS = {
   "Online Store": "store",
 };
 export const kindFor = (interest) => KINDS[interest] || "project";
+// Business email addresses included: Starter 1, Business and Online Store up to 5.
+export const emailAllowance = (interest) => ({ starter: 1, business: 5, store: 5 })[kindFor(interest)] || 0;
 
 export const KIND_LABEL = {
   starter: "Starter website",

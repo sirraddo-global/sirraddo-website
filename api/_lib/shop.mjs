@@ -6,6 +6,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { kindFor } from "./brief-schema.mjs";
 import { priceAmount } from "./sitegen.mjs";
+import { SITE_URL } from "../../site.config.mjs";
 import { q, ensureSchema, getRequest, updateRequestShop, sendCustomerEmail, customerEmailConfigured, sendEmail, emailConfigured, esc, reference } from "./store.mjs";
 
 const PS = "https://api.paystack.co";
@@ -52,6 +53,46 @@ export async function ensureShopToken(id) {
   if (!row || row.shop?.token) return row;
   return updateRequestShop(id, { token: randomBytes(12).toString("base64url") });
 }
+// ---------- "Connect Paystack": a private one-time link the store owner opens to paste their own key ----------
+// You never see or handle their key. The link works for 14 days and stops working once a key is saved.
+const CONNECT_DAYS = 14;
+export async function paystackConnectLink(id) {
+  const row = await ensureShopToken(id);
+  if (!row) return null;
+  const c = row.shop?.connect;
+  const fresh = c?.token && c.exp > Date.now() + 2 * 86400000 ? c : { token: randomBytes(18).toString("base64url"), exp: Date.now() + CONNECT_DAYS * 86400000 };
+  if (fresh !== c) await updateRequestShop(id, { connect: fresh });
+  return { url: `${SITE_URL}/connect?t=${fresh.token}`, expires: new Date(fresh.exp).toISOString() };
+}
+export async function findConnectRequest(token) {
+  if (!/^[A-Za-z0-9_-]{20,40}$/.test(String(token || ""))) return null;
+  const rows = await q(`SELECT id FROM customer_requests WHERE shop->'connect'->>'token' = $1`, [token]);
+  if (!rows[0]) return null;
+  const r = await getRequest(rows[0].id);
+  return r?.shop?.connect?.exp > Date.now() ? r : null;
+}
+export const TEST_STEPS = `<b>Please test it yourself now with a small amount:</b> on your website, add your cheapest item to the basket, tap Pay online and pay with your own card or transfer. Then check that (1) the payment shows in Paystack → Transactions and (2) the order email arrives. Paystack takes its normal small fee on the test. You can refund yourself in Paystack → Transactions → the payment → Refund. Tell us at once if anything doesn't work.`;
+// The owner pastes their key: only a LIVE secret key is accepted here (test keys take no real money).
+export async function connectPaystack(token, key) {
+  const r = await findConnectRequest(token);
+  if (!r) throw new Error("This link has expired or was already used. Ask us for a new one.");
+  const k = String(key || "").trim();
+  if (/^sk_test_/.test(k)) throw new Error("That's a TEST key (it starts with sk_test_). Test keys can't take real money. Switch Paystack to Live mode and copy the Live Secret Key (it starts with sk_live_).");
+  if (/^pk_/.test(k)) throw new Error("That's the PUBLIC key (it starts with pk_). We need the SECRET key: it starts with sk_live_.");
+  if (!/^sk_live_/.test(k)) throw new Error("That doesn't look like a Paystack Live Secret Key. It starts with sk_live_.");
+  const row = await setShopPayments(r.id, { secretKey: k });
+  await updateRequestShop(r.id, { connect: null, connectedAt: new Date().toISOString() });
+  if (emailConfigured()) {
+    await sendEmail(`${r.name} connected their Paystack (${reference(r.id)})`,
+      `<p><b>${esc(r.name)}</b>${r.business ? " (" + esc(r.business) + ")" : ""} added their Paystack Live key (…${esc(k.slice(-4))}). Pay online is now ON for their store. They've been asked to place a small test order themselves; check with them that it worked.</p>`).catch(() => {});
+  }
+  if (r.email && customerEmailConfigured()) {
+    await sendCustomerEmail(r.email, "Your store now takes online payments: please test it",
+      `<p>Hello ${esc(String(r.name).split(" ")[0])},</p><p>Your Paystack account is connected. Customers can now pay on your website by card, transfer or USSD, straight into your own Paystack account.</p><p>${TEST_STEPS}</p>`).catch(() => {});
+  }
+  return row;
+}
+
 // Online Stores get a basket token before their site is built, so the published pages can talk to /api/shop.
 export async function ensureStoreToken(id) {
   const row = await getRequest(id);

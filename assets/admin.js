@@ -961,14 +961,30 @@
         box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Email: ' }), em.locals.map(function (l) { return l + '@' + h.domain; }).join(', ') + ' → ' + em.to + ' ', lbl]));
         if (em.status === 'verifying') box.appendChild(el('p', { class: 'admin-hint', text: 'Cloudflare emailed ' + em.to + ' a link to confirm. Once they tap it, forwarding starts by itself (or tap Check now).' }));
       }
-      if (!em || em.status === 'verifying') {
-        var lin = el('input', { value: em ? em.locals.join(', ') : 'info', placeholder: 'info, sales' });
+      // Starter includes 1 address, Business and Online Store up to 5. Prefilled with what they asked for on the project form.
+      var allow = emailAllowance(r.interest);
+      var asked = wantedEmails(r);
+      var start = em ? em.locals.concat(asked.filter(function (x) { return em.locals.indexOf(x) < 0; })) : (asked.length ? asked : ['info']);
+      var more = em && em.status !== 'verifying';
+      var emailForm = function (into) {
+        var lin = el('input', { value: start.slice(0, Math.max(allow, em ? em.locals.length : 1) || 1).join(', '), placeholder: 'info, sales' });
         var tin = el('input', { type: 'email', value: em ? em.to : (r.email || ''), placeholder: 'theirname@gmail.com' });
-        box.appendChild(el('div', { class: 'admin-grid' }, [field('3. Business email addresses', lin, 'Before the @, e.g. info, sales'), field('Forward to (their inbox)', tin)]));
-        var eacts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: em ? 'Save and check' : 'Set up email forwarding', onclick: function (e) {
+        into.appendChild(el('div', { class: 'admin-grid' }, [field('3. Business email addresses', lin, 'Before the @, e.g. info, sales' + (allow ? ' · package includes ' + allow : '') + (asked.length ? ' · they asked for ' + asked.join(', ') : '')), field('Forward to (their inbox)', tin)]));
+        if (more) into.appendChild(el('p', { class: 'admin-hint', text: 'Keep the addresses already working in the list and add the new ones. Same inbox: no new confirmation needed.' }));
+        return { lin: lin, tin: tin };
+      };
+      if (more) {
+        var fold = el('details', { class: 'admin-fold' }, [el('summary', { text: 'Add or change email addresses (' + em.locals.length + (allow ? ' of ' + allow : '') + ' set up)' })]);
+        box.appendChild(fold);
+      }
+      if (!em || em.status === 'verifying' || more) {
+        var holder = more ? fold : box;
+        var ef = emailForm(holder);
+        var lin = ef.lin, tin = ef.tin;
+        var eacts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: more ? 'Save addresses' : em ? 'Save and check' : 'Set up email forwarding', onclick: function (e) {
           act({ action: 'host_email', locals: lin.value, to: tin.value }, function (j) { var s = j.row && j.row.hosting && j.row.hosting.email; return s && s.status === 'active' ? 'Email forwarding is working' : 'Cloudflare sent them a confirmation email'; }, e.currentTarget, 'Setting up…');
         } })]);
-        box.appendChild(eacts);
+        holder.appendChild(eacts);
       }
     }
     return box;
@@ -990,7 +1006,27 @@
     var key = el('input', { type: 'password', placeholder: sh.online ? 'Paste a new key to replace it' : 'sk_live_…', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' });
     var fee = el('input', { type: 'number', min: '0', step: '100', value: sh.deliveryFee == null ? '' : sh.deliveryFee, placeholder: 'e.g. 2000 (leave empty to agree it later)' });
     var notify = el('input', { type: 'email', value: sh.notify || '', placeholder: r.email || 'owner@gmail.com' });
-    box.appendChild(field('Their Paystack secret key', key, 'From THEIR Paystack: Settings → API Keys & Webhooks → Live Secret Key. Get it from them privately (WhatsApp), paste it here and delete the message. It\'s checked with Paystack, stored encrypted and never shown again. Money goes straight to their account.'));
+    // Best way: send them a private "Connect Paystack" link. They paste their own key, with step-by-step help
+    // (Live vs Test keys), so you never see or handle it. Pay online switches on by itself and you get an email.
+    if (!sh.online || sh.keyMode === 'test') {
+      var linkOut = el('p', { class: 'admin-hint', text: sh.connect && sh.connect.exp > Date.now() ? 'A Connect link was made; it works until ' + new Date(sh.connect.exp).toLocaleDateString('en-NG') + '.' : '' });
+      var getLink = function (then) {
+        return api('POST', { action: 'paystack_link', id: r.id }).then(function (j) { if (j.row) replaceRequest(j.row); linkOut.textContent = 'Link works until ' + new Date(j.expires).toLocaleDateString('en-NG') + ': ' + j.url; then(j.url); }).catch(fail);
+      };
+      var msg = function (url) { return 'Hello ' + String(r.name).split(' ')[0] + ', to switch on online payments for your store, open this private link and paste your Paystack Live Secret Key. It shows you exactly where to find it in Paystack:\n' + url + '\nPlease don\'t send the key to anyone by message. The link works once, for 14 days.'; };
+      var cacts = el('div', { class: 'admin-actions' });
+      if (waNumber(r.contact)) cacts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send "Connect Paystack" link', onclick: function () {
+        var win = window.open('', '_blank');
+        getLink(function (url) { var u = 'https://wa.me/' + waNumber(r.contact) + '?text=' + encodeURIComponent(msg(url)); if (win) win.location = u; else window.location = u; });
+      } }));
+      cacts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy link', onclick: function () {
+        getLink(function (url) { if (navigator.clipboard) navigator.clipboard.writeText(msg(url)).then(function () { flash('Message with the link copied'); }); });
+      } }));
+      box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Easiest: ' }), 'send them a private link to connect their own Paystack (with instructions to find the Live key). Pay online turns on by itself, you get an email, and they are told to test it themselves with a small amount. Check with them that it worked.']));
+      box.appendChild(cacts);
+      box.appendChild(linkOut);
+    }
+    box.appendChild(field('Or paste their Paystack secret key yourself', key, 'From THEIR Paystack (Live mode): Settings → API Keys & Webhooks → Live Secret Key (starts sk_live_; sk_test_ = practice only, no real money; pk_ = public key, not this one). Get it privately, paste it here and delete the message. It\'s checked with Paystack, stored encrypted and never shown again. Money goes straight to their account.'));
     box.appendChild(el('div', { class: 'admin-grid' }, [field('Delivery fee (₦, flat)', fee), field('Email new orders to', notify, 'Empty = the order-alert email from their form, else their email')]));
     var acts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Save store settings', onclick: function (e) {
       var body = { deliveryFee: fee.value.trim(), notify: notify.value.trim() };
@@ -1131,6 +1167,15 @@
     var locked = r.quote_amount == null || bal > 0;
     box.appendChild(el('p', { class: 'admin-meta' }, [sent ? badge('Sent', 'is-won') : badge(locked ? 'Locked' : 'Ready to send', locked ? '' : 'is-new'),
       ' ' + (sent ? 'Emailed ' + when(sent) : locked ? (r.quote_amount == null ? 'Add the quote first.' : 'Unlocks when the balance (' + naira(bal) + ') is paid.') : 'Fill in the details, then send.')]));
+    // What's left before this job is finished once and for all (same list the Assistant uses).
+    var check = r.handover_check || [];
+    if (check.length) {
+      var left = check.filter(function (i) { return !i.done; }).length;
+      var list = el('ul', { class: 'admin-checklist' }, check.map(function (i) {
+        return el('li', { class: i.done ? 'is-done' : 'is-todo' }, [el('b', { text: (i.done ? '✓ ' : '✗ ') + i.label }), i.done ? '' : el('span', { class: 'admin-hint', text: ' ' + i.fix })]);
+      }));
+      box.appendChild(el('details', { class: 'admin-fold', open: left > 0 }, [el('summary', { text: left ? 'Before handover: ' + left + ' thing' + (left === 1 ? '' : 's') + ' left' : 'Everything is handed over ✓ (only change requests remain)' }), list]));
+    }
     // Empty boxes are filled from Go live, your usual registrar (Settings) and the go-live date; what you type wins.
     var auto = handoverAuto(r);
     var by = el('select', null, [el('option', { value: 'us', text: 'We bought it for them' }), el('option', { value: 'customer', text: 'Their own domain' })]);
@@ -1143,17 +1188,24 @@
     var webmail = el('input', { value: h.webmail || '', placeholder: 'Only if they log in to a mailbox, e.g. https://mail.zoho.com' });
     var notes = el('textarea', { rows: 2, value: h.notes || '', placeholder: 'Anything else for them (optional)' });
     var logins = el('input', { type: 'checkbox' }); logins.checked = Boolean(h.has_logins);
+    var gbpDone = el('input', { type: 'checkbox' }); gbpDone.checked = Boolean(h.gbp_done);
+    var gbpOwner = el('input', { type: 'email', value: auto.gbp_owner || '', placeholder: 'Gmail that owns their Google profile' });
+    var isStore = r.interest === 'Online Store';
+    var payEmail = el('input', { type: 'email', value: h.paystack_email || '', placeholder: 'Email they log in to Paystack with (optional)' });
+    var waOnly = el('input', { type: 'checkbox' }); waOnly.checked = Boolean(h.whatsapp_only);
     by.addEventListener('change', function () {
       var t = handoverAuto({ handover: Object.assign({}, h, { domain_by: by.value, registrar: '', domain_expires: '' }), hosting: r.hosting, live_on: r.live_on });
       registrar.value = t.registrar || ''; expires.value = t.domain_expires || '';
     });
     box.appendChild(el('div', { class: 'admin-grid' }, [field('Domain', domain), field('Who bought the domain?', by), field('Registered with', registrar), field('Domain registered until', expires)]));
     box.appendChild(el('div', { class: 'admin-grid' }, [field('Business email addresses', emails), field('Emails arrive in', inbox), field('Webmail', webmail)]));
+    if (r.interest !== 'Starter website') box.appendChild(el('div', { class: 'admin-grid' }, [field('Google Business Profile owner', gbpOwner), el('label', { class: 'admin-check' }, [gbpDone, ' Google profile done (verified)'])]));
+    if (isStore) box.appendChild(el('div', { class: 'admin-grid' }, [field('Their Paystack login email', payEmail), el('label', { class: 'admin-check' }, [waOnly, ' WhatsApp orders only (they don\'t want Paystack)'])]));
     box.appendChild(field('Note for the customer', notes));
     box.appendChild(el('label', { class: 'admin-check' }, [logins, ' I set up logins for them (e.g. Zoho mailboxes). The pack then says passwords come privately on WhatsApp.']));
     box.appendChild(el('p', { class: 'admin-hint', text: 'Filled in for you from Go live (domain, email set-up), your usual registrar in Settings and the go-live date + 1 year. Check and change anything that is different. The pack also lists their pages, their store settings, their sitemap and the monthly report.' }));
     var save = el('button', { class: 'admin-btn', type: 'button', text: 'Save handover details', onclick: function () {
-      update(r, { handover: { domain_by: by.value, domain: domain.value, registrar: registrar.value, domain_expires: expires.value, emails: emails.value, inbox: inbox.value, webmail: webmail.value, notes: notes.value, has_logins: logins.checked } }, 'Handover details saved');
+      update(r, { handover: { domain_by: by.value, domain: domain.value, registrar: registrar.value, domain_expires: expires.value, emails: emails.value, inbox: inbox.value, webmail: webmail.value, notes: notes.value, has_logins: logins.checked, gbp_done: gbpDone.checked, gbp_owner: gbpOwner.value, paystack_email: payEmail.value, whatsapp_only: waOnly.checked } }, 'Handover details saved');
     } });
     var ready = !locked && r.website_url;
     var why = locked ? 'Unlocks when the balance is paid' : !r.website_url ? 'Add their website address above first' : null;
@@ -1164,6 +1216,14 @@
     box.appendChild(acts);
     box.appendChild(el('p', { class: 'admin-hint', text: 'Save the details before sending. Usually there are no passwords: the website is managed by you and email forwarding goes to their own inbox. If you did set up logins, send them privately on WhatsApp, never by email.' }));
     return box;
+  }
+
+  // Same as emailAllowance() / wantedEmails() in api/_lib/brief-schema.mjs and handover-check.mjs.
+  function emailAllowance(interest) { return { 'Starter website': 1, 'Business website': 5, 'Online Store': 5 }[interest] || 0; }
+  function wantedEmails(r) {
+    var w = r.brief_wants || {}, seen = {};
+    return [w.emails, w.emails5].filter(Boolean).join(',').split(/[\s,;]+/).map(function (s) { return s.replace(/@.*$/, '').toLowerCase().replace(/[^a-z0-9._-]/g, ''); })
+      .filter(function (s) { if (!s || seen[s]) return false; seen[s] = true; return true; });
   }
 
   // Same rules as handoverAuto() in api/_lib/docs.mjs.
@@ -1177,7 +1237,8 @@
       registrar: ours ? (state.settings || {}).default_registrar || '' : '',
       domain_expires: expires,
       emails: host.domain && mail.locals && mail.locals.length ? mail.locals.map(function (l) { return l + '@' + host.domain; }).join('\n') : '',
-      inbox: mail.to || ''
+      inbox: mail.to || '',
+      gbp_owner: (r.brief_wants || {}).gbp_gmail || ''
     };
     var out = Object.assign({}, typed);
     Object.keys(a).forEach(function (k) { if (!String(out[k] == null ? '' : out[k]).trim() && a[k]) out[k] = a[k]; });
@@ -1503,21 +1564,6 @@
       el('h2', { text: 'Backup' }),
       el('p', { class: 'admin-intro', text: 'Every Monday a backup of all your business data (customers, quotes, payments, website text, orders, change requests) is emailed to you as a file. Keep those emails. You can also download one now. It contains customer details, so keep it private.' }),
       el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Download backup now', onclick: function (e) { downloadFile('/api/requests?view=backup', 'sirraddo-backup.json.gz', e.currentTarget); } })])
-    ]));
-    // After the move to Netlify: copy photos uploaded while the site was on Vercel. Tap until it says done.
-    var moveOut = el('p', { class: 'admin-hint', text: '' });
-    view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
-      el('h2', { text: 'Move old uploads' }),
-      el('p', { class: 'admin-intro', text: 'Do this once, after the website is running on Netlify: it copies photos and files customers uploaded while the site was on Vercel, so they keep working when Vercel is closed. Tap again until it says everything is moved.' }),
-      el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Move old uploads', onclick: function (e) {
-        var b = e.currentTarget; b.disabled = true; moveOut.textContent = 'Moving… (up to 30 seconds)';
-        api('POST', { action: 'move_files' }).then(function (j) {
-          b.disabled = false;
-          if (!j.ok) { moveOut.textContent = j.error || 'Could not move the files.'; return; }
-          moveOut.textContent = j.left ? ('Moved ' + j.moved + '. ' + j.left + ' still to move' + (j.failed ? ' (' + j.failed + ' could not be copied this time)' : '') + ': tap again.') : (j.found ? 'Done: all ' + j.found + ' old uploads are moved.' : 'Done: there are no old uploads to move.');
-        }).catch(function (err) { b.disabled = false; moveOut.textContent = (err && err.message) || 'Could not move the files.'; });
-      } })]),
-      moveOut
     ]));
   }
 

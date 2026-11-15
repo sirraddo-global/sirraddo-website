@@ -284,4 +284,43 @@ test("handover pack fills itself from Go live, Settings and the go-live date", a
   page = (await h.call("GET", `/doc?t=${t}&type=handover`)).text;
   assert.match(page, /Qservers/, "what you typed wins");
   assert.doesNotMatch(page, /20 November 2027|20 Nov 2027/, "no guessed expiry for their own domain");
+  // Everything the customer could ask for later is in the pack.
+  assert.match(page, /You can have 3 more at no extra cost/, "Business includes 5 addresses, 2 set up");
+  assert.match(page, /When you reply/);
+  assert.match(page, /What belongs to you/);
+  assert.match(page, /domain transfer code/);
+  assert.match(page, /Need help\?/);
+});
+
+test("handover checklist: admin rows and the Assistant say exactly what's left", async () => {
+  await h.sql(`UPDATE customer_requests SET brief = COALESCE(brief, '{}'::jsonb) || $1::jsonb WHERE id = $2`,
+    [JSON.stringify({ email_names_5: "info@, sales@, bookings@", gbp_gmail: "adasalon@gmail.com" }), ada]);
+  const row = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((r) => r.id === ada);
+  const byKey = Object.fromEntries(row.handover_check.map((i) => [i.key, i]));
+  assert.equal(byKey.email.done, false, "bookings@ asked for but not set up");
+  assert.match(byKey.email.fix, /bookings@/);
+  assert.match(byKey.email.label, /2 of 5/);
+  assert.equal(byKey.gbp.done, false);
+  assert.match(byKey.gbp.fix, /adasalon@gmail\.com/);
+  const saved = await h.admin("PATCH", "/api/requests", { id: ada, handover: { ...row.handover, gbp_done: true } });
+  assert.equal(saved.json.handover_check.find((i) => i.key === "gbp").done, true, "PATCH replies carry the checklist too");
+  const { assistantSystem } = await import("../api/_lib/assistant.mjs");
+  const sys = await assistantSystem(ada);
+  assert.match(sys, /HANDOVER CHECKLIST/);
+  assert.match(sys, /✗ Business email: 2 of 5 set up/);
+  assert.match(sys, /✓ Google Business Profile/);
+});
+
+test("store checklist: Paystack help request and test keys are flagged", async () => {
+  const id = (await h.action({ action: "create", name: "Bisi Store", contact: "08039990000", interest: "Online Store", email: "bisi@gmail.com" })).json.id;
+  await h.sql(`UPDATE customer_requests SET status = 'won', quote_amount = 150000, payments = $1::jsonb, brief = $2::jsonb WHERE id = $3`,
+    [JSON.stringify([{ amount: 150000, date: "2026-11-15" }]), JSON.stringify({ paystack: "Please help me set one up", email_names_5: "info" }), id]);
+  let row = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((r) => r.id === id);
+  let pay = row.handover_check.find((i) => i.key === "paystack");
+  assert.equal(pay.done, false);
+  assert.match(pay.fix, /BVN/);
+  row = (await h.admin("PATCH", "/api/requests", { id, handover: { whatsapp_only: true } })).json;
+  assert.equal(row.handover_check.find((i) => i.key === "paystack").done, true, "WhatsApp-only stores don't need Paystack");
+  const { assistantSystem } = await import("../api/_lib/assistant.mjs");
+  assert.match(await assistantSystem(null), /Bisi Store.*still to do: .*Business email/);
 });

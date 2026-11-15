@@ -23,7 +23,7 @@ test("function replies carry security headers; private pages are never cached or
 });
 
 test("every API handler has a Netlify function with its paths, plus the daily schedule", async () => {
-  const want = { chat: "/api/chat", requests: "/api/requests", lead: "/api/lead", brief: "/api/brief", "brief-upload": "/api/brief-upload",
+  const want = { connect: "/connect", chat: "/api/chat", requests: "/api/requests", lead: "/api/lead", brief: "/api/brief", "brief-upload": "/api/brief-upload",
     doc: "/doc", preview: "/preview", pay: "/pay", "paystack-webhook": "/api/paystack-webhook", shop: "/api/shop", site: "/change", "cron-daily": "/api/cron-daily" };
   for (const [name, path] of Object.entries(want)) {
     const mod = await import(join(ROOT, "netlify/functions", name + ".mjs"));
@@ -96,4 +96,30 @@ test("a wrong ANTHROPIC_API_KEY falls back to Gemini instead of failing", async 
     assert.equal(r.status, 200, JSON.stringify(r.json));
     assert.ok(r.json.reply);
   } finally { globalThis.fetch = prev; delete process.env.ANTHROPIC_API_KEY; }
+});
+
+test("Connect Paystack link: the owner pastes their own live key once", async () => {
+  const id = (await h.action({ action: "create", name: "Kunle Shop", contact: "08037770000", interest: "Online Store", email: "kunle@gmail.com" })).json.id;
+  const link = (await h.action({ action: "paystack_link", id })).json;
+  assert.match(link.url, /\/connect\?t=[\w-]{20,}/);
+  const path = "/connect?" + link.url.split("?")[1];
+  const page = await h.call("GET", path);
+  assert.equal(page.status, 200);
+  assert.match(page.text, /Live Secret Key/);
+  assert.match(page.text, /sk_test_/, "explains test keys");
+  const post = (key) => fetch(h.base + path, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "key=" + encodeURIComponent(key) });
+  const testKey = ["sk", "test", "abcdefghijklmnopqrstuvwx1234"].join("_");
+  let r = await post(testKey);
+  assert.equal(r.status, 400);
+  assert.match(await r.text(), /TEST key/);
+  const liveKey = ["sk", "live", "abcdefghijklmnopqrstuvwx9876"].join("_");
+  r = await post(liveKey);
+  assert.equal(r.status, 200, await r.clone().text());
+  const done = await r.text();
+  assert.match(done, /connected/);
+  assert.match(done, /test it yourself now with a small amount/, "owner is told to test with a small amount");
+  const row = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((x) => x.id === id);
+  assert.equal(row.shop.online, true);
+  assert.equal(row.shop.keyEnd, "9876");
+  assert.equal((await h.call("GET", path)).status, 404, "one-time link");
 });

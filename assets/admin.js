@@ -1170,11 +1170,20 @@
     // What's left before this job is finished once and for all (same list the Assistant uses).
     var check = r.handover_check || [];
     if (check.length) {
-      var left = check.filter(function (i) { return !i.done; }).length;
+      var left = check.filter(function (i) { return !i.done && !i.auto; }).length;
       var list = el('ul', { class: 'admin-checklist' }, check.map(function (i) {
-        return el('li', { class: i.done ? 'is-done' : 'is-todo' }, [el('b', { text: (i.done ? '✓ ' : '✗ ') + i.label }), i.done ? '' : el('span', { class: 'admin-hint', text: ' ' + i.fix })]);
+        if (i.done) return el('li', { class: 'is-done' }, [el('b', { text: '✓ ' + i.label })]);
+        var kids = [el('b', { text: '✗ ' + i.label }), i.auto ? badge('Automatic', 'is-new') : '', el('span', { class: 'admin-hint', text: i.fix })];
+        if (i.steps && i.steps.length) kids.push(el('details', { class: 'admin-howto' }, [el('summary', { text: 'How to do it' }), el('ol', null, i.steps.map(function (t) { return el('li', { text: t }); }))]));
+        if (i.tell) {
+          var row = el('div', { class: 'admin-actions' });
+          if (waNumber(r.contact)) row.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send steps to customer', onclick: function () { window.open('https://wa.me/' + waNumber(r.contact) + '?text=' + encodeURIComponent(i.tell), '_blank', 'noopener'); } }));
+          row.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy message', onclick: function () { if (navigator.clipboard) navigator.clipboard.writeText(i.tell).then(function () { flash('Message copied'); }); } }));
+          kids.push(row);
+        }
+        return el('li', { class: 'is-todo' }, kids);
       }));
-      box.appendChild(el('details', { class: 'admin-fold', open: left > 0 }, [el('summary', { text: left ? 'Before handover: ' + left + ' thing' + (left === 1 ? '' : 's') + ' left' : 'Everything is handed over ✓ (only change requests remain)' }), list]));
+      box.appendChild(el('details', { class: 'admin-fold', open: left > 0 }, [el('summary', { text: left ? 'Before handover: ' + left + ' thing' + (left === 1 ? '' : 's') + ' for you to do' : check.every(function (i) { return i.done; }) ? 'Everything is handed over ✓ (only change requests remain)' : 'Nothing for you to do: the rest happens by itself' }), list]));
     }
     // Empty boxes are filled from Go live, your usual registrar (Settings) and the go-live date; what you type wins.
     var auto = handoverAuto(r);

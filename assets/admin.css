@@ -261,3 +261,9 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .admin-checklist li.is-done b { color: var(--muted); font-weight: 600; }
 .admin-checklist li.is-todo b { color: var(--ink); }
 .admin-checklist .admin-hint { display: block; margin-top: 2px; }
+.admin-checklist li .admin-badge { margin-left: 6px; }
+.admin-howto { margin-top: 6px; }
+.admin-howto > summary { cursor: pointer; font-weight: 600; color: var(--ink); min-height: 32px; display: flex; align-items: center; }
+.admin-howto ol { margin: 4px 0 0; padding-left: 20px; }
+.admin-howto li { margin: 4px 0; }
+.admin-checklist .admin-actions { margin-top: 8px; }

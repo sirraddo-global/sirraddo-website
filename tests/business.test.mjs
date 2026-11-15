@@ -318,7 +318,8 @@ test("store checklist: Paystack help request and test keys are flagged", async (
   let row = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((r) => r.id === id);
   let pay = row.handover_check.find((i) => i.key === "paystack");
   assert.equal(pay.done, false);
-  assert.match(pay.fix, /BVN/);
+  assert.match(pay.tell, /BVN/);
+  assert.ok(pay.steps.length >= 3, "how-to steps");
   row = (await h.admin("PATCH", "/api/requests", { id, handover: { whatsapp_only: true } })).json;
   assert.equal(row.handover_check.find((i) => i.key === "paystack").done, true, "WhatsApp-only stores don't need Paystack");
   const { assistantSystem } = await import("../api/_lib/assistant.mjs");

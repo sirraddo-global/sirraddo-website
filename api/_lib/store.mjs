@@ -55,6 +55,7 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_saved_at TIMESTAMPTZ`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS brief_submitted_at TIMESTAMPTZ`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS handover JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS design_refs JSONB NOT NULL DEFAULT '[]'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS preview_token TEXT UNIQUE`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS preview_status TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS preview_feedback JSONB NOT NULL DEFAULT '[]'::jsonb`,
@@ -152,10 +153,10 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   draft_at, draft_error, (draft_md IS NOT NULL) AS has_draft,
   handover, preview_token, preview_status, preview_feedback, preview_approved_at,
   COALESCE((length(draft_md) - length(replace(draft_md, '[ADD:', ''))) / 5, 0) AS draft_gaps,
-  (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, hosting, chat_ideas, greetings_off,
+  (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, design_refs, COALESCE(brief_files->'example_shots', '[]'::jsonb) AS example_shots, hosting, chat_ideas, greetings_off,
   (shop - 'key') || jsonb_build_object('online', COALESCE(shop->>'key', '') <> '') AS shop,
   (SELECT count(*)::int FROM change_requests c WHERE c.request_id = customer_requests.id AND c.status = 'open') AS open_changes,
-  jsonb_build_object('emails', brief->>'email_names', 'emails5', brief->>'email_names_5', 'paystack', brief->>'paystack', 'gbp_gmail', brief->>'gbp_gmail') AS brief_wants,
+  jsonb_build_object('emails', brief->>'email_names', 'emails5', brief->>'email_names_5', 'paystack', brief->>'paystack', 'gbp_gmail', brief->>'gbp_gmail', 'examples', brief->>'examples') AS brief_wants,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('id', o->>'id', 'by', o->>'by', 'at', o->>'at', 'standard', COALESCE(o->>'css', '') = '',
     'current', COALESCE(o->>'css', '') = COALESCE(design_css, ''))) FROM jsonb_array_elements(design_options) o), '[]'::jsonb) AS design_choices`;
 
@@ -354,7 +355,7 @@ export async function addPaymentOnce(id, payment) {
 
 // ---------- Preview sites (/preview?t=...) ----------
 const PREVIEW_COLUMNS = `id, name, business, contact, email, interest, status, quote_amount, payments, project_stage, doc_token, auto_sent,
-  brief, brief_files, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at, design_css, design_options, design_by, hosting, draft_at, design_at,
+  brief, brief_files, design_refs, draft_md, preview_token, preview_status, preview_feedback, preview_approved_at, design_css, design_options, design_by, hosting, draft_at, design_at,
   website_url, live_on::text AS live_on, shop->>'token' AS shop_token`;
 // The same private token, without touching the preview/stage (used for the "request a change" link).
 export async function ensureLinkToken(id) {
@@ -416,6 +417,12 @@ export async function getByPreviewToken(token) {
   await ensureSchema();
   const rows = await q(`SELECT ${PREVIEW_COLUMNS} FROM customer_requests WHERE preview_token = $1`, [token]);
   return rows[0] ?? null;
+}
+// Screenshots of the look the customer likes, added by you in admin (up to 3): [{ url, name }].
+export const MAX_DESIGN_REFS = 3;
+export async function setDesignRefs(id, refs) {
+  await ensureSchema();
+  await q(`UPDATE customer_requests SET design_refs = $1::jsonb, updated_at = now() WHERE id = $2`, [JSON.stringify(refs.slice(0, MAX_DESIGN_REFS)), id]);
 }
 export async function getPreviewById(id) {
   await ensureSchema();

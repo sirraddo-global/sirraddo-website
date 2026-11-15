@@ -1,5 +1,5 @@
 # Checks the live site after each deploy to main.
-# Waits up to 10 minutes for Vercel to publish, then checks /websites content and layout.
+# Waits up to 10 minutes for Netlify to publish, then checks /websites content and layout.
 # Results appear in the Actions tab, with a table in the run summary.
 name: Live site check
 
@@ -44,6 +44,7 @@ jobs:
       - name: Check the live /websites page
         env:
           WAIT_MINUTES: ${{ github.event_name == 'push' && '10' || '0' }}
+          EXPECT_SHA: ${{ github.event_name == 'push' && github.sha || '' }}
           LAYOUT_CHECK: ${{ steps.pw.outcome == 'success' && '1' || '0' }}
           PW_CHANNEL: chrome
         run: node scripts/check-live.mjs

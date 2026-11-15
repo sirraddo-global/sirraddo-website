@@ -1,6 +1,6 @@
 # SIRRADDO GLOBAL LIMITED: company website
 
-A static website (HTML, CSS and a little JavaScript). A tiny build script (`scripts/build.mjs`, plain Node, no packages to install) fills in the site address, generates the sitemap and copies everything into `public/`. Vercel runs it automatically on every deploy.
+A static website (HTML, CSS and a little JavaScript). A tiny build script (`scripts/build.mjs`, plain Node, no packages to install) fills in the site address, generates the sitemap and copies everything into `public/`. Netlify runs it automatically on every deploy.
 
 ## Files
 
@@ -20,7 +20,9 @@ A static website (HTML, CSS and a little JavaScript). A tiny build script (`scri
 | `scripts/build.mjs` | Build script. Puts `SITE_URL` into the pages, removes the demo cards when switched off, and writes `sitemap.xml` and `robots.txt` |
 | `scripts/check-live.mjs` | Checks the live `/websites` page has the expected content (see "Live site check" below) |
 | `.github/workflows/live-check.yml` | Runs that check on GitHub after every push to `main` |
-| `vercel.json` | Vercel settings: runs the build, serves `public/`, clean URLs (`/privacy` instead of `/privacy.html`) and security headers |
+| `netlify.toml` | Netlify settings: runs the build, serves `public/`, security headers, the .netlify.app → www redirect |
+| `netlify/functions/` | One small wrapper per API file (with its web address, e.g. `/pay`), the `/files/*` uploads server and the 7am `daily` run |
+| `netlify/lib/adapter.mjs` | Lets the `api/` handlers run as Netlify Functions (and in the tests) |
 
 `public/` is created by the build. Don't edit it, and don't commit it.
 
@@ -28,7 +30,7 @@ A static website (HTML, CSS and a little JavaScript). A tiny build script (`scri
 
 1. Open the `.html` file in any text editor, or edit it on GitHub with the pencil icon.
 2. Find the text with Ctrl+F (Cmd+F on a Mac), change it, and save or commit.
-3. Vercel redeploys automatically within a minute or so of a push to `main`.
+3. Netlify redeploys automatically within a minute or two of a push to `main`. Each deploy uses 15 of the free plan's 300 monthly credits, so group changes.
 
 Things you will probably want to change:
 
@@ -65,7 +67,7 @@ Then serve the result:
 python3 -m http.server 8000 -d public
 ```
 
-Open http://localhost:8000. Locally, `/privacy` only works as `/privacy.html`; clean URLs work on Vercel. Run the build again after each change.
+Open http://localhost:8000. Locally, `/privacy` only works as `/privacy.html`; clean URLs work on Netlify. Run the build again after each change.
 
 ## Website assistant ("Ask us" chat)
 
@@ -77,14 +79,14 @@ Every page has an AI chat button. It answers questions about the company, ZAPPI 
 | `api/chat.mjs` | `POST /api/chat`: talks to the AI model and saves requests |
 | `api/_lib/providers.mjs` | The two AI providers: Anthropic (Claude) and Google (Gemini) |
 | `api/requests.mjs` | The admin API (requests, clients, questions, chats, settings), protected by `ADMIN_PASSWORD` |
-| `api/cron-daily.mjs` | Daily summary email and 90-day clean-up, run by Vercel Cron at about 7am Lagos time |
+| `netlify/functions/daily.mjs` | The morning job (summary email, reminders, checks, backups, 90-day clean-up) at about 7am Lagos time. `api/cron-daily.mjs` runs the same job by hand. |
 | `api/_lib/store.mjs` | Neon database and Resend email |
 | `assets/chat.js` | The chat widget |
 | `admin.html`, `assets/admin.js`, `assets/admin.css` | The admin page at `/admin` |
 
 ### Setting it up (once)
 
-In Vercel, open the project, go to **Settings → Environment Variables**, add these for **Production** (and Preview if you want to test there), then redeploy:
+In Netlify, open the project → **Project configuration → Environment variables**, add these (mark keys as secret), then **Deploys → Trigger deploy**:
 
 | Variable | Value |
 |---|---|
@@ -95,7 +97,7 @@ In Vercel, open the project, go to **Settings → Environment Variables**, add t
 | `RESEND_API_KEY` | From https://resend.com → API keys. Sign up with the email that should receive requests. |
 | `LEAD_EMAIL_TO` | Where requests are emailed, e.g. `sirraddogloballimited@gmail.com` |
 | `ADMIN_PASSWORD` | A long password (at least 12 characters) for `/admin` |
-| `CRON_SECRET` | A random string (at least 16 characters). Vercel sends it to `/api/cron-daily`, so nobody else can trigger the daily email. |
+| `CRON_SECRET` | A random string (at least 16 characters). Needed to run `/api/cron-daily` by hand, and used to encrypt store owners' Paystack keys (don't change it later). |
 | `LEAD_EMAIL_FROM` | Optional. Leave unset at first. Resend's default sender only delivers to your own Resend account email. After you verify your domain in Resend, set e.g. `SIRRADDO Assistant <assistant@sirraddo.com.ng>`. |
 | `ANTHROPIC_MODEL` | Optional. Defaults to `claude-haiku-5-5`. |
 | `GEMINI_MODEL` | Optional. A model name or comma-separated list to try in order. Default: `gemini-flash-lite-latest,gemini-flash-latest`. If one is busy or rate-limited, the next is tried. |
@@ -117,7 +119,7 @@ Open `/admin` and log in with `ADMIN_PASSWORD`. Tabs:
 
 **AI website text.** When a customer sends their project form, the AI writes a first draft of their website text in the background (`api/_lib/drafts.mjs`): every chosen page with SEO title and meta description, the Google Business Profile description (Business/Store), product descriptions (Store), the first 2 blog posts if they asked for them, or a draft scope for custom projects. Missing facts appear as highlighted `[ADD: …]`. In **Manage → Project form → Website text**: **View text** (copy each section, copy all, print) or **Rewrite**. It uses the same AI key as the chat (Gemini or Claude). If it couldn't be written at submit time, the daily run catches it up.
 
-**Project form.** When a payment brings a job to 70% of its quote (or any payment if there is no quote), the request gets a private form link. In **Manage** (and on the client card) tap **Send form on WhatsApp**. The customer sees questions for their package, saves as they go, uploads logo and photos, and taps **Send my details**. You get an email with all the answers, the project moves to **Building**, and **View answers** shows everything (printable). The questions live in `api/_lib/brief-schema.mjs`. Photo uploads need Vercel Blob: Vercel → Storage → Create → Blob → connect it to this project (this adds `BLOB_READ_WRITE_TOKEN`). Without it, the form asks customers to send files on WhatsApp.
+**Project form.** When a payment brings a job to 70% of its quote (or any payment if there is no quote), the request gets a private form link. In **Manage** (and on the client card) tap **Send form on WhatsApp**. The customer sees questions for their package, saves as they go, uploads logo and photos, and taps **Send my details**. You get an email with all the answers, the project moves to **Building**, and **View answers** shows everything (printable). The questions live in `api/_lib/brief-schema.mjs`. Photo uploads are stored on Netlify (Netlify Blobs) with nothing to set up.
 
 ### What runs automatically (`api/_lib/automation.mjs`)
 
@@ -160,7 +162,7 @@ The morning email lists previews with change requests, previews not answered for
 
 ## Going live on Cloudflare (one tap)
 
-Set `CLOUDFLARE_API_TOKEN` (custom token: Account · Cloudflare Pages · Edit; Account · Email Routing Addresses · Edit; Zone · Zone · Edit; Zone · DNS · Edit; Zone · Email Routing Rules · Edit; zone resources: all zones in the account) and `CLOUDFLARE_ACCOUNT_ID` in Vercel. Then in admin → Clients → **Go live**:
+Set `CLOUDFLARE_API_TOKEN` (custom token: Account · Cloudflare Pages · Edit; Account · Email Routing Addresses · Edit; Zone · Zone · Edit; Zone · DNS · Edit; Zone · Email Routing Rules · Edit; zone resources: all zones in the account) and `CLOUDFLARE_ACCOUNT_ID` in Netlify. Then in admin → Clients → **Go live**:
 
 1. **Add domain to Cloudflare** — creates the zone and shows the 2 nameservers to set at the registrar (copy, or send to the customer on WhatsApp). Status updates every morning or with **Check now**.
 2. **Publish website** — uploads the approved design (pages + photos) to a Cloudflare Pages project via the Direct Upload API (`api/_lib/cloudflare.mjs`), connects the domain and `www` (custom domains + CNAME records, replacing old A/CNAME records at those names) once the zone is active, marks the project Live (renewal date set) and fills *Their website*. Asks first if the balance isn't paid. **Update live site** re-publishes after edits (only changed files are uploaded).
@@ -174,40 +176,25 @@ In admin → Website preview, **AI design** asks the AI for a custom look for th
 
 ## Online payments (Paystack)
 
-Set `PAYSTACK_SECRET_KEY` in Vercel (Paystack → Settings → API Keys & Webhooks → Live Secret Key) and, on the same Paystack page, the **Live Webhook URL** `https://www.sirraddo.com.ng/api/paystack-webhook`.
+Set `PAYSTACK_SECRET_KEY` in Netlify (Paystack → Settings → API Keys & Webhooks → Live Secret Key) and, on the same Paystack page, the **Live Webhook URL** `https://www.sirraddo.com.ng/api/paystack-webhook`.
 
 - Invoices (page and email), the balance invoice sent on preview approval, and renewal reminders get a **Pay online** button. WhatsApp invoice and renewal messages get a `{pay_link}` line. Admin → Invoice and receipt → **Copy pay link**.
 - `/pay?t=…` works out what is due on the server: the 70% deposit, then the balance, then the yearly renewal (from 60 days before it is due).
 - When Paystack confirms a payment (webhook, or the customer returning to `/pay`), it is added to the customer's payments once (by Paystack reference). Then the usual rules run: deposit → won and project form emailed; renewal → next renewal date moves a year on. The customer gets their receipt and you get an email.
 - Without the key, everything works as before (bank transfer, payments added by hand).
 
-## Deploying on Vercel
+## Hosting on Netlify
 
-1. On https://vercel.com, choose **Add New → Project** and import this GitHub repository.
-2. Framework preset: **Other**. Leave Build Command and Output Directory empty: `vercel.json` sets them.
-3. Click **Deploy**. Every push to `main` deploys again automatically.
+The site runs on Netlify's free plan (business use allowed). Netlify builds from GitHub (`node scripts/build.mjs`, folder `public`) on every push to `main`; branches and pull requests get free preview deploys.
 
-## Adding a custom domain later (for example `sirraddo.com.ng`)
-
-1. In Vercel, open the project and go to **Settings → Domains**.
-2. Type the domain, for example `sirraddo.com.ng`, and click **Add**. Add `www.sirraddo.com.ng` too, and let Vercel redirect one to the other.
-3. Vercel shows the DNS records to create. At your domain registrar, open the DNS settings and add them. Usually this means:
-   - an **A** record for the root domain (`@`) pointing to the IP address Vercel shows;
-   - a **CNAME** record for `www` pointing to the target Vercel shows (such as `cname.vercel-dns.com`).
-
-   Or switch the domain's nameservers to Vercel's, if Vercel offers that.
-4. Wait for DNS to update. This can take from a few minutes to 48 hours. Vercel adds the HTTPS certificate automatically.
-5. Once the domain works, change one line in `site.config.mjs`:
-
-   ```js
-   export const SITE_URL = "https://www.sirraddo.com.ng";
-   ```
-
-   Push to `main`. The next deploy updates the canonical links, `og:url`, the share image link, `sitemap.xml` and `robots.txt` on every page.
+- **Domain:** DNS stays in Cloudflare, both records grey (DNS only): `A @ → 75.2.60.5` and `CNAME www → sirraddo.netlify.app`. Netlify issues and renews the HTTPS certificate. `www.sirraddo.com.ng` is the primary domain.
+- **Logs:** Project navigation → Cloud compute → Functions → pick one (`requests` = admin, `chat` = website chat, `daily` = morning job). Kept 24 hours.
+- **Limits:** functions stop after 30 seconds (the AI work is split to fit), and the free plan has 300 credits a month (deploys 15 each, plus traffic). If credits run out, the site pauses until the next month.
+- **Uploads** (logos, photos, chat pictures, screenshots) are kept in Netlify Blobs and served from `/files/…`.
 
 ## Live site check
 
-After every push to `main`, GitHub Actions waits up to 10 minutes for Vercel to publish. It then checks the live `/websites` page at `SITE_URL`:
+After every push to `main`, GitHub Actions waits up to 10 minutes until Netlify serves that exact commit (`/version.txt`). It then checks the live `/websites` page at `SITE_URL`, the pay, connect and banner functions, and:
 
 - content: no Google Maps item in the "every website" list, "7 working days", renewal prices, demo cards matching `SHOW_DEMO_CARDS`, and one "Recommended" badge on the Business card;
 - layout: in Chromium at phone and desktop widths, the "Recommended" band sits on the Business card.

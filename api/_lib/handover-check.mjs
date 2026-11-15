@@ -1,7 +1,8 @@
 // Everything a website job needs before it is finished "once and for all", in order. Used by the admin
-// Handover card (✓/✗ list), the admin Assistant ("what's next?") and the morning email. After every item is
-// done, only change requests are left (free fixes for 30 days, then quoted).
-import { handoverAuto, balance, naira } from "./docs.mjs";
+// Handover card (✓/✗ list with how-to steps and a ready WhatsApp message for the customer) and the admin
+// Assistant ("what's next?"). After every item is done, only change requests are left.
+//   item = { key, label, done, auto, fix, steps: [what YOU do], tell: "message for the CUSTOMER" }
+import { handoverAuto, balance, naira, COMPANY } from "./docs.mjs";
 import { kindFor, emailAllowance } from "./brief-schema.mjs";
 export { emailAllowance };
 
@@ -14,51 +15,102 @@ export function wantedEmails(r) {
 
 export function handoverChecklist(r, settings = {}) {
   const kind = kindFor(r.interest);
-  if (kind === "project" || !["won"].includes(r.status)) return [];
+  if (kind === "project" || r.status !== "won") return [];
   const h = handoverAuto(r, settings);
   const host = r.hosting || {};
   const mail = host.email || {};
   const w = r.brief_wants || {};
+  const first = String(r.name || "").split(" ")[0] || "there";
+  const domain = host.domain || h.domain || "";
   const items = [];
-  const add = (key, label, done, fix) => items.push({ key, label, done: Boolean(done), fix: done ? "" : fix });
+  const add = (key, label, done, more) => items.push({ key, label, done: Boolean(done), auto: false, fix: "", steps: [], tell: "", ...more, ...(done ? { fix: "", steps: [], tell: "" } : {}) });
 
   const bal = balance(r);
-  add("paid", "Balance paid in full", r.quote_amount != null && bal === 0,
-    `${naira(bal)} still owed: send the balance invoice (Invoice and receipt → WhatsApp / Email). Nothing is handed over before it's paid.`);
-  add("live", "Website live on their own domain", host.attached && r.website_url,
-    host.project ? "Go live: their domain connects by itself once the balance is paid and the nameservers are set (Check now)."
-      : "Clients → Go live: Add domain to Cloudflare → set the 2 nameservers at their domain seller → Publish website.");
-  add("domain", "Domain details (registrar and expiry date)", h.domain && h.registrar && h.domain_expires,
-    "Handover pack: fill Registered with and Registered until (or set your usual registrar in Settings once).");
+  add("paid", "Balance paid in full", r.quote_amount != null && bal === 0, {
+    fix: `${naira(bal)} still owed. Nothing is handed over before it's paid.`,
+    steps: ["Requests → this customer → Invoice and receipt → WhatsApp or Email: it has a Pay online button.", "Paid another way? Add it under Payments (tick Email receipt)."],
+  });
+
+  const ns = host.nameservers || [];
+  add("live", "Website live on their own domain", host.attached && r.website_url, {
+    fix: !host.zoneId ? "Add their domain in Go live." : host.zoneStatus !== "active" ? "Waiting for the nameservers to be changed at their domain seller." : !host.project ? "Domain is ready: publish the website." : "Connecting: tap Check now (up to ~15 minutes for the padlock).",
+    steps: [
+      "Clients → this customer → Go live → type their domain (e.g. theirbusiness.com.ng) → Add domain to Cloudflare.",
+      "Change the domain's nameservers to the 2 shown: either tap 'Send steps on WhatsApp' below for the customer, or log in to the domain seller yourself (Whogohost: My domains → Manage → Nameservers → use custom nameservers).",
+      "Tap Publish website: it's on the free .pages.dev address at once.",
+      "Their domain connects by itself once the nameservers work (minutes to 24 hours); tap Check now to see.",
+    ],
+    tell: domain && ns.length ? `Hello ${first}, to connect your website to ${domain}, please:\n1. Log in where you bought the domain (e.g. Whogohost → My domains → ${domain} → Manage).\n2. Open Nameservers and choose "custom nameservers".\n3. Delete the old ones and put exactly these two:\n${ns.join("\n")}\n4. Save.\nIt can take a few hours to work. If it's easier, send me a screenshot of that page and I'll guide you.` : "",
+  });
+
+  add("domain", "Domain details (registrar and expiry date)", h.domain && h.registrar && h.domain_expires, {
+    auto: true,
+    fix: !h.domain ? "Fills in by itself after Go live." : "Fills in by itself from Settings → Handover (your usual registrar) and the go-live date.",
+    steps: ["Once: Admin → Settings → Handover → 'Domains I buy for customers are registered with' (e.g. Whogohost) → Save. Every job fills it in from then on.", "Their own domain? In the handover pack choose 'Their own domain' and type the seller and expiry date."],
+  });
 
   const allow = emailAllowance(r.interest);
   const have = mail.locals || [];
   const want = wantedEmails(r);
   const missing = want.filter((x) => !have.includes(x));
   const room = Math.max(0, allow - have.length);
-  const asked = want.length ? `; they asked for ${want.map((x) => x + "@").join(", ")}` : "";
-  add("email", `Business email: ${have.length} of ${allow} set up${asked}`,
-    have.length && (!missing.length || !room) && mail.status === "active",
-    !have.length ? `Go live → Set up email forwarding: ${(want.length ? want : ["info"]).slice(0, allow).map((x) => x + "@").join(", ")} → their own Gmail. Cloudflare emails them a link to confirm (check Spam).`
-      : mail.status !== "active" ? "Waiting for them to tap Cloudflare's confirmation email (check Spam), then Check in Go live."
-      : `Go live → Set up email forwarding: add ${missing.slice(0, room).map((x) => x + "@").join(", ")} (keep the ones already there).`);
+  const names = (have.length ? have.concat(missing.slice(0, room)) : (want.length ? want : ["info"]).slice(0, allow));
+  const addrs = names.map((x) => `${x}@${domain || "theirdomain"}`).join(", ");
+  add("email", `Business email: ${have.length} of ${allow} set up${want.length ? `; they asked for ${want.map((x) => x + "@").join(", ")}` : ""}`,
+    have.length && (!missing.length || !room) && mail.status === "active", {
+    fix: !domain || host.zoneStatus !== "active" ? "Needs their domain active first (Go live)." : !have.length ? "Set up forwarding to their Gmail." : mail.status !== "active" ? "Waiting for them to tap Cloudflare's confirmation email." : `Add ${missing.slice(0, room).map((x) => x + "@").join(", ")}.`,
+    steps: [
+      "Go live → Set up email forwarding: the names are filled in from their form; type their Gmail in 'Forward to' → tap the button.",
+      "Cloudflare emails their Gmail once. Send them the message below so they tap Verify.",
+      "The badge turns Working by itself (or tap Check now). Adding more names later doesn't need a new confirmation.",
+    ],
+    tell: `Hello ${first}, your business email${names.length > 1 ? "s are" : " is"} ready: ${addrs}. Cloudflare (our email service) has sent an email to ${mail.to || "your Gmail"} to confirm it. Please open it (check Spam or Promotions if you don't see it) and tap "Verify email address". After that, every email sent to your business address${names.length > 1 ? "es" : ""} arrives in your Gmail.`,
+  });
 
   if (kind === "store") {
     const help = w.paystack === "Please help me set one up";
-    add("paystack", "Online payments (their own Paystack)",
-      (r.shop?.online && r.shop?.keyMode !== "test") || h.whatsapp_only,
-      r.shop?.keyMode === "test" ? "Their key is a TEST key (no real money): replace it with their Live Secret Key in Online Store."
-        : help ? "They asked for help: open a Paystack account WITH them in their name (their email, BVN, ID, payout bank account; CAC papers if registered). When Paystack approves it: Clients → Online store payments → Send 'Connect Paystack' link; they paste their own Live Secret Key there (the page shows where to find it). Test with a small order."
-        : "Clients → Online store payments → Send \"Connect Paystack\" link: they paste their own Live Secret Key (the page shows where to find it), and Pay online turns on by itself; the page and an email tell them to test it themselves with a small amount. Check with them that their test order worked. Or tick 'WhatsApp orders only' in the handover pack.");
+    add("paystack", "Online payments (their own Paystack)", (r.shop?.online && r.shop?.keyMode !== "test") || h.whatsapp_only, {
+      fix: r.shop?.keyMode === "test" ? "Their key is a TEST key (no real money): they need to connect the Live key." : help ? "They asked for help opening a Paystack account." : "Send them the Connect Paystack link.",
+      steps: help ? [
+        "Call them or sit together (it needs their own details, not yours).",
+        "Send them the message below: they create the account and activate it (BVN, ID, bank account; CAC papers if registered). Approval usually takes a few days.",
+        "When approved: store card above → Send 'Connect Paystack' link. They paste their Live Secret Key; Pay online turns on and you get an email.",
+        "Ask them to place a small test order and check it in Paystack → Transactions.",
+        "If they don't want Paystack: tick 'WhatsApp orders only' in the handover pack.",
+      ] : [
+        "Store card above → Send 'Connect Paystack' link (or Copy link). The page shows them where to find the Live key.",
+        "Pay online turns on by itself and you get an email.",
+        "Ask them to place a small test order and check it in Paystack → Transactions.",
+      ],
+      tell: help ? `Hello ${first}, let's open your Paystack account so your store can take card and transfer payments straight into your bank:\n1. Go to paystack.com and tap "Create free account". Use your own email and business name, country Nigeria.\n2. Confirm your email.\n3. In the dashboard tap "Activate your business" (or Compliance) and fill in: business type (if it isn't registered with CAC, pick the option for unregistered/starter businesses), your BVN, a valid ID, your bank account for payouts and your business address. If you're registered, add your CAC documents.\n4. Submit. Paystack usually approves in a few days.\nTell me when it's approved and I'll send you a private link to connect it to your website. Never send your Paystack password to anyone.` : "",
+    });
   }
+
   if (kind !== "starter") {
-    add("gbp", "Google Business Profile", h.gbp_done,
-      `Create it at business.google.com with the description in their website text, owner ${h.gbp_owner || w.gbp_gmail || "their Gmail"}, you as manager; they enter Google's code. Then tick 'Google profile done' in the handover pack.`);
+    const owner = h.gbp_owner || w.gbp_gmail || "";
+    add("gbp", "Google Business Profile", h.gbp_done, {
+      fix: `Owner: ${owner || "their Gmail"}. Google needs the owner to verify it.`,
+      steps: [
+        "Send them the message below (or do it together on their phone).",
+        "Give them the Google Business Profile description from their website text (Project form → View text) to paste.",
+        "When they've added you as a manager, you can fix photos, hours and replies for them.",
+        "Then tick 'Google profile done' and Save handover details.",
+      ],
+      tell: `Hello ${first}, let's put your business on Google Maps and Search (free):\n1. Open business.google.com${owner ? ` and sign in with ${owner}` : " with your Gmail"}.\n2. Tap "Add business" and fill in your business name, category, address (or the areas you serve), phone number and website${r.website_url ? ` (${r.website_url})` : ""}.\n3. For the description, paste the one I'll send you.\n4. Google will verify it's you (code by SMS, phone call, email or a short video). Enter the code when it comes.\n5. Then go to Settings → People and access → Add, and add ${COMPANY.email} as Manager, so we can help keep it up to date.\nSend me a screenshot if you get stuck.`,
+    });
   }
-  add("report", "Monthly visitor report switched on", host.statsKey && !host.reportsOff,
-    "After launch: tick 'Email them a visitor report' (sites published before reports existed need one Update live site).");
-  add("pack", "Handover pack sent", r.auto_sent?.handover, "Handover pack: Save the details, then Email and/or WhatsApp it.");
+
+  add("report", "Monthly visitor report switched on", host.statsKey && !host.reportsOff, {
+    auto: true,
+    fix: host.reportsOff ? "You switched it off for this customer." : "Switches on by itself when the website is published.",
+    steps: host.reportsOff ? ["After launch → tick 'Email them a visitor report on the 1st of every month'."] : ["Nothing to do: it starts when you Publish (older sites: tap Update live site once)."],
+  });
+
+  add("pack", "Handover pack sent", r.auto_sent?.handover, {
+    fix: "Last step, once everything above is ✓.",
+    steps: ["Check the boxes below and tap Save handover details.", "Tap View to read it as they will.", "Tap Email and/or WhatsApp. Only change requests remain after this."],
+  });
   return items;
 }
 
-export const checklistText = (items) => items.map((i) => `${i.done ? "✓" : "✗"} ${i.label}${i.done ? "" : " → " + i.fix}`).join("\n");
+export const checklistText = (items) => items.map((i) => `${i.done ? "✓" : "✗"} ${i.label}${i.done ? "" : `${i.auto ? " (automatic)" : ""} → ${i.fix}${i.steps.length ? " Steps: " + i.steps.join(" / ") : ""}`}`).join("\n");

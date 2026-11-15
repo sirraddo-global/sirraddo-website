@@ -1,5 +1,5 @@
 // GET /doc?t=TOKEN&type=receipt|invoice|renewal — the customer's invoice or receipt as a web page
-// they can open from WhatsApp or email, print, or save as PDF. (/doc is rewritten here in vercel.json.)
+// they can open from WhatsApp or email, print, or save as PDF. (served at /doc by netlify/functions/doc.mjs.)
 import { getByDocToken, getSettings, esc } from "./_lib/store.mjs";
 import { buildDoc, docPage, DOC_TYPES, naira } from "./_lib/docs.mjs";
 import { addHandoverExtras } from "./_lib/handover.mjs";

@@ -26,6 +26,9 @@ import { buildBackup } from "./_lib/backup.mjs";
 import { FUNCTION_BUDGET_MS } from "./_lib/platform.mjs";
 import { addHandoverExtras } from "./_lib/handover.mjs";
 import { handoverChecklist } from "./_lib/handover-check.mjs";
+import { putFile, deleteFiles } from "./_lib/platform.mjs";
+import { setDesignRefs, MAX_DESIGN_REFS } from "./_lib/store.mjs";
+import { noticesForAdmin, saveNotice, deleteNotice, NOTICE_KINDS } from "./_lib/notices.mjs";
 import { getConfig, saveConfig, occurrences, queueEmails, emailStatus, audience, GREETING_EMAILS_PER_DAY } from "./_lib/greetings.mjs";
 import { changeLink, listChanges, markChange, freeUntil } from "./_lib/changes.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
@@ -249,7 +252,10 @@ export default async function handler(req, res) {
     if (req.method === "DELETE") {
       const id = Number(query.id);
       if (!Number.isInteger(id)) throw new Bad("Missing id");
-      return (await deleteRequest(id)) ? res.status(200).json({ ok: true }) : res.status(404).json({ error: "Not found" });
+      if (!(await deleteRequest(id))) return res.status(404).json({ error: "Not found" });
+      // Their logo, photos and screenshots go too (privacy policy: deleted with the project).
+      await Promise.all([deleteFiles(`briefs/${id}/`), deleteFiles(`design-refs/${id}/`)]).catch((e) => console.error("file delete failed", id, e));
+      return res.status(200).json({ ok: true });
     }
 
     if (req.method === "POST") {
@@ -303,8 +309,29 @@ export default async function handler(req, res) {
       if (body.action === "design") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");
-        const result = await generateDesign(id);
+        const result = await generateDesign(id, undefined, body.note);
         if (!result.ok) throw new Bad(result.error);
+        return res.status(200).json(await getRequest(id));
+      }
+      // Screenshots of the look the customer likes (you take them from the sites they named): the AI design reads them.
+      if (body.action === "design_ref_add" || body.action === "design_ref_remove") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        const row = await getRequest(id);
+        if (!row) return res.status(404).json({ error: "Not found" });
+        let refs = row.design_refs || [];
+        if (body.action === "design_ref_remove") refs = refs.filter((r) => r.url !== body.url);
+        else {
+          if (refs.length >= MAX_DESIGN_REFS) throw new Bad(`Up to ${MAX_DESIGN_REFS} screenshots. Remove one first.`);
+          const type = String(body.type || "");
+          if (!["image/jpeg", "image/png", "image/webp"].includes(type)) throw new Bad("Upload a screenshot (JPG, PNG or WebP)");
+          const buf = Buffer.from(String(body.data || ""), "base64");
+          if (!buf.length || buf.length > 4 * 1024 * 1024) throw new Bad("That picture is too big (max 4 MB)");
+          const name = String(body.name || "screenshot").replace(/[^\w.\- ]+/g, "_").slice(0, 60) || "screenshot";
+          const { url } = await putFile(`design-refs/${id}/${name}`, buf, { contentType: type });
+          refs = [...refs, { url, name }];
+        }
+        await setDesignRefs(id, refs);
         return res.status(200).json(await getRequest(id));
       }
       if (body.action === "design_clear" || body.action === "design_option") {
@@ -341,15 +368,18 @@ export default async function handler(req, res) {
           throw new Bad(friendlyAiError(e));
         }
       }
+      if (body.action === "notices" || body.action === "notice_save" || body.action === "notice_delete") {
+        try {
+          if (body.action === "notice_save") await saveNotice(body.notice || {});
+          if (body.action === "notice_delete") await deleteNotice(String(body.noticeId || ""));
+        } catch (e) { throw new Bad(e.message); }
+        return res.status(200).json({ notices: await noticesForAdmin(), kinds: NOTICE_KINDS });
+      }
       if (body.action === "paystack_link") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");
         const link = await paystackConnectLink(id);
         return link ? res.status(200).json({ ...link, row: await getRequest(id) }) : res.status(404).json({ error: "Not found" });
-      }
-      if (body.action === "move_files") {
-        const { moveOldFiles } = await import("./_lib/move-files.mjs");
-        return res.status(200).json(await moveOldFiles(FUNCTION_BUDGET_MS() - 6000));
       }
       if (body.action === "greetings" || body.action === "greetings_save" || body.action === "greetings_email") {
         try {

@@ -1,5 +1,5 @@
 // /preview?t=TOKEN&p=PAGE — the customer's website preview, built from their project form and the
-// website text you checked in admin. (/preview is rewritten here in vercel.json.)
+// website text you checked in admin. (served at /preview by netlify/functions/preview.mjs.)
 //   GET  -> the page, with a panel to approve it or ask for changes
 //   POST { t, action: "approved" | "changes", text } -> saves the answer and tells you by email.
 // On approval, the balance invoice is emailed to the customer automatically (once).

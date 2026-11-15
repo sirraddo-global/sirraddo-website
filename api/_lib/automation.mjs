@@ -9,7 +9,8 @@ import { dailyHosting, hostingRef } from "./golive.mjs";
 import { reconcileOrders } from "./shop.mjs";
 import { monthlyReports, cleanupStats } from "./stats.mjs";
 import { weeklyBackup } from "./backup.mjs";
-import { FUNCTION_BUDGET_MS } from "./platform.mjs";
+import { FUNCTION_BUDGET_MS, deleteOldChatFiles } from "./platform.mjs";
+import { handoverChecklist } from "./handover-check.mjs";
 import { sendBatch as sendGreetingBatch, occurrences, getConfig as getGreetingConfig } from "./greetings.mjs";
 const todayIso = () => new Date(Date.now() + 3600 * 1000).toISOString().slice(0, 10);
 const addDaysIso = (d, n) => { const t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
@@ -196,8 +197,8 @@ function item(r, text, wa) {
 }
 const section = (title, items) => (items.length ? `<h3 style="margin:18px 0 6px;color:#13254F">${esc(title)} (${items.length})</h3><ul style="padding-left:18px;margin:0">${items.join("")}</ul>` : "");
 
-// once: the scheduled runs (Netlify's, and Vercel's while both hosts are up) pass this, so customers and you
-// get one set of reminders a day even when two hosts start the run.
+// once: the scheduled run passes this, so customers and you get one set of reminders a day even if it is
+// started twice (e.g. a retry).
 export async function runDaily(now = new Date(), { once = false } = {}) {
   if (once && !(await claimMeta(`daily_lock:${todayLagos(now)}`, new Date().toISOString()))) return { skipped: "already ran today" };
   const started = Date.now();
@@ -317,6 +318,12 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
   const festive = occurrences(await getGreetingConfig().catch(() => ({}))).filter((o) => o.on && o.from === addDaysIso(todayIso(), 1));
   if (Date.now() - started < budget * 0.82) report.backup = await weeklyBackup().catch((e) => { console.error("weekly backup failed", e); return null; });
   const openChanges = await openChangeCounts().catch(() => []);
+  // Paid jobs that still have handover steps for you (same checklist as admin's Handover card).
+  const hoSettings = await getSettings().catch(() => ({}));
+  const handoverLeft = all.map((r) => ({ r, left: handoverChecklist(r, hoSettings) }))
+    .filter(({ left }) => left.length && left.find((i) => i.key === "paid")?.done)
+    .map(({ r, left }) => ({ r, left: left.filter((i) => !i.done && !i.auto) }))
+    .filter(({ left }) => left.length);
   const byId = new Map(all.map((r) => [r.id, r]));
 
   // The morning email
@@ -333,6 +340,7 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
       section("Sites restored (paid)", host.restored.map((r) => item(r, `${esc(r.hosting?.domain || "")} is back online.`, null))),
       section("Hosting problems", host.errors.map(({ r, msg }) => item(r, esc(msg), null))),
     ] : []),
+    section("Paid jobs not fully handed over", handoverLeft.map(({ r, left }) => item(r, `still to do: ${left.map((i) => esc(i.label)).join("; ")}. Admin → Clients → Handover pack (steps and customer messages there).`, null))),
     section("New requests", fresh.map((r) => item(r, `${esc(r.contact)}${r.email ? " · " + esc(r.email) : ""} · ${esc(r.details || "")}`, fill(tpl("tpl_new"), r)))),
     section("Follow up today", due.map((r) => item(r, `${esc(r.status)} · due ${r.follow_up_on === today ? "today" : `since ${niceDate(r.follow_up_on)}`}`,
       fill(tpl(r.status === "quoted" ? "tpl_quoted" : "tpl_new"), r)))),
@@ -394,6 +402,7 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
     report.emailed = Boolean(await sendEmail(`SIRRADDO ${monday ? "weekly + daily" : "daily"} summary${counts ? ": " + counts : ""}`, html, attachments));
   }
   report.removed = await cleanup(90);
+  report.chatFilesRemoved = await deleteOldChatFiles(90, now).catch((e) => { console.error("chat files clean-up failed", e); return 0; });
   report.counts = { fresh: fresh.length, due: due.length, formsWaiting: formsWaiting.length, owing: owing.length, renewals: renewals.length, briefs: briefs.length, siteProblems: siteProblems.length, stale: stale.length, questions: questions.length };
   await setMeta("daily_run", new Date().toISOString()).catch(() => {});
   return report;

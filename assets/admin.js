@@ -206,6 +206,66 @@
       asst.msgs.push({ role: 'assistant', content: '⚠ ' + (e.message || 'Something went wrong') });
     }).then(function () { asst.busy = false; if (state.tab === 'assistant') { render(); var l = document.querySelector('.asst-log'); if (l) l.scrollTop = l.scrollHeight; } });
   }
+  // Service notices: a banner on your website (and the project form, pay and change pages) for planned upgrades,
+  // service problems, holiday breaks or any news. It shows from a chosen day and hides itself when it ends.
+  function noticesCard() {
+    var card = el('div', { class: 'admin-card admin-settings' }, [
+      el('h2', { text: 'Service notices' }),
+      el('p', { class: 'admin-intro', text: 'Tell customers about a planned upgrade, a problem, a holiday break or any news. It shows as a banner at the top of your website, project form, pay and change pages, and the website chat knows about it. It appears from the day you choose (3 days before by default) and disappears by itself when it ends.' })
+    ]);
+    var box = el('div', null, [el('p', { class: 'admin-hint', text: 'Loading…' })]);
+    card.appendChild(box);
+    var kinds = {};
+    function form(n, into) {
+      n = n || {};
+      var kind = el('select', null, Object.keys(kinds).map(function (k) { return el('option', { value: k, text: kinds[k].emoji + ' ' + kinds[k].title }); }));
+      kind.value = n.kind || 'upgrade';
+      var title = el('input', { value: n.title || kinds[kind.value].title, maxlength: '80' });
+      var msg = el('textarea', { rows: '4', maxlength: '600' }); msg.value = n.message || kinds[kind.value].message;
+      var date = el('input', { type: 'date', value: n.date || '' });
+      var from = el('input', { type: 'time', value: n.from || '' });
+      var to = el('input', { type: 'time', value: n.to || '' });
+      var showFrom = el('input', { type: 'date', value: n.show_from || '' });
+      var on = el('input', { type: 'checkbox' }); on.checked = n.on !== false;
+      kind.addEventListener('change', function () {
+        var k = kinds[kind.value];
+        if (!n.id) { title.value = k.title; msg.value = k.message; }
+      });
+      into.appendChild(el('div', { class: 'admin-golive' }, [
+        el('div', { class: 'admin-grid' }, [field('Type', kind), field('Title', title, 'Shown in bold before the message')]),
+        field('Message', msg, 'You can write {date}, {from} and {to}: they become e.g. "Saturday 22 November", "10pm" and "2am".'),
+        el('div', { class: 'admin-grid' }, [field('Date', date, 'For upgrades and holidays'), field('From (Lagos time)', from), field('Until', to, 'Earlier than From = the next morning')]),
+        el('div', { class: 'admin-grid' }, [field('Show the banner from', showFrom, 'Empty = 3 days before the date (or now if no date)'), el('label', { class: 'admin-check' }, [on, ' Showing (untick to hide it)'])]),
+        el('div', { class: 'admin-actions' }, [
+          el('button', { class: 'admin-btn', type: 'button', text: n.id ? 'Save notice' : 'Add notice', onclick: function (e) {
+            act({ action: 'notice_save', notice: { id: n.id, kind: kind.value, title: title.value, message: msg.value, date: date.value, from: from.value, to: to.value, show_from: showFrom.value, on: on.checked } }, n.id ? 'Notice saved' : 'Notice added', e.currentTarget);
+          } }),
+          n.id ? el('button', { class: 'admin-btn', type: 'button', text: 'Delete', onclick: function (e) {
+            if (window.confirm('Delete this notice?')) act({ action: 'notice_delete', noticeId: n.id }, 'Notice deleted', e.currentTarget);
+          } }) : null
+        ])
+      ]));
+    }
+    function draw(j) {
+      kinds = j.kinds; box.innerHTML = '';
+      j.notices.forEach(function (n) {
+        var st = { showing: ['Showing now', 'is-won'], scheduled: ['Scheduled', 'is-new'], ended: ['Ended', ''], off: ['Hidden', ''] }[n.status] || ['', ''];
+        var d = el('details', { class: 'admin-fold' }, [el('summary', null, [el('span', { class: 'admin-fold-title', text: (kinds[n.kind] || {}).emoji + ' ' + n.title }), badge(st[0], st[1])])]);
+        d.appendChild(el('p', { class: 'admin-hint', text: 'Customers see: ' + n.preview }));
+        form(n, d);
+        box.appendChild(d);
+      });
+      var add = el('details', { class: 'admin-fold', open: !j.notices.length }, [el('summary', null, [el('span', { class: 'admin-fold-title', text: '+ New notice' })])]);
+      form(null, add);
+      box.appendChild(add);
+    }
+    function act(body, okMsg, btn) {
+      if (btn) btn.disabled = true;
+      api('POST', body).then(function (j) { flash(okMsg); draw(j); }).catch(function (e) { if (btn) btn.disabled = false; fail(e); });
+    }
+    api('POST', { action: 'notices' }).then(draw).catch(function (e) { box.innerHTML = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
+    return card;
+  }
   // Festive greetings: a banner on the website during each festival (automatic) + optional emails you send.
   function greetingsCard() {
     var card = el('div', { class: 'admin-card admin-settings' }, [
@@ -272,8 +332,16 @@
   ];
   function renderMarketing(view) {
     view.appendChild(el('p', { class: 'admin-intro', text: 'Ads that lead people to your website. On your phone, Share opens WhatsApp, Instagram or Facebook with the picture ready (the caption is copied, so paste it in). Post one Status a day and rotate them.' }));
+    // Group the ads by where they're posted, so only a few show at a time.
+    var groups = [['story', 'Status & Story'], ['square', 'Square posts'], ['banner', 'Banner']];
+    var groupOf = function (ad) { return /1920/.test(ad.size) ? 'story' : /1080 × 1080|1080 x 1080/.test(ad.size) ? 'square' : 'banner'; };
+    var pickAd = state.adsTab || 'story';
+    view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Ad types' }, groups.map(function (g) {
+      var n = ADS.filter(function (a) { return groupOf(a) === g[0]; }).length;
+      return el('button', { type: 'button', 'aria-pressed': g[0] === pickAd ? 'true' : 'false', text: g[1] + ' (' + n + ')', onclick: function () { state.adsTab = g[0]; render(); } });
+    })));
     var grid = el('div', { class: 'mk-grid' });
-    ADS.forEach(function (ad) {
+    ADS.filter(function (a) { return groupOf(a) === pickAd; }).forEach(function (ad) {
       var url = '/assets/marketing/' + ad.file;
       var actions = el('div', { class: 'admin-actions' });
       var canShareFiles = !!(navigator.canShare && window.File);
@@ -372,7 +440,7 @@
 
   // Hosting is on Netlify's free plan while sales start. From the 2nd paid website project, suggest moving to a
   // paid home (Nigerian VPS yearly in naira, or Netlify Personal) until "Done" is tapped. TEST records don't count.
-  function vercelNudge(rs) {
+  function paidHomeNudge(rs) {
     if ((state.settings || {}).vercel_pro_at) return null;
     var paidProjects = rs.filter(function (r) { return r.status === 'won' && paid(r) > 0 && !/test/i.test((r.name || '') + ' ' + (r.business || '')); }).length;
     if (paidProjects < 2) return null;
@@ -392,7 +460,7 @@
     var rs = state.requests;
     var sc = setupCard();
     if (sc) view.appendChild(sc);
-    var vn = vercelNudge(rs);
+    var vn = paidHomeNudge(rs);
     if (vn) view.appendChild(vn);
     var weekAgo = Date.now() - 7 * 86400000;
     var thisWeek = rs.filter(function (r) { return new Date(r.created_at) > weekAgo; }).length;
@@ -841,11 +909,46 @@
       } }));
       return li;
     })));
+    // Websites the customer said they like (project form). The AI can't open links: look at them yourself and
+    // write 2–3 things to borrow (e.g. "dark header, big photo at the top, rounded gold buttons").
+    var liked = String((r.brief_wants || {}).examples || '').trim();
+    var note = el('textarea', { rows: '2', maxlength: '600', placeholder: liked ? 'What to borrow from the sites they like, e.g. dark header, big photo at the top, rounded gold buttons' : 'Optional: describe the look you want, e.g. clean white, big photos, green buttons' });
+    if (choices.length < 3) {
+      if (liked) {
+        var links = el('p', { class: 'admin-meta' }, [el('b', { text: 'Websites they like: ' })]);
+        liked.split(/(https?:\/\/[^\s,]+)/).forEach(function (part) {
+          if (/^https?:\/\//.test(part)) links.appendChild(el('a', { href: part, target: '_blank', rel: 'noopener noreferrer', text: part }));
+          else if (part) links.appendChild(document.createTextNode(part));
+        });
+        dsg.appendChild(links);
+      }
+      dsg.appendChild(field('Design notes for the AI', note, liked ? 'Open their links, then note the colours, header, photos and buttons they like. The AI uses this as inspiration, never a copy.' : 'Optional.'));
+      // Screenshots of the parts they like: the AI looks at these before designing (up to 3 of yours + 3 from their form).
+      var shots = el('div', { class: 'admin-shots' });
+      (r.example_shots || []).forEach(function (f) { shots.appendChild(el('a', { href: f.url, target: '_blank', rel: 'noopener', class: 'admin-shot' }, [el('img', { src: f.url, alt: f.name || 'screenshot', loading: 'lazy' }), el('span', { text: 'From their form' })])); });
+      (r.design_refs || []).forEach(function (f) {
+        shots.appendChild(el('span', { class: 'admin-shot' }, [el('img', { src: f.url, alt: f.name || 'screenshot', loading: 'lazy' }),
+          el('button', { class: 'admin-btn admin-btn--small', type: 'button', text: 'Remove', onclick: function (e) { designAct({ action: 'design_ref_remove', url: f.url }, 'Screenshot removed', e.currentTarget); } })]));
+      });
+      var pick = el('input', { type: 'file', accept: 'image/*', hidden: true });
+      pick.addEventListener('change', function () {
+        var file = pick.files && pick.files[0]; if (!file) return;
+        flash('Uploading screenshot…');
+        shrinkImage(file, 1600).then(function (img) {
+          return api('POST', { action: 'design_ref_add', id: r.id, name: file.name, type: img.type, data: img.data });
+        }).then(function (row) { replaceRequest(row); flash('Screenshot added: the AI design will look at it'); render(); }).catch(fail);
+      });
+      var nShots = (r.design_refs || []).length;
+      dsg.appendChild(el('span', { class: 'admin-label', text: 'Screenshots of what they like' }));
+      if ((r.example_shots || []).length || nShots) dsg.appendChild(shots);
+      dsg.appendChild(el('div', { class: 'admin-actions' }, [pick, el('button', { class: 'admin-btn', type: 'button', text: '+ Add screenshot', disabled: nShots >= 3, onclick: function () { pick.click(); } })]));
+      dsg.appendChild(el('p', { class: 'admin-hint', text: 'Open the site they like, screenshot the part they love (top of the page, a section, the colours) and add it here. The AI looks at it and makes theirs in the same spirit, in their own brand. Up to 3.' }));
+    }
     var dz = el('div', { class: 'admin-actions' });
     if (choices.length < 3) {
       var dbtn = el('button', { class: 'admin-btn', type: 'button', text: choices.length ? 'Add another AI design' : 'AI design (custom look)', onclick: function () {
         var label = dbtn.textContent; dbtn.disabled = true; dbtn.textContent = 'Designing… (up to a minute)';
-        api('POST', { action: 'design', id: r.id }).then(function (row) { replaceRequest(row); flash('New design ready. Tap "Open preview" to see it.'); render(); })
+        api('POST', { action: 'design', id: r.id, note: note.value }).then(function (row) { replaceRequest(row); flash('New design ready. Tap "Open preview" to see it.'); render(); })
           .catch(function (e) { dbtn.disabled = false; dbtn.textContent = label; fail(e); });
       } });
       dz.appendChild(dbtn);
@@ -1170,11 +1273,20 @@
     // What's left before this job is finished once and for all (same list the Assistant uses).
     var check = r.handover_check || [];
     if (check.length) {
-      var left = check.filter(function (i) { return !i.done; }).length;
+      var left = check.filter(function (i) { return !i.done && !i.auto; }).length;
       var list = el('ul', { class: 'admin-checklist' }, check.map(function (i) {
-        return el('li', { class: i.done ? 'is-done' : 'is-todo' }, [el('b', { text: (i.done ? '✓ ' : '✗ ') + i.label }), i.done ? '' : el('span', { class: 'admin-hint', text: ' ' + i.fix })]);
+        if (i.done) return el('li', { class: 'is-done' }, [el('b', { text: '✓ ' + i.label })]);
+        var kids = [el('b', { text: '✗ ' + i.label }), i.auto ? badge('Automatic', 'is-new') : '', el('span', { class: 'admin-hint', text: i.fix })];
+        if (i.steps && i.steps.length) kids.push(el('details', { class: 'admin-howto' }, [el('summary', { text: 'How to do it' }), el('ol', null, i.steps.map(function (t) { return el('li', { text: t }); }))]));
+        if (i.tell) {
+          var row = el('div', { class: 'admin-actions' });
+          if (waNumber(r.contact)) row.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send steps to customer', onclick: function () { window.open('https://wa.me/' + waNumber(r.contact) + '?text=' + encodeURIComponent(i.tell), '_blank', 'noopener'); } }));
+          row.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy message', onclick: function () { if (navigator.clipboard) navigator.clipboard.writeText(i.tell).then(function () { flash('Message copied'); }); } }));
+          kids.push(row);
+        }
+        return el('li', { class: 'is-todo' }, kids);
       }));
-      box.appendChild(el('details', { class: 'admin-fold', open: left > 0 }, [el('summary', { text: left ? 'Before handover: ' + left + ' thing' + (left === 1 ? '' : 's') + ' left' : 'Everything is handed over ✓ (only change requests remain)' }), list]));
+      box.appendChild(el('details', { class: 'admin-fold', open: left > 0 }, [el('summary', { text: left ? 'Before handover: ' + left + ' thing' + (left === 1 ? '' : 's') + ' for you to do' : check.every(function (i) { return i.done; }) ? 'Everything is handed over ✓ (only change requests remain)' : 'Nothing for you to do: the rest happens by itself' }), list]));
     }
     // Empty boxes are filled from Go live, your usual registrar (Settings) and the go-live date; what you type wins.
     var auto = handoverAuto(r);
@@ -1218,6 +1330,20 @@
     return box;
   }
 
+  // Resizes a photo in the browser (longest side max px) and returns { type, data (base64) } for upload.
+  function shrinkImage(file, max) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var s = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        var d = c.toDataURL('image/jpeg', 0.85); resolve({ type: 'image/jpeg', data: d.slice(d.indexOf(',') + 1) });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('That file is not a picture')); };
+      img.src = url;
+    });
+  }
   // Same as emailAllowance() / wantedEmails() in api/_lib/brief-schema.mjs and handover-check.mjs.
   function emailAllowance(interest) { return { 'Starter website': 1, 'Business website': 5, 'Online Store': 5 }[interest] || 0; }
   function wantedEmails(r) {
@@ -1375,7 +1501,14 @@
   function transcript(messages, title) {
     var det = el('details', { class: 'admin-sub' }, [el('summary', { text: title })]);
     messages.forEach(function (m) {
-      det.appendChild(el('p', { class: 'admin-line' }, [el('strong', { text: (m.role === 'user' ? 'Customer' : 'Assistant') + ': ' }), m.content]));
+      // "[photo] URL" / "[file] URL" lines are files the customer sent in the chat: show them.
+      var parts = [el('strong', { text: (m.role === 'user' ? 'Customer' : 'Assistant') + ': ' })];
+      String(m.content).split('\n').forEach(function (line, i) {
+        var f = line.match(/^\[(photo|file)\] (https?:\/\/\S+)$/);
+        if (f) parts.push(el('a', { href: f[2], target: '_blank', rel: 'noopener', class: 'admin-chat-file' }, [f[1] === 'photo' ? el('img', { src: f[2], alt: 'Photo they sent', loading: 'lazy' }) : '📄 File they sent']));
+        else parts.push((i ? '\n' : '') + line);
+      });
+      det.appendChild(el('p', { class: 'admin-line' }, parts));
     });
     return det;
   }
@@ -1529,38 +1662,62 @@
   }
 
   // ---------- Settings ----------
+  // Settings are split into small sections (chips at the top) so there's no long scrolling.
+  var SETTINGS_SECTIONS = [
+    ['business', 'Bank & invoices'], ['messages', 'WhatsApp messages'], ['handover', 'Handover'],
+    ['notices', 'Service notices'], ['greetings', 'Festive greetings'], ['backup', 'Backup']
+  ];
   function renderSettings(view) {
     var s = state.settings;
-    var inputs = {};
-    function text(key, label, placeholder, area) {
-      var inp = area ? el('textarea', { rows: 3, value: s[key] || '', placeholder: placeholder }) : el('input', { value: s[key] || '', placeholder: placeholder });
-      inputs[key] = inp;
-      return field(label, inp);
+    var pick = state.settingsTab || 'business';
+    var bar = el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Settings sections' }, SETTINGS_SECTIONS.map(function (x) {
+      return el('button', { type: 'button', 'aria-pressed': x[0] === pick ? 'true' : 'false', text: x[1], onclick: function () { state.settingsTab = x[0]; render(); } });
+    }));
+    view.appendChild(bar);
+    // A form that saves only its own settings.
+    function settingsForm(title, intro, build, check) {
+      var inputs = {};
+      function text(key, label, placeholder, area) {
+        var inp = area ? el('textarea', { rows: 3, value: s[key] || '', placeholder: placeholder }) : el('input', { value: s[key] || '', placeholder: placeholder });
+        inputs[key] = inp;
+        return field(label, inp);
+      }
+      var form = el('form', { class: 'admin-card admin-settings' }, [el('h2', { text: title }), intro ? el('p', { class: 'admin-intro', text: intro }) : null]);
+      build(form, text);
+      form.appendChild(el('button', { class: 'btn btn--navy', type: 'submit', text: 'Save' }));
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var values = {};
+        Object.keys(inputs).forEach(function (k) { values[k] = inputs[k].value.trim(); });
+        var problem = check && check(values);
+        if (problem) { setError(problem); return; }
+        api('POST', { action: 'settings', settings: values }).then(function (j) { state.settings = j.settings || {}; setError(''); flash('Saved'); }).catch(fail);
+      });
+      return form;
     }
-    var form = el('form', { class: 'admin-card admin-settings' }, [
-      el('h2', { text: 'Bank details for invoices' }),
-      text('bank_name', 'Bank', 'e.g. GTBank'),
-      text('account_name', 'Account name', 'SIRRADDO GLOBAL LIMITED'),
-      text('account_number', 'Account number', '10 digits'),
-      text('invoice_note', 'Note at the bottom of invoices', 'e.g. Work starts after the 70% deposit is received.', true),
-      el('h2', { text: 'WhatsApp messages' }),
-      el('p', { class: 'admin-intro', text: 'Leave a box empty to use the standard message. You can use {name}, {package}, {amount}, {deposit}, {paid}, {balance}, {renewal_amount}, {renewal_due}, {preview_link} and {website}.' })
-    ]);
-    Object.keys(TEMPLATES).forEach(function (k) { form.appendChild(text(k, TEMPLATES[k].label, TEMPLATES[k].text, true)); });
-    form.appendChild(el('h2', { text: 'Handover pack' }));
-    form.appendChild(text('handover_terms', 'Changes and support policy (shown in every handover pack)', DEFAULT_HANDOVER_TERMS, true));
-    form.appendChild(text('default_registrar', 'Domains I buy for customers are registered with (fills the handover pack)', 'e.g. Whogohost'));
-    form.appendChild(el('button', { class: 'btn btn--navy', type: 'submit', text: 'Save settings' }));
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var values = {};
-      Object.keys(inputs).forEach(function (k) { values[k] = inputs[k].value.trim(); });
-      if (values.account_number && !/^\d{10}$/.test(values.account_number)) { setError('Account number should be 10 digits.'); return; }
-      api('POST', { action: 'settings', settings: values }).then(function (j) { state.settings = j.settings || {}; setError(''); flash('Settings saved'); }).catch(fail);
-    });
-    view.appendChild(form);
-    view.appendChild(greetingsCard());
-    view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
+    if (pick === 'business') view.appendChild(settingsForm('Bank details for invoices', null, function (f, text) {
+      f.appendChild(text('bank_name', 'Bank', 'e.g. GTBank'));
+      f.appendChild(text('account_name', 'Account name', 'SIRRADDO GLOBAL LIMITED'));
+      f.appendChild(text('account_number', 'Account number', '10 digits'));
+      f.appendChild(text('invoice_note', 'Note at the bottom of invoices', 'e.g. Work starts after the 70% deposit is received.', true));
+    }, function (v) { return v.account_number && !/^\d{10}$/.test(v.account_number) ? 'Account number should be 10 digits.' : ''; }));
+    if (pick === 'messages') view.appendChild(settingsForm('WhatsApp messages', 'Tap a message to change it. Leave it empty to use the standard one. You can use {name}, {package}, {amount}, {deposit}, {paid}, {balance}, {renewal_amount}, {renewal_due}, {preview_link} and {website}.', function (f, text) {
+      // One fold per message, so the list stays short.
+      Object.keys(TEMPLATES).forEach(function (k) {
+        var custom = String(s[k] || '').trim();
+        var d = el('details', { class: 'admin-fold' }, [el('summary', null, [el('span', { class: 'admin-fold-title', text: TEMPLATES[k].label }), badge(custom ? 'Your own' : 'Standard', custom ? 'is-new' : '')])]);
+        var box = el('div', { class: 'admin-golive' }, [text(k, 'Message', TEMPLATES[k].text, true)]);
+        d.appendChild(box);
+        f.appendChild(d);
+      });
+    }));
+    if (pick === 'handover') view.appendChild(settingsForm('Handover pack', null, function (f, text) {
+      f.appendChild(text('default_registrar', 'Domains I buy for customers are registered with (fills every handover pack)', 'e.g. Whogohost'));
+      f.appendChild(text('handover_terms', 'Changes and support policy (shown in every handover pack)', DEFAULT_HANDOVER_TERMS, true));
+    }));
+    if (pick === 'notices') view.appendChild(noticesCard());
+    if (pick === 'greetings') view.appendChild(greetingsCard());
+    if (pick === 'backup') view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
       el('h2', { text: 'Backup' }),
       el('p', { class: 'admin-intro', text: 'Every Monday a backup of all your business data (customers, quotes, payments, website text, orders, change requests) is emailed to you as a file. Keep those emails. You can also download one now. It contains customer details, so keep it private.' }),
       el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Download backup now', onclick: function (e) { downloadFile('/api/requests?view=backup', 'sirraddo-backup.json.gz', e.currentTarget); } })])

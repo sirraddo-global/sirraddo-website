@@ -100,6 +100,22 @@ async function extraChecks() {
     const t = await (await fetch(`${BASE}/terms?check=${Date.now()}`)).text();
     results.push(["7. Terms has the delivery and refunds policies", t.includes('id="delivery"') && t.includes('id="payments-refunds"')]);
   } catch (e) { results.push([`7. /terms: ${e.message}`, false]); }
+  // This exact commit is live (Netlify writes it into /version.txt at build time), and the functions answer.
+  if (process.env.EXPECT_SHA) {
+    try {
+      const v = (await (await fetch(`${BASE}/version.txt?check=${Date.now()}`)).text()).trim();
+      results.push([`9. The live site is this commit (${process.env.EXPECT_SHA.slice(0, 7)})`, v === process.env.EXPECT_SHA]);
+    } catch (e) { results.push([`9. /version.txt: ${e.message}`, false]); }
+  }
+  try {
+    const j = await (await fetch(`${BASE}/api/site?greeting=1&check=${Date.now()}`)).json();
+    // Before this update is live (pull requests), the older banner reply has no notices list yet.
+    results.push(["10. Banner/notices function answers", Array.isArray(j.notices) || (!process.env.EXPECT_SHA && "greeting" in j)]);
+  } catch (e) { results.push([`10. /api/site: ${e.message}`, false]); }
+  try {
+    const r = await fetch(`${BASE}/connect?t=live-check-invalid-token-000000`);
+    results.push(["11. /connect is served (expired link page)", r.status === 404 && (await r.text()).includes("expired")]);
+  } catch (e) { results.push([`11. /connect: ${e.message}`, false]); }
   return results;
 }
 

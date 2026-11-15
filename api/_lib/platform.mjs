@@ -1,4 +1,4 @@
-// The few things that differ between hosts (Netlify now; Vercel before). Everything else is plain Node.
+// The few things that are specific to the host (Netlify). Everything else is plain Node.
 //   onNetlify          true inside a Netlify Function
 //   FUNCTION_BUDGET_MS how long a request may safely run (Netlify stops functions at 30 s)
 //   waitUntil(p)       keep working after the response has been sent
@@ -12,12 +12,11 @@ export const FUNCTION_BUDGET_MS = () => (onNetlify() ? 26000 : 55000);
 export function waitUntil(promise) {
   const ctx = globalThis.__requestContext;
   if (ctx?.waitUntil) return ctx.waitUntil(promise);
-  // Vercel (kept so the site can still run there) or local: fire and forget.
-  import("@vercel/functions").then((m) => m.waitUntil(promise)).catch(() => promise);
+  promise.catch?.((e) => console.error("background work failed", e)); // local runs: just let it finish
 }
 
 const FILES_STORE = "uploads";
-export const filesEnabled = () => Boolean(globalThis.__TEST_BLOB__ || process.env.BLOB_READ_WRITE_TOKEN || onNetlify());
+export const filesEnabled = () => Boolean(globalThis.__TEST_BLOB__ || onNetlify());
 
 // Stores a public file. path like "brief/12/logo.png". Returns { url }.
 export async function putFile(path, body, { contentType } = {}) {
@@ -32,8 +31,56 @@ export async function putFile(path, body, { contentType } = {}) {
     // and both keep working afterwards.
     return { url: `${(process.env.URL || SITE_URL).replace(/\/$/, "")}/files/${key}` };
   }
-  const { put } = await import("@vercel/blob");
-  return put(path, body, { access: "public", addRandomSuffix: true, contentType });
+  throw new Error("File storage is only available on Netlify");
+}
+
+// Deletes every stored file whose path starts with prefix (e.g. "briefs/12/" when a project is deleted).
+export async function deleteFiles(prefix) {
+  if (globalThis.__TEST_BLOB__) return globalThis.__TEST_BLOB__.deleted?.push(prefix) ?? 0;
+  if (!onNetlify() || !/^[\w-]+\/[\w./-]*$/.test(prefix)) return 0;
+  const { getStore } = await import("@netlify/blobs");
+  const store = getStore({ name: FILES_STORE });
+  const { blobs } = await store.list({ prefix });
+  for (const b of blobs) await store.delete(b.key);
+  return blobs.length;
+}
+// Chat photos are stored by month (chats/2026-11/...). Deletes the months that ended more than `days` ago.
+export async function deleteOldChatFiles(days = 90, now = new Date()) {
+  if (!onNetlify()) return 0;
+  const { getStore } = await import("@netlify/blobs");
+  const { directories } = await getStore({ name: FILES_STORE }).list({ prefix: "chats/", directories: true });
+  const cutoff = now.getTime() - days * 86400000;
+  let n = 0;
+  for (const dir of directories || []) {
+    const m = dir.match(/^chats\/(\d{4})-(\d{2})\/?$/);
+    if (m && Date.UTC(Number(m[1]), Number(m[2]), 1) <= cutoff) n += await deleteFiles(`chats/${m[1]}-${m[2]}/`);
+  }
+  return n;
+}
+
+// Reads one of OUR uploaded pictures so the AI can look at it: { mime, data (base64) } or null.
+// Only files stored by this site (…/files/… or the test store); never fetches other websites.
+const AI_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+export async function readImageForAi(url) {
+  try {
+    let buf, mime;
+    if (globalThis.__TEST_BLOB__ && /\/__blob\//.test(url)) {
+      const r = await fetch(url); mime = (r.headers.get("content-type") || "").split(";")[0]; buf = Buffer.from(await r.arrayBuffer());
+    } else {
+      const m = String(url).match(/^https:\/\/([^/]+)\/files\/([\w./-]+)$/);
+      const hosts = [SITE_URL, process.env.URL, "https://sirraddo.com.ng", "https://sirraddo.netlify.app"].filter(Boolean).map((u) => new URL(u).host);
+      if (!m || !hosts.includes(m[1]) || m[2].includes("..") || !onNetlify()) return null;
+      const { getStore } = await import("@netlify/blobs");
+      const r = await getStore({ name: FILES_STORE }).getWithMetadata(m[2], { type: "arrayBuffer" });
+      if (!r) return null;
+      buf = Buffer.from(r.data); mime = r.metadata?.type;
+    }
+    if (!AI_IMAGE_TYPES.includes(mime) || !buf.length || buf.length > 4 * 1024 * 1024) return null;
+    return { mime, data: buf.toString("base64") };
+  } catch (e) {
+    console.error("image for AI failed", url, e.message);
+    return null;
+  }
 }
 
 // Serves /files/<key> (Netlify). Returns a Response or null.

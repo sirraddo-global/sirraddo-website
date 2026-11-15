@@ -1,10 +1,10 @@
-// Builds the site into ./public for Vercel. No dependencies: needs only Node.
+// Builds the site into ./public for Netlify. No dependencies: needs only Node.
 //   node scripts/build.mjs
 // - copies the HTML pages and assets/
 // - replaces {{SITE_URL}} with SITE_URL from site.config.mjs
 // - removes the demo cards between DEMO_CARDS markers unless SHOW_DEMO_CARDS is true
 // - adds ?v=<hash> to CSS/JS links so browsers never use an outdated cached file
-// - writes sitemap.xml and robots.txt
+// - writes sitemap.xml and robots.txt, and version.txt (the commit Netlify built, for the live check)
 import { readFileSync, writeFileSync, rmSync, mkdirSync, cpSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { createHash } from "node:crypto";
@@ -51,3 +51,6 @@ writeFileSync(
 writeFileSync(join(out, "robots.txt"), `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /brief\nDisallow: /api/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
 
 console.log(`Built ${pages.length} pages into public/ for ${SITE_URL} (demo cards ${SHOW_DEMO_CARDS ? "on" : "off"})`);
+
+// The commit this build is from (Netlify sets COMMIT_REF), so the live check knows the new version is up.
+writeFileSync(join(out, "version.txt"), (process.env.COMMIT_REF || "local") + "\n");

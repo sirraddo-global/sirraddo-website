@@ -109,7 +109,8 @@ async function extraChecks() {
   }
   try {
     const j = await (await fetch(`${BASE}/api/site?greeting=1&check=${Date.now()}`)).json();
-    results.push(["10. Banner/notices function answers", Array.isArray(j.notices)]);
+    // Before this update is live (pull requests), the older banner reply has no notices list yet.
+    results.push(["10. Banner/notices function answers", Array.isArray(j.notices) || (!process.env.EXPECT_SHA && "greeting" in j)]);
   } catch (e) { results.push([`10. /api/site: ${e.message}`, false]); }
   try {
     const r = await fetch(`${BASE}/connect?t=live-check-invalid-token-000000`);

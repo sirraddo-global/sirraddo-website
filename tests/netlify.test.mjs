@@ -115,7 +115,9 @@ test("Connect Paystack link: the owner pastes their own live key once", async ()
   const liveKey = ["sk", "live", "abcdefghijklmnopqrstuvwx9876"].join("_");
   r = await post(liveKey);
   assert.equal(r.status, 200, await r.clone().text());
-  assert.match(await r.text(), /connected/);
+  const done = await r.text();
+  assert.match(done, /connected/);
+  assert.match(done, /test it yourself now with a small amount/, "owner is told to test with a small amount");
   const row = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((x) => x.id === id);
   assert.equal(row.shop.online, true);
   assert.equal(row.shop.keyEnd, "9876");

@@ -71,6 +71,7 @@ export async function findConnectRequest(token) {
   const r = await getRequest(rows[0].id);
   return r?.shop?.connect?.exp > Date.now() ? r : null;
 }
+export const TEST_STEPS = `<b>Please test it yourself now with a small amount:</b> on your website, add your cheapest item to the basket, tap Pay online and pay with your own card or transfer. Then check that (1) the payment shows in Paystack → Transactions and (2) the order email arrives. Paystack takes its normal small fee on the test. You can refund yourself in Paystack → Transactions → the payment → Refund. Tell us at once if anything doesn't work.`;
 // The owner pastes their key: only a LIVE secret key is accepted here (test keys take no real money).
 export async function connectPaystack(token, key) {
   const r = await findConnectRequest(token);
@@ -83,7 +84,11 @@ export async function connectPaystack(token, key) {
   await updateRequestShop(r.id, { connect: null, connectedAt: new Date().toISOString() });
   if (emailConfigured()) {
     await sendEmail(`${r.name} connected their Paystack (${reference(r.id)})`,
-      `<p><b>${esc(r.name)}</b>${r.business ? " (" + esc(r.business) + ")" : ""} added their Paystack Live key (…${esc(k.slice(-4))}). Pay online is now ON for their store. Place a small test order to check it.</p>`).catch(() => {});
+      `<p><b>${esc(r.name)}</b>${r.business ? " (" + esc(r.business) + ")" : ""} added their Paystack Live key (…${esc(k.slice(-4))}). Pay online is now ON for their store. They've been asked to place a small test order themselves; check with them that it worked.</p>`).catch(() => {});
+  }
+  if (r.email && customerEmailConfigured()) {
+    await sendCustomerEmail(r.email, "Your store now takes online payments: please test it",
+      `<p>Hello ${esc(String(r.name).split(" ")[0])},</p><p>Your Paystack account is connected. Customers can now pay on your website by card, transfer or USSD, straight into your own Paystack account.</p><p>${TEST_STEPS}</p>`).catch(() => {});
   }
   return row;
 }

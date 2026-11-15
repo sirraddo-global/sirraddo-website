@@ -1,7 +1,7 @@
 // /connect?t=TOKEN — the store owner's private "Connect Paystack" page. They paste their own Live Secret Key;
 // it's checked with Paystack, stored encrypted, and their store switches to "Pay online". One-time link (14 days).
 import { dbConfigured, esc } from "./_lib/store.mjs";
-import { findConnectRequest, connectPaystack } from "./_lib/shop.mjs";
+import { findConnectRequest, connectPaystack, TEST_STEPS } from "./_lib/shop.mjs";
 import { COMPANY } from "./_lib/docs.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
 
@@ -23,6 +23,7 @@ const STEPS = `
   <li>Open <b>Settings</b> (the gear) → <b>API Keys &amp; Webhooks</b>.</li>
   <li>Find <b>Live Secret Key</b>. Tap to show it, then <b>copy</b> it. It starts with <code>sk_live_</code>.</li>
   <li>Come back here, paste it in the box and tap <b>Connect</b>.</li>
+  <li><b>Then test it yourself with a small amount</b>: buy your cheapest item on your own website and check it shows in Paystack.</li>
 </ol>
 <h2>Test key or Live key?</h2>
 <ul>
@@ -83,6 +84,7 @@ export default async function handler(req, res) {
       return page(res, 400, "Connect your Paystack", form(r, token, e.message));
     }
     return page(res, 200, "Paystack connected", `<h1>You're connected ✓</h1><p class="ok">Your store now takes online payments into your own Paystack account. Payments and payouts show in your Paystack dashboard.</p>
+<p style="background:#FFF8E6;border-left:4px solid #D9A21B;padding:10px 12px;border-radius:8px">⚠️ ${TEST_STEPS}</p>
 <p>You can close this page. This link no longer works, so your key can't be changed through it.</p>`);
   }
   if (req.method !== "GET") return page(res, 405, "Not allowed", "<h1>Not allowed</h1>");

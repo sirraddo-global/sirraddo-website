@@ -104,6 +104,7 @@ function handoverDoc(r, settings) {
   ])}
   ${r.interest === "Online Store" ? section("Your online store", [
     row("Pay online", r.shop?.online ? "ON: customers pay by card, transfer or USSD, straight into your own Paystack account." : r.brief_wants?.paystack === "Please help me set one up" && !h.whatsapp_only ? "Being set up: as soon as Paystack approves your account, we switch on online payment. Until then customers order on WhatsApp." : "Customers order on WhatsApp. We can switch on online payment (into your own Paystack account) any time."),
+    row("Test it yourself", r.shop?.online ? "Now and then (and after any change to your Paystack), buy your cheapest item on your own website with a small amount and check it appears in Paystack → Transactions and the order email arrives. You can refund yourself in Paystack." : ""),
     row("Your Paystack account", r.shop?.online ? `It's yours, in your name: log in at ${link("https://dashboard.paystack.com")}${h.paystack_email ? " with " + esc(h.paystack_email) : ""} to see every payment and your payouts to your bank. We never hold your money. Never share your Paystack password or secret key with anyone.` : ""),
     row("Delivery fee", r.shop?.online && r.shop?.deliveryFee ? naira(r.shop.deliveryFee) + " (added at checkout)" : ""),
     row("Order alerts go to", esc(r.shop?.notify || r.brief?.order_alerts || r.email || "")),

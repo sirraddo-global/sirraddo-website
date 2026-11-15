@@ -49,7 +49,7 @@ export function handoverChecklist(r, settings = {}) {
       (r.shop?.online && r.shop?.keyMode !== "test") || h.whatsapp_only,
       r.shop?.keyMode === "test" ? "Their key is a TEST key (no real money): replace it with their Live Secret Key in Online Store."
         : help ? "They asked for help: open a Paystack account WITH them in their name (their email, BVN, ID, payout bank account; CAC papers if registered). When Paystack approves it: Clients → Online store payments → Send 'Connect Paystack' link; they paste their own Live Secret Key there (the page shows where to find it). Test with a small order."
-        : "Clients → Online store payments → Send \"Connect Paystack\" link: they paste their own Live Secret Key (the page shows where to find it), and Pay online turns on by itself. Test with a small order. Or tick 'WhatsApp orders only' in the handover pack.");
+        : "Clients → Online store payments → Send \"Connect Paystack\" link: they paste their own Live Secret Key (the page shows where to find it), and Pay online turns on by itself; the page and an email tell them to test it themselves with a small amount. Check with them that their test order worked. Or tick 'WhatsApp orders only' in the handover pack.");
   }
   if (kind !== "starter") {
     add("gbp", "Google Business Profile", h.gbp_done,

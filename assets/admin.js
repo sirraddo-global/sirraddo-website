@@ -1022,7 +1022,7 @@
       cacts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy link', onclick: function () {
         getLink(function (url) { if (navigator.clipboard) navigator.clipboard.writeText(msg(url)).then(function () { flash('Message with the link copied'); }); });
       } }));
-      box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Easiest: ' }), 'send them a private link to connect their own Paystack (with instructions to find the Live key). Pay online turns on by itself and you get an email.']));
+      box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Easiest: ' }), 'send them a private link to connect their own Paystack (with instructions to find the Live key). Pay online turns on by itself, you get an email, and they are told to test it themselves with a small amount. Check with them that it worked.']));
       box.appendChild(cacts);
       box.appendChild(linkOut);
     }

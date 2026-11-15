@@ -1,6 +1,6 @@
 // POST /api/brief-upload?t=TOKEN&field=photos&name=shop.jpg&type=image/jpeg
-// Body: the file itself (application/octet-stream). Stored with putFile (Netlify Blobs; Vercel Blob if BLOB_READ_WRITE_TOKEN is set).
-// Images are resized in the browser first, so uploads stay well under Vercel's 4.5 MB request limit.
+// Body: the file itself (application/octet-stream). Stored with putFile (Netlify Blobs).
+// Images are resized in the browser first, so uploads stay well under the 4 MB limit.
 import { putFile } from "./_lib/platform.mjs";
 import { getBrief, addBriefFile } from "./_lib/store.mjs";
 import { kindFor, fileField } from "./_lib/brief-schema.mjs";

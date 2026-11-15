@@ -1,4 +1,4 @@
-// Site settings. Change a value here, push to main, and Vercel rebuilds the site with it.
+// Site settings. Change a value here, push to main, and Netlify rebuilds the site with it.
 
 // The site's public address, with no slash at the end.
 // When you move to your own domain, change only this line, e.g. "https://sirraddo.com.ng".

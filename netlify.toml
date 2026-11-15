@@ -61,3 +61,15 @@
   [headers.values]
     Content-Type = "application/manifest+json"
     Cache-Control = "no-cache"
+
+# The .netlify.app address sends people (and old links) to the real one.
+[[redirects]]
+  from = "https://sirraddo.netlify.app/*"
+  to = "https://www.sirraddo.com.ng/:splat"
+  status = 301
+  force = true
+
+[[headers]]
+  for = "/version.txt"
+  [headers.values]
+    Cache-Control = "no-cache"

@@ -440,7 +440,7 @@
 
   // Hosting is on Netlify's free plan while sales start. From the 2nd paid website project, suggest moving to a
   // paid home (Nigerian VPS yearly in naira, or Netlify Personal) until "Done" is tapped. TEST records don't count.
-  function vercelNudge(rs) {
+  function paidHomeNudge(rs) {
     if ((state.settings || {}).vercel_pro_at) return null;
     var paidProjects = rs.filter(function (r) { return r.status === 'won' && paid(r) > 0 && !/test/i.test((r.name || '') + ' ' + (r.business || '')); }).length;
     if (paidProjects < 2) return null;
@@ -460,7 +460,7 @@
     var rs = state.requests;
     var sc = setupCard();
     if (sc) view.appendChild(sc);
-    var vn = vercelNudge(rs);
+    var vn = paidHomeNudge(rs);
     if (vn) view.appendChild(vn);
     var weekAgo = Date.now() - 7 * 86400000;
     var thisWeek = rs.filter(function (r) { return new Date(r.created_at) > weekAgo; }).length;

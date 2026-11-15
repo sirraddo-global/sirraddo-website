@@ -1,4 +1,4 @@
-// /pay?t=DOC_TOKEN[&for=deposit|balance|renewal] — the customer's "Pay online" page (rewritten here in vercel.json).
+// /pay?t=DOC_TOKEN[&for=deposit|balance|renewal] — the customer's "Pay online" page (served at /pay by netlify/functions/pay.mjs).
 //   GET            -> what is due, an email box, and a "Pay with Paystack" button
 //   GET &reference -> Paystack sends the customer back here: we verify, record and say thank you
 //   POST { t, for, email } -> starts the Paystack checkout and returns its URL

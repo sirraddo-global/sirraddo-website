@@ -1,7 +1,6 @@
 // /api/site — things customers' live websites (and their owners) use. One function on purpose:
-// (Kept as one function from the Vercel days, when the plan allowed only 12.)
 //   POST ?hit=1                      visitor ping from a customer website (no cookies; see _lib/stats.mjs)
-//   GET  /change?t=TOKEN             the owner's private "request a change" page (rewritten here in vercel.json)
+//   GET  /change?t=TOKEN             the owner's private "request a change" page
 //   POST ?upload=1&t=TOKEN&name=&type=   a photo/file for a change request (body = the file)
 //   POST { t, text, files }          send the change request
 //   GET  ?greeting=1                 the festive greeting showing on sirraddo.com.ng now (or null)

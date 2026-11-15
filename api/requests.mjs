@@ -26,7 +26,7 @@ import { buildBackup } from "./_lib/backup.mjs";
 import { FUNCTION_BUDGET_MS } from "./_lib/platform.mjs";
 import { addHandoverExtras } from "./_lib/handover.mjs";
 import { handoverChecklist } from "./_lib/handover-check.mjs";
-import { putFile } from "./_lib/platform.mjs";
+import { putFile, deleteFiles } from "./_lib/platform.mjs";
 import { setDesignRefs, MAX_DESIGN_REFS } from "./_lib/store.mjs";
 import { noticesForAdmin, saveNotice, deleteNotice, NOTICE_KINDS } from "./_lib/notices.mjs";
 import { getConfig, saveConfig, occurrences, queueEmails, emailStatus, audience, GREETING_EMAILS_PER_DAY } from "./_lib/greetings.mjs";
@@ -252,7 +252,10 @@ export default async function handler(req, res) {
     if (req.method === "DELETE") {
       const id = Number(query.id);
       if (!Number.isInteger(id)) throw new Bad("Missing id");
-      return (await deleteRequest(id)) ? res.status(200).json({ ok: true }) : res.status(404).json({ error: "Not found" });
+      if (!(await deleteRequest(id))) return res.status(404).json({ error: "Not found" });
+      // Their logo, photos and screenshots go too (privacy policy: deleted with the project).
+      await Promise.all([deleteFiles(`briefs/${id}/`), deleteFiles(`design-refs/${id}/`)]).catch((e) => console.error("file delete failed", id, e));
+      return res.status(200).json({ ok: true });
     }
 
     if (req.method === "POST") {
@@ -377,10 +380,6 @@ export default async function handler(req, res) {
         if (!Number.isInteger(id)) throw new Bad("Missing id");
         const link = await paystackConnectLink(id);
         return link ? res.status(200).json({ ...link, row: await getRequest(id) }) : res.status(404).json({ error: "Not found" });
-      }
-      if (body.action === "move_files") {
-        const { moveOldFiles } = await import("./_lib/move-files.mjs");
-        return res.status(200).json(await moveOldFiles(FUNCTION_BUDGET_MS() - 6000));
       }
       if (body.action === "greetings" || body.action === "greetings_save" || body.action === "greetings_email") {
         try {

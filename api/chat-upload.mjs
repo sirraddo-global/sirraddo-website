@@ -41,7 +41,8 @@ export default async function handler(req, res) {
     const body = Buffer.concat(chunks);
     if (!body.length) return res.status(400).json({ error: "Empty file" });
     const name = String(query.name || "file").replace(/[^\w.\- ]+/g, "_").slice(0, 60) || "file";
-    const { url } = await putFile(`chats/${session}/${name}`, body, { contentType: type });
+    // Stored by month, so the daily clean-up can delete them with the chat after 90 days.
+    const { url } = await putFile(`chats/${new Date().toISOString().slice(0, 7)}/${session}/${name}`, body, { contentType: type });
     return res.status(200).json({ url, name, type });
   } catch (err) {
     console.error("chat upload failed", err);

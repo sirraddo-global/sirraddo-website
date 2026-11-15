@@ -20,7 +20,7 @@ Rules:
 - Don't style anything starting with .pv (the preview approval panel).
 - Keep it under 300 lines.`;
 
-function prompt(row, site) {
+function prompt(row, site, note = "") {
   const b = row.brief || {};
   const home = site.pages.find((p) => p.slug === "index") || site.pages[0];
   let html = renderPage({ ...site, designCss: "" }, home.slug, { mode: "export", link: (s) => `${s}.html`, img: () => "photo.jpg" });
@@ -30,6 +30,9 @@ function prompt(row, site) {
 Package: ${row.interest}
 What they do: ${String(b.description || b.what_they_do || row.business || "").slice(0, 600)}
 Style they chose: ${b.style || "not given"}
+Websites they like, and why (inspiration only): ${String(b.examples || "not given").slice(0, 800)}
+${note ? `The designer's notes from looking at those websites (follow these): ${note}
+` : ""}
 Brand colours they gave: ${b.colours || "not given"} (current theme: primary ${site.theme.primary}, accent ${site.theme.accent})
 Has a logo image: ${site.logo ? "yes" : "no"} · Photos: ${site.photos.length} · Services: ${site.services.length} · Products: ${site.products.length}
 Other pages using the same layout: ${other || "none"} (body has class page-<kind>, e.g. page-gallery, page-contact; non-home pages start with .page-head)
@@ -40,7 +43,7 @@ ${html}
 The base CSS it already has:
 ${baseCss(site.theme)}
 
-Write the CSS that gives this business a custom, high-quality look.`;
+Write the CSS that gives this business a custom, high-quality look.${b.examples || note ? " Take inspiration from the feel they like (colours, mood, spacing, button and header style) but make it their own: never copy another business's logo, wording, photos or exact design." : ""}`;
 }
 
 // Keep only safe CSS: no way to load files, run code or break out of the <style> tag.
@@ -55,7 +58,7 @@ export function cleanCss(text) {
   return c;
 }
 
-export async function generateDesign(id, budgetMs = FUNCTION_BUDGET_MS() - 2000) {
+export async function generateDesign(id, budgetMs = FUNCTION_BUDGET_MS() - 2000, note = "") {
   const row = await getPreviewById(id);
   if (!row) return { ok: false, error: "Not found" };
   if (!row.draft_md) return { ok: false, error: "Write the website text first" };
@@ -66,7 +69,7 @@ export async function generateDesign(id, budgetMs = FUNCTION_BUDGET_MS() - 2000)
   const site = buildSiteModel({ ...row, design_css: null });
   const model = provider.name === "anthropic" ? process.env.ANTHROPIC_DESIGN_MODEL || "claude-haiku-5-5" : undefined;
   try {
-    const out = await provider.call(provider.start([{ role: "user", content: prompt(row, site) }]), SYSTEM, [], budgetMs,
+    const out = await provider.call(provider.start([{ role: "user", content: prompt(row, site, String(note || "").slice(0, 600)) }]), SYSTEM, [], budgetMs,
       { maxTokens: budgetMs < 40000 ? 4000 : 6000, attemptMs: budgetMs - 2000, model });
     const cssText = cleanCss(out.text);
     if (cssText.replace(/\/\*[\s\S]*?\*\//g, "").trim().length < 200) throw new Error("The AI didn't return a usable design");

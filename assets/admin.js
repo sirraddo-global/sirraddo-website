@@ -901,11 +901,26 @@
       } }));
       return li;
     })));
+    // Websites the customer said they like (project form). The AI can't open links: look at them yourself and
+    // write 2–3 things to borrow (e.g. "dark header, big photo at the top, rounded gold buttons").
+    var liked = String((r.brief_wants || {}).examples || '').trim();
+    var note = el('textarea', { rows: '2', maxlength: '600', placeholder: liked ? 'What to borrow from the sites they like, e.g. dark header, big photo at the top, rounded gold buttons' : 'Optional: describe the look you want, e.g. clean white, big photos, green buttons' });
+    if (choices.length < 3) {
+      if (liked) {
+        var links = el('p', { class: 'admin-meta' }, [el('b', { text: 'Websites they like: ' })]);
+        liked.split(/(https?:\/\/[^\s,]+)/).forEach(function (part) {
+          if (/^https?:\/\//.test(part)) links.appendChild(el('a', { href: part, target: '_blank', rel: 'noopener noreferrer', text: part }));
+          else if (part) links.appendChild(document.createTextNode(part));
+        });
+        dsg.appendChild(links);
+      }
+      dsg.appendChild(field('Design notes for the AI', note, liked ? 'Open their links, then note the colours, header, photos and buttons they like. The AI uses this as inspiration, never a copy.' : 'Optional.'));
+    }
     var dz = el('div', { class: 'admin-actions' });
     if (choices.length < 3) {
       var dbtn = el('button', { class: 'admin-btn', type: 'button', text: choices.length ? 'Add another AI design' : 'AI design (custom look)', onclick: function () {
         var label = dbtn.textContent; dbtn.disabled = true; dbtn.textContent = 'Designing… (up to a minute)';
-        api('POST', { action: 'design', id: r.id }).then(function (row) { replaceRequest(row); flash('New design ready. Tap "Open preview" to see it.'); render(); })
+        api('POST', { action: 'design', id: r.id, note: note.value }).then(function (row) { replaceRequest(row); flash('New design ready. Tap "Open preview" to see it.'); render(); })
           .catch(function (e) { dbtn.disabled = false; dbtn.textContent = label; fail(e); });
       } });
       dz.appendChild(dbtn);

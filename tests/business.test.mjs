@@ -347,3 +347,17 @@ test("service notices: scheduled banner with {date}/{from}/{to}, hides itself af
   await h.action({ action: "notice_delete", noticeId: n.id });
   assert.equal((await h.action({ action: "notices" })).json.notices.length, 0);
 });
+
+test("design uses the websites the customer likes and the designer's notes (inspiration, not a copy)", async () => {
+  await h.sql(`UPDATE customer_requests SET brief = COALESCE(brief, '{}'::jsonb) || $1::jsonb WHERE id = $2`,
+    [JSON.stringify({ examples: "https://example-salon.com - love the dark header and big photos" }), ada]);
+  const row = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((r) => r.id === ada);
+  assert.match(row.brief_wants.examples, /example-salon/);
+  let sent = "";
+  const prev = globalThis.fetch;
+  globalThis.fetch = (u, o) => { if (String(u).includes("generativelanguage")) sent += o.body; return prev(u, o); };
+  try { await h.action({ action: "design", id: ada, note: "rounded gold buttons" }); } finally { globalThis.fetch = prev; }
+  assert.match(sent, /example-salon/);
+  assert.match(sent, /rounded gold buttons/);
+  assert.match(sent, /never copy/);
+});

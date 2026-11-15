@@ -304,7 +304,7 @@ export default async function handler(req, res) {
       if (body.action === "design") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");
-        const result = await generateDesign(id);
+        const result = await generateDesign(id, undefined, body.note);
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(await getRequest(id));
       }

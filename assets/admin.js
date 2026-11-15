@@ -332,8 +332,16 @@
   ];
   function renderMarketing(view) {
     view.appendChild(el('p', { class: 'admin-intro', text: 'Ads that lead people to your website. On your phone, Share opens WhatsApp, Instagram or Facebook with the picture ready (the caption is copied, so paste it in). Post one Status a day and rotate them.' }));
+    // Group the ads by where they're posted, so only a few show at a time.
+    var groups = [['story', 'Status & Story'], ['square', 'Square posts'], ['banner', 'Banner']];
+    var groupOf = function (ad) { return /1920/.test(ad.size) ? 'story' : /1080 × 1080|1080 x 1080/.test(ad.size) ? 'square' : 'banner'; };
+    var pickAd = state.adsTab || 'story';
+    view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Ad types' }, groups.map(function (g) {
+      var n = ADS.filter(function (a) { return groupOf(a) === g[0]; }).length;
+      return el('button', { type: 'button', 'aria-pressed': g[0] === pickAd ? 'true' : 'false', text: g[1] + ' (' + n + ')', onclick: function () { state.adsTab = g[0]; render(); } });
+    })));
     var grid = el('div', { class: 'mk-grid' });
-    ADS.forEach(function (ad) {
+    ADS.filter(function (a) { return groupOf(a) === pickAd; }).forEach(function (ad) {
       var url = '/assets/marketing/' + ad.file;
       var actions = el('div', { class: 'admin-actions' });
       var canShareFiles = !!(navigator.canShare && window.File);
@@ -1654,39 +1662,62 @@
   }
 
   // ---------- Settings ----------
+  // Settings are split into small sections (chips at the top) so there's no long scrolling.
+  var SETTINGS_SECTIONS = [
+    ['business', 'Bank & invoices'], ['messages', 'WhatsApp messages'], ['handover', 'Handover'],
+    ['notices', 'Service notices'], ['greetings', 'Festive greetings'], ['backup', 'Backup']
+  ];
   function renderSettings(view) {
     var s = state.settings;
-    var inputs = {};
-    function text(key, label, placeholder, area) {
-      var inp = area ? el('textarea', { rows: 3, value: s[key] || '', placeholder: placeholder }) : el('input', { value: s[key] || '', placeholder: placeholder });
-      inputs[key] = inp;
-      return field(label, inp);
+    var pick = state.settingsTab || 'business';
+    var bar = el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Settings sections' }, SETTINGS_SECTIONS.map(function (x) {
+      return el('button', { type: 'button', 'aria-pressed': x[0] === pick ? 'true' : 'false', text: x[1], onclick: function () { state.settingsTab = x[0]; render(); } });
+    }));
+    view.appendChild(bar);
+    // A form that saves only its own settings.
+    function settingsForm(title, intro, build, check) {
+      var inputs = {};
+      function text(key, label, placeholder, area) {
+        var inp = area ? el('textarea', { rows: 3, value: s[key] || '', placeholder: placeholder }) : el('input', { value: s[key] || '', placeholder: placeholder });
+        inputs[key] = inp;
+        return field(label, inp);
+      }
+      var form = el('form', { class: 'admin-card admin-settings' }, [el('h2', { text: title }), intro ? el('p', { class: 'admin-intro', text: intro }) : null]);
+      build(form, text);
+      form.appendChild(el('button', { class: 'btn btn--navy', type: 'submit', text: 'Save' }));
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var values = {};
+        Object.keys(inputs).forEach(function (k) { values[k] = inputs[k].value.trim(); });
+        var problem = check && check(values);
+        if (problem) { setError(problem); return; }
+        api('POST', { action: 'settings', settings: values }).then(function (j) { state.settings = j.settings || {}; setError(''); flash('Saved'); }).catch(fail);
+      });
+      return form;
     }
-    var form = el('form', { class: 'admin-card admin-settings' }, [
-      el('h2', { text: 'Bank details for invoices' }),
-      text('bank_name', 'Bank', 'e.g. GTBank'),
-      text('account_name', 'Account name', 'SIRRADDO GLOBAL LIMITED'),
-      text('account_number', 'Account number', '10 digits'),
-      text('invoice_note', 'Note at the bottom of invoices', 'e.g. Work starts after the 70% deposit is received.', true),
-      el('h2', { text: 'WhatsApp messages' }),
-      el('p', { class: 'admin-intro', text: 'Leave a box empty to use the standard message. You can use {name}, {package}, {amount}, {deposit}, {paid}, {balance}, {renewal_amount}, {renewal_due}, {preview_link} and {website}.' })
-    ]);
-    Object.keys(TEMPLATES).forEach(function (k) { form.appendChild(text(k, TEMPLATES[k].label, TEMPLATES[k].text, true)); });
-    form.appendChild(el('h2', { text: 'Handover pack' }));
-    form.appendChild(text('handover_terms', 'Changes and support policy (shown in every handover pack)', DEFAULT_HANDOVER_TERMS, true));
-    form.appendChild(text('default_registrar', 'Domains I buy for customers are registered with (fills the handover pack)', 'e.g. Whogohost'));
-    form.appendChild(el('button', { class: 'btn btn--navy', type: 'submit', text: 'Save settings' }));
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      var values = {};
-      Object.keys(inputs).forEach(function (k) { values[k] = inputs[k].value.trim(); });
-      if (values.account_number && !/^\d{10}$/.test(values.account_number)) { setError('Account number should be 10 digits.'); return; }
-      api('POST', { action: 'settings', settings: values }).then(function (j) { state.settings = j.settings || {}; setError(''); flash('Settings saved'); }).catch(fail);
-    });
-    view.appendChild(form);
-    view.appendChild(noticesCard());
-    view.appendChild(greetingsCard());
-    view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
+    if (pick === 'business') view.appendChild(settingsForm('Bank details for invoices', null, function (f, text) {
+      f.appendChild(text('bank_name', 'Bank', 'e.g. GTBank'));
+      f.appendChild(text('account_name', 'Account name', 'SIRRADDO GLOBAL LIMITED'));
+      f.appendChild(text('account_number', 'Account number', '10 digits'));
+      f.appendChild(text('invoice_note', 'Note at the bottom of invoices', 'e.g. Work starts after the 70% deposit is received.', true));
+    }, function (v) { return v.account_number && !/^\d{10}$/.test(v.account_number) ? 'Account number should be 10 digits.' : ''; }));
+    if (pick === 'messages') view.appendChild(settingsForm('WhatsApp messages', 'Tap a message to change it. Leave it empty to use the standard one. You can use {name}, {package}, {amount}, {deposit}, {paid}, {balance}, {renewal_amount}, {renewal_due}, {preview_link} and {website}.', function (f, text) {
+      // One fold per message, so the list stays short.
+      Object.keys(TEMPLATES).forEach(function (k) {
+        var custom = String(s[k] || '').trim();
+        var d = el('details', { class: 'admin-fold' }, [el('summary', null, [el('span', { class: 'admin-fold-title', text: TEMPLATES[k].label }), badge(custom ? 'Your own' : 'Standard', custom ? 'is-new' : '')])]);
+        var box = el('div', { class: 'admin-golive' }, [text(k, 'Message', TEMPLATES[k].text, true)]);
+        d.appendChild(box);
+        f.appendChild(d);
+      });
+    }));
+    if (pick === 'handover') view.appendChild(settingsForm('Handover pack', null, function (f, text) {
+      f.appendChild(text('default_registrar', 'Domains I buy for customers are registered with (fills every handover pack)', 'e.g. Whogohost'));
+      f.appendChild(text('handover_terms', 'Changes and support policy (shown in every handover pack)', DEFAULT_HANDOVER_TERMS, true));
+    }));
+    if (pick === 'notices') view.appendChild(noticesCard());
+    if (pick === 'greetings') view.appendChild(greetingsCard());
+    if (pick === 'backup') view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
       el('h2', { text: 'Backup' }),
       el('p', { class: 'admin-intro', text: 'Every Monday a backup of all your business data (customers, quotes, payments, website text, orders, change requests) is emailed to you as a file. Keep those emails. You can also download one now. It contains customer details, so keep it private.' }),
       el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Download backup now', onclick: function (e) { downloadFile('/api/requests?view=backup', 'sirraddo-backup.json.gz', e.currentTarget); } })])

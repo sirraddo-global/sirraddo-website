@@ -45,8 +45,8 @@ export function handoverChecklist(r, settings = {}) {
 
   add("domain", "Domain details (registrar and expiry date)", h.domain && h.registrar && h.domain_expires, {
     auto: true,
-    fix: !h.domain ? "Fills in by itself after Go live." : "Fills in by itself from Settings → Default registrar and the go-live date.",
-    steps: ["Once: Admin → Settings → Default registrar (e.g. Whogohost) → Save. Every job fills it in from then on.", "Their own domain? In the handover pack choose 'Their own domain' and type the seller and expiry date."],
+    fix: !h.domain ? "Fills in by itself after Go live." : "Fills in by itself from Settings → Handover (your usual registrar) and the go-live date.",
+    steps: ["Once: Admin → Settings → Handover → 'Domains I buy for customers are registered with' (e.g. Whogohost) → Save. Every job fills it in from then on.", "Their own domain? In the handover pack choose 'Their own domain' and type the seller and expiry date."],
   });
 
   const allow = emailAllowance(r.interest);

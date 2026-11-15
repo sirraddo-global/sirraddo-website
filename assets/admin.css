@@ -272,3 +272,5 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .admin-shot img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
 .admin-chat-file { display: block; margin: 4px 0; }
 .admin-chat-file img { max-width: 220px; max-height: 160px; border-radius: 8px; border: 1px solid var(--line); }
+.admin-subtabs { margin-top: 4px; }
+.admin-subtabs button { font-size: .92rem; padding: 8px 12px; min-height: 40px; }

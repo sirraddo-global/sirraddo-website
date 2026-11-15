@@ -1,7 +1,7 @@
 // POST /api/chat — the website assistant.
 // Body: { sessionId, page, messages: [{ role: "user" | "assistant", content: "..." }] }
 // Returns: { reply, saved }
-import { FUNCTION_BUDGET_MS } from "./_lib/platform.mjs";
+import { FUNCTION_BUDGET_MS, readImageForAi } from "./_lib/platform.mjs";
 import { SYSTEM_PROMPT, SAVE_TOOL, QUESTION_TOOL } from "./_lib/knowledge.mjs";
 import { currentNotices } from "./_lib/notices.mjs";
 import { saveRequest, emailRequest, logChat, addUnanswered, reference } from "./_lib/store.mjs";
@@ -141,6 +141,11 @@ export default async function handler(req, res) {
   };
 
   const deadline = Date.now() + FUNCTION_BUDGET_MS() - 4000; // stay under the host's time limit
+  // Pictures the visitor just sent (📎 in the chat, as "[photo] URL" lines): the AI looks at up to 2 of them.
+  const last = messages[messages.length - 1];
+  const shotUrls = [...last.content.matchAll(/\[photo\] (https?:\/\/\S+)/g)].map((m) => m[1]).filter((u) => /\/files\/chats\/|\/__blob\//.test(u)).slice(0, 2);
+  const images = (await Promise.all(shotUrls.map(readImageForAi))).filter(Boolean);
+  const withImages = images.length ? [...messages.slice(0, -1), { ...last, images }] : messages;
   // Service notices showing now (planned upgrade, service problem, holiday): the assistant can mention them.
   const notices = await currentNotices().catch(() => []);
   const system = notices.length ? `${SYSTEM_PROMPT}\n\nSERVICE NOTICES SHOWING ON THE WEBSITE NOW (mention them when relevant, e.g. if someone asks about delays, payments or availability):\n${notices.map((n) => `- ${n.title}: ${n.message}`).join("\n")}` : SYSTEM_PROMPT;
@@ -150,7 +155,7 @@ export default async function handler(req, res) {
   for (const provider of providers) {
     try {
       const opts = { maxTokens: 600, models: provider.name === "gemini" ? CHAT_MODELS.gemini : undefined, model: provider.name === "anthropic" ? CHAT_MODELS.anthropic : undefined };
-      const convo = provider.start(messages);
+      const convo = provider.start(withImages);
       for (let step = 0; step < 3; step++) {
         const left = deadline - Date.now();
         if (left < 5000) throw Object.assign(new Error("Out of time"), { code: "timeout" });

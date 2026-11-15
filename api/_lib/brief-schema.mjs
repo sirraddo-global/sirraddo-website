@@ -68,6 +68,8 @@ export const SECTIONS = [
       { key: "colours", label: "Brand colours", type: "text", hint: "e.g. navy and gold, or \"use the colours in my logo\"" },
       { key: "style", label: "Style you like", type: "select", options: ["Clean and modern", "Bold and colourful", "Elegant and classy", "Simple and friendly", "Not sure – you decide"] },
       { key: "examples", label: "Websites you like (optional)", type: "textarea", hint: "Links, and what you like about them" },
+      { key: "example_shots", label: "Screenshots of what you like (optional)", type: "files", max: 3, accept: "image/*",
+        hint: "Take screenshots of the parts you like on those websites (the top of the page, colours, a section). We'll make yours in the same spirit, in your own brand." },
     ],
   },
   {

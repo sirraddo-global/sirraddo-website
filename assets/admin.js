@@ -915,6 +915,26 @@
         dsg.appendChild(links);
       }
       dsg.appendChild(field('Design notes for the AI', note, liked ? 'Open their links, then note the colours, header, photos and buttons they like. The AI uses this as inspiration, never a copy.' : 'Optional.'));
+      // Screenshots of the parts they like: the AI looks at these before designing (up to 3 of yours + 3 from their form).
+      var shots = el('div', { class: 'admin-shots' });
+      (r.example_shots || []).forEach(function (f) { shots.appendChild(el('a', { href: f.url, target: '_blank', rel: 'noopener', class: 'admin-shot' }, [el('img', { src: f.url, alt: f.name || 'screenshot', loading: 'lazy' }), el('span', { text: 'From their form' })])); });
+      (r.design_refs || []).forEach(function (f) {
+        shots.appendChild(el('span', { class: 'admin-shot' }, [el('img', { src: f.url, alt: f.name || 'screenshot', loading: 'lazy' }),
+          el('button', { class: 'admin-btn admin-btn--small', type: 'button', text: 'Remove', onclick: function (e) { designAct({ action: 'design_ref_remove', url: f.url }, 'Screenshot removed', e.currentTarget); } })]));
+      });
+      var pick = el('input', { type: 'file', accept: 'image/*', hidden: true });
+      pick.addEventListener('change', function () {
+        var file = pick.files && pick.files[0]; if (!file) return;
+        flash('Uploading screenshot…');
+        shrinkImage(file, 1600).then(function (img) {
+          return api('POST', { action: 'design_ref_add', id: r.id, name: file.name, type: img.type, data: img.data });
+        }).then(function (row) { replaceRequest(row); flash('Screenshot added: the AI design will look at it'); render(); }).catch(fail);
+      });
+      var nShots = (r.design_refs || []).length;
+      dsg.appendChild(el('span', { class: 'admin-label', text: 'Screenshots of what they like' }));
+      if ((r.example_shots || []).length || nShots) dsg.appendChild(shots);
+      dsg.appendChild(el('div', { class: 'admin-actions' }, [pick, el('button', { class: 'admin-btn', type: 'button', text: '+ Add screenshot', disabled: nShots >= 3, onclick: function () { pick.click(); } })]));
+      dsg.appendChild(el('p', { class: 'admin-hint', text: 'Open the site they like, screenshot the part they love (top of the page, a section, the colours) and add it here. The AI looks at it and makes theirs in the same spirit, in their own brand. Up to 3.' }));
     }
     var dz = el('div', { class: 'admin-actions' });
     if (choices.length < 3) {
@@ -1302,6 +1322,20 @@
     return box;
   }
 
+  // Resizes a photo in the browser (longest side max px) and returns { type, data (base64) } for upload.
+  function shrinkImage(file, max) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var s = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        var d = c.toDataURL('image/jpeg', 0.85); resolve({ type: 'image/jpeg', data: d.slice(d.indexOf(',') + 1) });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('That file is not a picture')); };
+      img.src = url;
+    });
+  }
   // Same as emailAllowance() / wantedEmails() in api/_lib/brief-schema.mjs and handover-check.mjs.
   function emailAllowance(interest) { return { 'Starter website': 1, 'Business website': 5, 'Online Store': 5 }[interest] || 0; }
   function wantedEmails(r) {
@@ -1459,7 +1493,14 @@
   function transcript(messages, title) {
     var det = el('details', { class: 'admin-sub' }, [el('summary', { text: title })]);
     messages.forEach(function (m) {
-      det.appendChild(el('p', { class: 'admin-line' }, [el('strong', { text: (m.role === 'user' ? 'Customer' : 'Assistant') + ': ' }), m.content]));
+      // "[photo] URL" / "[file] URL" lines are files the customer sent in the chat: show them.
+      var parts = [el('strong', { text: (m.role === 'user' ? 'Customer' : 'Assistant') + ': ' })];
+      String(m.content).split('\n').forEach(function (line, i) {
+        var f = line.match(/^\[(photo|file)\] (https?:\/\/\S+)$/);
+        if (f) parts.push(el('a', { href: f[2], target: '_blank', rel: 'noopener', class: 'admin-chat-file' }, [f[1] === 'photo' ? el('img', { src: f[2], alt: 'Photo they sent', loading: 'lazy' }) : '📄 File they sent']));
+        else parts.push((i ? '\n' : '') + line);
+      });
+      det.appendChild(el('p', { class: 'admin-line' }, parts));
     });
     return det;
   }

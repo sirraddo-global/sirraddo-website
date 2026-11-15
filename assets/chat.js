@@ -96,6 +96,55 @@
   sendBtn.type = 'submit';
   sendBtn.setAttribute('aria-label', 'Send');
   sendBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+  // 📎 Send a photo or PDF (e.g. a logo, a design they like, a price list). Photos are shrunk before upload.
+  var attachBtn = el('button', 'chat-attach-btn', '📎');
+  attachBtn.type = 'button';
+  attachBtn.setAttribute('aria-label', 'Send a photo or PDF');
+  var picker = el('input'); picker.type = 'file'; picker.accept = 'image/*,application/pdf'; picker.hidden = true;
+  var pending = []; // [{ kind, url }]
+  var tray = el('div', 'chat-tray'); tray.hidden = true;
+  function drawTray() {
+    tray.textContent = '';
+    tray.hidden = !pending.length;
+    pending.forEach(function (p, i) {
+      var chip = el('span', 'chat-tray-item', p.kind === 'photo' ? '🖼️ Photo ready' : '📄 ' + p.name);
+      var x = el('button', null, '×'); x.type = 'button'; x.setAttribute('aria-label', 'Remove');
+      x.addEventListener('click', function () { pending.splice(i, 1); drawTray(); });
+      chip.appendChild(x); tray.appendChild(chip);
+    });
+  }
+  function shrink(file) {
+    return new Promise(function (resolve) {
+      if (!/^image\//.test(file.type)) return resolve(file);
+      var u = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var s = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u);
+        c.toBlob(function (b) { resolve(b || file); }, 'image/jpeg', 0.85);
+      };
+      img.onerror = function () { URL.revokeObjectURL(u); resolve(file); };
+      img.src = u;
+    });
+  }
+  attachBtn.addEventListener('click', function () { if (pending.length >= 2) { addBubble('assistant', 'You can send 2 files with each message.'); return; } picker.click(); });
+  picker.addEventListener('change', function () {
+    var file = picker.files && picker.files[0]; picker.value = '';
+    if (!file) return;
+    var isPdf = file.type === 'application/pdf';
+    if (!isPdf && !/^image\//.test(file.type)) { addBubble('assistant', 'Please send a photo or a PDF.'); return; }
+    attachBtn.disabled = true; attachBtn.textContent = '…';
+    shrink(file).then(function (blob) {
+      var type = isPdf ? 'application/pdf' : 'image/jpeg';
+      var name = isPdf ? file.name : file.name.replace(/\.\w+$/, '') + '.jpg';
+      return fetch('/api/chat-upload?s=' + encodeURIComponent(state.sessionId) + '&type=' + encodeURIComponent(type) + '&name=' + encodeURIComponent(name), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: blob })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Upload failed'); return j; }); })
+        .then(function (j) { pending.push({ kind: isPdf ? 'file' : 'photo', url: j.url, name: j.name }); drawTray(); input.focus(); });
+    }).catch(function (e) { addBubble('assistant', e.message || 'Sending failed. Please try again or send it on WhatsApp: ' + WHATSAPP); })
+      .then(function () { attachBtn.disabled = false; attachBtn.textContent = '📎'; });
+  });
+  form.appendChild(picker);
+  form.appendChild(attachBtn);
   form.appendChild(input);
   form.appendChild(sendBtn);
 
@@ -112,6 +161,7 @@
   panel.appendChild(head);
   panel.appendChild(log);
   panel.appendChild(chips);
+  panel.appendChild(tray);
   panel.appendChild(form);
   panel.appendChild(foot);
   document.body.appendChild(panel);
@@ -119,7 +169,18 @@
 
   function addBubble(role, text) {
     var b = el('div', 'chat-msg chat-msg--' + (role === 'user' ? 'user' : 'bot'));
-    richText(b, text);
+    // "[photo] URL" / "[file] URL" lines are pictures and files the visitor sent with 📎.
+    var lines = String(text).split('\n'), words = [];
+    lines.forEach(function (line) {
+      var m = line.match(/^\[(photo|file)\] (https?:\/\/\S+)$/);
+      if (!m) { words.push(line); return; }
+      var a = el('a', 'chat-attach'); a.href = m[2]; a.target = '_blank'; a.rel = 'noopener';
+      if (m[1] === 'photo') { var img = el('img'); img.src = m[2]; img.alt = 'Photo you sent'; img.loading = 'lazy'; a.appendChild(img); }
+      else a.textContent = '📄 ' + decodeURIComponent(m[2].split('/').pop()).replace(/-[0-9a-f]{16}(?=\.)/, '');
+      b.appendChild(a);
+    });
+    var rest = el('div'); richText(rest, words.join('\n').trim());
+    if (rest.textContent) b.appendChild(rest);
     log.appendChild(b);
     log.scrollTop = log.scrollHeight;
     return b;
@@ -146,7 +207,12 @@
 
   function send(text) {
     text = (text || '').trim();
-    if (!text || busy) return;
+    if (busy) return;
+    if (pending.length) {
+      text = pending.map(function (p) { return '[' + p.kind + '] ' + p.url; }).join('\n') + (text ? '\n' + text : '');
+      pending = []; drawTray();
+    }
+    if (!text) return;
     if (state.messages.length >= 28) {
       addBubble('assistant', 'This chat is getting long. Please continue with our team on WhatsApp: ' + WHATSAPP);
       return;

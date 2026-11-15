@@ -123,3 +123,38 @@ test("Connect Paystack link: the owner pastes their own live key once", async ()
   assert.equal(row.shop.keyEnd, "9876");
   assert.equal((await h.call("GET", path)).status, 404, "one-time link");
 });
+
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+
+test("website chat: a visitor sends a photo with 📎 and the AI sees it", async () => {
+  const up = await fetch(h.base + "/api/chat-upload?s=chat-photo-1&type=image/png&name=logo.png", { method: "POST", headers: { "content-type": "application/octet-stream" }, body: PNG });
+  assert.equal(up.status, 200);
+  const { url } = await up.json();
+  const bad = await fetch(h.base + "/api/chat-upload?s=chat-photo-1&type=text/html&name=x.html", { method: "POST", body: "<script>" });
+  assert.equal(bad.status, 415, "only photos and PDFs");
+  let sent = "";
+  const prev = globalThis.fetch;
+  globalThis.fetch = (u, o) => { if (String(u).includes("generativelanguage")) sent += o.body; return prev(u, o); };
+  try {
+    const r = await h.call("POST", "/api/chat", { sessionId: "chat-photo-1", messages: [{ role: "user", content: `[photo] ${url}\nI want a site that looks like this` }] });
+    assert.equal(r.status, 200);
+  } finally { globalThis.fetch = prev; }
+  assert.match(sent, /inline_data/, "the picture went to the AI");
+  assert.match(sent, new RegExp(PNG.toString("base64").slice(0, 20).replace(/[+/]/g, "\\$&")));
+});
+
+test("AI design reads screenshots you add of the look they like", async () => {
+  const id = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((r) => r.has_draft)?.id;
+  assert.ok(id, "a job with website text");
+  const add = await h.action({ action: "design_ref_add", id, name: "header.png", type: "image/png", data: PNG.toString("base64") });
+  assert.equal(add.status, 200, JSON.stringify(add.json));
+  assert.equal(add.json.design_refs.length, 1);
+  let sent = "";
+  const prev = globalThis.fetch;
+  globalThis.fetch = (u, o) => { if (String(u).includes("generativelanguage")) sent += o.body; return prev(u, o); };
+  try { await h.action({ action: "design", id }); } finally { globalThis.fetch = prev; }
+  assert.match(sent, /inline_data/);
+  assert.match(sent, /screenshot\(s\) of the look they like/);
+  const rm = await h.action({ action: "design_ref_remove", id, url: add.json.design_refs[0].url });
+  assert.equal(rm.json.design_refs.length, 0);
+});

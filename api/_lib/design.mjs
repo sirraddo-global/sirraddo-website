@@ -1,6 +1,7 @@
 // "AI design": a custom look for a customer's website. The AI writes CSS only, for the HTML our generator
 // already produces, so the checked text, prices and photos can't change. Uses Claude when ANTHROPIC_API_KEY
 // is set (model: ANTHROPIC_DESIGN_MODEL, default claude-haiku-5-5), otherwise Gemini.
+import { readImageForAi } from "./platform.mjs";
 import { FUNCTION_BUDGET_MS } from "./platform.mjs";
 import { randomBytes } from "node:crypto";
 import { getPreviewById, saveDesign, setDesignOptions, MAX_DESIGN_OPTIONS } from "./store.mjs";
@@ -67,9 +68,12 @@ export async function generateDesign(id, budgetMs = FUNCTION_BUDGET_MS() - 2000,
   const options = currentOptions(row);
   if (options.length >= MAX_DESIGN_OPTIONS) return { ok: false, error: `You already have ${MAX_DESIGN_OPTIONS} designs. Remove one first.` };
   const site = buildSiteModel({ ...row, design_css: null });
+  // Screenshots of the look they like (from the project form and the ones you added): the AI looks at them.
+  const shots = [...(row.design_refs || []), ...(row.brief_files?.example_shots || [])].slice(0, 4);
+  const images = (await Promise.all(shots.map((f) => readImageForAi(f.url)))).filter(Boolean);
   const model = provider.name === "anthropic" ? process.env.ANTHROPIC_DESIGN_MODEL || "claude-haiku-5-5" : undefined;
   try {
-    const out = await provider.call(provider.start([{ role: "user", content: prompt(row, site, String(note || "").slice(0, 600)) }]), SYSTEM, [], budgetMs,
+    const out = await provider.call(provider.start([{ role: "user", content: prompt(row, site, String(note || "").slice(0, 600)) + (images.length ? `\n\n${images.length} screenshot(s) of the look they like are attached: match their mood, colours, spacing and header/button style, in this business's own brand. Don't copy text, logos or photos from them.` : ""), images }]), SYSTEM, [], budgetMs,
       { maxTokens: budgetMs < 40000 ? 4000 : 6000, attemptMs: budgetMs - 2000, model });
     const cssText = cleanCss(out.text);
     if (cssText.replace(/\/\*[\s\S]*?\*\//g, "").trim().length < 200) throw new Error("The AI didn't return a usable design");

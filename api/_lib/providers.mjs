@@ -28,7 +28,10 @@ function httpError(provider, status, body) {
 const anthropic = {
   name: "anthropic",
   configured: () => Boolean(process.env.ANTHROPIC_API_KEY),
-  start: (messages) => messages.map((m) => ({ role: m.role, content: m.content })),
+  // A message may carry pictures: { role, content, images: [{ mime, data (base64) }] }.
+  start: (messages) => messages.map((m) => ({ role: m.role, content: m.images?.length
+    ? [...m.images.map((i) => ({ type: "image", source: { type: "base64", media_type: i.mime, data: i.data } })), { type: "text", text: m.content }]
+    : m.content })),
   async call(convo, system, tools, ms = 20000, opts = {}) {
     const res = await timedFetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -70,7 +73,8 @@ const gemini = {
   name: "gemini",
   configured: () => Boolean(process.env.GEMINI_API_KEY),
   start: (messages) =>
-    messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+    messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user",
+      parts: [...(m.images || []).map((i) => ({ inline_data: { mime_type: i.mime, data: i.data } })), { text: m.content }] })),
   async call(convo, system, tools, ms = 20000, opts = {}) {
     // Models to try in order. If one is busy (503), rate-limited (429) or gone (404), try the next.
     // Override with GEMINI_MODEL (a model name or a comma-separated list).

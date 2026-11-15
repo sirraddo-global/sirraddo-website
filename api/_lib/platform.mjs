@@ -36,6 +36,31 @@ export async function putFile(path, body, { contentType } = {}) {
   return put(path, body, { access: "public", addRandomSuffix: true, contentType });
 }
 
+// Reads one of OUR uploaded pictures so the AI can look at it: { mime, data (base64) } or null.
+// Only files stored by this site (…/files/… or the test store); never fetches other websites.
+const AI_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+export async function readImageForAi(url) {
+  try {
+    let buf, mime;
+    if (globalThis.__TEST_BLOB__ && /\/__blob\//.test(url)) {
+      const r = await fetch(url); mime = (r.headers.get("content-type") || "").split(";")[0]; buf = Buffer.from(await r.arrayBuffer());
+    } else {
+      const m = String(url).match(/^https:\/\/([^/]+)\/files\/([\w./-]+)$/);
+      const hosts = [SITE_URL, process.env.URL, "https://sirraddo.com.ng"].filter(Boolean).map((u) => new URL(u).host);
+      if (!m || !hosts.includes(m[1]) || m[2].includes("..") || !onNetlify()) return null;
+      const { getStore } = await import("@netlify/blobs");
+      const r = await getStore({ name: FILES_STORE }).getWithMetadata(m[2], { type: "arrayBuffer" });
+      if (!r) return null;
+      buf = Buffer.from(r.data); mime = r.metadata?.type;
+    }
+    if (!AI_IMAGE_TYPES.includes(mime) || !buf.length || buf.length > 4 * 1024 * 1024) return null;
+    return { mime, data: buf.toString("base64") };
+  } catch (e) {
+    console.error("image for AI failed", url, e.message);
+    return null;
+  }
+}
+
 // Serves /files/<key> (Netlify). Returns a Response or null.
 export async function getFileResponse(key) {
   const { getStore } = await import("@netlify/blobs");

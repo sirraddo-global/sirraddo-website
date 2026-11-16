@@ -1,5 +1,5 @@
 // Online Store checkout for customer websites.
-// Every store site has a basket. Buyers can order on WhatsApp (always) or pay online with Paystack (once you add
+// Every store site has a cart. Buyers can order on WhatsApp (always) or pay online with Paystack (once you add
 // the store owner's own Paystack secret key in admin → Go live). Money goes straight to the store owner's Paystack
 // account; we only work out the total from the product list we built the site from, start the payment, confirm it,
 // and email the order to the store and the buyer.
@@ -71,7 +71,7 @@ export async function findConnectRequest(token) {
   const r = await getRequest(rows[0].id);
   return r?.shop?.connect?.exp > Date.now() ? r : null;
 }
-export const TEST_STEPS = `<b>Please test it yourself now with a small amount:</b> on your website, add your cheapest item to the basket, tap Pay online and pay with your own card or transfer. Then check that (1) the payment shows in Paystack → Transactions and (2) the order email arrives. Paystack takes its normal small fee on the test. You can refund yourself in Paystack → Transactions → the payment → Refund. Tell us at once if anything doesn't work.`;
+export const TEST_STEPS = `<b>Please test it yourself now with a small amount:</b> on your website, add your cheapest item to the cart, tap Pay online and pay with your own card or transfer. Then check that (1) the payment shows in Paystack → Transactions and (2) the order email arrives. Paystack takes its normal small fee on the test. You can refund yourself in Paystack → Transactions → the payment → Refund. Tell us at once if anything doesn't work.`;
 // The owner pastes their key: only a LIVE secret key is accepted here (test keys take no real money).
 export async function connectPaystack(token, key) {
   const r = await findConnectRequest(token);
@@ -93,7 +93,7 @@ export async function connectPaystack(token, key) {
   return row;
 }
 
-// Online Stores get a basket token before their site is built, so the published pages can talk to /api/shop.
+// Online Stores get a cart token before their site is built, so the published pages can talk to /api/shop.
 export async function ensureStoreToken(id) {
   const row = await getRequest(id);
   if (row && kindFor(row.interest) === "store" && !row.shop?.token) await ensureShopToken(id);
@@ -157,7 +157,7 @@ export async function startCheckout(token, items, buyer, returnBase) {
   if (!r) throw Object.assign(new Error("Store not found"), { status: 404 });
   if (!r.shop?.key) throw Object.assign(new Error("Online payment isn't switched on for this store. Please order on WhatsApp."), { status: 409 });
   const order = priceOrder(r, items);
-  if (!order.lines.length) throw Object.assign(new Error("Your basket is empty"), { status: 400 });
+  if (!order.lines.length) throw Object.assign(new Error("Your cart is empty"), { status: 400 });
   const b = {
     name: String(buyer?.name || "").trim().slice(0, 120), phone: String(buyer?.phone || "").trim().slice(0, 40),
     email: String(buyer?.email || "").trim().toLowerCase().slice(0, 200), address: String(buyer?.address || "").trim().slice(0, 500),

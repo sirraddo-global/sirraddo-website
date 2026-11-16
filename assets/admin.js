@@ -818,6 +818,17 @@
         .catch(function (e) { write.disabled = false; write.textContent = 'Try again'; fail(e); });
     });
     acts.appendChild(write);
+    // Some pages failed (the AI was busy): write only those, keeping everything else.
+    if (r.has_draft && r.draft_missing) {
+      var fill = el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Write missing pages' });
+      fill.addEventListener('click', function () {
+        fill.disabled = true; fill.textContent = 'Writing…';
+        api('POST', { action: 'write_draft', id: r.id, missingOnly: true }).then(function (row2) { replaceRequest(row2); flash(row2.draft_missing ? 'Some pages are still missing: try again in a minute' : 'Missing pages written'); render(); })
+          .catch(function (e) { fill.disabled = false; fill.textContent = 'Try again'; fail(e); });
+      });
+      acts.insertBefore(fill, write);
+      row.appendChild(el('p', { class: 'admin-hint', text: 'Some pages weren\'t written because the AI was busy. Tap "Write missing pages": the rest of the text stays as it is.' }));
+    }
     if (r.has_draft) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Edit text', onclick: function () { editDraft(r); } }));
     row.appendChild(acts);
     if (r.has_draft && r.draft_gaps > 0) row.appendChild(el('p', { class: 'admin-hint', text: r.draft_gaps + ' highlighted gap' + (r.draft_gaps === 1 ? '' : 's') + ' ([ADD: …]) still in the text. Fill them with "Edit text", or the customer will see them marked "To be added".' }));
@@ -1154,7 +1165,7 @@
     } }));
     box.appendChild(acts);
     box.appendChild(list);
-    box.appendChild(el('p', { class: 'admin-hint', text: 'Every product with a plain price (e.g. 4500) gets "Add to basket". Buyers then choose "Pay online" (only when a key is set) or "Order on WhatsApp". Products priced like "from 5k" stay WhatsApp-only. Paid orders are emailed to the store and the buyer. No need to republish after changing these settings.' }));
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Every product with a plain price (e.g. 4500) gets "Add to cart". Buyers then choose "Pay online" (only when a key is set) or "Order on WhatsApp". Products priced like "from 5k" stay WhatsApp-only. Paid orders are emailed to the store and the buyer. No need to republish after changing these settings.' }));
     return box;
   }
 

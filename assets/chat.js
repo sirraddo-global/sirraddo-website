@@ -103,13 +103,29 @@
   var picker = el('input'); picker.type = 'file'; picker.accept = 'image/*,application/pdf'; picker.hidden = true;
   var pending = []; // [{ kind, url }]
   var tray = el('div', 'chat-tray'); tray.hidden = true;
+  // Full-screen photo viewer (tap a photo in the tray or in the chat; tap anywhere or × to close).
+  function viewPhoto(src) {
+    var box = el('div', 'chat-viewer'); box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'Photo');
+    var img = el('img'); img.src = src; img.alt = 'Photo';
+    var x = el('button', null, '×'); x.type = 'button'; x.setAttribute('aria-label', 'Close photo');
+    box.appendChild(img); box.appendChild(x);
+    function close() { box.remove(); document.removeEventListener('keydown', esc); }
+    function esc(e) { if (e.key === 'Escape') close(); }
+    box.addEventListener('click', close); document.addEventListener('keydown', esc);
+    document.body.appendChild(box); x.focus();
+  }
   function drawTray() {
     tray.textContent = '';
     tray.hidden = !pending.length;
     pending.forEach(function (p, i) {
-      var chip = el('span', 'chat-tray-item', p.kind === 'photo' ? '🖼️ Photo ready' : '📄 ' + p.name);
+      var chip = el('span', 'chat-tray-item' + (p.thumb ? ' has-thumb' : ''));
+      if (p.thumb) {
+        var t = el('img'); t.src = p.thumb; t.alt = 'Photo to send (tap to view)';
+        t.addEventListener('click', function () { viewPhoto(p.thumb); });
+        chip.appendChild(t);
+      } else chip.appendChild(document.createTextNode('📄 ' + p.name));
       var x = el('button', null, '×'); x.type = 'button'; x.setAttribute('aria-label', 'Remove');
-      x.addEventListener('click', function () { pending.splice(i, 1); drawTray(); });
+      x.addEventListener('click', function () { if (p.thumb) URL.revokeObjectURL(p.thumb); pending.splice(i, 1); drawTray(); });
       chip.appendChild(x); tray.appendChild(chip);
     });
   }
@@ -139,7 +155,7 @@
       var name = isPdf ? file.name : file.name.replace(/\.\w+$/, '') + '.jpg';
       return fetch('/api/chat-upload?s=' + encodeURIComponent(state.sessionId) + '&type=' + encodeURIComponent(type) + '&name=' + encodeURIComponent(name), { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: blob })
         .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Upload failed'); return j; }); })
-        .then(function (j) { pending.push({ kind: isPdf ? 'file' : 'photo', url: j.url, name: j.name }); drawTray(); input.focus(); });
+        .then(function (j) { pending.push({ kind: isPdf ? 'file' : 'photo', url: j.url, name: j.name, thumb: isPdf ? '' : URL.createObjectURL(blob) }); drawTray(); input.focus(); });
     }).catch(function (e) { addBubble('assistant', e.message || 'Sending failed. Please try again or send it on WhatsApp: ' + WHATSAPP); })
       .then(function () { attachBtn.disabled = false; attachBtn.textContent = '📎'; });
   });
@@ -175,6 +191,7 @@
       var m = line.match(/^\[(photo|file)\] (https?:\/\/\S+)$/);
       if (!m) { words.push(line); return; }
       var a = el('a', 'chat-attach'); a.href = m[2]; a.target = '_blank'; a.rel = 'noopener';
+      if (m[1] === 'photo') a.addEventListener('click', function (e) { e.preventDefault(); viewPhoto(m[2]); });
       if (m[1] === 'photo') { var img = el('img'); img.src = m[2]; img.alt = 'Photo you sent'; img.loading = 'lazy'; a.appendChild(img); }
       else a.textContent = '📄 ' + decodeURIComponent(m[2].split('/').pop()).replace(/-[0-9a-f]{16}(?=\.)/, '');
       b.appendChild(a);

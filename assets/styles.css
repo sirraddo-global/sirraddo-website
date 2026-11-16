@@ -541,3 +541,10 @@ p { margin: 0 0 1em; }
 .chat-tray-item button { border: 0; background: none; font-size: 1.1rem; min-width: 32px; min-height: 32px; cursor: pointer; color: inherit; }
 .chat-attach { display: block; margin-bottom: 6px; color: inherit; word-break: break-all; }
 .chat-attach img { display: block; max-width: 100%; max-height: 220px; border-radius: 10px; }
+.chat-tray-item.has-thumb { padding: 4px; position: relative; border-radius: 12px; }
+.chat-tray-item.has-thumb img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; display: block; cursor: zoom-in; }
+.chat-tray-item.has-thumb button { position: absolute; top: -8px; right: -8px; width: 26px; min-width: 26px; height: 26px; min-height: 26px; border-radius: 50%; background: #111827; color: #fff; font-size: 15px; }
+.chat-attach img { cursor: zoom-in; }
+.chat-viewer { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,.92); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.chat-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+.chat-viewer button { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.15); color: #fff; font-size: 26px; cursor: pointer; }

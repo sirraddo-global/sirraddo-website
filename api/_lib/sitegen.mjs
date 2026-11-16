@@ -199,7 +199,7 @@ export function buildSiteModel(row) {
     photos: (files.photos || []).filter(isImage),
     productPhotos: (files.product_photos || []).filter(isImage),
     services: (b.services || []).filter((s) => s.name),
-    // i = position in the form (the basket and checkout use it); amount = price as a number, if it is one.
+    // i = position in the form (the cart and checkout use it); amount = price as a number, if it is one.
     products: (b.products || []).map((p, i) => ({ ...p, i })).filter((p) => p.name).map((p, pos) => ({
       ...p, pos, amount: priceAmount(p.price), text: (productText[p.name.toLowerCase()] || []).join(" "),
     })),
@@ -261,8 +261,11 @@ section.block{padding:48px 0}section.block:nth-of-type(even){background:#F6F7F9}
 .card{background:#fff;border:1px solid #E4E7EB;border-radius:${t.radius};padding:20px}
 .cards.products{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
 @media (max-width:560px){.cards.products{grid-template-columns:1fr 1fr;gap:10px}.cards.products .card{padding:12px}.cards.products h3{font-size:1rem}.cards.products .btn{padding:10px 12px;font-size:.9rem}}
-.cat-nav{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:10px 0;margin-bottom:8px;background:inherit}
-.cat-nav a{flex:0 0 auto;border:1px solid #D1D5DB;border-radius:999px;padding:8px 14px;text-decoration:none;color:inherit;background:#fff;font-weight:600}
+.menu-btn{display:none;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:${t.radius};padding:10px 14px;font:700 15px/1 system-ui,Arial,sans-serif;cursor:pointer;min-height:44px}
+@media(max-width:760px){.menu-btn{display:inline-flex;align-items:center}nav.many{display:none;width:100%;flex-direction:column;gap:2px;padding-bottom:6px}nav.many.open{display:flex}nav.many a{padding:12px}}
+.cat-nav{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;padding:10px 0;margin-bottom:8px;-webkit-overflow-scrolling:touch}
+.cat-nav a{flex:0 0 auto;border:1px solid #D1D5DB;border-radius:999px;padding:9px 14px;text-decoration:none;color:#1F2933;background:#fff;font-weight:600;opacity:1;white-space:nowrap}
+.cat h2{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}.cat-top{font-size:.85rem;font-weight:600;color:inherit;opacity:.75;text-decoration:none}
 .cards.products .card img{aspect-ratio:1/1}.cat-nav a span{opacity:.6;font-weight:400}.cat{scroll-margin-top:64px;margin-top:28px}
 .card .price{font-weight:800;color:${t.primary};margin:0}
 .card img{border-radius:calc(${t.radius} - 4px);margin:-6px -6px 12px;width:calc(100% + 12px);aspect-ratio:4/3;object-fit:cover}
@@ -296,9 +299,12 @@ const PREVIEW_CSS = `.pv-top{background:#FFF1B8;color:#3D2E00;font:600 14px/1.4 
 .pv .row{display:flex;gap:10px;flex-wrap:wrap}.pv .ok{background:#22C55E;color:#062E14}.pv .chg{background:#fff;color:#0F172A}
 .pv .msg{margin-top:10px;font-weight:600}`;
 
+// More than 5 pages: on phones the menu folds behind a "☰ Menu" button, so the page starts at the top.
 function header(site, page, link, img) {
   const nav = site.pages.map((p) => `<a href="${link(p.slug)}"${p.slug === page.slug ? ' aria-current="page"' : ""}>${esc(p.name)}</a>`).join("");
-  return `<header class="top"><div class="wrap"><a class="brand" href="${link("index")}">${site.logo ? `<img src="${img(site.logo.url)}" alt="${esc(site.name)} logo">` : ""}<span>${esc(site.name)}</span></a><nav aria-label="Main">${nav}</nav></div></header>`;
+  const many = site.pages.length > 5;
+  const btn = many ? `<button class="menu-btn" type="button" aria-expanded="false" aria-controls="mainnav" onclick="var n=document.getElementById('mainnav'),o=n.classList.toggle('open');this.setAttribute('aria-expanded',o);this.textContent=o?'\u2715 Close':'\u2630 Menu'">\u2630 Menu</button>` : "";
+  return `<header class="top"><div class="wrap"><a class="brand" href="${link("index")}">${site.logo ? `<img src="${img(site.logo.url)}" alt="${esc(site.name)} logo">` : ""}<span>${esc(site.name)}</span></a>${btn}<nav aria-label="Main" id="mainnav"${many ? ' class="many"' : ""}>${nav}</nav></div></header>`;
 }
 function waLink(site, text) {
   return site.whatsapp ? `https://wa.me/${site.whatsapp}${text ? "?text=" + encodeURIComponent(text) : ""}` : "";
@@ -345,22 +351,22 @@ function shopSections(site, img) {
   }
   if (cats.length < 2) return productCards(site, img);
   const id = (c) => "cat-" + slugify(c.name);
-  return `<nav class="cat-nav" aria-label="Product categories">${cats.map((c) => `<a href="#${id(c)}">${esc(c.name)} <span>(${c.products.length})</span></a>`).join("")}</nav>` +
-    cats.map((c) => `<section class="cat" id="${id(c)}"><h2>${esc(c.name)}</h2>${productCards({ ...site, products: c.products }, img)}</section>`).join("");
+  return `<nav class="cat-nav" id="categories" aria-label="Product categories">${cats.map((c) => `<a href="#${id(c)}">${esc(c.name)} <span>(${c.products.length})</span></a>`).join("")}</nav>` +
+    cats.map((c) => `<section class="cat" id="${id(c)}"><h2>${esc(c.name)} <a class="cat-top" href="#categories">\u2191 Categories</a></h2>${productCards({ ...site, products: c.products }, img)}</section>`).join("");
 }
 function productCards(site, img) {
   return `<div class="cards products">${site.products.map((p) => {
     const photo = productPhotoFor(site, p);
     const order = waLink(site, `Hello ${site.name}, I'd like to order: ${p.name}${p.price ? " (" + naira(p.price) + ")" : ""}`);
     const buy = p.amount
-      ? `<p class="buy"><button class="btn add" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}">Add to basket</button></p>`
+      ? `<p class="buy" data-i="${p.i}"><button class="btn add" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}">Add to cart</button><span class="step" hidden><button type="button" data-d="-1" aria-label="One less ${esc(p.name)}">\u2212</button><b>0</b><button type="button" data-d="1" aria-label="One more ${esc(p.name)}">+</button><small>in cart</small></span></p>`
       : order ? `<p class="buy"><a class="btn" href="${order}">${p.price ? "Order on WhatsApp" : "Ask on WhatsApp"}</a></p>` : "";
     return `<div class="card">${photo ? `<img src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3>${esc(p.name)}</h3>${p.text || p.details ? `<p>${esc(p.text || p.details)}</p>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
   }).join("")}</div>`;
 }
 
-// ---------- Basket (Online Store) ----------
-// Every store page gets a basket. "Order on WhatsApp" always works. "Pay online" appears only once online payment is
+// ---------- Cart (Online Store) ----------
+// Every store page gets a cart (stored in the browser under the old "basket-" key, so nobody loses their items). "Order on WhatsApp" always works. "Pay online" appears only once online payment is
 // switched on for the store in admin (the page asks our API), and payments go to the store owner's Paystack account.
 const CART_CSS = `.cart-btn{position:fixed;left:16px;bottom:16px;z-index:60;background:#111827;color:#fff;border:0;border-radius:999px;padding:12px 18px;font:700 15px/1 system-ui,Arial,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer}
 .cart-btn[hidden],.cart[hidden]{display:none!important}.cart-btn b{background:#22C55E;color:#062E14;border-radius:999px;padding:2px 8px;margin-left:6px}
@@ -376,13 +382,16 @@ const CART_CSS = `.cart-btn{position:fixed;left:16px;bottom:16px;z-index:60;back
 .cart .acts{display:grid;gap:10px;margin-top:16px}.cart .acts button{border:0;border-radius:10px;padding:14px;font:700 16px/1 system-ui,Arial,sans-serif;cursor:pointer}
 .cart .pay{background:#0BA4DB;color:#fff}.cart .waorder{background:#25D366;color:#063B1C}.cart .acts button:disabled{opacity:.5;cursor:default}
 .cart .note{font-size:13px;color:#4B5563;margin-top:8px}.cart .err{color:#B91C1C;font-weight:600}
-.card .buy{margin-top:auto}.btn.add.added{background:#22C55E!important;color:#062E14!important}`;
+.card .buy{margin-top:auto}.btn.add.added{background:#22C55E!important;color:#062E14!important}
+.buy .step{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}.buy .step[hidden],.buy .btn.add[hidden]{display:none!important}
+.buy .step button{width:42px;height:42px;border-radius:10px;border:0;background:#22C55E;color:#062E14;font:800 20px/1 system-ui,Arial,sans-serif;cursor:pointer}
+.buy .step b{min-width:28px;text-align:center;font-size:1.15rem}.buy .step small{opacity:.75;font-weight:600}`;
 
 function cartScript(site, mode) {
   const cfg = { s: site.shopToken, api: SITE_URL, wa: site.whatsapp, name: site.name, preview: mode === "preview", key: "basket-" + (site.shopToken || slugify(site.name)) };
-  return `<button class="cart-btn" type="button" hidden aria-label="Open basket">Basket <b>0</b></button>
-<div class="cart" hidden role="dialog" aria-modal="true" aria-label="Your basket"><div class="panel">
-<h2>Your basket <button class="x" type="button" aria-label="Close">×</button></h2><div class="lines"></div>
+  return `<button class="cart-btn" type="button" hidden aria-label="Open cart">🛒 Cart <b>0</b></button>
+<div class="cart" hidden role="dialog" aria-modal="true" aria-label="Your cart"><div class="panel">
+<h2>Your cart <button class="x" type="button" aria-label="Close">×</button></h2><div class="lines"></div>
 <p class="tot"><span>Total</span><span class="sum"></span></p><p class="note dl"></p>
 <label for="cb-name">Your name</label><input id="cb-name" autocomplete="name">
 <label for="cb-phone">Phone number</label><input id="cb-phone" type="tel" autocomplete="tel">
@@ -398,12 +407,14 @@ function save(){try{localStorage.setItem(C.key,JSON.stringify(B))}catch(e){}}
 function count(){return B.reduce(function(s,l){return s+l.q},0)}
 function sub(){return B.reduce(function(s,l){return s+l.q*l.p},0)}
 function draw(){var n=count();btn.hidden=!n;btn.querySelector('b').textContent=n;
-$('.cart .lines').innerHTML=B.length?B.map(function(l,k){return '<div class="line"><span>'+l.n.replace(/[&<>]/g,'')+'</span><span>'+money(l.p*l.q)+'</span><span class="qty"><button type="button" data-k="'+k+'" data-d="-1" aria-label="One less">\u2212</button>'+l.q+'<button type="button" data-k="'+k+'" data-d="1" aria-label="One more">+</button></span></div>'}).join(''):'<p>Your basket is empty.</p>';
+$('.cart .lines').innerHTML=B.length?B.map(function(l,k){return '<div class="line"><span>'+l.n.replace(/[&<>]/g,'')+'</span><span>'+money(l.p*l.q)+'</span><span class="qty"><button type="button" data-k="'+k+'" data-d="-1" aria-label="One less">\u2212</button>'+l.q+'<button type="button" data-k="'+k+'" data-d="1" aria-label="One more">+</button></span></div>'}).join(''):'<p>Your cart is empty.</p>';
+document.querySelectorAll('.buy[data-i]').forEach(function(p){var i=+p.getAttribute('data-i'),l=B.filter(function(x){return x.i===i})[0],st=p.querySelector('.step');p.querySelector('.btn.add').hidden=!!l;st.hidden=!l;if(l)st.querySelector('b').textContent=l.q;});
 $('.cart .sum').textContent=money(sub()+(online&&fee?fee:0));
 $('.cart .dl').textContent=fee&&online?'Includes delivery: '+money(fee):'Delivery cost, if any, is confirmed by the store.';
 pay.hidden=!online;pay.disabled=!B.length;$('.cart .waorder').hidden=!C.wa;$('.cart .waorder').disabled=!B.length;}
-document.addEventListener('click',function(e){var a=e.target.closest('.btn.add');if(!a)return;var i=+a.getAttribute('data-i'),l=B.filter(function(x){return x.i===i})[0];
-if(l)l.q=Math.min(99,l.q+1);else B.push({i:i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:1});save();draw();a.classList.add('added');a.textContent='Added \u2713';setTimeout(function(){a.classList.remove('added');a.textContent='Add to basket'},1500);});
+document.addEventListener('click',function(e){var s=e.target.closest('.buy .step button');if(s){var bi=+s.closest('.buy').getAttribute('data-i'),bl=B.filter(function(x){return x.i===bi})[0];if(bl){bl.q=Math.min(99,bl.q+(+s.getAttribute('data-d')));if(bl.q<1)B.splice(B.indexOf(bl),1);save();draw();}return}
+var a=e.target.closest('.btn.add');if(!a)return;var i=+a.getAttribute('data-i'),l=B.filter(function(x){return x.i===i})[0];
+if(l)l.q=Math.min(99,l.q+1);else B.push({i:i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:1});save();draw();});
 box.addEventListener('click',function(e){if(e.target===box||e.target.closest('.x')){box.hidden=true;return}var q=e.target.closest('.qty button');if(!q)return;var l=B[+q.getAttribute('data-k')];l.q+=+q.getAttribute('data-d');if(l.q<1)B.splice(B.indexOf(l),1);save();draw();});
 btn.addEventListener('click',function(){box.hidden=false;msg.textContent='';});
 function buyer(){return{name:$('#cb-name').value.trim(),phone:$('#cb-phone').value.trim(),email:$('#cb-email').value.trim(),address:$('#cb-addr').value.trim()}}

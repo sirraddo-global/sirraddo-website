@@ -169,4 +169,9 @@ test("big store: up to 100 products, sections per category, photos matched by fi
   assert.match(html, /class="cat-nav"/);
   assert.match(html, /id="cat-groceries"/);
   assert.match(html, /Accessories <span>\(30\)/);
+  assert.match(html, /Add to cart<\/button><span class="step" hidden>/, "add button + quantity stepper");
+  assert.doesNotMatch(html, /basket</i);
+  assert.doesNotMatch(html, /menu-btn/, "3 pages: no phone menu button");
+  const many = buildSiteModel({ ...row, brief: { ...row.brief, pages: ["Home", "Shop", "About us", "FAQ", "Gallery", "Contact"] } });
+  assert.match(renderPage(many, "index", { mode: "export", link: (s) => "/" + s }), /class="menu-btn"/, "6 pages: ☰ Menu on phones");
 });

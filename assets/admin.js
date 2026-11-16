@@ -1154,7 +1154,7 @@
     } }));
     box.appendChild(acts);
     box.appendChild(list);
-    box.appendChild(el('p', { class: 'admin-hint', text: 'Every product with a plain price (e.g. 4500) gets "Add to basket". Buyers then choose "Pay online" (only when a key is set) or "Order on WhatsApp". Products priced like "from 5k" stay WhatsApp-only. Paid orders are emailed to the store and the buyer. No need to republish after changing these settings.' }));
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Every product with a plain price (e.g. 4500) gets "Add to cart". Buyers then choose "Pay online" (only when a key is set) or "Order on WhatsApp". Products priced like "from 5k" stay WhatsApp-only. Paid orders are emailed to the store and the buyer. No need to republish after changing these settings.' }));
     return box;
   }
 

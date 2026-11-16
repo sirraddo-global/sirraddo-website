@@ -1,4 +1,4 @@
-// /api/shop — the basket on customers' Online Store websites (they are hosted elsewhere, so CORS is open).
+// /api/shop — the cart on customers' Online Store websites (they are hosted elsewhere, so CORS is open).
 //   GET ?config=1&s=TOKEN       -> { online, deliveryFee }   (is "Pay online" switched on for this store?)
 //   POST { s, items:[{i,q}], buyer } -> starts payment into the store owner's own Paystack account, returns { url }
 //   GET ?paid=1&ref=REF         -> Paystack sends the buyer back here: confirm, email the order, say thank you

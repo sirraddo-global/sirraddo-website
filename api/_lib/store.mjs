@@ -398,7 +398,7 @@ export async function saveHosting(id, patch) {
   await q(`UPDATE customer_requests SET hosting = hosting || $1::jsonb, updated_at = now() WHERE id = $2`, [JSON.stringify(patch), id]);
 }
 
-// Online Store settings (token for the store's basket, encrypted Paystack key, delivery fee). Merges the given fields.
+// Online Store settings (token for the store's cart, encrypted Paystack key, delivery fee). Merges the given fields.
 export async function updateRequestShop(id, patch) {
   await ensureSchema();
   const rows = await q(`UPDATE customer_requests SET shop = shop || $1::jsonb, updated_at = now() WHERE id = $2 RETURNING ${REQUEST_COLUMNS}`, [JSON.stringify(patch), id]);

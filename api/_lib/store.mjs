@@ -313,6 +313,11 @@ export async function addBriefFile(token, field, file, max) {
 
 export async function removeBriefFile(token, field, url) {
   await ensureSchema();
+  if (url === "*") { // "Remove all"
+    const rows = await q(`UPDATE customer_requests SET brief_files = jsonb_set(brief_files, ARRAY[$1::text], '[]'::jsonb), updated_at = now()
+      WHERE brief_token = $2 RETURNING id, brief_files`, [field, token]);
+    return rows[0]?.brief_files ?? null;
+  }
   const rows = await q(
     `UPDATE customer_requests
      SET brief_files = jsonb_set(brief_files, ARRAY[$1::text],

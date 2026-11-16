@@ -318,14 +318,21 @@ function serviceCards(site, showPrice) {
   return `<div class="cards">${site.services.map((s) => `<div class="card"><h3>${esc(s.name)}</h3>${s.details ? `<p>${esc(s.details)}</p>` : ""}${showPrice && s.price ? `<p class="price">${esc(naira(s.price))}</p>` : ""}</div>`).join("")}</div>`;
 }
 // A product's photo: the one named after it (ofada-rice-5kg.jpg), otherwise the photo in the same position.
+// 1) the photo chosen for it in the form, 2) the photo named after it (ofada-rice-5kg.jpg), 3) the remaining
+// photos in list order for the remaining products.
+const photoKey = (f) => slugify(String(f.name || "").replace(/\.[a-z0-9]+$/i, "").replace(/-[0-9a-f]{16}$/, ""));
 export function productPhotoFor(site, p) {
-  const key = slugify(p.name);
-  const byName = site.productPhotos.find((f) => slugify(String(f.name || "").replace(/\.[a-z0-9]+$/i, "").replace(/-[0-9a-f]{16}$/, "")) === key);
+  const photos = site.productPhotos;
+  const chosen = p.photo && photos.find((f) => f.url === p.photo);
+  if (chosen) return chosen;
+  const taken = new Set(site.products.map((x) => x.photo).filter((u) => photos.some((f) => f.url === u)));
+  const free = photos.filter((f) => !taken.has(f.url));
+  const byName = free.find((f) => photoKey(f) === slugify(p.name));
   if (byName) return byName;
-  const named = new Set(site.products.map((x) => slugify(x.name)));
-  const unnamed = site.productPhotos.filter((f) => !named.has(slugify(String(f.name || "").replace(/\.[a-z0-9]+$/i, "").replace(/-[0-9a-f]{16}$/, ""))));
-  const unmatched = site.products.filter((x) => !site.productPhotos.some((f) => slugify(String(f.name || "").replace(/\.[a-z0-9]+$/i, "").replace(/-[0-9a-f]{16}$/, "")) === slugify(x.name)));
-  return unnamed[unmatched.indexOf(p)] || null;
+  const names = new Set(site.products.filter((x) => !(x.photo && taken.has(x.photo))).map((x) => slugify(x.name)));
+  const leftPhotos = free.filter((f) => !names.has(photoKey(f)));
+  const leftProducts = site.products.filter((x) => !(x.photo && taken.has(x.photo)) && !free.some((f) => photoKey(f) === slugify(x.name)));
+  return leftPhotos[leftProducts.indexOf(p)] || null;
 }
 // The shop page: one section per category (with quick links at the top) when there are 2 or more.
 function shopSections(site, img) {

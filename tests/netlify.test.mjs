@@ -153,6 +153,15 @@ test("big store: up to 100 products, sections per category, photos matched by fi
   assert.equal(productPhotoFor(site, site.products[89]).name, "item-90.jpg", "matched by file name");
   assert.equal(productPhotoFor(site, site.products[0]).name, "IMG_001.jpg", "unnamed photos go in order");
   assert.equal(productPhotoFor(site, site.products[1]), null);
+  // A photo chosen for a product in the form wins, and is no longer used for anything else.
+  products[1].photo = "https://x.test/files/b.jpg";
+  const site2 = buildSiteModel(row);
+  assert.equal(productPhotoFor(site2, site2.products[1]).name, "IMG_001.jpg");
+  assert.equal(productPhotoFor(site2, site2.products[0]), null);
+  delete products[1].photo;
+  const { cleanAnswers } = await import("../api/_lib/brief-schema.mjs");
+  const kept = cleanAnswers("store", { products: [{ name: "Rice", price: "100", photo: "https://www.sirraddo.com.ng/files/x.jpg" }, { photo: "https://evil" }] });
+  assert.deepEqual(kept.products, [{ name: "Rice", price: "100", category: "", details: "", photo: "https://www.sirraddo.com.ng/files/x.jpg" }], "photo kept; a row with only a photo dropped");
   const { SECTIONS } = await import("../api/_lib/brief-schema.mjs");
   assert.equal(SECTIONS.flatMap((s) => s.fields).find((f) => f.key === "products").max, 100);
   const shop = site.pages.find((p) => p.kind === "shop");

@@ -211,23 +211,73 @@
   // ---------- Files ----------
   function renderFiles(f) {
     var wrap = el('div', { class: 'brief-field', id: fieldId(f) }, [el('span', { class: 'brief-field-title' }, [f.label, f.required ? el('span', { class: 'brief-req', text: ' *' }) : null]), hint(f)]);
-    var grid = el('div', { class: 'brief-files' });
+    var grid = el('div', { class: 'brief-files' + (f.forRows ? ' is-products' : '') });
     var status = el('p', { class: 'brief-file-status', role: 'status' });
     var input = el('input', { type: 'file', accept: f.accept || 'image/*', multiple: f.max > 1 });
     var pick = el('label', { class: 'brief-upload' }, ['+ Add ' + (f.max > 1 ? 'files' : 'file'), input]);
+    // Product photos: "Which product?" under each photo, so photos with phone names (IMG_1234) still go to the right product.
+    var rowsOf = function () { return (answers[f.forRows] || []).filter(function (r) { return String(r.name || '').trim(); }); };
+    var slug = function (s) { return String(s || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); };
+    var keyOf = function (file) { return slug(String(file.name || '').replace(/\.[a-z0-9]+$/i, '').replace(/-[0-9a-f]{16}$/, '')); };
+    function autoFor(list) { // same rules as the website: chosen → named after it → in order
+      var prods = rowsOf(), out = {}, taken = {};
+      prods.forEach(function (r) { if (r.photo && list.some(function (x) { return x.url === r.photo; })) { out[r.photo] = r; taken[r.photo] = 1; } });
+      var free = list.filter(function (x) { return !taken[x.url]; });
+      var restP = prods.filter(function (r) { return !(r.photo && taken[r.photo]); });
+      var names = {}; restP.forEach(function (r) { names[slug(r.name)] = r; });
+      free.forEach(function (x) { if (names[keyOf(x)]) out[x.url] = names[keyOf(x)]; });
+      var leftPh = free.filter(function (x) { return !names[keyOf(x)]; });
+      var leftP = restP.filter(function (r) { return !free.some(function (x) { return keyOf(x) === slug(r.name); }); });
+      leftPh.forEach(function (x, i) { if (leftP[i]) out[x.url] = leftP[i]; });
+      return out;
+    }
     function draw() {
       var list = files[f.key] || [];
       grid.textContent = '';
+      var match = f.forRows ? autoFor(list) : {};
       list.forEach(function (file) {
         var tile = el('div', { class: 'brief-file' }, [
           /^image\//.test(file.type || '') ? el('img', { src: file.url, alt: file.name, loading: 'lazy' }) : el('span', { text: file.name }),
           el('button', { type: 'button', 'aria-label': 'Remove ' + file.name, text: '×', onclick: function () {
-            api('POST', { t: token, remove_file: { field: f.key, url: file.url } }).then(function (j) { files = j.files || files; draw(); progress(); })
+            api('POST', { t: token, remove_file: { field: f.key, url: file.url } }).then(function (j) {
+              files = j.files || files;
+              if (f.forRows) rowsOf().forEach(function (r) { if (r.photo === file.url) { delete r.photo; changed(); } });
+              draw(); progress();
+            })
               .catch(function (e) { status.textContent = e.message; status.className = 'brief-file-status is-error'; });
           } })
         ]);
+        if (f.forRows && rowsOf().length) {
+          var sel = el('select', { class: 'brief-file-for', 'aria-label': 'Which product is this photo?' }, [el('option', { value: '', text: 'Which product?' })].concat(rowsOf().map(function (r, i) {
+            return el('option', { value: String(i), text: r.name });
+          })));
+          var cur = match[file.url];
+          if (cur) sel.value = String(rowsOf().indexOf(cur));
+          sel.addEventListener('change', function () {
+            var prods = rowsOf();
+            prods.forEach(function (r) { if (r.photo === file.url) delete r.photo; });
+            var r = prods[Number(sel.value)];
+            if (sel.value !== '' && r) r.photo = file.url;
+            // Pin every photo to what it shows now, so changing one doesn't move the others.
+            var now = autoFor(list);
+            Object.keys(now).forEach(function (u) { if (u !== file.url && !now[u].photo) now[u].photo = u; });
+            changed(); draw();
+          });
+          tile.appendChild(sel);
+        }
         grid.appendChild(tile);
       });
+      if (list.length > 1) {
+        var all = el('button', { type: 'button', class: 'brief-remove-all', text: 'Remove all ' + list.length, onclick: function () {
+          if (!window.confirm('Remove all ' + list.length + ' photos here?')) return;
+          api('POST', { t: token, remove_file: { field: f.key, url: '*' } }).then(function (j) {
+            files = j.files || files;
+            if (f.forRows) rowsOf().forEach(function (r) { delete r.photo; });
+            changed(); draw(); progress();
+          }).catch(function (e) { status.textContent = e.message; status.className = 'brief-file-status is-error'; });
+        } });
+        grid.appendChild(all);
+      }
       pick.hidden = list.length >= f.max;
       if (!status.classList.contains('is-error')) status.textContent = list.length ? list.length + ' of ' + f.max + ' uploaded' : '';
     }
@@ -274,8 +324,33 @@
       });
     }).catch(function () { return file; });
   }
+  // A photo can carry its product's name inside the file (a JPEG comment "product:Ofada Rice 5kg"), so it's
+  // matched even when the phone renames the file (e.g. 1000517007.jpg).
+  function productTag(file) {
+    if (!/jpe?g/i.test(file.type || '') || !file.slice || !window.FileReader) return Promise.resolve('');
+    return new Promise(function (resolve) {
+      var r = new FileReader();
+      r.onload = function () {
+        try {
+          var b = new Uint8Array(r.result), i = 2;
+          while (i + 4 < b.length && b[i] === 0xFF) {
+            var m = b[i + 1], len = (b[i + 2] << 8) + b[i + 3];
+            if (m === 0xFE) { var t = ''; for (var k = i + 4; k < i + 2 + len; k++) t += String.fromCharCode(b[k]); var mt = t.match(/^product:(.+)$/); return resolve(mt ? decodeURIComponent(escape(mt[1])).trim() : ''); }
+            if (m === 0xDA) break;
+            i += 2 + len;
+          }
+        } catch (e) {}
+        resolve('');
+      };
+      r.onerror = function () { resolve(''); };
+      r.readAsArrayBuffer(file.slice(0, 65536));
+    });
+  }
   function upload(f, file) {
-    return shrink(file, f.key === 'logo').then(function (small) {
+    return productTag(file).then(function (tag) {
+      if (tag) file = new File([file], tag.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.jpg', { type: file.type });
+      return shrink(file, f.key === 'logo');
+    }).then(function (small) {
       if (small.size > 4 * 1024 * 1024) throw new Error('too big (max 4 MB). Please send it on WhatsApp.');
       var q = '?t=' + encodeURIComponent(token) + '&field=' + encodeURIComponent(f.key) + '&name=' + encodeURIComponent(small.name) + '&type=' + encodeURIComponent(small.type || 'application/octet-stream');
       return fetch('/api/brief-upload' + q, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: small })

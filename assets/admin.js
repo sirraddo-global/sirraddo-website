@@ -1126,6 +1126,19 @@
     var key = el('input', { type: 'password', placeholder: sh.online ? 'Paste a new key to replace it' : 'sk_live_…', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' });
     var fee = el('input', { type: 'number', min: '0', step: '100', value: sh.deliveryFee == null ? '' : sh.deliveryFee, placeholder: 'e.g. 2000 (leave empty to agree it later)' });
     var notify = el('input', { type: 'email', value: sh.notify || '', placeholder: r.email || 'owner@gmail.com' });
+    // "Manage my store": the owner changes prices, sold out, hours, numbers and a notice themselves; the live site updates.
+    (function () {
+      var out = el('p', { class: 'admin-hint', text: sh.manage ? 'They have a link (made ' + new Date(sh.manage.created).toLocaleDateString('en-NG') + '). It\'s also in the handover pack.' : '' });
+      var get = function (renew, then) { api('POST', { action: 'manage_link', id: r.id, renew: renew }).then(function (j) { if (j.row) replaceRequest(j.row); then(j.url); }).catch(fail); };
+      var msg = function (url) { return 'Hello ' + String(r.name).split(' ')[0] + ', here is your private link to manage your store: change prices, mark items sold out, update your opening hours and numbers, or add a short notice. Your website updates within a minute:\n' + url + '\nPlease keep it private. For new products, photos or text, use your "Request a change" link.'; };
+      var acts = el('div', { class: 'admin-actions' });
+      if (waNumber(r.contact)) acts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send "Manage my store" link', onclick: function () { var win = window.open('', '_blank'); get(false, function (url) { var u = 'https://wa.me/' + waNumber(r.contact) + '?text=' + encodeURIComponent(msg(url)); if (win) win.location = u; else window.location = u; }); } }));
+      acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy link', onclick: function () { get(false, function (url) { if (navigator.clipboard) navigator.clipboard.writeText(msg(url)).then(function () { flash('Message with the link copied'); }); }); } }));
+      if (sh.manage) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'New link (old stops)', onclick: function () { if (window.confirm('Make a new link? The old one stops working.')) get(true, function () { flash('New link made: send it to them'); render(); }); } }));
+      box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Manage my store: ' }), 'a private link where they change prices, sold out, opening hours, phone/WhatsApp and a short notice themselves. Their live site updates within a minute and you get an email of what changed.']));
+      box.appendChild(acts);
+      box.appendChild(out);
+    })();
     // Best way: send them a private "Connect Paystack" link. They paste their own key, with step-by-step help
     // (Live vs Test keys), so you never see or handle it. Pay online switches on by itself and you get an email.
     if (!sh.online || sh.keyMode === 'test') {

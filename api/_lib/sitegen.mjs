@@ -192,6 +192,7 @@ export function buildSiteModel(row) {
     baseUrl: domain ? `https://${domain}` : row.hosting?.pagesUrl || (/^https:\/\//.test(row.website_url || "") ? row.website_url.replace(/\/+$/, "") : ""),
     name: b.business_name || row.business || row.name,
     tagline: b.tagline || "",
+    notice: String(b.site_notice || "").trim().slice(0, 200), // short note from the owner (Manage my store)
     phone: b.phone || row.contact || "",
     whatsapp: waNumber(b.whatsapp || b.phone || row.contact),
     email: b.email || "",
@@ -262,6 +263,8 @@ nav a[aria-current]{background:rgba(255,255,255,.16);opacity:1}
 section.block{padding:48px 0}section.block:nth-of-type(even){background:#F6F7F9}
 .cards{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
 .card{background:#fff;border:1px solid #E4E7EB;border-radius:${t.radius};padding:20px}
+.site-notice{background:${t.accent};color:#fff;text-align:center;padding:10px 16px;font-weight:700}
+.soldout{display:inline-block;padding:8px 14px;border-radius:999px;background:#6B7280;color:#fff;font-weight:700}.card.is-soldout img{filter:grayscale(.7);opacity:.75}
 .cards.products{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
 @media (max-width:560px){.cards.products{grid-template-columns:1fr 1fr;gap:10px}.cards.products .card{padding:12px}.cards.products h3{font-size:1rem}.cards.products .btn{padding:10px 12px;font-size:.9rem}}
 .menu-btn{display:none;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:${t.radius};padding:10px 14px;font:700 15px/1 system-ui,Arial,sans-serif;cursor:pointer;min-height:44px}
@@ -384,10 +387,10 @@ function productCards(site, img) {
   return `<div class="cards products">${site.products.map((p) => {
     const photo = productPhotoFor(site, p);
     const order = waLink(site, `Hello ${site.name}, I'd like to order: ${p.name}${p.price ? " (" + naira(p.price) + ")" : ""}`);
-    const buy = p.amount
+    const buy = p.soldout ? `<p class="buy"><span class="soldout">Sold out</span></p>` : p.amount
       ? `<p class="buy" data-i="${p.i}"><button class="btn add" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}"${photo ? ` data-img="${img(photo.url)}"` : ""}>Add to cart</button><span class="step" hidden><button type="button" data-d="-1" aria-label="One less ${esc(p.name)}">\u2212</button><b>0</b><button type="button" data-d="1" aria-label="One more ${esc(p.name)}">+</button><small>in cart</small></span></p>`
       : order ? `<p class="buy"><a class="btn" href="${order}">${p.price ? "Order on WhatsApp" : "Ask on WhatsApp"}</a></p>` : "";
-    return `<div class="card">${photo ? `<img src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3>${esc(p.name)}</h3>${p.text || p.details ? `<p>${esc(p.text || p.details)}</p>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
+    return `<div class="card${p.soldout ? " is-soldout" : ""}">${photo ? `<img src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3>${esc(p.name)}</h3>${p.text || p.details ? `<p>${esc(p.text || p.details)}</p>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
   }).join("")}</div>`;
 }
 
@@ -619,7 +622,7 @@ ${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}
 <style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}
 <style id="guard">${GUARD_CSS}${hasCart(site) ? CART_CSS : ""}</style></head>
 <body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}</div>` : ""}
-${header(site, page, link, img)}
+${site.notice ? `<div class="site-notice" role="status">${esc(site.notice)}</div>` : ""}${header(site, page, link, img)}
 <main>${notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
 ${preview ? previewPanel(row, token, choice) : ""}
 ${footer(site, link)}

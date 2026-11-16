@@ -375,6 +375,13 @@ export default async function handler(req, res) {
         } catch (e) { throw new Bad(e.message); }
         return res.status(200).json({ notices: await noticesForAdmin(), kinds: NOTICE_KINDS });
       }
+      if (body.action === "manage_link") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        const { manageLink } = await import("./_lib/manage.mjs");
+        const link = await manageLink(id, { renew: body.renew === true });
+        return link ? res.status(200).json({ ...link, row: await getRequest(id) }) : res.status(404).json({ error: "Not found" });
+      }
       if (body.action === "paystack_link") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");

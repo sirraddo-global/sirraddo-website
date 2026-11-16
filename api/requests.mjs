@@ -302,7 +302,7 @@ export default async function handler(req, res) {
       if (body.action === "write_draft") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");
-        const result = await generateDraft(id, FUNCTION_BUDGET_MS() - 2000);
+        const result = await generateDraft(id, FUNCTION_BUDGET_MS() - 2000, { missingOnly: body.missingOnly === true });
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(await getRequest(id));
       }

@@ -175,3 +175,17 @@ test("big store: up to 100 products, sections per category, photos matched by fi
   const many = { ...site, pages: [...site.pages, ...["About us", "FAQ", "Gallery"].map((n) => ({ ...site.pages[2], name: n, slug: n.toLowerCase().replace(/ /g, "-") }))] };
   assert.match(renderPage(many, "index", { mode: "export", link: (s) => "/" + s }), /class="menu-btn"/, "6 pages: ☰ Menu on phones");
 });
+
+test("FAQ opens and closes, stray 'Text:' labels go, Location shows a map, empty gallery uses product photos", async () => {
+  const { buildSiteModel, renderPage } = await import("../api/_lib/sitegen.mjs");
+  const row = { id: 1, name: "D", business: "D", interest: "Online Store", status: "won",
+    brief: { business_name: "D", pages: ["Home", "FAQ", "Gallery", "Location and map"], address: "Ibadan Nigeria", products: [{ name: "Rice", price: "100" }] },
+    brief_files: { product_photos: [{ url: "https://x.test/files/r.jpg", name: "rice.jpg", type: "image/jpeg" }] },
+    draft_md: "## Page: Home\n### Hero\n**Headline:** Hi\n\n## Page: FAQ\n### Questions\n#### What do you sell?\n Text: We sell rice.\n\n## Page: Gallery\n### Our work\n**Text:** Look\n\n## Page: Location and map\n### Find us\n**Text:** Here" };
+  const site = buildSiteModel(row);
+  const page = (slug) => renderPage(site, slug, { mode: "export", link: (s) => s });
+  const faq = page(site.pages.find((p) => p.kind === "faq").slug);
+  assert.match(faq, /<details class="faq"><summary>What do you sell\?<\/summary><p>We sell rice\.<\/p><\/details>/);
+  assert.match(page(site.pages.find((p) => p.kind === "location").slug), /maps\.google\.com\/maps\?q=Ibadan%20Nigeria/);
+  assert.match(page(site.pages.find((p) => p.kind === "gallery").slug), /x\.test\/files\/r\.jpg/);
+});

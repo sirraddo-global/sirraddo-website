@@ -33,12 +33,13 @@ export function parseDraft(md) {
     if ((m = line.match(/^###\s+(.+)/))) { sec = { name: m[1].trim(), fields: {}, body: [] }; page.sections.push(sec); continue; }
     if (!line.trim()) { if (sec) sec.body.push(""); continue; }
     if (!sec) { sec = { name: "", fields: {}, body: [] }; page.sections.push(sec); }
-    if ((m = line.match(/^\*\*([^*]{1,40}?):?\*\*:?\s*(.*)/)) || (m = line.match(/^(headline|subheadline|sub-headline|button text|button|heading|text):\s*(.*)/i))) {
+    const t = line.trimStart();
+    if ((m = t.match(/^\*\*([^*]{1,40}?):?\*\*:?\s*(.*)/)) || (m = t.match(/^(headline|subheadline|sub-headline|button text|button|heading|text|answer):\s*(.*)/i))) {
       let key = m[1].trim().toLowerCase();
       if (key === "sub-headline") key = "subheadline";
       if (key === "button") key = "button text";
       if (FIELD_KEYS.includes(key)) { sec.fields[key] = m[2].trim(); continue; }
-      if (key === "text") { sec.body.push(m[2].trim()); continue; }
+      if (key === "text" || key === "answer") { sec.body.push(m[2].trim()); continue; }
     }
     sec.body.push(line);
   }
@@ -101,6 +102,7 @@ const pageKind = (name) => {
   if (/blog|news/.test(n)) return "blog";
   if (/shop|store|product/.test(n)) return "shop";
   if (/price|pricing/.test(n)) return "prices";
+  if (/faq|question/.test(n)) return "faq";
   if (/service/.test(n)) return "services";
   return "other";
 };
@@ -144,7 +146,8 @@ function blocks(lines, mode) {
     if (list) { out.push("</ul>"); list = null; }
     const h = line.match(/^#{3,4}\s+(.*)/);
     if (h) out.push(`<h3>${inline(h[1], mode)}</h3>`);
-    else if (line.trim()) out.push(`<p>${inline(line.trim(), mode)}</p>`);
+    // A stray "Text:" / "Answer:" label from the AI is dropped.
+    else if (line.trim()) out.push(`<p>${inline(line.trim().replace(/^(?:\*\*)?(?:text|answer|a)\s*:(?:\*\*)?\s*/i, ""), mode)}</p>`);
   }
   if (list) out.push("</ul>");
   return out.join("");
@@ -263,8 +266,17 @@ section.block{padding:48px 0}section.block:nth-of-type(even){background:#F6F7F9}
 @media (max-width:560px){.cards.products{grid-template-columns:1fr 1fr;gap:10px}.cards.products .card{padding:12px}.cards.products h3{font-size:1rem}.cards.products .btn{padding:10px 12px;font-size:.9rem}}
 .menu-btn{display:none;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:${t.radius};padding:10px 14px;font:700 15px/1 system-ui,Arial,sans-serif;cursor:pointer;min-height:44px}
 @media(max-width:760px){.menu-btn{display:inline-flex;align-items:center}nav.many{display:none;width:100%;flex-direction:column;gap:2px;padding-bottom:6px}nav.many.open{display:flex}nav.many a{padding:12px}}
-.cat-nav{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;padding:10px 0;margin-bottom:8px;-webkit-overflow-scrolling:touch}
+.shop-tools{position:sticky;top:0;z-index:4;padding:10px 0 4px;margin-bottom:8px}
+.shop-search{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:12px 14px;border:1px solid #D1D5DB;border-radius:12px;background:#fff;color:#1F2933}
+.cat-nav{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;padding:10px 0 6px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .cat-nav a{flex:0 0 auto;border:1px solid #D1D5DB;border-radius:999px;padding:9px 14px;text-decoration:none;color:#1F2933;background:#fff;font-weight:600;opacity:1;white-space:nowrap}
+.cat-nav a[aria-current]{background:${t.accent};border-color:${t.accent};color:#fff}.cat-nav a[aria-current] span{opacity:.85}.cat-nav a[hidden],.cat[hidden],.card[hidden],.shop-none[hidden]{display:none}
+.shop-none{padding:20px 0;font-weight:600}
+.map iframe{width:100%;height:360px;border:0;border-radius:${t.radius};display:block}
+details.faq{border:1px solid rgba(127,127,127,.3);border-radius:${t.radius};padding:4px 16px;margin:10px 0;background:rgba(127,127,127,.06)}
+details.faq summary{cursor:pointer;font-weight:700;padding:12px 0;list-style:none;display:flex;justify-content:space-between;gap:12px}
+details.faq summary::-webkit-details-marker{display:none}details.faq summary::after{content:"+";font-size:1.3em;line-height:1}details.faq[open] summary::after{content:"\\2212"}
+details.faq p{margin:0 0 12px}li.qa{list-style:none}
 .cat h2{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}.cat-top{font-size:.85rem;font-weight:600;color:inherit;opacity:.75;text-decoration:none}
 .cards.products .card img{aspect-ratio:1/1}.cat-nav a span{opacity:.6;font-weight:400}.cat{scroll-margin-top:64px;margin-top:28px}
 .card .price{font-weight:800;color:${t.primary};margin:0}
@@ -340,6 +352,18 @@ export function productPhotoFor(site, p) {
   const leftProducts = site.products.filter((x) => !(x.photo && taken.has(x.photo)) && !free.some((f) => photoKey(f) === slugify(x.name)));
   return leftPhotos[leftProducts.indexOf(p)] || null;
 }
+// Search box (filters as you type) and the category bar: it stays at the top while scrolling, with a solid
+// background taken from the page, and highlights the category being viewed.
+const SHOP_JS = `<script>(function(){function init(){var tools=document.querySelector('.shop-tools');if(!tools)return;
+var bg=function(el){while(el){var c=getComputedStyle(el).backgroundColor;if(c&&c!=='transparent'&&!/rgba\\(.*,\\s*0\\)$/.test(c))return c;el=el.parentElement}return '#fff'};tools.style.background=bg(tools.parentElement);
+var top=document.querySelector('.top');function off(){var t=top&&getComputedStyle(top).position==='sticky'?top.offsetHeight:0;tools.style.top=t+'px';document.querySelectorAll('.cat').forEach(function(s){s.style.scrollMarginTop=(t+tools.offsetHeight+8)+'px'})}off();addEventListener('resize',off);
+var links=[].slice.call(tools.querySelectorAll('.cat-nav a')),cats=[].slice.call(document.querySelectorAll('.cat'));
+function mark(id){links.forEach(function(a){var on=a.getAttribute('href')==='#'+id;if(on){a.setAttribute('aria-current','true');a.scrollIntoView({block:'nearest',inline:'nearest'})}else a.removeAttribute('aria-current')})}
+if(cats.length&&'IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)mark(e.target.id)})},{rootMargin:'-30% 0px -65% 0px'});cats.forEach(function(c){io.observe(c)})}
+var q=tools.querySelector('.shop-search'),none=document.querySelector('.shop-none');if(q)q.addEventListener('input',function(){var w=q.value.trim().toLowerCase(),n=0;
+document.querySelectorAll('.cards.products .card').forEach(function(c){var hit=!w||c.textContent.toLowerCase().indexOf(w)>=0;c.hidden=!hit;if(hit)n++});
+cats.forEach(function(s){s.hidden=!!w&&!s.querySelector('.card:not([hidden])')});links.forEach(function(a){var s=document.querySelector(a.getAttribute('href'));a.hidden=!!s&&s.hidden});none.hidden=n>0;});}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();})();</script>`;
 // The shop page: one section per category (with quick links at the top) when there are 2 or more.
 function shopSections(site, img) {
   const cats = [];
@@ -349,9 +373,11 @@ function shopSections(site, img) {
     if (!g) cats.push((g = { name: c, products: [] }));
     g.products.push(p);
   }
-  if (cats.length < 2) return productCards(site, img);
   const id = (c) => "cat-" + slugify(c.name);
-  return `<nav class="cat-nav" id="categories" aria-label="Product categories">${cats.map((c) => `<a href="#${id(c)}">${esc(c.name)} <span>(${c.products.length})</span></a>`).join("")}</nav>` +
+  const search = site.products.length > 8 ? `<input class="shop-search" type="search" placeholder="Search ${site.products.length} products" aria-label="Search products" autocomplete="off">` : "";
+  const tools = (nav) => search || nav ? `<div class="shop-tools" id="categories">${search}${nav}</div><p class="shop-none" hidden>No products match. Try another word.</p>${SHOP_JS}` : "";
+  if (cats.length < 2) return tools("") + productCards(site, img);
+  return tools(`<nav class="cat-nav" aria-label="Product categories">${cats.map((c) => `<a href="#${id(c)}">${esc(c.name)} <span>(${c.products.length})</span></a>`).join("")}</nav>`) +
     cats.map((c) => `<section class="cat" id="${id(c)}"><h2>${esc(c.name)} <a class="cat-top" href="#categories">\u2191 Categories</a></h2>${productCards({ ...site, products: c.products }, img)}</section>`).join("");
 }
 function productCards(site, img) {
@@ -501,7 +527,9 @@ function pageBody(site, page, mode, link, img) {
     }
   }
   if (page.kind === "services" || page.kind === "prices") extra("", serviceCards(site, true));
-  if (page.kind === "gallery") extra("", site.photos.length ? gallery(site.photos, img) : mode === "preview" ? `<p><mark class="todo">To be added: photos</mark></p>` : "");
+  // No gallery photos yet: a store shows its product photos instead of an empty page.
+  const galleryPhotos = site.photos.length ? site.photos : site.productPhotos.slice(0, 12);
+  if (page.kind === "gallery") extra("", galleryPhotos.length ? gallery(galleryPhotos, img) : mode === "preview" ? `<p><mark class="todo">To be added: photos</mark></p>` : "");
   if (page.kind === "testimonials" && site.testimonials.length) extra("", `<div class="cards">${site.testimonials.map((t) => `<blockquote>${esc(t)}</blockquote>`).join("")}</div>`);
   if (page.kind === "shop") {
     extra("", site.products.length ? shopSections(site, img) : "");
@@ -509,10 +537,20 @@ function pageBody(site, page, mode, link, img) {
   }
   if (page.kind === "blog") for (const post of site.blogPosts) extra("", `<article class="post"><h2>${esc(post.title)}</h2>${blocks(post.body, mode)}</article>`);
   if (page.kind === "contact" || page.kind === "location") extra("", contactCard(site, mode));
+  // The map itself on the Location page (or on Contact when there's no Location page). No key needed.
+  if (site.address && (page.kind === "location" || (page.kind === "contact" && !site.pages.some((p) => p.kind === "location")))) {
+    extra("", `<div class="map"><iframe title="Map: ${esc(site.name)}" src="https://maps.google.com/maps?q=${encodeURIComponent(site.address.replace(/\s*\n\s*/g, ", "))}&amp;z=15&amp;output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe></div>`);
+  }
   if (page.kind !== "contact" && site.whatsapp) {
     out.push(`<div class="cta"><div class="wrap"><h2>Ready when you are</h2><p>Send us a message and we'll reply quickly.</p><a class="btn" href="${waLink(site)}">Chat on WhatsApp</a></div></div>`);
   }
-  return out.join("");
+  let html = out.join("");
+  // FAQ: each question opens and closes (tap to read the answer).
+  if (page.kind === "faq") {
+    html = html.replace(/<h3>([^<]*(?:<(?!\/h3>)[^<]*)*)<\/h3>((?:<p>[\s\S]*?<\/p>)+)/g, '<details class="faq"><summary>$1</summary>$2</details>')
+      .replace(/<li class="qa"><strong>([\s\S]*?)<\/strong><br>([\s\S]*?)<\/li>/g, '<li class="qa"><details class="faq"><summary>$1</summary><p>$2</p></details></li>');
+  }
+  return html;
 }
 
 function footer(site, link) {

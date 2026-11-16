@@ -153,6 +153,7 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
   draft_at, draft_error, (draft_md IS NOT NULL) AS has_draft,
   handover, preview_token, preview_status, preview_feedback, preview_approved_at,
   COALESCE((length(draft_md) - length(replace(draft_md, '[ADD:', ''))) / 5, 0) AS draft_gaps,
+  COALESCE(strpos(draft_md, 'wasn''t written') > 0, false) AS draft_missing,
   (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, design_refs, COALESCE(brief_files->'example_shots', '[]'::jsonb) AS example_shots, hosting, chat_ideas, greetings_off,
   (shop - 'key') || jsonb_build_object('online', COALESCE(shop->>'key', '') <> '') AS shop,
   (SELECT count(*)::int FROM change_requests c WHERE c.request_id = customer_requests.id AND c.status = 'open') AS open_changes,

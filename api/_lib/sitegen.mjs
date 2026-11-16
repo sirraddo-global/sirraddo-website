@@ -259,6 +259,11 @@ nav a[aria-current]{background:rgba(255,255,255,.16);opacity:1}
 section.block{padding:48px 0}section.block:nth-of-type(even){background:#F6F7F9}
 .cards{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
 .card{background:#fff;border:1px solid #E4E7EB;border-radius:${t.radius};padding:20px}
+.cards.products{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+@media (max-width:560px){.cards.products{grid-template-columns:1fr 1fr;gap:10px}.cards.products .card{padding:12px}.cards.products h3{font-size:1rem}.cards.products .btn{padding:10px 12px;font-size:.9rem}}
+.cat-nav{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;padding:10px 0;margin-bottom:8px;background:inherit}
+.cat-nav a{flex:0 0 auto;border:1px solid #D1D5DB;border-radius:999px;padding:8px 14px;text-decoration:none;color:inherit;background:#fff;font-weight:600}
+.cards.products .card img{aspect-ratio:1/1}.cat-nav a span{opacity:.6;font-weight:400}.cat{scroll-margin-top:64px;margin-top:28px}
 .card .price{font-weight:800;color:${t.primary};margin:0}
 .card img{border-radius:calc(${t.radius} - 4px);margin:-6px -6px 12px;width:calc(100% + 12px);aspect-ratio:4/3;object-fit:cover}
 .gallery{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
@@ -312,9 +317,33 @@ function serviceCards(site, showPrice) {
   if (!site.services.length) return "";
   return `<div class="cards">${site.services.map((s) => `<div class="card"><h3>${esc(s.name)}</h3>${s.details ? `<p>${esc(s.details)}</p>` : ""}${showPrice && s.price ? `<p class="price">${esc(naira(s.price))}</p>` : ""}</div>`).join("")}</div>`;
 }
+// A product's photo: the one named after it (ofada-rice-5kg.jpg), otherwise the photo in the same position.
+export function productPhotoFor(site, p) {
+  const key = slugify(p.name);
+  const byName = site.productPhotos.find((f) => slugify(String(f.name || "").replace(/\.[a-z0-9]+$/i, "").replace(/-[0-9a-f]{16}$/, "")) === key);
+  if (byName) return byName;
+  const named = new Set(site.products.map((x) => slugify(x.name)));
+  const unnamed = site.productPhotos.filter((f) => !named.has(slugify(String(f.name || "").replace(/\.[a-z0-9]+$/i, "").replace(/-[0-9a-f]{16}$/, ""))));
+  const unmatched = site.products.filter((x) => !site.productPhotos.some((f) => slugify(String(f.name || "").replace(/\.[a-z0-9]+$/i, "").replace(/-[0-9a-f]{16}$/, "")) === slugify(x.name)));
+  return unnamed[unmatched.indexOf(p)] || null;
+}
+// The shop page: one section per category (with quick links at the top) when there are 2 or more.
+function shopSections(site, img) {
+  const cats = [];
+  for (const p of site.products) {
+    const c = String(p.category || "").trim() || "More products";
+    let g = cats.find((x) => x.name.toLowerCase() === c.toLowerCase());
+    if (!g) cats.push((g = { name: c, products: [] }));
+    g.products.push(p);
+  }
+  if (cats.length < 2) return productCards(site, img);
+  const id = (c) => "cat-" + slugify(c.name);
+  return `<nav class="cat-nav" aria-label="Product categories">${cats.map((c) => `<a href="#${id(c)}">${esc(c.name)} <span>(${c.products.length})</span></a>`).join("")}</nav>` +
+    cats.map((c) => `<section class="cat" id="${id(c)}"><h2>${esc(c.name)}</h2>${productCards({ ...site, products: c.products }, img)}</section>`).join("");
+}
 function productCards(site, img) {
-  return `<div class="cards">${site.products.map((p) => {
-    const photo = site.productPhotos[p.pos];
+  return `<div class="cards products">${site.products.map((p) => {
+    const photo = productPhotoFor(site, p);
     const order = waLink(site, `Hello ${site.name}, I'd like to order: ${p.name}${p.price ? " (" + naira(p.price) + ")" : ""}`);
     const buy = p.amount
       ? `<p class="buy"><button class="btn add" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}">Add to basket</button></p>`
@@ -457,7 +486,7 @@ function pageBody(site, page, mode, link, img) {
   if (page.kind === "gallery") extra("", site.photos.length ? gallery(site.photos, img) : mode === "preview" ? `<p><mark class="todo">To be added: photos</mark></p>` : "");
   if (page.kind === "testimonials" && site.testimonials.length) extra("", `<div class="cards">${site.testimonials.map((t) => `<blockquote>${esc(t)}</blockquote>`).join("")}</div>`);
   if (page.kind === "shop") {
-    extra("", site.products.length ? productCards(site, img) : "");
+    extra("", site.products.length ? shopSections(site, img) : "");
     if (site.delivery || site.returns) extra("Delivery and returns", `${site.delivery ? `<p><strong>Delivery:</strong> ${esc(site.delivery)}</p>` : ""}${site.returns ? `<p><strong>Returns:</strong> ${esc(site.returns)}</p>` : ""}`);
   }
   if (page.kind === "blog") for (const post of site.blogPosts) extra("", `<article class="post"><h2>${esc(post.title)}</h2>${blocks(post.body, mode)}</article>`);
@@ -564,7 +593,7 @@ function seoHead(site, page, { title, desc, img, preview, notFound }) {
     const items = site.products.filter((p) => p.amount).slice(0, 50).map((p) => {
       const o = { "@type": "Product", name: p.name, offers: { "@type": "Offer", price: String(p.amount), priceCurrency: "NGN", availability: "https://schema.org/InStock" } };
       if (p.text || p.details) o.description = String(p.text || p.details).slice(0, 300);
-      const ph = site.productPhotos[p.pos];
+      const ph = productPhotoFor(site, p);
       if (ph && abs(img(ph.url))) o.image = abs(img(ph.url));
       return o;
     });

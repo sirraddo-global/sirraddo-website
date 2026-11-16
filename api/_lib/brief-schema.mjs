@@ -113,11 +113,11 @@ export const SECTIONS = [
     only: ["store"],
     fields: [
       { key: "product_count", label: "How many products to start with?", type: "select", required: true, options: ["Up to 20", "21–50", "51–100", "More than 100"] },
-      { key: "products", label: "Products", type: "rows", max: 60,
+      { key: "products", label: "Products", type: "rows", max: 100, paste: true,
         columns: [{ key: "name", label: "Product" }, { key: "price", label: "Price (₦)" }, { key: "category", label: "Category" }, { key: "details", label: "Description, sizes, colours" }],
-        hint: "Add your main products here. For a long list, a spreadsheet sent on WhatsApp is fine." },
-      { key: "product_photos", label: "Product photos", type: "files", max: 30, accept: "image/*",
-        hint: "Name each photo after the product if you can. Plain background works best." },
+        hint: "Up to 100. The category groups them into sections on your shop page (e.g. Fabrics, Groceries). Long list? Tap 'Add from a spreadsheet' below." },
+      { key: "product_photos", label: "Product photos", type: "files", max: 100, accept: "image/*",
+        hint: "Name each photo after its product (e.g. ofada-rice-5kg.jpg) and it goes with that product; otherwise photos go in the same order as the list. You can pick many at once. Plain background works best." },
     ],
   },
   {

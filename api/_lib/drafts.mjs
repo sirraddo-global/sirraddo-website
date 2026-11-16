@@ -164,7 +164,7 @@ export async function generateDraft(id, budgetMs = FUNCTION_BUDGET_MS() - 2000) 
       const extras = extrasPrompt(kind, row, answers);
       const jobs = [
         ...groups.map((g) => ask(provider, pagesPrompt(kind, row, answers, g, all), budgetMs, kind === "store" ? 2600 : 2200)),
-        extras ? ask(provider, extras, budgetMs, kind === "store" ? 2200 : 900) : null,
+        extras ? ask(provider, extras, budgetMs, kind === "store" ? Math.min(4000, 600 + 35 * (row.brief.products || []).length) : 900) : null,
         wantBlog ? ask(provider, blogPrompt(row, answers), budgetMs, 3500) : null,
       ];
       const results = await Promise.allSettled(jobs.map((j) => j || Promise.resolve(null)));

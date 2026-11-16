@@ -997,6 +997,8 @@
   function goLiveBlock(r) {
     var h = r.hosting || {};
     var box = el('div', { class: 'admin-golive' }, [el('span', { class: 'admin-label', text: 'Go live' })]);
+    // The last thing that went wrong (why the badge says "Problem"), in plain words.
+    if ((r.hosting || {}).lastError) box.appendChild(el('p', { class: 'admin-error', text: 'Last problem' + (r.hosting.lastErrorAt ? ' (' + new Date(r.hosting.lastErrorAt).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' }) + ')' : '') + ': ' + r.hosting.lastError.replace(/^Cloudflare:\s*/, '') }));
     if (!state.canHost) {
       box.appendChild(el('p', { class: 'admin-hint', text: 'Connect Cloudflare once (Dashboard → Setup status → Customer websites) to publish customer websites in one tap. Until then, use "Download site (.zip)" and upload it by hand.' }));
       return box;
@@ -1059,6 +1061,10 @@
       if (!window.confirm('Pause ' + (h.domain || 'this site') + '? Visitors will see "temporarily unavailable" and email forwarding stops until you restore it.')) return;
       act({ action: 'host_pause' }, 'Site paused', e.currentTarget, 'Pausing…');
     } }));
+    // Domain still connecting, or email waiting for confirmation: check again now instead of waiting for the morning.
+    if (h.zoneStatus === 'active' && ((h.project && !h.attached) || (h.email && h.email.status === 'verifying'))) pubActs.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Check now', onclick: function (e) {
+      act({ action: 'host_check' }, function (j) { var hh = (j.row && j.row.hosting) || {}; return (hh.attached ? 'Connected to ' + hh.domain + '. ' : 'Still connecting (the padlock can take up to an hour). ') + (hh.email && hh.email.status === 'active' ? 'Email forwarding is working.' : hh.email && hh.email.status === 'verifying' ? 'Email: still waiting for the confirmation.' : ''); }, e.currentTarget, 'Checking…');
+    } }));
     if (h.pausedAt) pubActs.appendChild(el('button', { class: 'btn btn--navy admin-golive-btn', type: 'button', text: 'Restore site', onclick: function (e) { act({ action: 'host_restore' }, 'Site restored', e.currentTarget, 'Restoring…'); } }));
     box.appendChild(pubActs);
     var why = h.pauseReason === 'balance' ? 'Paused because the balance wasn\'t paid within 7 days. It comes back by itself when the balance is paid.'
@@ -1073,7 +1079,7 @@
       if (em && em.status) {
         var lbl = em.status === 'active' ? badge('Working', 'is-won') : em.status === 'paused' ? badge('Paused', 'is-due') : badge('Waiting for them to confirm', 'is-new');
         box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Email: ' }), em.locals.map(function (l) { return l + '@' + h.domain; }).join(', ') + ' → ' + em.to + ' ', lbl]));
-        if (em.status === 'verifying') box.appendChild(el('p', { class: 'admin-hint', text: 'Cloudflare emailed ' + em.to + ' a link to confirm. Once they tap it, forwarding starts by itself (or tap Check now).' }));
+        if (em.status === 'verifying') box.appendChild(el('p', { class: 'admin-hint', text: 'Cloudflare emailed ' + em.to + ' a link to confirm (sender: Cloudflare, subject like "Verify your email address"; check Spam and Promotions). Once they tap it, forwarding starts by itself (or tap Check now). No email after 10 minutes? Tap "Save and check" below to send a new one.' }));
       }
       // Starter includes 1 address, Business and Online Store up to 5. Prefilled with what they asked for on the project form.
       var allow = emailAllowance(r.interest);
@@ -1096,7 +1102,7 @@
         var ef = emailForm(holder);
         var lin = ef.lin, tin = ef.tin;
         var eacts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: more ? 'Save addresses' : em ? 'Save and check' : 'Set up email forwarding', onclick: function (e) {
-          act({ action: 'host_email', locals: lin.value, to: tin.value }, function (j) { var s = j.row && j.row.hosting && j.row.hosting.email; return s && s.status === 'active' ? 'Email forwarding is working' : 'Cloudflare sent them a confirmation email'; }, e.currentTarget, 'Setting up…');
+          act({ action: 'host_email', locals: lin.value, to: tin.value }, function (j) { var s = j.row && j.row.hosting && j.row.hosting.email; return s && s.status === 'active' ? 'Email forwarding is working' : 'Cloudflare sent a confirmation email to ' + (s ? s.to : 'their inbox') + ' (from Cloudflare; check Spam and Promotions)'; }, e.currentTarget, 'Setting up…');
         } })]);
         holder.appendChild(eacts);
       }
@@ -1120,6 +1126,19 @@
     var key = el('input', { type: 'password', placeholder: sh.online ? 'Paste a new key to replace it' : 'sk_live_…', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' });
     var fee = el('input', { type: 'number', min: '0', step: '100', value: sh.deliveryFee == null ? '' : sh.deliveryFee, placeholder: 'e.g. 2000 (leave empty to agree it later)' });
     var notify = el('input', { type: 'email', value: sh.notify || '', placeholder: r.email || 'owner@gmail.com' });
+    // "Manage my store": the owner changes prices, sold out, hours, numbers and a notice themselves; the live site updates.
+    (function () {
+      var out = el('p', { class: 'admin-hint', text: sh.manage ? 'They have a link (made ' + new Date(sh.manage.created).toLocaleDateString('en-NG') + '). It\'s also in the handover pack.' : '' });
+      var get = function (renew, then) { api('POST', { action: 'manage_link', id: r.id, renew: renew }).then(function (j) { if (j.row) replaceRequest(j.row); then(j.url); }).catch(fail); };
+      var msg = function (url) { return 'Hello ' + String(r.name).split(' ')[0] + ', here is your private link to manage your store: change prices, mark items sold out, update your opening hours and numbers, or add a short notice. Your website updates within a minute:\n' + url + '\nPlease keep it private. For new products, photos or text, use your "Request a change" link.'; };
+      var acts = el('div', { class: 'admin-actions' });
+      if (waNumber(r.contact)) acts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send "Manage my store" link', onclick: function () { var win = window.open('', '_blank'); get(false, function (url) { var u = 'https://wa.me/' + waNumber(r.contact) + '?text=' + encodeURIComponent(msg(url)); if (win) win.location = u; else window.location = u; }); } }));
+      acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy link', onclick: function () { get(false, function (url) { if (navigator.clipboard) navigator.clipboard.writeText(msg(url)).then(function () { flash('Message with the link copied'); }); }); } }));
+      if (sh.manage) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'New link (old stops)', onclick: function () { if (window.confirm('Make a new link? The old one stops working.')) get(true, function () { flash('New link made: send it to them'); render(); }); } }));
+      box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Manage my store: ' }), 'a private link where they change prices, sold out, opening hours, phone/WhatsApp and a short notice themselves. Their live site updates within a minute and you get an email of what changed.']));
+      box.appendChild(acts);
+      box.appendChild(out);
+    })();
     // Best way: send them a private "Connect Paystack" link. They paste their own key, with step-by-step help
     // (Live vs Test keys), so you never see or handle it. Pay online switches on by itself and you get an email.
     if (!sh.online || sh.keyMode === 'test') {

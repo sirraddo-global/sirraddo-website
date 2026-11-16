@@ -400,6 +400,11 @@ export async function saveHosting(id, patch) {
 }
 
 // Online Store settings (token for the store's cart, encrypted Paystack key, delivery fee). Merges the given fields.
+// Merges a few answers into the project form (used by "Manage my store"); everything else stays as it is.
+export async function mergeBrief(id, patch) {
+  await ensureSchema();
+  await q(`UPDATE customer_requests SET brief = COALESCE(brief, '{}'::jsonb) || $1::jsonb, updated_at = now() WHERE id = $2`, [JSON.stringify(patch), id]);
+}
 export async function updateRequestShop(id, patch) {
   await ensureSchema();
   const rows = await q(`UPDATE customer_requests SET shop = shop || $1::jsonb, updated_at = now() WHERE id = $2 RETURNING ${REQUEST_COLUMNS}`, [JSON.stringify(patch), id]);

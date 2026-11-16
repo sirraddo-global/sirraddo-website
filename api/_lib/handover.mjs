@@ -6,6 +6,8 @@ import { changeLink } from "./changes.mjs";
 
 export async function addHandoverExtras(r) {
   r.change_link = await changeLink(r.id);
+  // Online Stores: the owner's own "Manage my store" link (prices, sold out, hours, numbers, notice).
+  if (r.interest === "Online Store") r.manage_link = (await (await import("./manage.mjs")).manageLink(r.id).catch(() => null))?.url || "";
   try {
     const b = await getBriefById(r.id);
     r.files = Object.values(b?.brief_files || {}).flat().filter((f) => f && f.url).slice(0, 30).map((f) => ({ url: f.url, name: f.name || "file" }));

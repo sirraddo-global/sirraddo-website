@@ -74,7 +74,7 @@ export async function startHarness() {
   for (const [path, file] of Object.entries({
     "/api/chat": "chat", "/api/requests": "requests", "/api/cron-daily": "cron-daily", "/api/lead": "lead", "/api/brief": "brief",
     "/api/brief-upload": "brief-upload", "/doc": "doc", "/preview": "preview", "/api/preview": "preview", "/change": "site", "/api/site": "site",
-    "/pay": "pay", "/api/pay": "pay", "/api/paystack-webhook": "paystack-webhook", "/api/shop": "shop", "/connect": "connect", "/api/chat-upload": "chat-upload",
+    "/pay": "pay", "/api/pay": "pay", "/api/paystack-webhook": "paystack-webhook", "/api/shop": "shop", "/connect": "connect", "/manage": "manage", "/api/chat-upload": "chat-upload",
   })) handlers[path] = (await import(join(ROOT, "api", file + ".mjs"))).default;
 
   // Every API call goes through the same Netlify adapter the live site uses (netlify/lib/adapter.mjs).

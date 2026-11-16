@@ -375,6 +375,13 @@ export default async function handler(req, res) {
         } catch (e) { throw new Bad(e.message); }
         return res.status(200).json({ notices: await noticesForAdmin(), kinds: NOTICE_KINDS });
       }
+      if (body.action === "manage_link") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        const { manageLink } = await import("./_lib/manage.mjs");
+        const link = await manageLink(id, { renew: body.renew === true });
+        return link ? res.status(200).json({ ...link, row: await getRequest(id) }) : res.status(404).json({ error: "Not found" });
+      }
       if (body.action === "paystack_link") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");
@@ -436,6 +443,11 @@ export default async function handler(req, res) {
           else if (body.action === "host_restore") out.row = await restore(id);
           else if (body.action === "host_email") out.row = await setupEmail(id, body.locals, body.to);
           else throw new Bad("Unknown action");
+          // It worked: clear an old error so the badge stops saying "Problem".
+          if (out.row?.hosting?.lastError || (!out.row && body.action === "host_publish")) {
+            await saveHosting(id, { lastError: null }).catch(() => {});
+            out.row = await getRequest(id);
+          }
           return res.status(200).json(out);
         } catch (e) {
           if (/^Cloudflare:/.test(e.message) || !(e instanceof GoLiveError)) await saveHosting(id, { lastError: String(e.message).slice(0, 300), lastErrorAt: new Date().toISOString() }).catch(() => {});

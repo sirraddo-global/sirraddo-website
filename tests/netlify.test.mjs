@@ -189,3 +189,48 @@ test("FAQ opens and closes, stray 'Text:' labels go, Location shows a map, empty
   assert.match(page(site.pages.find((p) => p.kind === "location").slug), /maps\.google\.com\/maps\?q=Ibadan%20Nigeria/);
   assert.match(page(site.pages.find((p) => p.kind === "gallery").slug), /x\.test\/files\/r\.jpg/);
 });
+
+test("email forwarding: an unconfirmed inbox gets a new confirmation; missing token permissions are explained", async () => {
+  const { startForwarding } = await import("../api/_lib/cloudflare.mjs");
+  const { CF } = await import("./cloudflare-mock.mjs");
+  const before = CF.addresses.length;
+  let r = await startForwarding("zone-x", "Owner@Gmail.com");
+  assert.deepEqual(r, { verified: false, resent: false });
+  r = await startForwarding("zone-x", "owner@gmail.com");
+  assert.equal(r.resent, true, "unconfirmed: removed and added again so Cloudflare resends");
+  assert.equal(CF.addresses.filter((a) => a.email.toLowerCase() === "owner@gmail.com").length, 1);
+  CF.addresses.find((a) => a.email.toLowerCase() === "owner@gmail.com").verified = "2026-11-16";
+  assert.equal((await startForwarding("zone-x", "owner@gmail.com")).verified, true);
+  CF.denyEmail = true;
+  await assert.rejects(startForwarding("zone-x", "x@gmail.com"), /Email Routing Addresses · Edit/);
+  CF.denyEmail = false;
+  assert.ok(CF.addresses.length >= before);
+});
+
+test("Manage my store: the owner changes a price, marks sold out, sets a notice; the site and checkout follow", async () => {
+  const id = (await h.action({ action: "create", name: "Tola Store", contact: "08035550000", interest: "Online Store", email: "tola@gmail.com" })).json.id;
+  await h.sql(`UPDATE customer_requests SET brief = $1::jsonb WHERE id = $2`, [JSON.stringify({ business_name: "Tola Store", phone: "08035550000",
+    products: [{ name: "Rice 5kg", price: "9500", category: "Food" }, { name: "Beans 5kg", price: "11000", category: "Food" }] }), id]);
+  const link = (await h.action({ action: "manage_link", id })).json.url;
+  const path = "/manage?" + link.split("?")[1];
+  const page = await h.call("GET", path);
+  assert.equal(page.status, 200);
+  assert.match(page.text, /Rice 5kg/);
+  const r = await fetch(h.base + path, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ price_0: "9800", price_1: "11000", sold_1: "on", hours: "Mon–Sat 9am–6pm", phone: "08035550000", whatsapp: "", site_notice: "Closed Monday" }) });
+  assert.equal(r.status, 200);
+  assert.match(await r.text(), /Saved ✓/);
+  const b = (await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]))[0].brief;
+  assert.equal(b.products[0].price, "9800");
+  assert.equal(b.products[1].soldout, true);
+  assert.equal(b.site_notice, "Closed Monday");
+  assert.equal(b.phone, "08035550000", "other answers kept");
+  const { buildSiteModel, renderPage } = await import("../api/_lib/sitegen.mjs");
+  const site = buildSiteModel({ id, name: "Tola", interest: "Online Store", status: "won", brief: b, draft_md: "## Page: Shop\n### Intro\n**Text:** Hi" });
+  const html = renderPage(site, site.pages.find((p) => p.kind === "shop").slug, { mode: "export", link: (s) => s });
+  assert.match(html, /class="soldout">Sold out/);
+  assert.match(html, /class="site-notice"[^>]*>Closed Monday/);
+  const renewed = (await h.action({ action: "manage_link", id, renew: true })).json.url;
+  assert.notEqual(renewed, link);
+  assert.equal((await h.call("GET", path)).status, 404, "old link stops");
+});

@@ -144,7 +144,7 @@ function priceOrder(r, items) {
   for (const it of Array.isArray(items) ? items.slice(0, 50) : []) {
     const p = products.find((x) => x.i === Number(it?.i));
     const qty = Math.min(99, Math.max(1, Math.floor(Number(it?.q) || 0)));
-    if (!p || !p.amount || !qty) continue;
+    if (!p || !p.amount || !qty || p.soldout) continue; // sold out (set by the owner in Manage my store)
     lines.push({ i: p.i, name: p.name, price: p.amount, qty, total: p.amount * qty });
   }
   const subtotal = lines.reduce((s, l) => s + l.total, 0);

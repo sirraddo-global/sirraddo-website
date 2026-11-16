@@ -30,7 +30,7 @@ const anthropic = {
   configured: () => Boolean(process.env.ANTHROPIC_API_KEY),
   // A message may carry pictures: { role, content, images: [{ mime, data (base64) }] }.
   start: (messages) => messages.map((m) => ({ role: m.role, content: m.images?.length
-    ? [...m.images.map((i) => ({ type: "image", source: { type: "base64", media_type: i.mime, data: i.data } })), { type: "text", text: m.content }]
+    ? [...m.images.map((i) => ({ type: i.mime === "application/pdf" ? "document" : "image", source: { type: "base64", media_type: i.mime, data: i.data } })), { type: "text", text: m.content }]
     : m.content })),
   async call(convo, system, tools, ms = 20000, opts = {}) {
     const res = await timedFetch("https://api.anthropic.com/v1/messages", {

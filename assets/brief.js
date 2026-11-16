@@ -152,7 +152,60 @@
     draw();
     wrap.appendChild(list);
     wrap.appendChild(add);
+    if (f.paste) wrap.appendChild(pasteBox(f, rows, draw));
     return wrap;
+  }
+
+  // "Add from a spreadsheet": pick a CSV file or paste rows copied from Excel / Google Sheets / WhatsApp.
+  // Columns in the same order as the boxes (e.g. Product, Price, Category, Description). A header row is skipped.
+  function parseTable(text) {
+    return String(text || '').split(/\r?\n/).map(function (line) {
+      if (!line.trim()) return null;
+      if (line.indexOf('\t') >= 0) return line.split('\t');
+      var out = [], cur = '', q = false;
+      for (var i = 0; i < line.length; i++) {
+        var ch = line[i];
+        if (q) { if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') q = false; else cur += ch; }
+        else if (ch === '"') q = true; else if (ch === ',') { out.push(cur); cur = ''; } else cur += ch;
+      }
+      out.push(cur);
+      return out;
+    }).filter(Boolean);
+  }
+  function pasteBox(f, rows, draw) {
+    var box = el('details', { class: 'brief-paste' }, [el('summary', { text: 'Add from a spreadsheet' })]);
+    var cols = f.columns.map(function (c) { return c.label; }).join(', ');
+    var area = el('textarea', { rows: 5, placeholder: 'One product per line: ' + cols + '\ne.g. Ofada Rice 5kg, 9500, Groceries, Stone-free' });
+    var file = el('input', { type: 'file', accept: '.csv,text/csv,text/plain' });
+    var msg = el('p', { class: 'brief-hint', text: '' });
+    function add(text, replace) {
+      var lines = parseTable(text);
+      if (lines.length && /product|name/i.test(lines[0][0] || '') && !/\d/.test(lines[0][1] || '')) lines.shift(); // header row
+      var room = (f.max || 50) - (replace ? 0 : rows.filter(function (r) { return Object.keys(r).some(function (k) { return String(r[k] || '').trim(); }); }).length);
+      var fresh = lines.slice(0, room).map(function (cells) {
+        var row = {};
+        f.columns.forEach(function (c, i) { row[c.key] = String(cells[i] || '').trim(); });
+        return row;
+      }).filter(function (r) { return r[f.columns[0].key]; });
+      if (!fresh.length) { msg.textContent = 'No products found. Put one per line, with commas between the columns.'; return; }
+      var kept = replace ? [] : rows.filter(function (r) { return Object.keys(r).some(function (k) { return String(r[k] || '').trim(); }); });
+      rows.length = 0;
+      kept.concat(fresh).forEach(function (r) { rows.push(r); });
+      draw(); changed();
+      msg.textContent = 'Added ' + fresh.length + ' product' + (fresh.length === 1 ? '' : 's') + (lines.length > fresh.length ? ' (the list holds up to ' + f.max + ')' : '') + '. Check them above.';
+    }
+    file.addEventListener('change', function () {
+      var fl = file.files && file.files[0]; if (!fl) return;
+      var r = new FileReader();
+      r.onload = function () { add(r.result, window.confirm('Replace the products already in the list? (Cancel = add to them)')); file.value = ''; };
+      r.readAsText(fl);
+    });
+    box.appendChild(el('p', { class: 'brief-hint', text: 'Columns: ' + cols + '. Upload a CSV file (Excel or Google Sheets: Download → CSV), or paste rows below.' }));
+    box.appendChild(el('label', { class: 'brief-upload' }, ['Choose a CSV file', file]));
+    box.appendChild(area);
+    box.appendChild(el('button', { type: 'button', class: 'brief-add', text: 'Add these', onclick: function () { add(area.value, false); area.value = ''; } }));
+    box.appendChild(msg);
+    return box;
   }
 
   // ---------- Files ----------

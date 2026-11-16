@@ -60,3 +60,7 @@
 :root[data-theme="dark"] .brief-req, :root[data-theme="dark"] .brief-row-remove, :root[data-theme="dark"] .brief-file-status.is-error, :root[data-theme="dark"] .brief-message.is-error { color: #FF8A80; }
 :root[data-theme="dark"] .brief-message.is-ok { color: #8FE0B0; }
 :root[data-theme="dark"] .brief-chat { background: #2E2510; border-color: #6B5418; }
+
+.brief-paste { margin-top: 12px; border: 1px dashed var(--line, #CBD2DC); border-radius: 12px; padding: 10px 12px; }
+.brief-paste > summary { cursor: pointer; font-weight: 700; min-height: 36px; display: flex; align-items: center; }
+.brief-paste textarea { width: 100%; box-sizing: border-box; margin: 8px 0; }

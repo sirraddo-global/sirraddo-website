@@ -141,3 +141,23 @@ test("AI design reads screenshots you add of the look they like", async () => {
   const rm = await h.action({ action: "design_ref_remove", id, url: add.json.design_refs[0].url });
   assert.equal(rm.json.design_refs.length, 0);
 });
+
+test("big store: up to 100 products, sections per category, photos matched by file name", async () => {
+  const { buildSiteModel, productPhotoFor, renderPage } = await import("../api/_lib/sitegen.mjs");
+  const products = Array.from({ length: 90 }, (_, i) => ({ name: `Item ${i + 1}`, price: String(1000 + i), category: ["Fabrics", "Groceries", "Accessories"][Math.floor(i / 30)] }));
+  const row = { id: 9, name: "Demo", business: "Demo Market", interest: "Online Store", status: "won", brief: { business_name: "Demo Market", products, pages: ["Home", "Shop", "Contact"], whatsapp: "08031234567" },
+    brief_files: { product_photos: [{ url: "https://x.test/files/a.jpg", name: "item-90.jpg", type: "image/jpeg" }, { url: "https://x.test/files/b.jpg", name: "IMG_001.jpg", type: "image/jpeg" }] },
+    draft_md: "# Website text: Demo\n\n## Page: Home\n### Hero\n**Headline:** Hi\n\n## Page: Shop\n### Intro\n**Text:** All products\n\n## Page: Contact\n### Intro\n**Text:** Call us" };
+  const site = buildSiteModel(row);
+  assert.equal(site.products.length, 90, "all 90 kept");
+  assert.equal(productPhotoFor(site, site.products[89]).name, "item-90.jpg", "matched by file name");
+  assert.equal(productPhotoFor(site, site.products[0]).name, "IMG_001.jpg", "unnamed photos go in order");
+  assert.equal(productPhotoFor(site, site.products[1]), null);
+  const { SECTIONS } = await import("../api/_lib/brief-schema.mjs");
+  assert.equal(SECTIONS.flatMap((s) => s.fields).find((f) => f.key === "products").max, 100);
+  const shop = site.pages.find((p) => p.kind === "shop");
+  const html = renderPage(site, shop.slug, { mode: "export", link: (s) => "/" + s });
+  assert.match(html, /class="cat-nav"/);
+  assert.match(html, /id="cat-groceries"/);
+  assert.match(html, /Accessories <span>\(30\)/);
+});

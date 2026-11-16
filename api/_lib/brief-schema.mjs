@@ -113,11 +113,11 @@ export const SECTIONS = [
     only: ["store"],
     fields: [
       { key: "product_count", label: "How many products to start with?", type: "select", required: true, options: ["Up to 20", "21–50", "51–100", "More than 100"] },
-      { key: "products", label: "Products", type: "rows", max: 100, paste: true,
+      { key: "products", label: "Products", type: "rows", max: 100, paste: true, photoField: "product_photos",
         columns: [{ key: "name", label: "Product" }, { key: "price", label: "Price (₦)" }, { key: "category", label: "Category" }, { key: "details", label: "Description, sizes, colours" }],
         hint: "Up to 100. The category groups them into sections on your shop page (e.g. Fabrics, Groceries). Long list? Tap 'Add from a spreadsheet' below." },
-      { key: "product_photos", label: "Product photos", type: "files", max: 100, accept: "image/*",
-        hint: "Name each photo after its product (e.g. ofada-rice-5kg.jpg) and it goes with that product; otherwise photos go in the same order as the list. You can pick many at once. Plain background works best." },
+      { key: "product_photos", label: "Product photos", type: "files", max: 100, accept: "image/*", forRows: "products",
+        hint: "You can pick many at once. Under each photo, choose which product it shows (photos named after a product, e.g. ofada-rice-5kg.jpg, are matched for you). Plain background works best." },
     ],
   },
   {
@@ -180,8 +180,10 @@ export function cleanAnswers(kind, raw) {
           out[f.key] = v.slice(0, f.max || 50).map((row) => {
             const r = {};
             for (const c of f.columns) r[c.key] = typeof row?.[c.key] === "string" ? row[c.key].trim().slice(0, 500) : "";
+            // The photo chosen for this product in the form ("Which product?" under each photo).
+            if (f.photoField && typeof row?.photo === "string" && /^https:\/\/[^\s"']+$/.test(row.photo)) r.photo = row.photo.slice(0, 400);
             return r;
-          }).filter((r) => Object.values(r).some(Boolean));
+          }).filter((r) => Object.entries(r).some(([k, x]) => k !== "photo" && x));
         }
       } else if (typeof v === "string") out[f.key] = v.trim().slice(0, LIMITS[f.type] || 1000);
     }

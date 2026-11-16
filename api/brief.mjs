@@ -5,7 +5,7 @@
 import { getBrief, saveBrief, removeBriefFile, sendEmail, emailConfigured, esc } from "./_lib/store.mjs";
 import { kindFor, KIND_LABEL, schemaFor, cleanAnswers, missingRequired, fileField } from "./_lib/brief-schema.mjs";
 import { IDEA_LABELS } from "./_lib/ideas.mjs";
-import { waitUntil, filesEnabled } from "./_lib/platform.mjs";
+import { waitUntil, filesEnabled, deleteFiles } from "./_lib/platform.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
 
 export const uploadsEnabled = filesEnabled;
@@ -80,7 +80,9 @@ export default async function handler(req, res) {
       if (body.remove_file) {
         const field = String(body.remove_file.field || "");
         if (!fileField(kind, field)) return res.status(400).json({ error: "Unknown field" });
-        const files = await removeBriefFile(token, field, String(body.remove_file.url || ""));
+        const url = String(body.remove_file.url || "");
+        const files = await removeBriefFile(token, field, url);
+        if (url === "*") await deleteFiles(`briefs/${row.id}/${field}/`).catch((e) => console.error("delete files failed", e));
         return res.status(200).json({ files });
       }
 

@@ -64,3 +64,10 @@
 .brief-paste { margin-top: 12px; border: 1px dashed var(--line, #CBD2DC); border-radius: 12px; padding: 10px 12px; }
 .brief-paste > summary { cursor: pointer; font-weight: 700; min-height: 36px; display: flex; align-items: center; }
 .brief-paste textarea { width: 100%; box-sizing: border-box; margin: 8px 0; }
+.brief-file-for { width: 100%; margin-top: 6px; font-size: .85rem; padding: 6px; }
+.brief-remove-all { grid-column: 1 / -1; justify-self: start; width: auto; padding: 8px 14px; border-radius: 10px; }
+.brief-files.is-products { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.brief-files.is-products .brief-file { aspect-ratio: auto; display: block; padding: 0 0 6px; }
+.brief-files.is-products .brief-file img { position: static; aspect-ratio: 1; height: auto; display: block; }
+.brief-files.is-products .brief-file-for { width: calc(100% - 12px); margin: 6px 6px 0; }
+.brief-remove-all { border: 1px solid var(--line); background: var(--bg-soft); color: inherit; font: inherit; cursor: pointer; }

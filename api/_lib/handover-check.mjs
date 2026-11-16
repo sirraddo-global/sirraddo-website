@@ -27,7 +27,7 @@ export function handoverChecklist(r, settings = {}) {
 
   const bal = balance(r);
   add("paid", "Balance paid in full", r.quote_amount != null && bal === 0, {
-    fix: `${naira(bal)} still owed. Nothing is handed over before it's paid.`,
+    fix: r.quote_amount == null ? "Add the quote first (Requests → this customer → Quote), then record the payments." : `${naira(bal)} still owed. Nothing is handed over before it's paid.`,
     steps: ["Requests → this customer → Invoice and receipt → WhatsApp or Email: it has a Pay online button.", "Paid another way? Add it under Payments (tick Email receipt)."],
   });
 
@@ -64,7 +64,8 @@ export function handoverChecklist(r, settings = {}) {
       "Cloudflare emails their Gmail once. Send them the message below so they tap Verify.",
       "The badge turns Working by itself (or tap Check now). Adding more names later doesn't need a new confirmation.",
     ],
-    tell: `Hello ${first}, your business email${names.length > 1 ? "s are" : " is"} ready: ${addrs}. Cloudflare (our email service) has sent an email to ${mail.to || "your Gmail"} to confirm it. Please open it (check Spam or Promotions if you don't see it) and tap "Verify email address". After that, every email sent to your business address${names.length > 1 ? "es" : ""} arrives in your Gmail.`,
+    // Only once the addresses exist on their real domain.
+    tell: !domain || !have.length ? "" : `Hello ${first}, your business email${names.length > 1 ? "s are" : " is"} ready: ${addrs}. Cloudflare (our email service) has sent an email to ${mail.to || "your Gmail"} to confirm it. Please open it (check Spam or Promotions if you don't see it) and tap "Verify email address". After that, every email sent to your business address${names.length > 1 ? "es" : ""} arrives in your Gmail.`,
   });
 
   if (kind === "store") {

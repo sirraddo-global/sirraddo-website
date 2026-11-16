@@ -1061,6 +1061,10 @@
       if (!window.confirm('Pause ' + (h.domain || 'this site') + '? Visitors will see "temporarily unavailable" and email forwarding stops until you restore it.')) return;
       act({ action: 'host_pause' }, 'Site paused', e.currentTarget, 'Pausing…');
     } }));
+    // Domain still connecting, or email waiting for confirmation: check again now instead of waiting for the morning.
+    if (h.zoneStatus === 'active' && ((h.project && !h.attached) || (h.email && h.email.status === 'verifying'))) pubActs.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Check now', onclick: function (e) {
+      act({ action: 'host_check' }, function (j) { var hh = (j.row && j.row.hosting) || {}; return (hh.attached ? 'Connected to ' + hh.domain + '. ' : 'Still connecting (the padlock can take up to an hour). ') + (hh.email && hh.email.status === 'active' ? 'Email forwarding is working.' : hh.email && hh.email.status === 'verifying' ? 'Email: still waiting for the confirmation.' : ''); }, e.currentTarget, 'Checking…');
+    } }));
     if (h.pausedAt) pubActs.appendChild(el('button', { class: 'btn btn--navy admin-golive-btn', type: 'button', text: 'Restore site', onclick: function (e) { act({ action: 'host_restore' }, 'Site restored', e.currentTarget, 'Restoring…'); } }));
     box.appendChild(pubActs);
     var why = h.pauseReason === 'balance' ? 'Paused because the balance wasn\'t paid within 7 days. It comes back by itself when the balance is paid.'

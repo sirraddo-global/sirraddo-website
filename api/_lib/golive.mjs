@@ -183,8 +183,9 @@ export async function setupEmail(id, localsText, to) {
   to = String(to || "").trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new Bad("Enter the inbox to forward to, e.g. theirname@gmail.com");
   if (to.endsWith("@" + h.domain)) throw new Bad("Forward to an inbox outside their domain (e.g. Gmail)");
-  await startForwarding(h.zoneId, to);
-  await saveHosting(id, { email: { locals, to, status: "verifying", rules: [] } });
+  const sent = await startForwarding(h.zoneId, to);
+  // Already confirmed before (same inbox): forwarding starts straight away in checkHosting below.
+  await saveHosting(id, { email: { locals, to, status: "verifying", rules: h.email?.rules || [], sentAt: new Date().toISOString(), alreadyVerified: sent.verified }, lastError: null });
   const emails = locals.map((l) => `${l}@${h.domain}`).join("\n");
   await updateRequest(id, { handover: { ...(row.handover || {}), emails, notes: row.handover?.notes || `Emails to ${locals.map((l) => l + "@" + h.domain).join(", ")} arrive in ${to}.` } });
   return checkHosting(id);

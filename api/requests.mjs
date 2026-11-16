@@ -436,6 +436,11 @@ export default async function handler(req, res) {
           else if (body.action === "host_restore") out.row = await restore(id);
           else if (body.action === "host_email") out.row = await setupEmail(id, body.locals, body.to);
           else throw new Bad("Unknown action");
+          // It worked: clear an old error so the badge stops saying "Problem".
+          if (out.row?.hosting?.lastError || (!out.row && body.action === "host_publish")) {
+            await saveHosting(id, { lastError: null }).catch(() => {});
+            out.row = await getRequest(id);
+          }
           return res.status(200).json(out);
         } catch (e) {
           if (/^Cloudflare:/.test(e.message) || !(e instanceof GoLiveError)) await saveHosting(id, { lastError: String(e.message).slice(0, 300), lastErrorAt: new Date().toISOString() }).catch(() => {});

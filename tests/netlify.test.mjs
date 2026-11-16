@@ -189,3 +189,20 @@ test("FAQ opens and closes, stray 'Text:' labels go, Location shows a map, empty
   assert.match(page(site.pages.find((p) => p.kind === "location").slug), /maps\.google\.com\/maps\?q=Ibadan%20Nigeria/);
   assert.match(page(site.pages.find((p) => p.kind === "gallery").slug), /x\.test\/files\/r\.jpg/);
 });
+
+test("email forwarding: an unconfirmed inbox gets a new confirmation; missing token permissions are explained", async () => {
+  const { startForwarding } = await import("../api/_lib/cloudflare.mjs");
+  const { CF } = await import("./cloudflare-mock.mjs");
+  const before = CF.addresses.length;
+  let r = await startForwarding("zone-x", "Owner@Gmail.com");
+  assert.deepEqual(r, { verified: false, resent: false });
+  r = await startForwarding("zone-x", "owner@gmail.com");
+  assert.equal(r.resent, true, "unconfirmed: removed and added again so Cloudflare resends");
+  assert.equal(CF.addresses.filter((a) => a.email.toLowerCase() === "owner@gmail.com").length, 1);
+  CF.addresses.find((a) => a.email.toLowerCase() === "owner@gmail.com").verified = "2026-11-16";
+  assert.equal((await startForwarding("zone-x", "owner@gmail.com")).verified, true);
+  CF.denyEmail = true;
+  await assert.rejects(startForwarding("zone-x", "x@gmail.com"), /Email Routing Addresses · Edit/);
+  CF.denyEmail = false;
+  assert.ok(CF.addresses.length >= before);
+});

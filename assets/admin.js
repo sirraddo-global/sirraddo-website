@@ -997,6 +997,8 @@
   function goLiveBlock(r) {
     var h = r.hosting || {};
     var box = el('div', { class: 'admin-golive' }, [el('span', { class: 'admin-label', text: 'Go live' })]);
+    // The last thing that went wrong (why the badge says "Problem"), in plain words.
+    if ((r.hosting || {}).lastError) box.appendChild(el('p', { class: 'admin-error', text: 'Last problem' + (r.hosting.lastErrorAt ? ' (' + new Date(r.hosting.lastErrorAt).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' }) + ')' : '') + ': ' + r.hosting.lastError.replace(/^Cloudflare:\s*/, '') }));
     if (!state.canHost) {
       box.appendChild(el('p', { class: 'admin-hint', text: 'Connect Cloudflare once (Dashboard → Setup status → Customer websites) to publish customer websites in one tap. Until then, use "Download site (.zip)" and upload it by hand.' }));
       return box;
@@ -1073,7 +1075,7 @@
       if (em && em.status) {
         var lbl = em.status === 'active' ? badge('Working', 'is-won') : em.status === 'paused' ? badge('Paused', 'is-due') : badge('Waiting for them to confirm', 'is-new');
         box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Email: ' }), em.locals.map(function (l) { return l + '@' + h.domain; }).join(', ') + ' → ' + em.to + ' ', lbl]));
-        if (em.status === 'verifying') box.appendChild(el('p', { class: 'admin-hint', text: 'Cloudflare emailed ' + em.to + ' a link to confirm. Once they tap it, forwarding starts by itself (or tap Check now).' }));
+        if (em.status === 'verifying') box.appendChild(el('p', { class: 'admin-hint', text: 'Cloudflare emailed ' + em.to + ' a link to confirm (sender: Cloudflare, subject like "Verify your email address"; check Spam and Promotions). Once they tap it, forwarding starts by itself (or tap Check now). No email after 10 minutes? Tap "Save and check" below to send a new one.' }));
       }
       // Starter includes 1 address, Business and Online Store up to 5. Prefilled with what they asked for on the project form.
       var allow = emailAllowance(r.interest);
@@ -1096,7 +1098,7 @@
         var ef = emailForm(holder);
         var lin = ef.lin, tin = ef.tin;
         var eacts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: more ? 'Save addresses' : em ? 'Save and check' : 'Set up email forwarding', onclick: function (e) {
-          act({ action: 'host_email', locals: lin.value, to: tin.value }, function (j) { var s = j.row && j.row.hosting && j.row.hosting.email; return s && s.status === 'active' ? 'Email forwarding is working' : 'Cloudflare sent them a confirmation email'; }, e.currentTarget, 'Setting up…');
+          act({ action: 'host_email', locals: lin.value, to: tin.value }, function (j) { var s = j.row && j.row.hosting && j.row.hosting.email; return s && s.status === 'active' ? 'Email forwarding is working' : 'Cloudflare sent a confirmation email to ' + (s ? s.to : 'their inbox') + ' (from Cloudflare; check Spam and Promotions)'; }, e.currentTarget, 'Setting up…');
         } })]);
         holder.appendChild(eacts);
       }

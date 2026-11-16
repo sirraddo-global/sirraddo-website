@@ -121,15 +121,26 @@ export async function domainStatuses(project) {
 
 // ---------- Email forwarding (Cloudflare Email Routing) ----------
 // Step 1: switch it on for the zone and register the customer's inbox (Cloudflare emails them a link to verify it).
+// Returns { verified, resent }. An inbox that was added before but never confirmed is removed and added again,
+// which makes Cloudflare send a fresh confirmation email.
+const emailPerm = (e, what) => {
+  if (e?.status === 403 || (e?.codes || []).some((c) => c === 10000 || c === 9109)) {
+    throw new Error(`Cloudflare: your API token isn't allowed to ${what}. In Cloudflare → My Profile → API Tokens → edit the token and add: Account · Email Routing Addresses · Edit, and Zone · Email Routing Rules · Edit (keep the others). Then try again.`);
+  }
+  throw e;
+};
 export async function startForwarding(zoneId, to) {
   try {
     await cf(`/zones/${zoneId}/email/routing/dns`, { method: "POST", body: {} });
   } catch (e) {
-    if (!/already|enabled/i.test(e.message)) throw e;
+    if (!/already|enabled/i.test(e.message)) emailPerm(e, "switch on email forwarding for this domain");
   }
-  const list = await cf(`/accounts/${acct()}/email/routing/addresses?per_page=50`);
+  const list = await cf(`/accounts/${acct()}/email/routing/addresses?per_page=50`).catch((e) => emailPerm(e, "manage email forwarding inboxes"));
   const found = (list || []).find((a) => a.email.toLowerCase() === to.toLowerCase());
-  return found || cf(`/accounts/${acct()}/email/routing/addresses`, { method: "POST", body: { email: to } });
+  if (found?.verified) return { verified: true, resent: false };
+  if (found) await cf(`/accounts/${acct()}/email/routing/addresses/${found.id || found.tag}`, { method: "DELETE" }).catch(() => {});
+  await cf(`/accounts/${acct()}/email/routing/addresses`, { method: "POST", body: { email: to } }).catch((e) => emailPerm(e, "add the inbox for email forwarding"));
+  return { verified: false, resent: Boolean(found) };
 }
 export async function addressVerified(to) {
   const list = await cf(`/accounts/${acct()}/email/routing/addresses?per_page=50`);

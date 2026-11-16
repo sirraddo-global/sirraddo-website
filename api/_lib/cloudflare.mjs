@@ -130,10 +130,16 @@ const emailPerm = (e, what) => {
   throw e;
 };
 export async function startForwarding(zoneId, to) {
+  // Switch Email Routing on for the domain (adds Cloudflare's MX records), then make sure it really is on.
   try {
     await cf(`/zones/${zoneId}/email/routing/dns`, { method: "POST", body: {} });
   } catch (e) {
-    if (!/already|enabled/i.test(e.message)) emailPerm(e, "switch on email forwarding for this domain");
+    if (!/already/i.test(e.message)) emailPerm(e, "switch on email forwarding for this domain");
+  }
+  const on = async () => { const st = await cf(`/zones/${zoneId}/email/routing`).catch(() => null); return !st || st.enabled === true || st.status === "ready"; };
+  if (!(await on())) {
+    await cf(`/zones/${zoneId}/email/routing/enable`, { method: "POST", body: {} }).catch(() => {});
+    if (!(await on())) throw new Error("Cloudflare: email forwarding couldn't be switched on for this domain. In Cloudflare → the domain → Email → Email Routing, tap Onboard Domain / Enable (it may ask to remove old MX records), then try again.");
   }
   const list = await cf(`/accounts/${acct()}/email/routing/addresses?per_page=50`).catch((e) => emailPerm(e, "manage email forwarding inboxes"));
   const found = (list || []).find((a) => a.email.toLowerCase() === to.toLowerCase());

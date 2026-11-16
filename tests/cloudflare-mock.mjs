@@ -38,6 +38,7 @@ export async function cfFetch(url, opts = {}) {
     const d = { name: body.name, status: "pending" }; list.push(d); return ok(d);
   }
   if ((mm = p.match(/^\/zones\/([^/]+)\/email\/routing\/dns$/))) return ok({ enabled: true });
+  if ((mm = p.match(/^\/zones\/([^/]+)\/email\/routing$/))) return ok({ enabled: true, status: "ready" });
   if ((mm = p.match(/^\/accounts\/acct1\/email\/routing\/addresses\/([^/]+)$/)) && m === "DELETE") {
     CF.addresses = CF.addresses.filter((x) => x.id !== mm[1]); CF.deletedAddresses = (CF.deletedAddresses || 0) + 1; return ok({});
   }

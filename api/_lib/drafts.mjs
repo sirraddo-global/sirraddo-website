@@ -89,6 +89,7 @@ ${hasHome ? `The Home page starts with exactly:
 **Button text:** <2–4 words>
 ` : ""}IMPORTANT: the website automatically shows every service/product with its price as cards (Home, Services, Prices and Shop pages), and the contact details (phone, WhatsApp, email, address, hours) as a card on the Contact page. So don't list the services, prices or contact details again: write a short introduction for those pages instead (what makes them good, who they're for, how to order or visit).
 For an FAQ page, write each question as "#### <question>" followed by its answer as a paragraph.
+For a Careers or Jobs page with no job openings in the form, do not leave a gap: write a short, friendly page saying there are no open positions right now and that people can send their CV and a short note by email or WhatsApp (use the contact details from the form), and that they will be contacted when a role opens.
 Don't add a title above the first page and don't add anything after the last one.`;
 }
 

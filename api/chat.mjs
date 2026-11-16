@@ -141,9 +141,11 @@ export default async function handler(req, res) {
   };
 
   const deadline = Date.now() + FUNCTION_BUDGET_MS() - 4000; // stay under the host's time limit
-  // Pictures the visitor just sent (📎 in the chat, as "[photo] URL" lines): the AI looks at up to 2 of them.
+  // Photos and PDFs the visitor sent in recent messages (📎, "[photo] URL" / "[file] URL" lines): the AI reads up to
+  // 2 of them, so it can still answer about a file sent a message or two ago.
   const last = messages[messages.length - 1];
-  const shotUrls = [...last.content.matchAll(/\[photo\] (https?:\/\/\S+)/g)].map((m) => m[1]).filter((u) => /\/files\/chats\/|\/__blob\//.test(u)).slice(0, 2);
+  const recent = messages.slice(-5).filter((m) => m.role === "user").map((m) => m.content).reverse().join("\n");
+  const shotUrls = [...recent.matchAll(/\[(?:photo|file)\] (https?:\/\/\S+)/g)].map((m) => m[1]).filter((u) => /\/files\/chats\/|\/__blob\//.test(u)).slice(0, 2);
   const images = (await Promise.all(shotUrls.map(readImageForAi))).filter(Boolean);
   const withImages = images.length ? [...messages.slice(0, -1), { ...last, images }] : messages;
   // Service notices showing now (planned upgrade, service problem, holiday): the assistant can mention them.

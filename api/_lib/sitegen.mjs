@@ -385,7 +385,7 @@ function productCards(site, img) {
     const photo = productPhotoFor(site, p);
     const order = waLink(site, `Hello ${site.name}, I'd like to order: ${p.name}${p.price ? " (" + naira(p.price) + ")" : ""}`);
     const buy = p.amount
-      ? `<p class="buy" data-i="${p.i}"><button class="btn add" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}">Add to cart</button><span class="step" hidden><button type="button" data-d="-1" aria-label="One less ${esc(p.name)}">\u2212</button><b>0</b><button type="button" data-d="1" aria-label="One more ${esc(p.name)}">+</button><small>in cart</small></span></p>`
+      ? `<p class="buy" data-i="${p.i}"><button class="btn add" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}"${photo ? ` data-img="${img(photo.url)}"` : ""}>Add to cart</button><span class="step" hidden><button type="button" data-d="-1" aria-label="One less ${esc(p.name)}">\u2212</button><b>0</b><button type="button" data-d="1" aria-label="One more ${esc(p.name)}">+</button><small>in cart</small></span></p>`
       : order ? `<p class="buy"><a class="btn" href="${order}">${p.price ? "Order on WhatsApp" : "Ask on WhatsApp"}</a></p>` : "";
     return `<div class="card">${photo ? `<img src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3>${esc(p.name)}</h3>${p.text || p.details ? `<p>${esc(p.text || p.details)}</p>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
   }).join("")}</div>`;
@@ -394,20 +394,28 @@ function productCards(site, img) {
 // ---------- Cart (Online Store) ----------
 // Every store page gets a cart (stored in the browser under the old "basket-" key, so nobody loses their items). "Order on WhatsApp" always works. "Pay online" appears only once online payment is
 // switched on for the store in admin (the page asks our API), and payments go to the store owner's Paystack account.
-const CART_CSS = `.cart-btn{position:fixed;left:16px;bottom:16px;z-index:60;background:#111827;color:#fff;border:0;border-radius:999px;padding:12px 18px;font:700 15px/1 system-ui,Arial,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer}
-.cart-btn[hidden],.cart[hidden]{display:none!important}.cart-btn b{background:#22C55E;color:#062E14;border-radius:999px;padding:2px 8px;margin-left:6px}
-.cart{position:fixed;inset:0;z-index:70;background:rgba(15,23,42,.55);display:flex;justify-content:flex-end;font:15px/1.5 system-ui,Arial,sans-serif;color:#1F2933}
-.cart .panel{background:#fff;width:min(420px,100vw);height:100%;overflow:auto;padding:20px;box-shadow:-8px 0 24px rgba(0,0,0,.2)}
-.cart h2{font:800 1.3rem/1.2 system-ui,Arial,sans-serif;color:#111827;margin:0 0 12px;display:flex;justify-content:space-between;align-items:center}
-.cart .x{background:none;border:0;font-size:28px;line-height:1;cursor:pointer;color:#111827}
-.cart .line{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:10px 0;border-bottom:1px solid #E5E7EB}
-.cart .line span{overflow-wrap:anywhere}.cart .qty{display:flex;align-items:center;gap:6px}
-.cart .qty button{width:32px;height:32px;border-radius:8px;border:1px solid #D1D5DB;background:#F9FAFB;font-size:18px;cursor:pointer;color:#111827}
-.cart .tot{display:flex;justify-content:space-between;font-weight:800;margin:12px 0}
-.cart label{display:block;font-weight:600;margin:10px 0 4px}.cart input,.cart textarea{width:100%;border:1px solid #D1D5DB;border-radius:8px;padding:10px;font:inherit}
-.cart .acts{display:grid;gap:10px;margin-top:16px}.cart .acts button{border:0;border-radius:10px;padding:14px;font:700 16px/1 system-ui,Arial,sans-serif;cursor:pointer}
-.cart .pay{background:#0BA4DB;color:#fff}.cart .waorder{background:#25D366;color:#063B1C}.cart .acts button:disabled{opacity:.5;cursor:default}
-.cart .note{font-size:13px;color:#4B5563;margin-top:8px}.cart .err{color:#B91C1C;font-weight:600}
+const CART_CSS = `.cart-btn{position:fixed;left:16px;bottom:16px;z-index:60;background:var(--cart-ink,#111827);color:var(--cart-bg,#fff);border:0;border-radius:999px;padding:12px 18px;font:700 15px/1 inherit;font-family:inherit;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer}
+.cart-btn[hidden],.cart[hidden]{display:none!important}.cart-btn b{background:var(--cart-acc,#22C55E);color:#fff;border-radius:999px;padding:2px 8px;margin-left:6px}
+.cart{position:fixed;inset:0;z-index:70;background:rgba(15,23,42,.6);display:flex;justify-content:flex-end;font-family:inherit;line-height:1.5}
+.cart .panel{background:var(--cart-bg,#fff);color:var(--cart-ink,#1F2933);width:min(440px,100vw);height:100%;overflow:auto;padding:0 20px 24px;box-shadow:-8px 0 24px rgba(0,0,0,.25);display:flex;flex-direction:column}
+.cart h2{position:sticky;top:0;background:inherit;margin:0 -20px 4px;padding:16px 20px;font-size:1.3rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--cart-line,#E5E7EB);color:inherit;z-index:1}
+.cart h2 small{font-size:.85rem;font-weight:600;opacity:.65;margin-left:8px}
+.cart .x{background:none;border:0;font-size:30px;line-height:1;cursor:pointer;color:inherit;width:44px;height:44px}
+.cart .line{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:6px 12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--cart-line,#E5E7EB)}
+.cart .line img,.cart .line .ph{width:56px;height:56px;border-radius:10px;object-fit:cover;background:var(--cart-soft,#F3F4F6);grid-row:span 2}
+.cart .line .n{font-weight:700;overflow-wrap:anywhere}.cart .line .each{font-size:.85rem;opacity:.7}
+.cart .line .amt{font-weight:800;text-align:right;white-space:nowrap}
+.cart .qty{display:inline-flex;justify-self:start;align-items:center;border:1px solid var(--cart-line,#D1D5DB);border-radius:999px;overflow:hidden}
+.cart .qty button{width:38px;height:36px;border:0;background:transparent;font-size:18px;cursor:pointer;color:inherit}.cart .qty b{min-width:26px;text-align:center}
+.cart .rm{background:none;border:0;color:inherit;opacity:.65;font:inherit;font-size:.85rem;text-decoration:underline;cursor:pointer;justify-self:end}
+.cart .tot{display:flex;justify-content:space-between;font-weight:800;font-size:1.15rem;margin:16px 0 4px}
+.cart .note{font-size:.88rem;opacity:.75;margin:4px 0}.cart .err{color:#DC2626;font-weight:700;opacity:1}
+.cart .who{margin-top:14px;padding-top:14px;border-top:1px solid var(--cart-line,#E5E7EB)}.cart .who h3{font-size:1rem;margin:0 0 4px;color:inherit}
+.cart label{display:block;font-weight:600;margin:10px 0 4px;font-size:.92rem}.cart input,.cart textarea{width:100%;box-sizing:border-box;border:1px solid var(--cart-line,#D1D5DB);border-radius:10px;padding:12px;font:inherit;font-size:16px;background:var(--cart-soft,#fff);color:inherit}
+.cart .acts{display:grid;gap:10px;margin:18px -20px 0;position:sticky;bottom:0;background:var(--cart-bg,#fff);padding:12px 20px 6px;border-top:1px solid var(--cart-line,#E5E7EB)}
+.cart .acts button{border:0;border-radius:12px;padding:15px;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
+.cart .pay{background:var(--cart-acc,#0BA4DB);color:#fff}.cart .waorder{background:#25D366;color:#063B1C}.cart .acts button:disabled{opacity:.5;cursor:default}
+.cart .empty{text-align:center;padding:40px 0;opacity:.75}
 .card .buy{margin-top:auto}.btn.add.added{background:#22C55E!important;color:#062E14!important}
 .buy .step{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}.buy .step[hidden],.buy .btn.add[hidden]{display:none!important}
 .buy .step button{width:42px;height:42px;border-radius:10px;border:0;background:#22C55E;color:#062E14;font:800 20px/1 system-ui,Arial,sans-serif;cursor:pointer}
@@ -417,14 +425,15 @@ function cartScript(site, mode) {
   const cfg = { s: site.shopToken, api: SITE_URL, wa: site.whatsapp, name: site.name, preview: mode === "preview", key: "basket-" + (site.shopToken || slugify(site.name)) };
   return `<button class="cart-btn" type="button" hidden aria-label="Open cart">🛒 Cart <b>0</b></button>
 <div class="cart" hidden role="dialog" aria-modal="true" aria-label="Your cart"><div class="panel">
-<h2>Your cart <button class="x" type="button" aria-label="Close">×</button></h2><div class="lines"></div>
-<p class="tot"><span>Total</span><span class="sum"></span></p><p class="note dl"></p>
+<h2><span>Your cart<small class="cnt"></small></span><button class="x" type="button" aria-label="Close">×</button></h2><div class="lines"></div>
+<div class="sumbox"><p class="tot"><span>Total</span><span class="sum"></span></p><p class="note dl"></p>
+<div class="who"><h3>Your details</h3>
 <label for="cb-name">Your name</label><input id="cb-name" autocomplete="name">
 <label for="cb-phone">Phone number</label><input id="cb-phone" type="tel" autocomplete="tel">
 <label for="cb-email">Email (for your receipt)</label><input id="cb-email" type="email" autocomplete="email">
-<label for="cb-addr">Delivery address</label><textarea id="cb-addr" rows="2" autocomplete="street-address"></textarea>
+<label for="cb-addr">Delivery address</label><textarea id="cb-addr" rows="2" autocomplete="street-address"></textarea></div>
 <div class="acts"><button class="pay" type="button" hidden>Pay online now</button><button class="waorder" type="button">Order on WhatsApp</button></div>
-<p class="note msg" role="status"></p></div></div>
+<p class="note msg" role="status"></p></div></div></div>
 <script>(function(){var C=${JSON.stringify(cfg).replace(/</g, "\\u003c")};
 var B=[];try{B=JSON.parse(localStorage.getItem(C.key)||'[]')}catch(e){}
 var $=function(q){return document.querySelector(q)},btn=$('.cart-btn'),box=$('.cart'),msg=$('.cart .msg'),pay=$('.cart .pay'),online=false,fee=null;
@@ -433,16 +442,22 @@ function save(){try{localStorage.setItem(C.key,JSON.stringify(B))}catch(e){}}
 function count(){return B.reduce(function(s,l){return s+l.q},0)}
 function sub(){return B.reduce(function(s,l){return s+l.q*l.p},0)}
 function draw(){var n=count();btn.hidden=!n;btn.querySelector('b').textContent=n;
-$('.cart .lines').innerHTML=B.length?B.map(function(l,k){return '<div class="line"><span>'+l.n.replace(/[&<>]/g,'')+'</span><span>'+money(l.p*l.q)+'</span><span class="qty"><button type="button" data-k="'+k+'" data-d="-1" aria-label="One less">\u2212</button>'+l.q+'<button type="button" data-k="'+k+'" data-d="1" aria-label="One more">+</button></span></div>'}).join(''):'<p>Your cart is empty.</p>';
+var e=function(t){return String(t).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+$('.cart .lines').innerHTML=B.length?B.map(function(l,k){var im=l.u||(document.querySelector('.btn.add[data-i="'+l.i+'"]')||{getAttribute:function(){return''}}).getAttribute('data-img');return '<div class="line">'+(im?'<img src="'+e(im)+'" alt="">':'<span class="ph"></span>')+'<span><span class="n">'+e(l.n)+'</span><br><span class="each">'+money(l.p)+' each</span></span><span class="amt">'+money(l.p*l.q)+'</span><span class="qty"><button type="button" data-k="'+k+'" data-d="-1" aria-label="One less">\u2212</button><b>'+l.q+'</b><button type="button" data-k="'+k+'" data-d="1" aria-label="One more">+</button></span><button class="rm" type="button" data-k="'+k+'">Remove</button></div>'}).join(''):'<p class="empty">Your cart is empty.</p>';
+$('.cart .sumbox').hidden=!B.length;$('.cart .cnt').textContent=n?' ('+n+' item'+(n===1?'':'s')+')':'';
 document.querySelectorAll('.buy[data-i]').forEach(function(p){var i=+p.getAttribute('data-i'),l=B.filter(function(x){return x.i===i})[0],st=p.querySelector('.step');p.querySelector('.btn.add').hidden=!!l;st.hidden=!l;if(l)st.querySelector('b').textContent=l.q;});
 $('.cart .sum').textContent=money(sub()+(online&&fee?fee:0));
 $('.cart .dl').textContent=fee&&online?'Includes delivery: '+money(fee):'Delivery cost, if any, is confirmed by the store.';
 pay.hidden=!online;pay.disabled=!B.length;$('.cart .waorder').hidden=!C.wa;$('.cart .waorder').disabled=!B.length;}
 document.addEventListener('click',function(e){var s=e.target.closest('.buy .step button');if(s){var bi=+s.closest('.buy').getAttribute('data-i'),bl=B.filter(function(x){return x.i===bi})[0];if(bl){bl.q=Math.min(99,bl.q+(+s.getAttribute('data-d')));if(bl.q<1)B.splice(B.indexOf(bl),1);save();draw();}return}
 var a=e.target.closest('.btn.add');if(!a)return;var i=+a.getAttribute('data-i'),l=B.filter(function(x){return x.i===i})[0];
-if(l)l.q=Math.min(99,l.q+1);else B.push({i:i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:1});save();draw();});
-box.addEventListener('click',function(e){if(e.target===box||e.target.closest('.x')){box.hidden=true;return}var q=e.target.closest('.qty button');if(!q)return;var l=B[+q.getAttribute('data-k')];l.q+=+q.getAttribute('data-d');if(l.q<1)B.splice(B.indexOf(l),1);save();draw();});
-btn.addEventListener('click',function(){box.hidden=false;msg.textContent='';});
+if(l)l.q=Math.min(99,l.q+1);else B.push({i:i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:1,u:a.getAttribute('data-img')||''});save();draw();});
+box.addEventListener('click',function(e){if(e.target===box||e.target.closest('.x')){box.hidden=true;document.body.style.overflow='';return}var r=e.target.closest('.rm');if(r){B.splice(+r.getAttribute('data-k'),1);save();draw();return}var q=e.target.closest('.qty button');if(!q)return;var l=B[+q.getAttribute('data-k')];l.q=Math.min(99,l.q+(+q.getAttribute('data-d')));if(l.q<1)B.splice(B.indexOf(l),1);save();draw();});
+// The cart takes the website's own colours and font (light or dark design).
+function paint(){var bg='#fff',el=document.body;while(el){var c=getComputedStyle(el).backgroundColor;if(c&&c!=='transparent'&&!/rgba\\(.*,\\s*0\\)$/.test(c)){bg=c;break}el=el.parentElement}
+var m=bg.match(/\\d+/g)||[255,255,255],dark=(+m[0]*299+ +m[1]*587+ +m[2]*114)/1000<128,st=document.documentElement.style,acc=getComputedStyle(document.querySelector('.btn')||document.body).backgroundColor;
+st.setProperty('--cart-bg',bg);st.setProperty('--cart-ink',dark?'#F3F4F6':'#1F2933');st.setProperty('--cart-line',dark?'rgba(255,255,255,.16)':'#E5E7EB');st.setProperty('--cart-soft',dark?'rgba(255,255,255,.06)':'#F9FAFB');if(acc&&!/rgba\\(.*,\\s*0\\)$/.test(acc)&&acc!=='transparent')st.setProperty('--cart-acc',acc);}
+btn.addEventListener('click',function(){paint();box.hidden=false;document.body.style.overflow='hidden';msg.textContent='';});
 function buyer(){return{name:$('#cb-name').value.trim(),phone:$('#cb-phone').value.trim(),email:$('#cb-email').value.trim(),address:$('#cb-addr').value.trim()}}
 $('.cart .waorder').addEventListener('click',function(){var b=buyer(),t='Hello '+C.name+', I would like to order:\\n'+B.map(function(l){return '- '+l.n+' x'+l.q+' ('+money(l.p*l.q)+')'}).join('\\n')+'\\nItems total: '+money(sub())+(b.name?'\\nName: '+b.name:'')+(b.phone?'\\nPhone: '+b.phone:'')+(b.address?'\\nDeliver to: '+b.address:'');
 window.open('https://wa.me/'+C.wa+'?text='+encodeURIComponent(t),'_blank');});

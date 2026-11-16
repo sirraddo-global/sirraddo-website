@@ -60,7 +60,7 @@ export async function deleteOldChatFiles(days = 90, now = new Date()) {
 
 // Reads one of OUR uploaded pictures so the AI can look at it: { mime, data (base64) } or null.
 // Only files stored by this site (…/files/… or the test store); never fetches other websites.
-const AI_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const AI_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"]; // PDFs too: both AIs read them
 export async function readImageForAi(url) {
   try {
     let buf, mime;

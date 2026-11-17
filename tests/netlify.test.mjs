@@ -274,6 +274,13 @@ test("Reviews: a visitor gives stars; nothing shows until the owner chooses Show
   assert.match(html, /Fast delivery &amp; &lt;b&gt;great/, "review text escaped");
   assert.doesNotMatch(html, /Same person/);
   assert.match(html, /class="rv-form/, "the form is there to write another");
+  // From admin: hide, then delete for good.
+  const ar = (await h.action({ action: "site_reviews", id })).json.reviews;
+  assert.ok(ar.length >= 2);
+  const hid = await h.action({ action: "site_review_set", id, reviewId: ada, status: "hidden" });
+  assert.equal(hid.json.reviews.find((x) => x.id === ada).status, "hidden");
+  const del = await h.action({ action: "site_review_set", id, reviewId: ada, status: "delete" });
+  assert.ok(!del.json.reviews.some((x) => x.id === ada), "deleted");
 });
 
 test("Reviews of SIRRADDO: sent from our website, approved in admin, then listed for the Websites page", async () => {
@@ -340,6 +347,15 @@ test("Email usage: every send is counted by type, refusals recorded, and admin s
   globalThis.__RESEND_429__ = true;
   await assert.rejects(sendCustomerEmail("someone@gmail.com", "Your invoice INV-2", "<p>x</p>"), /Resend 429/);
   globalThis.__RESEND_429__ = false;
+  const ur = (await h.action({ action: "email_usage" })).json;
+  const kept = ur.refused.find((m) => m.subject === "Your invoice INV-2");
+  assert.ok(kept, "the refused email is kept");
+  assert.equal(ur.usage.refusedWaiting >= 1, true);
+  const n3 = h.sent.length;
+  const again = await h.action({ action: "email_resend", emailId: kept.id });
+  assert.equal(again.json.result.sent, 1);
+  assert.ok(h.newMail(n3).some((m) => m.subject === "Your invoice INV-2" && m.to.includes("someone@gmail.com")), "sent again to the same person");
+  assert.ok(!again.json.refused.some((m) => m.id === kept.id));
   const u2 = (await h.action({ action: "email_usage" })).json.usage;
   assert.equal(u2.blocked.why, "daily_quota_exceeded");
   assert.ok(u2.today.failed >= 1);
@@ -360,4 +376,13 @@ test("Manage my website: non-store sites get the same private link (hours, numbe
   const r = await h.row(id);
   await addHandoverExtras(r);
   assert.match(r.manage_link || "", /\/manage\?t=/, "live non-store sites get the link in the handover pack");
+  // Website improvements: choose "Ask me first"; a waiting new version is shown with its notes.
+  await h.sql(`UPDATE customer_requests SET hosting = '{"publishedAt":"2026-11-01T00:00:00Z","look":"old"}'::jsonb WHERE id = $1`, [id]);
+  const path = "/manage?" + link.split("?")[1];
+  const p2 = await h.call("GET", path);
+  assert.match(p2.text, /Website improvements/);
+  assert.match(p2.text, /A new version of your website is ready/);
+  const saved = await fetch(h.base + path, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ phone: "08035550000", look_mode: "ask" }) });
+  assert.match(await saved.text(), /Saved ✓/);
+  assert.equal((await h.row(id)).hosting.lookMode, "ask");
 });

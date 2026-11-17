@@ -3,7 +3,7 @@
 import tls from "node:tls";
 import {
   listRequests, updateRequest, ensureDocToken, getSettings, markSent, setSiteCheck, listUnansweredSince,
-  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta , emailUsage } from "./store.mjs";
+  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta , emailUsage, countRefused, cleanupRefused } from "./store.mjs";
 import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
 import { dailyHosting, hostingRef } from "./golive.mjs";
 import { reconcileOrders } from "./shop.mjs";
@@ -327,11 +327,14 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
   const byId = new Map(all.map((r) => [r.id, r]));
   // Email usage (Resend free plan: 100 a day, 3,000 a month for everything). Warn when getting close.
   const eu = await emailUsage(2).catch(() => null);
+  await cleanupRefused().catch(() => {});
+  const refusedWaiting = await countRefused().catch(() => 0);
   const yday = eu?.days?.[1];
   const emailWarn = eu && ((yday && yday.sent >= eu.limits.day * 0.7) || eu.month.sent >= eu.limits.month * 0.7 || (eu.blocked && Date.now() - Date.parse(eu.blocked.at) < 2 * 86400000));
 
   // The morning email
   const sections = [
+    refusedWaiting ? `<h3 style="margin:18px 0 6px;color:#B45309">${refusedWaiting} email${refusedWaiting === 1 ? "" : "s"} refused by Resend, waiting to be sent again</h3><p style="margin:0">The daily limit has reset: Admin → Settings → Email usage → <b>Send all again</b>.</p>` : "",
     emailWarn ? `<h3 style="margin:18px 0 6px;color:#B45309">Email limit getting close</h3><p style="margin:0">Yesterday: <b>${yday?.sent || 0} of ${eu.limits.day}</b> emails. This month: <b>${eu.month.sent} of ${eu.limits.month}</b>.${eu.blocked && Date.now() - Date.parse(eu.blocked.at) < 2 * 86400000 ? " <b>Resend refused some emails because the limit was reached.</b>" : ""} Details: Admin → Settings → Email usage. Upgrading Resend (Pro) removes the daily limit.</p>` : "",
     festive.length ? `<h3 style="margin:18px 0 6px">${festive.map((o) => o.emoji + " " + o.title).join(", ")} banner starts on your website tomorrow</h3><p style="margin:0">${festive.map((o) => esc(o.message)).join("<br>")}</p><p style="margin:6px 0 0">Want to email it to your customers too? Admin → Settings → Festive greetings → Email everyone.</p>` : "",
     section("Change requests waiting", openChanges.map((c) => item(byId.get(c.request_id) || { id: c.request_id, name: c.name, business: c.business },
@@ -339,7 +342,8 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
     ...(host ? [
       section("Customer domains now active", host.activated.map((r) => item(r, `${esc(r.hosting.domain)} is active on Cloudflare.${r.hosting.project ? " Their website is now connected to it." : " You can publish their website now."}`, null))),
       section("Ready to go live (approved and paid)", host.ready.map((r) => item(r, "Admin → Clients → Go live → Publish website.", null))),
-      section("Websites updated to our new look", (host.refreshed || []).map((r) => item(r, "Republished automatically with the latest website improvements.", null))),
+      section("Websites updated to our new look", (host.refreshed || []).map((r) => item(r, "Republished automatically with the latest website improvements; the owner was emailed what changed.", null))),
+      section("New version offered (owner chose Ask me first)", (host.lookAsked || []).map((r) => item(r, "Emailed what's new; they update it from their Manage link when ready.", null))),
       section("Live sites with changes not yet published", host.unpublished.map((r) => item(r, "You edited the text or design after publishing. Tap Update live site.", null))),
       section("Sites paused today (renewal 15+ days overdue)", host.paused.map((r) => item(r, `${esc(r.hosting?.domain || r.website_url || "")} paused. It restores itself when the renewal is paid.`, fill(tpl("tpl_renewal"), r)))),
       section("Sites paused for an unpaid balance (7+ days)", host.balancePaused.map((r) => item(r, `balance ${naira(balance(r))}. It comes back by itself once paid.`, r.doc_token ? fill(tpl("tpl_invoice"), r, { doc_link: docLink(r, "invoice") }) : fill(tpl("tpl_invoice"), r)))),

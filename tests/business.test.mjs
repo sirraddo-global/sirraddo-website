@@ -221,6 +221,26 @@ test("daily run completes without errors", async () => {
   assert.deepEqual(errors.filter((e) => /daily cron failed/.test(e)), []);
   assert.ok(h.CF.deployments.length > before, "old-look site republished");
   assert.notEqual((await h.row(ada)).hosting.look, "old");
+  assert.ok(h.sent.some((m) => /Your website has been improved/.test(m.subject) && /What's new/.test(m.html) && /Don't like something/.test(m.html)), "the owner is told what changed");
+  // "Ask me first": only an email, the site is not changed; asked once per new version.
+  await h.sql(`UPDATE customer_requests SET hosting = hosting || '{"look":"old","lookMode":"ask"}'::jsonb WHERE id = $1`, [ada]);
+  const d0 = h.CF.deployments.length, n0 = h.sent.length;
+  await h.sql(`DELETE FROM settings WHERE key LIKE '\_daily%'`).catch(() => {});
+  try { await h.daily(); } finally { console.error = orig; }
+  assert.equal(h.CF.deployments.length, d0, "not republished");
+  assert.ok(h.newMail(n0).some((m) => /A new version of your website is ready/.test(m.subject)));
+  assert.equal((await h.row(ada)).hosting.lookAsked !== undefined, true);
+  // Restore previous version: two publishes are kept, so the earlier one can be put back.
+  await h.sql(`UPDATE customer_requests SET hosting = hosting || '{"lookMode":"auto"}'::jsonb WHERE id = $1`, [ada]);
+  await h.action({ action: "host_publish", id: ada, force: true });
+  const hb = (await h.row(ada)).hosting;
+  assert.ok(hb.history.length >= 2, "versions kept");
+  const rb = await h.action({ action: "host_rollback", id: ada });
+  assert.equal(rb.status, 200, rb.text);
+  assert.ok(h.CF.rolledBack.includes(hb.history[1].id), "the earlier deployment is live again");
+  const ha = rb.json.row.hosting;
+  assert.equal(ha.deploymentId, hb.history[1].id);
+  assert.equal(ha.lookMode, "ask", "7am won't undo it");
 });
 
 test("backup: download has every table; Monday's email goes once with the file attached", async () => {

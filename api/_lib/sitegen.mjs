@@ -176,6 +176,18 @@ function bizEmail(row) {
 // Bump this whenever the look or layout of customer sites changes: the 7am job then republishes every live site
 // still built with an older version (text the owner hasn't published yet is never pushed).
 export const SITE_LOOK = "2026-11-17b";
+// What the website owner sees in the "your website was improved" email: plain words, newest look first.
+// Add an entry here every time SITE_LOOK changes.
+export const SITE_LOOK_NOTES = {
+  "2026-11-17b": [
+    "Your customers can now leave a star review on your website. Nothing shows until you approve it with your private Manage link.",
+    "Products show as neat cards (photo, name and price). Tapping one opens the full description, with Add to cart for online stores.",
+    "A short row of reasons to choose you (delivery, opening hours, location) now sits under the top of your home page, using only what you told us.",
+    "Your photo gallery shows 2 photos per row on phones.",
+    "Once your business email is set up, your website shows it (e.g. info@yourdomain) instead of your Gmail.",
+    "Online stores: after paying, buyers save or share their receipt as a picture or PDF.",
+  ],
+};
 export function buildSiteModel(row) {
   const b = row.brief || {};
   const files = row.brief_files || {};

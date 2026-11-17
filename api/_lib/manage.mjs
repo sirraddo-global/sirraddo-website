@@ -4,7 +4,7 @@
 // (Request a change). The link keeps working until you make a new one in admin.
 import { randomBytes } from "node:crypto";
 import { SITE_URL } from "../../site.config.mjs";
-import { q, getRequest, getBriefById, updateRequestShop, mergeBrief, reference, esc, emailConfigured, sendEmail } from "./store.mjs";
+import { q, getRequest, getBriefById, updateRequestShop, mergeBrief, reference, esc, emailConfigured, sendEmail, saveHosting } from "./store.mjs";
 
 // The customer row plus their project form answers (the admin row leaves the answers out).
 async function load(id) {
@@ -13,8 +13,14 @@ async function load(id) {
 }
 import { cloudflareConfigured } from "./cloudflare.mjs";
 import { setReviewStatuses } from "./reviews.mjs";
+import { SITE_LOOK, SITE_LOOK_NOTES } from "./sitegen.mjs";
 
 // Stores call it "Manage my store"; other websites "Manage my website" (hours, numbers, notice, slogan, reviews).
+// For the Manage page: is a newer version of the website waiting, and what's in it.
+export function lookStatus(r) {
+  const h = r?.hosting || {};
+  return { mode: h.lookMode === "ask" ? "ask" : "auto", waiting: Boolean(h.publishedAt && h.look && h.look !== SITE_LOOK), notes: SITE_LOOK_NOTES[SITE_LOOK] || [] };
+}
 export const manageTitle = (r) => (r?.interest === "Online Store" ? "Manage my store" : "Manage my website");
 export async function manageLink(id, { renew = false } = {}) {
   const r = await getRequest(id);
@@ -58,6 +64,16 @@ export async function applyManage(r, input) {
     if (v !== String(b[key] || "")) { changes.push(`${label}: ${v || "(removed)"}`); patch[key] = v; }
   }
   changes.push(...(await setReviewStatuses(r.id, input.reviews))); // after the checks above, so a bad phone number saves nothing
+  // Website improvements: "auto" (default) or "ask" (email first; they update here when ready).
+  const h = r.hosting || {};
+  if (input.lookMode === "ask" || input.lookMode === "auto") {
+    const now = h.lookMode === "ask" ? "ask" : "auto";
+    if (input.lookMode !== now) {
+      await saveHosting(r.id, { lookMode: input.lookMode });
+      changes.push(`Website improvements: ${input.lookMode === "ask" ? "ask me first" : "apply automatically"}`);
+    }
+  }
+  if (input.updateLook && h.publishedAt && h.look !== SITE_LOOK) changes.push("Updated the website to the new version");
   if (!changes.length) return { changes, row: r };
   await mergeBrief(r.id, patch);
   return { changes, row: await load(r.id) };

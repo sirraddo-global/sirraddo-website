@@ -69,6 +69,10 @@ export function fileHash(base64, path) {
 }
 
 // Upload files [{ path: "index.html", data: Buffer|string }] as a new production deployment. Returns the deployment.
+// Put an earlier deployment of a project back live (Cloudflare keeps every deployment).
+export async function rollbackDeployment(project, deploymentId) {
+  return cf(`/accounts/${acct()}/pages/projects/${project}/deployments/${deploymentId}/rollback`, { method: "POST", body: {} });
+}
 export async function deploy(project, files) {
   const { jwt } = await cf(`/accounts/${acct()}/pages/projects/${project}/upload-token`);
   const items = files.map((f) => {

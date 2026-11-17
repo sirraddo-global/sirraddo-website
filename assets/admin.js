@@ -283,8 +283,9 @@
     var u = state.emailUsage; if (!u) return null;
     var t = todayUsed(u), m = monthUsed(u), lvl = usageLevel(Math.max(t / u.limits.day, m / u.limits.month), 1);
     var blockedToday = u.blocked && String(u.blocked.at).slice(0, 10) === u.today.day;
-    var box = el('div', { class: 'admin-card admin-usage-strip admin-usage--' + (blockedToday ? 'danger' : lvl) }, [
-      el('p', null, [el('b', { text: 'Emails today: ' + t + ' of ' + u.limits.day }), ' · this month ' + m + ' of ' + u.limits.month + (blockedToday ? ' · Resend refused emails today (limit reached)' : lvl === 'danger' ? ' · nearly at the limit' : lvl === 'warn' ? ' · getting close' : '') + ' ',
+    var waiting = u.refusedWaiting || 0;
+    var box = el('div', { class: 'admin-card admin-usage-strip admin-usage--' + (blockedToday ? 'danger' : waiting ? 'warn' : lvl) }, [
+      el('p', null, [el('b', { text: 'Emails today: ' + t + ' of ' + u.limits.day }), ' · this month ' + m + ' of ' + u.limits.month + (blockedToday ? ' · Resend refused emails today (limit reached)' : lvl === 'danger' ? ' · nearly at the limit' : lvl === 'warn' ? ' · getting close' : '') + (waiting ? ' · ' + waiting + ' refused email' + (waiting === 1 ? '' : 's') + ' to send again' : '') + ' ',
         el('button', { class: 'admin-btn', type: 'button', text: 'Details', onclick: function () { state.settingsTab = 'email'; setTab('settings'); } })])
     ]);
     return box;
@@ -296,6 +297,34 @@
     ]);
     var box = el('div', null, [el('p', { class: 'admin-hint', text: 'Loading…' })]);
     card.appendChild(box);
+    // Emails Resend refused (usually the daily limit): kept 30 days to send again once the limit resets.
+    var refBox = el('div');
+    card.appendChild(refBox);
+    function refusedAct(body, okMsg, btn) {
+      btn.disabled = true;
+      api('POST', body).then(function (j) {
+        if (j.result) flash(j.result.sent + ' sent' + (j.result.failed ? ', ' + j.result.failed + ' still refused (' + j.result.error + ')' : ''));
+        else flash(okMsg);
+        state.emailUsage = j.usage; drawRefused(j.refused || []);
+      }).catch(function (e) { btn.disabled = false; fail(e); });
+    }
+    function drawRefused(list) {
+      refBox.innerHTML = '';
+      refBox.appendChild(el('h3', { text: 'Refused emails' + (list.length ? ' (' + list.length + ')' : '') }));
+      if (!list.length) { refBox.appendChild(el('p', { class: 'admin-hint', text: 'None. If Resend refuses an email (e.g. the daily limit), it waits here so you can send it again.' })); return; }
+      refBox.appendChild(el('p', { class: 'admin-hint', text: 'Send them again once the limit has reset (1am Lagos time). Kept for 30 days.' }));
+      refBox.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'btn btn--navy', type: 'button', text: 'Send all again', onclick: function (e) { refusedAct({ action: 'email_resend', all: true }, 'Sent', e.currentTarget); } })]));
+      list.forEach(function (m) {
+        refBox.appendChild(el('div', { class: 'admin-golive' }, [
+          el('p', null, [el('b', { text: m.subject }), ' ', badge(m.kind, '')]),
+          el('p', { class: 'admin-hint', text: (m.to_us ? 'To you' : 'To ' + m.recipient) + ' · ' + new Date(m.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + ' · ' + m.error }),
+          el('div', { class: 'admin-actions' }, [
+            el('button', { class: 'admin-btn', type: 'button', text: 'Send again', onclick: function (e) { refusedAct({ action: 'email_resend', emailId: m.id }, 'Sent', e.currentTarget); } }),
+            el('button', { class: 'admin-btn', type: 'button', text: 'Remove', onclick: function (e) { refusedAct({ action: 'email_refused_remove', emailId: m.id }, 'Removed', e.currentTarget); } })
+          ])
+        ]));
+      });
+    }
     api('POST', { action: 'email_usage' }).then(function (j) {
       var u = j.usage; state.emailUsage = u; box.innerHTML = '';
       if (!u) { box.appendChild(el('p', { class: 'admin-hint', text: 'No database: usage can\'t be counted.' })); return; }
@@ -318,6 +347,7 @@
         ]);
       })));
       box.appendChild(el('p', { class: 'admin-hint', text: 'Bars are days in UTC (Resend\'s day). The line at the top of the chart is the daily limit.' }));
+      drawRefused(j.refused || []);
     }).catch(function (e) { box.innerHTML = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
     return card;
   }
@@ -1140,12 +1170,20 @@
         info.push(' ', badge('Balance owed: pauses in ' + Math.max(0, left) + ' day' + (left === 1 ? '' : 's'), 'is-due'));
       }
       box.appendChild(el('p', { class: 'admin-meta' }, info));
+      // Website improvements: automatic (default) or the owner chose "Ask me first" in their Manage link.
+      box.appendChild(el('p', { class: 'admin-hint', text: 'Improvements: ' + (h.lookMode === 'ask' ? 'the owner asked to approve them first' + (h.lookAsked && h.lookAsked !== h.look ? ' (new version offered, not applied yet)' : '') : 'applied automatically at 7am after our updates; the owner is emailed what changed') + '.' }));
     }
     var pubActs = el('div', { class: 'admin-actions' });
     if (!h.pausedAt) pubActs.appendChild(el('button', { class: 'btn btn--navy admin-golive-btn', type: 'button', text: h.publishedAt ? 'Update live site' : '2. Publish website', onclick: function (e) {
       var force = false;
       if (owing) { if (!window.confirm('The balance (' + naira(bal) + ') isn\'t paid yet.\n\nThe site will go only on the free .pages.dev address, not their domain. Their domain connects by itself once the balance is paid. If it\'s still unpaid after 7 days, the site pauses itself.\n\nPublish on .pages.dev now?')) return; force = true; }
       act({ action: 'host_publish', force: force }, function (j) { return (j.firstTime ? 'Live! Marked Live, renewal date set. ' : 'Updated. ') + (j.owed ? 'On ' + j.url + ' only until the balance is paid.' : j.waitingForDomain ? 'It\'s on ' + j.url + ' until the domain is active, then it connects by itself.' : j.url); }, e.currentTarget, 'Publishing… (up to a minute)');
+    } }));
+    // Undo: put the version before the current one back live (e.g. the owner dislikes a new look). Cloudflare keeps them.
+    var hist = h.history || [], ci = hist.map(function (v) { return v.id; }).indexOf(h.deploymentId), prevV = hist[ci >= 0 ? ci + 1 : 1];
+    if (h.publishedAt && !h.pausedAt && prevV) pubActs.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Restore previous version', onclick: function (e) {
+      if (!window.confirm('Put back the version published ' + new Date(prevV.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + '?\n\nUse this when the owner dislikes a recent change or new look. Their website will then wait for their OK before our next improvements (Ask me first).\n\nNote: tapping "Update live site" or the owner saving in their Manage link publishes the newest version again.')) return;
+      act({ action: 'host_rollback' }, 'Previous version is live again (Ask me first is now on)', e.currentTarget, 'Restoring…');
     } }));
     if (h.publishedAt && !h.pausedAt) pubActs.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Pause site', onclick: function (e) {
       if (!window.confirm('Pause ' + (h.domain || 'this site') + '? Visitors will see "temporarily unavailable" and email forwarding stops until you restore it.')) return;
@@ -1223,6 +1261,35 @@
       box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: title + ': ' }), 'a private link where they change ' + (store ? 'prices, sold out, ' : '') + 'opening hours, phone/WhatsApp, slogan, a short notice and which customer reviews show, themselves. Their live site updates within a minute and you get an email of what changed.']));
       box.appendChild(acts);
       box.appendChild(out);
+      // Their website's customer reviews: show, hide or delete (e.g. someone asked us to remove theirs).
+      var rvBox = el('div', { class: 'admin-orders' });
+      var drawRv = function (j) {
+        rvBox.innerHTML = '';
+        if (j.republished && j.republished !== true) rvBox.appendChild(el('p', { class: 'admin-error', text: 'Saved, but the live site didn\'t update: ' + j.republished }));
+        if (!j.reviews.length) { rvBox.appendChild(el('p', { class: 'admin-hint', text: 'No reviews yet.' })); return; }
+        j.reviews.forEach(function (x) {
+          var st = { pending: ['New', 'is-new'], shown: ['On website', 'is-won'], hidden: ['Hidden', ''] }[x.status] || ['', ''];
+          var setRv = function (status, btn) {
+            if (status === 'delete' && !window.confirm('Delete this review for good?')) return;
+            btn.disabled = true;
+            api('POST', { action: 'site_review_set', id: r.id, reviewId: x.id, status: status }).then(function (j2) { flash(status === 'delete' ? 'Review deleted' : status === 'shown' ? 'Shown on their website' : 'Hidden'); drawRv(j2); }).catch(function (e) { btn.disabled = false; fail(e); });
+          };
+          rvBox.appendChild(el('div', { class: 'admin-golive' }, [
+            el('p', null, [el('b', { text: new Array(x.stars + 1).join('\u2605') + new Array(6 - x.stars).join('\u2606') + '  ' + x.name }), ' ', badge(st[0], st[1])]),
+            x.body ? el('p', { text: x.body }) : null,
+            el('div', { class: 'admin-actions' }, [
+              x.status !== 'shown' ? el('button', { class: 'admin-btn', type: 'button', text: 'Show on website', onclick: function (e) { setRv('shown', e.currentTarget); } }) : null,
+              x.status !== 'hidden' ? el('button', { class: 'admin-btn', type: 'button', text: 'Hide', onclick: function (e) { setRv('hidden', e.currentTarget); } }) : null,
+              el('button', { class: 'admin-btn', type: 'button', text: 'Delete', onclick: function (e) { setRv('delete', e.currentTarget); } })
+            ])
+          ]));
+        });
+      };
+      box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Customer reviews on their website', onclick: function (e) {
+        var b = e.currentTarget; b.disabled = true;
+        api('POST', { action: 'site_reviews', id: r.id }).then(function (j) { b.disabled = false; drawRv(j); }).catch(function (er) { b.disabled = false; fail(er); });
+      } })]));
+      box.appendChild(rvBox);
   }
 
   // Online Store: "Order on WhatsApp" always works; "Pay online" turns on once their own Paystack secret key is added.

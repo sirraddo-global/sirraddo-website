@@ -42,7 +42,7 @@ Things you will probably want to change:
 - **WhatsApp messages on the websites page:** each button's pre-filled message is in its link, after `?text=`. Spaces are written `%20`.
 - **SCUML number:** search for `SC 311502618` in all five `.html` files (compliance section and footer).
 - **Phone or WhatsApp number:** update it in `index.html` (search for `8167550937`) **and** in `assets/site.js` (`WHATSAPP_NUMBER`).
-- **Email address:** search for `sirraddogloballimited@gmail.com` in `index.html`, `privacy.html` and `terms.html`.
+- **Email address:** search for `info@sirraddo.com.ng` in `index.html`, `privacy.html` and `terms.html`.
 - **Header and footer:** each page has its own copy of the header and footer. If you change a link or the copyright line, change it in all five `.html` files.
 - **Policy dates:** when you change the Privacy Policy or Terms, update the "Last updated" date at the top of that page.
 - **Search and share text:** the `<title>`, `<meta name="description">` and `og:` tags at the top of each page. Leave `{{SITE_URL}}` as it is: the build fills it in.

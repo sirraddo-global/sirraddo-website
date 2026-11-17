@@ -9,7 +9,7 @@
     name: 'SIRRADDO GLOBAL LIMITED',
     rc: 'RC 9939920', tin: 'TIN 2623092457685',
     address: 'PLT 106/107 Agbaakin Layout, Iwo Road, Olowotinfiowosanu Area, Ibadan, Oyo State, Nigeria',
-    phone: '+234 816 755 0937', email: 'sirraddogloballimited@gmail.com'
+    phone: '+234 816 755 0937', email: 'info@sirraddo.com.ng'
   };
   var PACKAGES = ['Starter website', 'Business website', 'Online Store', 'Custom app', 'Business software', 'ZAPPI PAY', 'Other'];
   var DEFAULT_QUOTE = { 'Starter website': 50000, 'Business website': 100000, 'Online Store': 150000 };

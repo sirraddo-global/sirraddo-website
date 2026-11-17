@@ -9,7 +9,7 @@ export const COMPANY = {
   tin: "TIN 2623092457685",
   address: "PLT 106/107 Agbaakin Layout, Iwo Road, Olowotinfiowosanu Area, Ibadan, Oyo State, Nigeria",
   phone: "+234 816 755 0937",
-  email: "sirraddogloballimited@gmail.com",
+  email: "info@sirraddo.com.ng",
 };
 
 export const naira = (n) => (n == null || n === "" ? "-" : "₦" + Number(n).toLocaleString("en-NG"));

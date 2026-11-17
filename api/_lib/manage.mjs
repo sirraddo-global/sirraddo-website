@@ -47,7 +47,7 @@ export async function applyManage(r, input) {
     if (sold !== Boolean(p.soldout)) { changes.push(`${p.name}: ${sold ? "SOLD OUT" : "back in stock"}`); if (sold) p.soldout = true; else delete p.soldout; }
   }
   const patch = { products };
-  for (const [key, label, max] of [["hours", "Opening hours", 120], ["phone", "Phone", 30], ["whatsapp", "WhatsApp", 30], ["site_notice", "Notice on the website", 200]]) {
+  for (const [key, label, max] of [["hours", "Opening hours", 120], ["phone", "Phone", 30], ["whatsapp", "WhatsApp", 30], ["site_notice", "Notice on the website", 200], ["tagline", "Slogan", 100]]) {
     if (!(key in input)) continue;
     const v = clean(input[key], max);
     if (key === "phone" && !v) continue; // the phone number can't be removed

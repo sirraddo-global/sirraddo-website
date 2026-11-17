@@ -1,4 +1,4 @@
-// /manage?t=TOKEN — "Manage my store": the store owner changes prices, sold out, hours, phone/WhatsApp and a short
+// /manage?t=TOKEN — "Manage my store": the store owner changes prices, sold out, slogan, hours, phone/WhatsApp and a short
 // notice themselves. Save updates their live site and emails us what changed. Works on phones; no login.
 import { dbConfigured, esc } from "./_lib/store.mjs";
 import { findManageRequest, applyManage, afterManage } from "./_lib/manage.mjs";
@@ -48,6 +48,7 @@ function form(r, token, note) {
 <form method="post" action="/manage?t=${esc(token)}">
 ${items.length ? `<div class="c"><h2>Products (${items.length})</h2>${items.length > 8 ? `<input type="search" placeholder="Find a product" aria-label="Find a product" oninput="var w=this.value.toLowerCase();document.querySelectorAll('.p').forEach(function(x){x.hidden=w&&x.getAttribute('data-s').indexOf(w)<0})">` : ""}${rows}</div>` : ""}
 <div class="c"><h2>Shop details</h2>
+<label for="tagline">Slogan (shows at the bottom of every page)</label><input type="text" id="tagline" name="tagline" maxlength="100" value="${esc(b.tagline || "")}" placeholder="e.g. Fresh bread every morning in Ibadan">
 <label for="hours">Opening hours</label><input type="text" id="hours" name="hours" maxlength="120" value="${esc(b.hours || "")}" placeholder="e.g. Mon–Sat 8am–6pm">
 <label for="phone">Phone number</label><input type="tel" id="phone" name="phone" maxlength="30" value="${esc(b.phone || "")}">
 <label for="whatsapp">WhatsApp number</label><input type="tel" id="whatsapp" name="whatsapp" maxlength="30" value="${esc(b.whatsapp || "")}" placeholder="If different from the phone number">
@@ -71,7 +72,7 @@ export default async function handler(req, res) {
     }
     for (const p of (r.brief?.products || []).map((p, i) => ({ ...p, i }))) (products[p.i] ||= {}).soldout = body[`sold_${p.i}`] === "on";
     try {
-      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice });
+      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice, tagline: body.tagline });
       if (!changes.length) return shell(res, 200, "Manage my store", form(row, token, `<p class="ok">Nothing changed.</p>`));
       const live = await afterManage(row, changes);
       const msg = live === "updated" ? `Saved ✓ Your website is updated (refresh it to see). ${changes.length} change${changes.length === 1 ? "" : "s"}.`

@@ -194,6 +194,7 @@ export function receiptData(r, o) {
     delivery: o.delivery ? naira(o.delivery) : "",
     total: naira(o.total),
     note: `Paid online through Paystack (card, bank transfer or USSD). Payment reference: ${o.ref}.`,
+    link: receiptLink(o),
   };
 }
 export function receiptHtml(r, o) {

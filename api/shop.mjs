@@ -21,10 +21,10 @@ const naira = (n) => "₦" + Number(n || 0).toLocaleString("en-NG");
 // Buttons that save the receipt on the buyer's phone (drawn in the browser by /assets/receipt.js).
 function saveButtons(s, o) {
   const data = JSON.stringify(receiptData(s, o)).replace(/</g, "\\u003c");
-  return `<div class="save"><button type="button" data-save="png">Save as picture</button><button type="button" data-save="pdf">Save as PDF</button></div>
+  return `<div class="save"><button type="button" data-save="png">Save as picture</button><button type="button" data-save="pdf">Save as PDF</button><button type="button" data-save="share">Share</button><button type="button" data-save="link">Copy receipt link</button></div><p class="m save-msg" role="status"></p>
 <script type="application/json" id="rcpt">${data}</script><script src="/assets/receipt.js" defer></script>`;
 }
-const SAVE_CSS = `.save{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.save button{flex:1 1 140px;font:700 15px Arial,sans-serif;border-radius:12px;padding:14px;border:0;cursor:pointer;background:#13254F;color:#fff}.save button+button{background:#D9A21B;color:#13254F}.save button[disabled]{opacity:.6}.doc{overflow-x:auto;margin-top:6px}`;
+const SAVE_CSS = `.save{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.save button{flex:1 1 140px;font:700 15px Arial,sans-serif;border-radius:12px;padding:14px;border:0;cursor:pointer;background:#13254F;color:#fff}.save button[data-save=pdf]{background:#D9A21B;color:#13254F}.save button[data-save=share],.save button[data-save=link]{background:#fff;color:#13254F;border:1px solid #C9D1DE}.save-msg:empty{display:none}.save button[disabled]{opacity:.6}.doc{overflow-x:auto;margin-top:6px}`;
 
 function page(res, code, title, body, back) {
   res.statusCode = code;
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
 <table>${o.items.map((l) => `<tr><td>${esc(l.name)} × ${l.qty}</td><td class="r">${naira(l.total)}</td></tr>`).join("")}${o.delivery ? `<tr><td>Delivery</td><td class="r">${naira(o.delivery)}</td></tr>` : ""}<tr><td><b>Paid</b></td><td class="r"><b>${naira(o.total)}</b></td></tr></table>
 <p class="m">Order ${esc(o.ref)}. The store will contact you about delivery.</p>
 <p><b>Save your receipt</b> to your phone:</p>${saveButtons(s, o)}
-<p class="m"><a href="${esc(receiptLink(o))}">Open the full receipt</a> (keep this link to see it again later)</p>`, back);
+<p class="m">Need it again later? Use <b>Copy receipt link</b> or keep this link: <a href="${esc(receiptLink(o))}">${esc(receiptLink(o).replace(/^https?:\/\//, ""))}</a></p>`, back);
       }
       return page(res, 200, "Payment not completed", `<h1>Payment not completed</h1><p>We couldn't confirm a payment for this order${o.status === "pending" ? " yet. If money left your account, it will be confirmed shortly: contact the store with your Paystack reference" : ""}. You can go back to the shop and try again, or order on WhatsApp.</p>`, back);
     }

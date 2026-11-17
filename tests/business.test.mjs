@@ -199,6 +199,9 @@ test("Online Store: basket checkout into the store's own Paystack, order emails,
   const thanks = await h.call("GET", `/api/shop?paid=1&ref=${co.json.ref}`);
   assert.match(thanks.text, /data-save="png"/);
   assert.match(thanks.text, /data-save="pdf"/);
+  assert.match(thanks.text, /data-save="share"/);
+  assert.match(thanks.text, /Copy receipt link/);
+  assert.match(thanks.text, /"link":"[^"]*receipt=1"/, "the link to get it again later");
   assert.match(thanks.text, /id="rcpt">\{/);
   assert.doesNotMatch(thanks.text, /on its way/);
   const page = await h.call("GET", `/api/shop?ref=${co.json.ref}&receipt=1`);

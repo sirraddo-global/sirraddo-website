@@ -104,8 +104,31 @@
   }
 
   function busy(btn, on) { btn.disabled = on; btn.setAttribute('aria-busy', on ? 'true' : 'false'); }
+  var msg = document.querySelector('.save-msg');
+  function say(t) { if (msg) msg.textContent = t; }
+  function copyLink() {
+    var done = function () { say('Receipt link copied. Paste it anywhere to open your receipt again.'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(d.link).then(done, function () { say('Your receipt link: ' + d.link); });
+    say('Your receipt link: ' + d.link);
+  }
+  // Share: the receipt picture through the phone's share menu (WhatsApp, email, Drive…), with the link to open it later.
+  // The picture is made when the page opens, so the share menu opens straight from the tap (iPhones require that).
+  // Phones that can't share files share the link; anything else copies the link.
+  var ready = null;
+  if (navigator.share) { try { canvas().toBlob(function (b) { ready = new File([b], name + '.png', { type: 'image/png' }); }, 'image/png'); } catch (e) { /* share the link instead */ } }
+  function share(btn) {
+    var text = 'Receipt ' + d.ref + ' from ' + d.store + ': ' + d.link;
+    busy(btn, false);
+    if (!navigator.share) return copyLink();
+    var withFile = ready && navigator.canShare && navigator.canShare({ files: [ready] });
+    navigator.share(withFile ? { files: [ready], title: 'Receipt ' + d.ref, text: text } : { title: 'Receipt ' + d.ref, text: text, url: d.link })
+      .catch(function (e) { if (e && e.name !== 'AbortError') copyLink(); });
+  }
   document.querySelectorAll('[data-save]').forEach(function (btn) {
     btn.addEventListener('click', function () {
+      var kind = btn.getAttribute('data-save');
+      if (kind === 'link') return copyLink();
+      if (kind === 'share') { try { return share(btn); } catch (e) { busy(btn, false); return copyLink(); } }
       busy(btn, true);
       try {
         var c = canvas();

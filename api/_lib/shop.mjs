@@ -177,6 +177,29 @@ export async function startCheckout(token, items, buyer, returnBase) {
 }
 
 const naira = (n) => "₦" + Number(n || 0).toLocaleString("en-NG");
+// The buyer's receipt: the store's details, receipt number and date, who paid, each item, and how it was paid.
+// Used in the email and on the printable page (/api/shop?ref=REF&receipt=1).
+const RECEIPT_PREFER = ["receipts", "orders", "sales", "info"];
+export function receiptLink(o) { return `${SITE_URL}/api/shop?ref=${encodeURIComponent(o.ref)}&receipt=1`; }
+export function receiptHtml(r, o) {
+  const b = o.buyer || {}, br = r.brief || {};
+  const th = "padding:8px;border-bottom:2px solid #13254F;text-align:left;font-size:13px;color:#4A5568";
+  const td = "padding:8px;border-bottom:1px solid #E1E6EF;vertical-align:top";
+  const when = new Date(o.paid_at || o.created_at || Date.now()).toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" });
+  const contact = [br.address, br.phone, storeReplyTo(r, RECEIPT_PREFER) || null].filter(Boolean).map((x) => esc(String(x).replace(/\n/g, ", "))).join(" · ");
+  return `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1B2433;max-width:560px;border:1px solid #E1E6EF;border-radius:12px;padding:20px;background:#fff">
+<table style="width:100%;border-collapse:collapse"><tr><td style="vertical-align:top"><div style="font-size:19px;font-weight:700;color:#13254F">${esc(storeName(r))}</div>${contact ? `<div style="font-size:13px;color:#4A5568">${contact}</div>` : ""}</td>
+<td style="vertical-align:top;text-align:right"><div style="font-size:22px;font-weight:800;letter-spacing:1px;color:#13254F">RECEIPT</div><div style="display:inline-block;background:#E6F4EA;color:#1E7B3C;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700">PAID</div></td></tr></table>
+<table style="width:100%;border-collapse:collapse;margin:14px 0;font-size:14px"><tr><td style="vertical-align:top;padding:0 8px 0 0"><div style="color:#4A5568;font-size:12px">RECEIPT NO.</div>${esc(o.ref)}<div style="color:#4A5568;font-size:12px;margin-top:6px">DATE PAID</div>${esc(when)}</td>
+<td style="vertical-align:top;padding:0"><div style="color:#4A5568;font-size:12px">BILLED TO</div>${esc(b.name || "")}${b.phone ? `<br>${esc(b.phone)}` : ""}${b.email ? `<br>${esc(b.email)}` : ""}${b.address ? `<br>${esc(b.address)}` : ""}</td></tr></table>
+<table style="width:100%;border-collapse:collapse;font-size:14px"><tr><th style="${th}">Item</th><th style="${th};text-align:center">Qty</th><th style="${th};text-align:right">Price</th><th style="${th};text-align:right">Amount</th></tr>
+${o.items.map((l) => `<tr><td style="${td}">${esc(l.name)}</td><td style="${td};text-align:center">${l.qty}</td><td style="${td};text-align:right">${naira(l.price || Math.round(l.total / (l.qty || 1)))}</td><td style="${td};text-align:right">${naira(l.total)}</td></tr>`).join("")}
+${o.delivery ? `<tr><td style="${td}" colspan="3">Delivery</td><td style="${td};text-align:right">${naira(o.delivery)}</td></tr>` : ""}
+<tr><td style="padding:10px 8px;font-weight:800" colspan="3">Total paid</td><td style="padding:10px 8px;text-align:right;font-weight:800;font-size:17px">${naira(o.total)}</td></tr></table>
+<p style="font-size:13px;color:#4A5568;margin:10px 0 0">Paid online through Paystack (card, bank transfer or USSD). Payment reference: ${esc(o.ref)}.${o.delivery ? "" : " Delivery cost, if any, is confirmed by the store."}</p>
+<p style="font-size:13px;color:#4A5568;margin:6px 0 0">Thank you for shopping with ${esc(storeName(r))}.</p></div>`;
+}
+
 function orderHtml(r, o, forOwner) {
   const td = "padding:6px 8px;border-bottom:1px solid #E1E6EF";
   const b = o.buyer || {};
@@ -212,17 +235,22 @@ export async function confirmOrder(ref) {
   const owner = ownerEmail(r);
   if (customerEmailConfigured()) {
     if (owner) await sendCustomerEmail(owner, `New order ${naira(order.total)} from ${order.buyer.name} (${storeName(r)})`, orderHtml(r, order, true), order.buyer.email, `${storeName(r)} orders`).catch((e) => console.error("order email to store failed", e));
-    await sendCustomerEmail(order.buyer.email, `Your order from ${storeName(r)} is confirmed`, orderHtml(r, order, false), storeReplyTo(r) || owner || undefined, storeName(r)).catch((e) => console.error("order email to buyer failed", e));
+    // The buyer's receipt. Replies go to the store's receipts@ (or orders@ / sales@ / info@) once their forwarding works.
+    const buyerHtml = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5;color:#1B2433"><p>Thank you, ${esc(String(order.buyer.name).split(" ")[0])}! <b>${esc(storeName(r))}</b> has received your order and payment. Here is your receipt.</p>
+${receiptHtml(r, order)}
+<p><a href="${receiptLink(order)}" style="color:#13254F;font-weight:700">View or print this receipt</a></p>
+<p>${esc(storeName(r))} will contact you about delivery. Questions? Just reply to this email${storeReplyTo(r, RECEIPT_PREFER) ? ` or write to ${esc(storeReplyTo(r, RECEIPT_PREFER))}` : ""}.</p></div>`;
+    await sendCustomerEmail(order.buyer.email, `Receipt for your order from ${storeName(r)} (${order.ref})`, buyerHtml, storeReplyTo(r, RECEIPT_PREFER) || owner || undefined, storeName(r)).catch((e) => console.error("order email to buyer failed", e));
   }
   if (!owner && emailConfigured()) await sendEmail(`🛒 Store order for ${storeName(r)} (${reference(r.id)}) has no alert email`, orderHtml(r, order, true)).catch(() => {});
   return { order, store: r };
 }
 // Once their business email forwarding works, buyers reply to the store's own address (orders@, sales@, receipts@ or
 // info@ at their domain) instead of the owner's Gmail. It still lands in the right inbox through forwarding.
-export function storeReplyTo(r) {
+export function storeReplyTo(r, prefer = ["orders", "sales", "receipts", "info"]) {
   const h = r?.hosting || {}, e = h.email;
   if (!h.domain || e?.status !== "active" || !(e.locals || []).length) return "";
-  const pick = ["orders", "sales", "receipts", "info"].find((l) => e.locals.includes(l)) || e.locals[0];
+  const pick = prefer.find((l) => e.locals.includes(l)) || e.locals[0];
   return `${pick}@${h.domain}`;
 }
 async function storeById(id) {

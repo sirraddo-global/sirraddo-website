@@ -195,7 +195,18 @@ test("Online Store: basket checkout into the store's own Paystack, order emails,
   const n = h.sent.length;
   assert.match((await h.call("GET", `/api/shop?paid=1&ref=${co.json.ref}`)).text, /Thank you/);
   await h.call("GET", `/api/shop?paid=1&ref=${co.json.ref}`);
-  assert.equal(h.newMail(n).length, 2, "store + buyer emailed once");
+  const mails = h.newMail(n);
+  assert.equal(mails.length, 2, "store + buyer emailed once");
+  const rc = mails.find((m) => m.to.includes("bisi@x.com"));
+  assert.match(rc.subject, /^Receipt for your order from .* \(/);
+  assert.match(rc.html, /RECEIPT/);
+  assert.match(rc.html, /BILLED TO[\s\S]*Bisi/);
+  assert.match(rc.html, /Total paid[\s\S]*₦27,000/);
+  assert.match(rc.html, new RegExp(`receipt=1`));
+  const page = await h.call("GET", `/api/shop?ref=${co.json.ref}&receipt=1`);
+  assert.match(page.text, /Print or save as PDF/);
+  assert.match(page.text, /₦12,500/, "unit price shown");
+  assert.equal(h.newMail(n).length, 2, "viewing the receipt sends nothing more");
 });
 
 test("daily run completes without errors", async () => {

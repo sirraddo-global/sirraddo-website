@@ -126,7 +126,14 @@ export function priceAmount(p) {
 }
 const isImage = (f) => /^image\//.test(f?.type || "") || /\.(jpe?g|png|webp|gif|svg)$/i.test(f?.name || f?.url || "");
 
+// On a live site a sentence that still has an [ADD: …] gap is left out (the preview still shows it, so it can be filled in).
+function dropTodo(text) {
+  if (!/\[ADD:/.test(text)) return text;
+  const parts = String(text).match(/[^.!?]+[.!?]*\s*/g) || [];
+  return parts.filter((x) => !/\[ADD:/.test(x)).join("").replace(/\[ADD:[^\]]*\]/g, "").trim();
+}
 function inline(text, mode) {
+  if (mode !== "preview") text = dropTodo(text);
   return esc(text)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
@@ -136,6 +143,7 @@ function blocks(lines, mode) {
   const out = [];
   let list = null;
   for (const line of lines) {
+    if (mode !== "preview" && /\[ADD:/.test(line) && !dropTodo(line.replace(/^\s*(?:[-*•]|\d+\.|#{3,4})\s+/, "")).replace(/^(?:\*\*)?(?:text|answer|a)\s*:(?:\*\*)?\s*/i, "").trim()) continue;
     const m = line.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)/);
     if (m) {
       if (!list) { out.push("<ul>"); list = true; }
@@ -159,6 +167,11 @@ function noPrice(t) {
   const parts = String(t || "").match(/[^.!?]+[.!?]*\s*/g) || [];
   const kept = parts.filter((x) => !/₦\s?\d|\b(?:NGN|N)\s?(?:\d{1,3},\d{3}|\d{3,})/.test(x));
   return kept.join("").trim();
+}
+function bizEmail(row) {
+  const h = row.hosting || {}, e = h.email;
+  if (!h.domain || !e || e.status !== "active" || !(e.locals || []).length) return "";
+  return `${e.locals.includes("info") ? "info" : e.locals[0]}@${h.domain}`;
 }
 export function buildSiteModel(row) {
   const b = row.brief || {};
@@ -201,7 +214,8 @@ export function buildSiteModel(row) {
     notice: String(b.site_notice || "").trim().slice(0, 200), // short note from the owner (Manage my store)
     phone: b.phone || row.contact || "",
     whatsapp: waNumber(b.whatsapp || b.phone || row.contact),
-    email: b.email || "",
+    // Once email forwarding works, the site shows their business address (info@theirdomain) instead of their Gmail.
+    email: bizEmail(row) || b.email || "",
     address: b.address || "",
     hours: b.hours || "",
     socials,
@@ -293,7 +307,10 @@ details.faq p{margin:0 0 12px}li.qa{list-style:none}
 .cards.products .card img{aspect-ratio:1/1}.cat-nav a span{opacity:.6;font-weight:400}.cat{scroll-margin-top:64px;margin-top:28px}
 .card .price{font-weight:800;color:${t.primary};margin:0}
 .card img{border-radius:calc(${t.radius} - 4px);margin:-6px -6px 12px;width:calc(100% + 12px);aspect-ratio:4/3;object-fit:cover}
-.gallery{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.gallery{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}@media(max-width:560px){.gallery{grid-template-columns:1fr 1fr}}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.hero .hero-grid img{aspect-ratio:1;max-height:none;box-shadow:0 10px 24px rgba(0,0,0,.25)}@media(max-width:819px){.hero-grid{grid-template-columns:repeat(4,1fr);gap:8px}}
+.trust{border-bottom:1px solid rgba(127,127,127,.2)}.trust .wrap{display:flex;flex-wrap:wrap;gap:8px 18px;padding-top:14px;padding-bottom:14px;font-weight:600;font-size:.95rem}.trust span{white-space:nowrap}
+main a,footer a,.card{overflow-wrap:anywhere}.card.invite{max-width:560px}.card.invite .btn{margin-top:6px}
 .gallery img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:${t.radius}}
 blockquote{margin:0;background:#fff;border-left:4px solid ${t.accent};padding:16px 18px;border-radius:${t.radius}}
 .contact dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 1em}.contact dt{font-weight:700}.contact dd{margin:0}
@@ -512,6 +529,17 @@ function sectionHtml(sec, mode) {
   return `<section class="block"><div class="wrap">${heading ? `<h2>${inline(heading, mode)}</h2>` : ""}${body}</div></section>`;
 }
 
+// Short reasons to trust the business, shown under the home hero. Only facts from the form, never invented.
+function trustPoints(site) {
+  const t = [];
+  const city = String(site.address || "").split(/\n|,/).map((x) => x.trim()).filter(Boolean).pop() || "";
+  if (site.delivery) t.push(/nationwide|all states|across nigeria|anywhere in nigeria/i.test(site.delivery) ? "Delivery nationwide" : "Delivery available");
+  if (site.products.some((p) => p.amount)) t.push("Order online or on WhatsApp");
+  else if (site.whatsapp) t.push("Quick replies on WhatsApp");
+  if (site.hours && site.hours.length <= 34) t.push(site.hours);
+  if (city && city.length <= 30) t.push(`Visit us in ${city.replace(/\s+nigeria$/i, "")}`);
+  return t.slice(0, 4);
+}
 function pageBody(site, page, mode, link, img) {
   const out = [];
   let sections = page.sections;
@@ -534,7 +562,9 @@ function pageBody(site, page, mode, link, img) {
     const btn = heroSec?.fields["button text"] || "Contact us";
     const contactPage = site.pages.find((p) => p.kind === "contact");
     const href = site.whatsapp ? waLink(site) : contactPage ? link(contactPage.slug) : "#";
-    out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}<a class="btn" href="${href}">${inline(btn, mode)}</a></div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}" fetchpriority="high" decoding="async">` : ""}</div></section>`);
+    out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}<a class="btn" href="${href}">${inline(btn, mode)}</a></div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}" fetchpriority="high" decoding="async">` : site.productPhotos.length >= 4 ? `<div class="hero-grid">${site.productPhotos.slice(0, 4).map((p, k) => `<img src="${img(p.url)}" alt=""${k ? ' loading="lazy"' : ' fetchpriority="high"'} decoding="async">`).join("")}</div>` : ""}</div></section>`);
+    const trust = trustPoints(site);
+    if (trust.length) out.push(`<div class="trust"><div class="wrap">${trust.map((t) => `<span>\u2713 ${esc(t)}</span>`).join("")}</div></div>`);
   } else {
     out.push(`<div class="page-head"><div class="wrap"><h1>${esc(page.name)}</h1></div></div>`);
   }
@@ -578,6 +608,7 @@ function pageBody(site, page, mode, link, img) {
   const galleryPhotos = site.photos.length ? site.photos : site.productPhotos.slice(0, 12);
   if (page.kind === "gallery") extra("", galleryPhotos.length ? gallery(galleryPhotos, img) : mode === "preview" ? `<p><mark class="todo">To be added: photos</mark></p>` : "");
   if (page.kind === "testimonials" && site.testimonials.length) extra("", `<div class="cards">${site.testimonials.map((t) => `<blockquote>${esc(t)}</blockquote>`).join("")}</div>`);
+  else if (page.kind === "testimonials" && site.whatsapp) extra("", `<div class="card invite"><h3>Shopped or worked with us?</h3><p>We'd love to hear how it went. Your review helps other customers choose with confidence.</p><a class="btn" href="${waLink(site, `Hello ${site.name}, here is my review:`)}">Send your review on WhatsApp</a></div>`);
   if (page.kind === "shop") {
     extra("", site.products.length ? shopSections(site, img) : "");
     if (site.delivery || site.returns) extra("Delivery and returns", `${site.delivery ? `<p><strong>Delivery:</strong> ${esc(site.delivery)}</p>` : ""}${site.returns ? `<p><strong>Returns:</strong> ${esc(site.returns)}</p>` : ""}`);

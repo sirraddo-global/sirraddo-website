@@ -67,6 +67,8 @@ export async function checkHosting(id) {
     if (h.pausedAt) await setRulesEnabled(h.zoneId, rules, false);
   }
   if (Object.keys(patch).length) await saveHosting(id, patch);
+  // Email forwarding just started working: republish so the site shows info@theirdomain instead of their Gmail.
+  if (patch.email?.status === "active" && h.project) await publish(id, { force: true }).catch((e) => console.error("republish after email", id, e));
   return getRequest(id);
 }
 

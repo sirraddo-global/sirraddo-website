@@ -195,7 +195,19 @@ test("Online Store: basket checkout into the store's own Paystack, order emails,
   const n = h.sent.length;
   assert.match((await h.call("GET", `/api/shop?paid=1&ref=${co.json.ref}`)).text, /Thank you/);
   await h.call("GET", `/api/shop?paid=1&ref=${co.json.ref}`);
-  assert.equal(h.newMail(n).length, 2, "store + buyer emailed once");
+  assert.equal(h.newMail(n).length, 1, "only the store owner (our customer) is emailed");
+  const thanks = await h.call("GET", `/api/shop?paid=1&ref=${co.json.ref}`);
+  assert.match(thanks.text, /data-save="png"/);
+  assert.match(thanks.text, /data-save="pdf"/);
+  assert.match(thanks.text, /data-save="share"/);
+  assert.match(thanks.text, /Copy receipt link/);
+  assert.match(thanks.text, /"link":"[^"]*receipt=1"/, "the link to get it again later");
+  assert.match(thanks.text, /id="rcpt">\{/);
+  assert.doesNotMatch(thanks.text, /on its way/);
+  const page = await h.call("GET", `/api/shop?ref=${co.json.ref}&receipt=1`);
+  assert.match(page.text, /Save as picture/);
+  assert.match(page.text, /₦12,500/, "unit price shown");
+  assert.ok(!h.sent.some((m) => m.to.includes("bisi@x.com")), "buyers are never emailed by us");
 });
 
 test("daily run completes without errors", async () => {

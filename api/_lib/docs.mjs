@@ -59,6 +59,7 @@ export function handoverAuto(r, settings = {}) {
     domain_expires: ours && r.live_on ? plusYear(r.live_on) : "",
     emails: host.domain && mail.locals?.length ? mail.locals.map((l) => `${l}@${host.domain}`).join("\n") : "",
     inbox: mail.to || "",
+    email_routes: host.domain ? Object.entries(mail.routes || {}).filter(([l]) => (mail.locals || []).includes(l)).map(([l, to]) => `${l}@${host.domain} → ${to}`).join("\n") : "",
     gbp_owner: r.brief_wants?.gbp_gmail || "",
   };
   const out = { ...typed };
@@ -100,6 +101,7 @@ function handoverDoc(r, settings) {
   ${section("Business email", [
     row(emails.length > 1 ? "Addresses" : "Address", emails.map(esc).join("<br>")),
     row("Emails arrive in", h.inbox && emails.length ? `${esc(h.inbox)}<br><span style="color:#4A5568;font-size:13px">Messages sent to your business address come straight to this inbox, so there's nothing new to log in to.</span>` : ""),
+    row("Except", h.email_routes && emails.length ? String(h.email_routes).split("\n").map(esc).join("<br>") : ""),
     row("Read your email at", h.webmail ? link(h.webmail) : ""),
     row("Replying", h.inbox && emails.length && !h.webmail ? `When you reply, the email goes out from ${esc(h.inbox)}. If you'd like to send from your business address too, ask us about a mailbox.` : ""),
     row("More addresses", emailAllowance(r.interest) > emails.length && emails.length ? `Your package includes ${emailAllowance(r.interest)}. You can have ${emailAllowance(r.interest) - emails.length} more at no extra cost: just tell us the names (for example sales@).` : ""),
@@ -130,7 +132,7 @@ function handoverDoc(r, settings) {
     row("What it covers", "Domain, hosting, SSL certificate (the padlock), business email and backups. We remind you before it is due."),
   ])}
   ${r.hosting?.statsKey && !r.hosting?.reportsOff ? section("Your monthly report", [row("Visitors", "On the 1st of every month we email you how many people visited your website, which pages they looked at and how many tapped WhatsApp.")]) : ""}
-  ${section("Changes and support", [row("Our policy", esc(settings.handover_terms || DEFAULT_HANDOVER_TERMS)), r.manage_link ? row("Manage my store", `<a href="${esc(r.manage_link)}">Your private store link</a>: change prices, mark items sold out, update your hours and numbers, or add a short notice. Your website updates within a minute. Keep it private.`) : "", r.change_link ? row("Request a change", `<a href="${esc(r.change_link)}">Your private change request link</a> (keep it; send text and photos any time)`) : "", row("Contact us", `WhatsApp ${COMPANY.phone} · ${COMPANY.email}`)])}
+  ${section("Changes and support", [row("Our policy", esc(settings.handover_terms || DEFAULT_HANDOVER_TERMS)), r.manage_link ? row(r.interest === "Online Store" ? "Manage my store" : "Manage my website", `<a href="${esc(r.manage_link)}">Your private link</a>: ${r.interest === "Online Store" ? "change prices, mark items sold out, " : ""}update your hours and numbers, change your slogan, add a short notice, and choose which customer reviews show on your website. Your website updates within a minute. Keep it private.`) : "", r.change_link ? row("Request a change", `<a href="${esc(r.change_link)}">Your private change request link</a> (keep it; send text and photos any time)`) : "", row("Contact us", `WhatsApp ${COMPANY.phone} · ${COMPANY.email}`)])}
   <h2 style="font-size:17px;color:#13254F;margin:22px 0 6px">Getting more customers from your website</h2>
   <ul style="margin:0 0 10px;padding-left:20px">
     <li>Put your website link on your WhatsApp profile, status and social media bios.</li>

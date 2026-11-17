@@ -14,6 +14,8 @@ async function load(id) {
 import { cloudflareConfigured } from "./cloudflare.mjs";
 import { setReviewStatuses } from "./reviews.mjs";
 
+// Stores call it "Manage my store"; other websites "Manage my website" (hours, numbers, notice, slogan, reviews).
+export const manageTitle = (r) => (r?.interest === "Online Store" ? "Manage my store" : "Manage my website");
 export async function manageLink(id, { renew = false } = {}) {
   const r = await getRequest(id);
   if (!r) return null;
@@ -77,7 +79,7 @@ export async function afterManage(r, changes) {
   }
   if (emailConfigured()) {
     await sendEmail(`${r.business || r.name} updated their store (${reference(r.id)})`,
-      `<p><b>${esc(r.business || r.name)}</b> changed these in Manage my store:</p><ul>${changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul><p>Live site: ${esc(live)}.</p>`).catch(() => {});
+      `<p><b>${esc(r.business || r.name)}</b> changed these in ${manageTitle(r)}:</p><ul>${changes.map((c) => `<li>${esc(c)}</li>`).join("")}</ul><p>Live site: ${esc(live)}.</p>`).catch(() => {});
   }
   return live;
 }

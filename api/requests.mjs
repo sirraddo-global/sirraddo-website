@@ -15,7 +15,7 @@ import {
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
   ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
-  ensurePreviewToken, getPreviewById, markSent, saveDesign, saveHosting,
+  ensurePreviewToken, getPreviewById, markSent, saveDesign, saveHosting, emailUsage,
 } from "./_lib/store.mjs";
 import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automation.mjs";
@@ -223,7 +223,8 @@ export default async function handler(req, res) {
       }
       const [requests, unanswered, settings, setup, totals] = await Promise.all([listRequests(), listUnanswered(), getSettings(), setupStatus(), dashboardTotals().catch(() => null)]);
       for (const r of requests) r.handover_check = handoverChecklist(r, settings);
-      return res.status(200).json({ requests, unanswered, settings, setup, totals, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
+      const email_usage = await emailUsage(14).catch(() => null);
+      return res.status(200).json({ requests, unanswered, settings, setup, totals, email_usage, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
     }
 
     if (req.method === "PATCH") {
@@ -375,6 +376,7 @@ export default async function handler(req, res) {
         } catch (e) { throw new Bad(e.message); }
         return res.status(200).json({ notices: await noticesForAdmin(), kinds: NOTICE_KINDS });
       }
+      if (body.action === "email_usage") return res.status(200).json({ usage: await emailUsage(14) });
       if (body.action === "reviews" || body.action === "review_set") {
         const { listReviews, setReviewStatuses, OUR_ID } = await import("./_lib/reviews.mjs");
         if (body.action === "review_set") await setReviewStatuses(OUR_ID, { [Number(body.reviewId)]: String(body.status || "") });
@@ -446,7 +448,7 @@ export default async function handler(req, res) {
           else if (body.action === "host_publish") Object.assign(out, await publish(id, { force: Boolean(body.force) }));
           else if (body.action === "host_pause") out.row = await pause(id, "manual");
           else if (body.action === "host_restore") out.row = await restore(id);
-          else if (body.action === "host_email") out.row = await setupEmail(id, body.locals, body.to);
+          else if (body.action === "host_email") out.row = await setupEmail(id, body.locals, body.to, body.routes);
           else throw new Bad("Unknown action");
           // It worked: clear an old error so the badge stops saying "Problem".
           if (out.row?.hosting?.lastError || (!out.row && body.action === "host_publish")) {

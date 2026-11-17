@@ -274,3 +274,25 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .admin-chat-file img { max-width: 220px; max-height: 160px; border-radius: 8px; border: 1px solid var(--line); }
 .admin-subtabs { margin-top: 4px; }
 .admin-subtabs button { font-size: .92rem; padding: 8px 12px; min-height: 40px; }
+
+/* Email usage (Resend limits) */
+.admin-usage { margin: 12px 0; }
+.admin-usage-top { display: flex; justify-content: space-between; gap: 10px; font-size: .95rem; margin-bottom: 6px; }
+.admin-usage-track { height: 14px; background: #EEF1F5; border-radius: 999px; overflow: hidden; }
+.admin-usage-fill { height: 100%; background: #1E7B3C; border-radius: 999px; }
+.admin-usage--warn .admin-usage-fill { background: #D9A21B; }
+.admin-usage--danger .admin-usage-fill { background: #C53030; }
+.admin-usage-strip p { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.admin-usage-strip.admin-usage--warn { border-color: #D9A21B; background: #FFF8E6; }
+.admin-usage-strip.admin-usage--danger { border-color: #C53030; background: #FDECEC; }
+.admin-usage-kinds { margin: 4px 0 0; padding-left: 18px; }
+.admin-usage-days { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; align-items: end; height: 150px; border-top: 2px dashed #C53030; padding-top: 4px; }
+.admin-usage-day { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; font-size: 11px; color: #4A5568; }
+.admin-usage-col { width: 100%; background: #1E7B3C; border-radius: 4px 4px 0 0; }
+.admin-usage-col.admin-usage--warn { background: #D9A21B; }
+.admin-usage-col.admin-usage--danger { background: #C53030; }
+.admin-usage-n { font-weight: 700; color: #1B2433; }
+:root[data-theme="dark"] .admin-usage-track { background: #263040; }
+:root[data-theme="dark"] .admin-usage-strip.admin-usage--warn { background: #33280C; color: #F6E2A8; }
+:root[data-theme="dark"] .admin-usage-strip.admin-usage--danger { background: #3A1418; color: #FFB4AB; }
+:root[data-theme="dark"] .admin-usage-n, :root[data-theme="dark"] .admin-usage-day { color: #DCE3F1; }

@@ -1,7 +1,7 @@
-// /manage?t=TOKEN — "Manage my store": the store owner changes prices, sold out, slogan, hours, phone/WhatsApp and a short
+// /manage?t=TOKEN — "Manage my store" / "Manage my website": the owner changes prices, sold out, slogan, hours, phone/WhatsApp and a short
 // notice themselves. Save updates their live site and emails us what changed. Works on phones; no login.
 import { dbConfigured, esc } from "./_lib/store.mjs";
-import { findManageRequest, applyManage, afterManage } from "./_lib/manage.mjs";
+import { findManageRequest, applyManage, afterManage, manageTitle } from "./_lib/manage.mjs";
 import { listReviews, starsText } from "./_lib/reviews.mjs";
 import { COMPANY } from "./_lib/docs.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
@@ -52,8 +52,8 @@ function form(r, token, note) {
 <div><div class="n">${esc(p.name)}</div>${p.category ? `<div class="cat">${esc(p.category)}</div>` : ""}</div>
 <input type="text" inputmode="decimal" name="price_${p.i}" value="${esc(p.price || "")}" aria-label="Price of ${esc(p.name)}" placeholder="Price">
 <label class="so"><input type="checkbox" name="sold_${p.i}"${p.soldout ? " checked" : ""} onchange="this.closest('.p').classList.toggle('is-sold',this.checked)"> Sold out</label></div>`).join("");
-  return `<div class="c"><h1>Manage my store</h1><p>${esc(b.business_name || r.business || r.name)}${r.website_url ? ` · <a href="${esc(r.website_url)}">${esc(r.website_url.replace(/^https?:\/\//, ""))}</a>` : ""}</p>
-<p class="m">Change prices, mark items sold out, update your hours and numbers, and choose which customer reviews show. Tap <b>Save changes</b> at the bottom: your website updates within a minute. For new products, photos or text, use your "Request a change" link.</p>${note || ""}</div>
+  return `<div class="c"><h1>${esc(manageTitle(r))}</h1><p>${esc(b.business_name || r.business || r.name)}${r.website_url ? ` · <a href="${esc(r.website_url)}">${esc(r.website_url.replace(/^https?:\/\//, ""))}</a>` : ""}</p>
+<p class="m">${r.interest === "Online Store" ? "Change prices, mark items sold out, update" : "Update"} your hours and numbers, slogan and notice, and choose which customer reviews show. Tap <b>Save changes</b> at the bottom: your website updates within a minute. For new ${r.interest === "Online Store" ? "products, " : ""}photos or text, use your "Request a change" link.</p>${note || ""}</div>
 <form method="post" action="/manage?t=${esc(token)}">
 ${items.length ? `<div class="c"><h2>Products (${items.length})</h2>${items.length > 8 ? `<input type="search" placeholder="Find a product" aria-label="Find a product" oninput="var w=this.value.toLowerCase();document.querySelectorAll('.p').forEach(function(x){x.hidden=w&&x.getAttribute('data-s').indexOf(w)<0})">` : ""}${rows}</div>` : ""}
 <div class="c"><h2>Shop details</h2>
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
   if (!r) return shell(res, 404, "Link not working", `<div class="c"><h1>This link doesn't work</h1><p>It may have been replaced by a newer one. Message us on WhatsApp for your current link.</p></div>`);
   if (req.method === "POST") {
     const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
-    if (tooMany(ip)) return shell(res, 429, "Manage my store", form(r, token, `<p class="err">Too many saves in an hour. Please wait a little.</p>`));
+    if (tooMany(ip)) return shell(res, 429, manageTitle(r), form(r, token, `<p class="err">Too many saves in an hour. Please wait a little.</p>`));
     const body = typeof req.body === "object" && req.body ? req.body : Object.fromEntries(new URLSearchParams(String(req.body || "")));
     const products = {};
     for (const [k, v] of Object.entries(body)) {
@@ -87,16 +87,16 @@ export default async function handler(req, res) {
     try {
       const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice, tagline: body.tagline, reviews });
       row.reviews = await listReviews(row.id).catch(() => []);
-      if (!changes.length) return shell(res, 200, "Manage my store", form(row, token, `<p class="ok">Nothing changed.</p>`));
+      if (!changes.length) return shell(res, 200, manageTitle(row), form(row, token, `<p class="ok">Nothing changed.</p>`));
       const live = await afterManage(row, changes);
       const msg = live === "updated" ? `Saved ✓ Your website is updated (refresh it to see). ${changes.length} change${changes.length === 1 ? "" : "s"}.`
         : live === "not published yet" ? `Saved ✓ ${changes.length} change${changes.length === 1 ? "" : "s"}. They'll show when your website goes live.`
         : `Saved ✓ but the website didn't update yet. We've been told and will fix it.`;
-      return shell(res, 200, "Manage my store", form(row, token, `<p class="ok">${esc(msg)}</p>`));
+      return shell(res, 200, manageTitle(row), form(row, token, `<p class="ok">${esc(msg)}</p>`));
     } catch (e) {
-      return shell(res, 400, "Manage my store", form(r, token, `<p class="err">${esc(e.message)}</p>`));
+      return shell(res, 400, manageTitle(r), form(r, token, `<p class="err">${esc(e.message)}</p>`));
     }
   }
   if (req.method !== "GET") return shell(res, 405, "Not allowed", "<h1>Not allowed</h1>");
-  return shell(res, 200, "Manage my store", form(r, token));
+  return shell(res, 200, manageTitle(r), form(r, token));
 }

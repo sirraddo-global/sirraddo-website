@@ -54,6 +54,7 @@ export async function cfFetch(url, opts = {}) {
     const r = { id: id(), zone: mm[1], ...body }; CF.rules.push(r); return ok(r);
   }
   if ((mm = p.match(/^\/zones\/([^/]+)\/email\/routing\/rules\/([^/]+)$/))) {
+    if (m === "DELETE") { CF.rules = CF.rules.filter((x) => x.id !== mm[2]); return ok({ id: mm[2] }); }
     const r = CF.rules.find((x) => x.id === mm[2]); if (m === "PUT") Object.assign(r, body); return ok(r);
   }
   return err(404, 7003, "No route for " + m + " " + p);

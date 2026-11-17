@@ -3,7 +3,7 @@
 import tls from "node:tls";
 import {
   listRequests, updateRequest, ensureDocToken, getSettings, markSent, setSiteCheck, listUnansweredSince,
-  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta } from "./store.mjs";
+  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta , emailUsage } from "./store.mjs";
 import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
 import { dailyHosting, hostingRef } from "./golive.mjs";
 import { reconcileOrders } from "./shop.mjs";
@@ -325,9 +325,14 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
     .map(({ r, left }) => ({ r, left: left.filter((i) => !i.done && !i.auto) }))
     .filter(({ left }) => left.length);
   const byId = new Map(all.map((r) => [r.id, r]));
+  // Email usage (Resend free plan: 100 a day, 3,000 a month for everything). Warn when getting close.
+  const eu = await emailUsage(2).catch(() => null);
+  const yday = eu?.days?.[1];
+  const emailWarn = eu && ((yday && yday.sent >= eu.limits.day * 0.7) || eu.month.sent >= eu.limits.month * 0.7 || (eu.blocked && Date.now() - Date.parse(eu.blocked.at) < 2 * 86400000));
 
   // The morning email
   const sections = [
+    emailWarn ? `<h3 style="margin:18px 0 6px;color:#B45309">Email limit getting close</h3><p style="margin:0">Yesterday: <b>${yday?.sent || 0} of ${eu.limits.day}</b> emails. This month: <b>${eu.month.sent} of ${eu.limits.month}</b>.${eu.blocked && Date.now() - Date.parse(eu.blocked.at) < 2 * 86400000 ? " <b>Resend refused some emails because the limit was reached.</b>" : ""} Details: Admin → Settings → Email usage. Upgrading Resend (Pro) removes the daily limit.</p>` : "",
     festive.length ? `<h3 style="margin:18px 0 6px">${festive.map((o) => o.emoji + " " + o.title).join(", ")} banner starts on your website tomorrow</h3><p style="margin:0">${festive.map((o) => esc(o.message)).join("<br>")}</p><p style="margin:6px 0 0">Want to email it to your customers too? Admin → Settings → Festive greetings → Email everyone.</p>` : "",
     section("Change requests waiting", openChanges.map((c) => item(byId.get(c.request_id) || { id: c.request_id, name: c.name, business: c.business },
       `${c.n} open request${c.n === 1 ? "" : "s"}, oldest from ${niceDate(new Date(c.oldest).toISOString().slice(0, 10))}. Admin → Clients → Change requests.`, null))),

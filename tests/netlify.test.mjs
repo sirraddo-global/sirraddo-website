@@ -294,3 +294,70 @@ test("Reviews of SIRRADDO: sent from our website, approved in admin, then listed
   assert.match(html, /id="reviews"/);
   assert.match(html, /\/assets\/reviews\.js\?v=/);
 });
+
+test("Email: different inboxes per address; changed inbox updated, dropped address removed; store buyers reply to the business address", async () => {
+  const { CF } = h;
+  const id = (await h.action({ action: "create", name: "Femi Store", contact: "08037770000", interest: "Online Store", email: "femi@gmail.com" })).json.id;
+  await h.sql(`UPDATE customer_requests SET hosting = $1::jsonb WHERE id = $2`, [JSON.stringify({ zoneId: "zone-femi", domain: "femistore.com.ng", zoneStatus: "active" }), id]);
+  const bad = await h.action({ action: "host_email", id, locals: "info, sales", to: "femi@gmail.com", routes: "receipts not-an-email" });
+  assert.equal(bad.status, 400);
+  const r1 = await h.action({ action: "host_email", id, locals: "info, sales", to: "femi@gmail.com", routes: "receipts acct@gmail.com" });
+  assert.equal(r1.status, 200, r1.text);
+  let em = r1.json.row.hosting.email;
+  assert.deepEqual(em.locals, ["info", "sales", "receipts"], "a routed name is added to the list");
+  assert.equal(em.routes.receipts, "acct@gmail.com");
+  assert.equal(em.status, "verifying");
+  assert.ok(CF.addresses.some((a) => a.email === "femi@gmail.com") && CF.addresses.some((a) => a.email === "acct@gmail.com"), "both inboxes get a confirmation");
+  CF.addresses.filter((a) => a.email === "femi@gmail.com").forEach((a) => (a.verified = "2026-11-17"));
+  em = (await h.action({ action: "host_check", id })).json.row.hosting.email;
+  assert.equal(em.status, "verifying", "waits for every inbox");
+  CF.addresses.filter((a) => a.email === "acct@gmail.com").forEach((a) => (a.verified = "2026-11-17"));
+  em = (await h.action({ action: "host_check", id })).json.row.hosting.email;
+  assert.equal(em.status, "active");
+  const rules = () => CF.rules.filter((r) => r.zone === "zone-femi").map((r) => r.matchers[0].value + ">" + r.actions[0].value[0]).sort();
+  assert.deepEqual(rules(), ["info@femistore.com.ng>femi@gmail.com", "receipts@femistore.com.ng>acct@gmail.com", "sales@femistore.com.ng>femi@gmail.com"]);
+  // Move sales to the accountant too, drop info.
+  await h.action({ action: "host_email", id, locals: "sales, receipts", to: "femi@gmail.com", routes: "sales acct@gmail.com\nreceipts acct@gmail.com" });
+  assert.deepEqual(rules(), ["receipts@femistore.com.ng>acct@gmail.com", "sales@femistore.com.ng>acct@gmail.com"]);
+  const row = await h.row(id);
+  assert.match(row.handover.notes || "", /arrive in/);
+  const { storeReplyTo } = await import("../api/_lib/shop.mjs");
+  assert.equal(storeReplyTo(row), "sales@femistore.com.ng");
+  assert.equal(storeReplyTo({ hosting: {} }), "");
+});
+
+test("Email usage: every send is counted by type, refusals recorded, and admin sees it", async () => {
+  const { sendCustomerEmail, sendEmail, emailUsage, emailKind } = await import("../api/_lib/store.mjs");
+  const before = (await emailUsage(2)).today.sent;
+  await sendCustomerEmail("someone@gmail.com", "Your invoice INV-1", "<p>x</p>");
+  await sendEmail("New request from Ada", "<p>x</p>");
+  const u = (await h.action({ action: "email_usage" })).json.usage;
+  assert.ok(u.today.sent >= before + 2);
+  assert.ok(u.today.byKind.some((k) => k.kind === "Invoices & receipts"));
+  assert.equal(u.limits.day, 100);
+  assert.equal(u.days.length, 14);
+  assert.equal(emailKind("New order ₦5,000 from Bisi", false), "Store order alerts");
+  globalThis.__RESEND_429__ = true;
+  await assert.rejects(sendCustomerEmail("someone@gmail.com", "Your invoice INV-2", "<p>x</p>"), /Resend 429/);
+  globalThis.__RESEND_429__ = false;
+  const u2 = (await h.action({ action: "email_usage" })).json.usage;
+  assert.equal(u2.blocked.why, "daily_quota_exceeded");
+  assert.ok(u2.today.failed >= 1);
+  assert.ok(u2.today.resend >= 1, "Resend's own count is kept");
+  const all = await h.admin("GET", "/api/requests?view=all");
+  assert.ok(all.json.email_usage && all.json.email_usage.today.sent >= 2, "dashboard gets the counts");
+});
+
+test("Manage my website: non-store sites get the same private link (hours, numbers, slogan, notice, reviews)", async () => {
+  const id = (await h.action({ action: "create", name: "Tayo Salon", contact: "08035550000", interest: "Business website", email: "tayo@gmail.com" })).json.id;
+  await h.sql(`UPDATE customer_requests SET brief = $1::jsonb, website_url = 'https://tayosalon.com.ng' WHERE id = $2`, [JSON.stringify({ business_name: "Tayo Salon", phone: "08035550000" }), id]);
+  const link = (await h.action({ action: "manage_link", id })).json.url;
+  const page = await h.call("GET", "/manage?" + link.split("?")[1]);
+  assert.match(page.text, /<h1>Manage my website<\/h1>/);
+  assert.doesNotMatch(page.text, /mark items sold out/);
+  assert.match(page.text, /Customer reviews/);
+  const { addHandoverExtras } = await import("../api/_lib/handover.mjs");
+  const r = await h.row(id);
+  await addHandoverExtras(r);
+  assert.match(r.manage_link || "", /\/manage\?t=/, "live non-store sites get the link in the handover pack");
+});

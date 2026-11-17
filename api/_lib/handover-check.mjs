@@ -65,7 +65,7 @@ export function handoverChecklist(r, settings = {}) {
       "The badge turns Working by itself (or tap Check now). Adding more names later doesn't need a new confirmation.",
     ],
     // Only once the addresses exist on their real domain.
-    tell: !domain || !have.length ? "" : `Hello ${first}, your business email${names.length > 1 ? "s are" : " is"} ready: ${addrs}. Cloudflare (our email service) has sent an email to ${mail.to || "your Gmail"} to confirm it. Please open it (check Spam or Promotions if you don't see it) and tap "Verify email address". After that, every email sent to your business address${names.length > 1 ? "es" : ""} arrives in your Gmail.`,
+    tell: !domain || !have.length ? "" : `Hello ${first}, your business email${names.length > 1 ? "s are" : " is"} ready: ${addrs}. Cloudflare (our email service) has sent an email to ${[...new Set([mail.to, ...Object.values(mail.routes || {})].filter(Boolean))].join(" and ") || "your Gmail"} to confirm it. Please open it (check Spam or Promotions if you don't see it) and tap "Verify email address". After that, every email sent to your business address${names.length > 1 ? "es" : ""} arrives in your Gmail.`,
   });
 
   if (kind === "store") {

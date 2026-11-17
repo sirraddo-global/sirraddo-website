@@ -89,15 +89,17 @@ export function handoverChecklist(r, settings = {}) {
 
   if (kind !== "starter") {
     const owner = h.gbp_owner || w.gbp_gmail || "";
+    // The description from their website text, ready to paste (no "I'll send you" second message).
+    const gbpText = String(r.gbp_text || "").replace(/\*\*[^*]+:\*\*\s*/g, "").replace(/\[ADD:[^\]]*\]/g, "").replace(/\s+/g, " ").trim().slice(0, 750);
     add("gbp", "Google Business Profile", h.gbp_done, {
       fix: `Owner: ${owner || "their Gmail"}. Google needs the owner to verify it.`,
       steps: [
         "Send them the message below (or do it together on their phone).",
-        "Give them the Google Business Profile description from their website text (Project form → View text) to paste.",
+        gbpText ? "The description from their website text is already in the message." : "Their website text has no Google Business Profile description yet: write one (Project form → Edit text) or send it separately.",
         "When they've added you as a manager, you can fix photos, hours and replies for them.",
         "Then tick 'Google profile done' and Save handover details.",
       ],
-      tell: `Hello ${first}, let's put your business on Google Maps and Search (free):\n1. Open business.google.com${owner ? ` and sign in with ${owner}` : " with your Gmail"}.\n2. Tap "Add business" and fill in your business name, category, address (or the areas you serve), phone number and website${r.website_url ? ` (${r.website_url})` : ""}.\n3. For the description, paste the one I'll send you.\n4. Google will verify it's you (code by SMS, phone call, email or a short video). Enter the code when it comes.\n5. Then go to Settings → People and access → Add, and add ${COMPANY.email} as Manager, so we can help keep it up to date.\nSend me a screenshot if you get stuck.`,
+      tell: `Hello ${first}, let's put your business on Google Maps and Search (free):\n1. Open business.google.com${owner ? ` and sign in with ${owner}` : " with your Gmail"}.\n2. Tap "Add business" and fill in your business name, category, address (or the areas you serve), phone number and website${r.website_url ? ` (${r.website_url})` : ""}.${gbpText ? `\n3. For the description, copy and paste this:\n"${gbpText}"` : "\n3. For the description, write 2–3 sentences about what you do, for whom and where (no links or prices)."}\n4. Google will verify it's you (code by SMS, phone call, email or a short video). Enter the code when it comes.\n5. Then go to Settings → People and access → Add, and add ${COMPANY.email} as Manager, so we can help keep it up to date.\nSend me a screenshot if you get stuck.`,
     });
   }
 

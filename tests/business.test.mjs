@@ -339,6 +339,8 @@ test("handover checklist: admin rows and the Assistant say exactly what's left",
   assert.match(byKey.email.label, /2 of 5/);
   assert.equal(byKey.gbp.done, false);
   assert.match(byKey.gbp.fix, /adasalon@gmail\.com/);
+  assert.match(byKey.gbp.tell, /copy and paste this:\n"Ada Salon [^"]+\."/, "the description from their website text is in the message itself");
+  assert.doesNotMatch(byKey.gbp.tell, /I'll send you/);
   const saved = await h.admin("PATCH", "/api/requests", { id: ada, handover: { ...row.handover, gbp_done: true } });
   assert.equal(saved.json.handover_check.find((i) => i.key === "gbp").done, true, "PATCH replies carry the checklist too");
   const { assistantSystem } = await import("../api/_lib/assistant.mjs");

@@ -45,7 +45,7 @@ Company
 - SIRRADDO GLOBAL LIMITED is a private company limited by shares, registered with the Corporate Affairs Commission, RC 9939920. TIN 2623092457685. SCUML SC 311502618.
 - Based in Ibadan, Oyo State. Office: PLT 106/107 Agbaakin Layout, Iwo Road, Olowotinfiowosanu Area, Ibadan, Oyo State.
 - Director, Founder and CEO: Adeyemo Ridwan Olalekan.
-- Contact: phone and WhatsApp +234 816 755 0937; email sirraddogloballimited@gmail.com.
+- Contact: phone and WhatsApp +234 816 755 0937; email info@sirraddo.com.ng.
 - Mission: simple, secure technology that makes everyday payments easy for Nigerians and helps the businesses that serve them run better.
 
 Products and services

@@ -1,7 +1,7 @@
 // /api/shop — the cart on customers' Online Store websites (they are hosted elsewhere, so CORS is open).
 //   GET ?config=1&s=TOKEN       -> { online, deliveryFee }   (is "Pay online" switched on for this store?)
 //   POST { s, items:[{i,q}], buyer } -> starts payment into the store owner's own Paystack account, returns { url }
-//   GET ?paid=1&ref=REF         -> Paystack sends the buyer back here: confirm, email the receipt, say thank you
+//   GET ?paid=1&ref=REF         -> Paystack sends the buyer back here: confirm, email the store owner, show the receipt to save
 //   GET ?ref=REF&receipt=1      -> the buyer's receipt to view, print or save as PDF
 import { dbConfigured, esc } from "./_lib/store.mjs";
 import { shopConfig, startCheckout, confirmOrder, receiptHtml, receiptLink, receiptData } from "./_lib/shop.mjs";
@@ -72,11 +72,11 @@ export default async function handler(req, res) {
       if (o.status === "paid") {
         return page(res, 200, "Order confirmed", `<h1>Thank you, ${esc(String(o.buyer?.name || "").split(" ")[0])}!</h1><p>Your payment went through and <b>${esc(name)}</b> has your order.</p>
 <table>${o.items.map((l) => `<tr><td>${esc(l.name)} × ${l.qty}</td><td class="r">${naira(l.total)}</td></tr>`).join("")}${o.delivery ? `<tr><td>Delivery</td><td class="r">${naira(o.delivery)}</td></tr>` : ""}<tr><td><b>Paid</b></td><td class="r"><b>${naira(o.total)}</b></td></tr></table>
-<p class="m">Order ${esc(o.ref)}. ${s.shop?.emailReceipts ? `A receipt is also on its way to ${esc(o.buyer?.email || "your email")}. ` : ""}The store will contact you about delivery.</p>
+<p class="m">Order ${esc(o.ref)}. The store will contact you about delivery.</p>
 <p><b>Save your receipt</b> to your phone:</p>${saveButtons(s, o)}
 <p class="m"><a href="${esc(receiptLink(o))}">Open the full receipt</a> (keep this link to see it again later)</p>`, back);
       }
-      return page(res, 200, "Payment not completed", `<h1>Payment not completed</h1><p>We couldn't confirm a payment for this order${o.status === "pending" ? " yet. If money left your account, it will be confirmed shortly and you'll get an email" : ""}. You can go back to the shop and try again, or order on WhatsApp.</p>`, back);
+      return page(res, 200, "Payment not completed", `<h1>Payment not completed</h1><p>We couldn't confirm a payment for this order${o.status === "pending" ? " yet. If money left your account, it will be confirmed shortly: contact the store with your Paystack reference" : ""}. You can go back to the shop and try again, or order on WhatsApp.</p>`, back);
     }
     if (req.method === "POST") {
       const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";

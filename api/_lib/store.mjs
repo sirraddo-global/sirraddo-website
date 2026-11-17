@@ -126,6 +126,12 @@ const SCHEMA = [
      question TEXT NOT NULL,
      resolved BOOLEAN NOT NULL DEFAULT false)`,
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS email_usage (
+     day DATE NOT NULL,
+     kind TEXT NOT NULL,
+     sent INTEGER NOT NULL DEFAULT 0,
+     failed INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (day, kind))`,
   `CREATE TABLE IF NOT EXISTS site_reviews (
      id SERIAL PRIMARY KEY,
      request_id INTEGER NOT NULL,
@@ -617,6 +623,70 @@ export const emailConfigured = () => Boolean(process.env.RESEND_API_KEY && proce
 // Resend's default test sender can only email the account owner.
 export const customerEmailConfigured = () => Boolean(process.env.RESEND_API_KEY && process.env.LEAD_EMAIL_FROM);
 
+// ---------- Email usage watch ----------
+// Resend's free plan: 100 emails a day and 3,000 a month for EVERYTHING we send. Each send is counted here by type
+// (and Resend's own count is kept from its reply headers), so Admin → Settings → Email usage shows how close we are.
+// Our email is only for our direct customers and ourselves, never for our customers' own buyers or visitors.
+export const EMAIL_LIMITS = { day: Number(process.env.EMAIL_DAILY_LIMIT || 100), month: Number(process.env.EMAIL_MONTHLY_LIMIT || 3000) };
+export function emailKind(subject, toUs) {
+  const s = String(subject || "").toLowerCase();
+  if (toUs) return /daily summary|morning/.test(s) ? "Morning summary (to you)" : "Alerts to you";
+  if (/invoice|receipt|payment/.test(s)) return "Invoices & receipts";
+  if (/order/.test(s)) return "Store order alerts";
+  if (/review/.test(s)) return "Review alerts";
+  if (/preview|approved/.test(s)) return "Previews";
+  if (/visitor|report/.test(s)) return "Visitor reports";
+  if (/change/.test(s)) return "Change requests";
+  if (/paused|renewal/.test(s)) return "Renewals & pauses";
+  if (/paystack|online payments/.test(s)) return "Store setup";
+  return "Other to customers";
+}
+async function recordEmail(kind, ok, res, count = 1) {
+  try {
+    if (!dbConfigured() || !(await ensureSchema())) return;
+    const day = new Date().toISOString().slice(0, 10); // Resend's daily count resets at midnight UTC (1am in Lagos)
+    await q(`INSERT INTO email_usage (day, kind, sent, failed) VALUES ($1, $2, $3, $4)
+      ON CONFLICT (day, kind) DO UPDATE SET sent = email_usage.sent + EXCLUDED.sent, failed = email_usage.failed + EXCLUDED.failed`, [day, kind, ok ? count : 0, ok ? 0 : count]);
+    const d = res?.headers?.get?.("x-resend-daily-quota"), m = res?.headers?.get?.("x-resend-monthly-quota");
+    if (d || m) await setMeta("resend_quota", JSON.stringify({ daily: d ? Number(d) : null, monthly: m ? Number(m) : null, at: new Date().toISOString() }));
+    if (!ok && res?.status === 429) await setMeta("email_blocked", JSON.stringify({ at: new Date().toISOString(), why: res.why || "" }));
+  } catch (e) { console.error("email usage not recorded", e?.message); }
+}
+async function resendFailed(res, kind, count) {
+  const text = (await res.text()).slice(0, 200);
+  res.why = /daily_quota|monthly_quota/.test(text) ? (text.match(/(daily|monthly)_quota_exceeded/) || [""])[0] : "";
+  await recordEmail(kind, false, res, count);
+  return new Error(`Resend ${res.status}: ${text}`);
+}
+export async function emailUsage(days = 14) {
+  if (!(await ensureSchema())) return null;
+  const today = new Date().toISOString().slice(0, 10), month = today.slice(0, 7) + "-01";
+  const rows = await q(`SELECT to_char(day, 'YYYY-MM-DD') AS day, kind, sent, failed FROM email_usage WHERE day >= LEAST($1::date, CURRENT_DATE - $2::int) ORDER BY day DESC, sent DESC`, [month, days - 1]);
+  const meta = await getMeta(["resend_quota", "email_blocked"]);
+  const parse = (v) => { try { return v ? JSON.parse(v) : null; } catch { return null; } };
+  const sum = (list, f) => list.reduce((t, r) => t + Number(r[f] || 0), 0);
+  const byDay = {};
+  for (const r of rows) (byDay[r.day] ||= []).push(r);
+  const list = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    const rs = byDay[d] || [];
+    list.push({ day: d, sent: sum(rs, "sent"), failed: sum(rs, "failed") });
+  }
+  const todayRows = byDay[today] || [];
+  const monthRows = rows.filter((r) => r.day >= month);
+  const resend = parse(meta.resend_quota);
+  const fresh = resend && String(resend.at).slice(0, 10) === today;
+  return {
+    limits: EMAIL_LIMITS,
+    today: { day: today, sent: sum(todayRows, "sent"), failed: sum(todayRows, "failed"), resend: fresh ? resend.daily : null,
+      byKind: todayRows.map((r) => ({ kind: r.kind, sent: Number(r.sent), failed: Number(r.failed) })) },
+    month: { sent: sum(monthRows, "sent"), failed: sum(monthRows, "failed"), resend: resend && String(resend.at).slice(0, 7) === today.slice(0, 7) ? resend.monthly : null },
+    days: list,
+    blocked: parse(meta.email_blocked),
+  };
+}
+
 // Send to a customer (needs LEAD_EMAIL_FROM). Replies go to LEAD_EMAIL_TO.
 export async function sendCustomerEmail(to, subject, html, replyTo, fromName) {
   if (!customerEmailConfigured()) return null;
@@ -633,7 +703,9 @@ export async function sendCustomerEmail(to, subject, html, replyTo, fromName) {
       html,
     }),
   });
-  if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const kind = emailKind(subject, false);
+  if (!res.ok) throw await resendFailed(res, kind, 1);
+  await recordEmail(kind, true, res, 1);
   return true;
 }
 
@@ -651,7 +723,10 @@ export async function sendEmail(subject, html, attachments) {
       ...(attachments ? { attachments } : {}),
     }),
   });
-  if (!res.ok) throw new Error(`Resend ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const n = process.env.LEAD_EMAIL_TO.split(",").map((s) => s.trim()).filter(Boolean).length || 1;
+  const kind = emailKind(subject, true);
+  if (!res.ok) throw await resendFailed(res, kind, n);
+  await recordEmail(kind, true, res, n);
   return true;
 }
 

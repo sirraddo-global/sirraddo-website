@@ -490,7 +490,7 @@ function cartScript(site, mode) {
 <div class="who"><h3>Your details</h3>
 <label for="cb-name">Your name</label><input id="cb-name" autocomplete="name">
 <label for="cb-phone">Phone number</label><input id="cb-phone" type="tel" autocomplete="tel">
-<label for="cb-email">Email (for your receipt)</label><input id="cb-email" type="email" autocomplete="email">
+<label for="cb-email">Email (needed for the payment)</label><input id="cb-email" type="email" autocomplete="email">
 <label for="cb-addr">Delivery address</label><textarea id="cb-addr" rows="2" autocomplete="street-address"></textarea></div>
 <div class="acts"><button class="pay" type="button" hidden>Pay online now</button><button class="waorder" type="button">Order on WhatsApp</button></div>
 <p class="note msg" role="status"></p></div></div></div>

@@ -151,6 +151,7 @@
       state.canPay = Boolean(j.can_pay_online);
       state.canHost = Boolean(j.can_host);
       state.setup = j.setup || [];
+      state.emailUsage = j.email_usage || null;
       showApp(true);
       render();
     }).catch(function (err) {
@@ -266,6 +267,61 @@
     api('POST', { action: 'notices' }).then(draw).catch(function (e) { box.innerHTML = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
     return card;
   }
+  // ---------- Email usage (Resend free plan: 100 a day, 3,000 a month, shared by every email we send) ----------
+  function usageLevel(used, limit) { var p = limit ? used / limit : 0; return p >= 0.9 ? 'danger' : p >= 0.7 ? 'warn' : 'ok'; }
+  function usageBar(label, used, limit) {
+    var pct = Math.min(100, Math.round(100 * used / (limit || 1))), lvl = usageLevel(used, limit);
+    return el('div', { class: 'admin-usage admin-usage--' + lvl }, [
+      el('div', { class: 'admin-usage-top' }, [el('b', { text: label }), el('span', { text: used + ' of ' + limit + ' (' + pct + '%)' })]),
+      el('div', { class: 'admin-usage-track', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(limit), 'aria-valuenow': String(used), 'aria-label': label }, [el('div', { class: 'admin-usage-fill', style: 'width:' + pct + '%' })])
+    ]);
+  }
+  function todayUsed(u) { return Math.max(u.today.sent, u.today.resend || 0); }
+  function monthUsed(u) { return Math.max(u.month.sent, u.month.resend || 0); }
+  // Small strip on the dashboard; only stands out when getting close or when Resend refused emails today.
+  function emailUsageStrip() {
+    var u = state.emailUsage; if (!u) return null;
+    var t = todayUsed(u), m = monthUsed(u), lvl = usageLevel(Math.max(t / u.limits.day, m / u.limits.month), 1);
+    var blockedToday = u.blocked && String(u.blocked.at).slice(0, 10) === u.today.day;
+    var box = el('div', { class: 'admin-card admin-usage-strip admin-usage--' + (blockedToday ? 'danger' : lvl) }, [
+      el('p', null, [el('b', { text: 'Emails today: ' + t + ' of ' + u.limits.day }), ' · this month ' + m + ' of ' + u.limits.month + (blockedToday ? ' · Resend refused emails today (limit reached)' : lvl === 'danger' ? ' · nearly at the limit' : lvl === 'warn' ? ' · getting close' : '') + ' ',
+        el('button', { class: 'admin-btn', type: 'button', text: 'Details', onclick: function () { state.settingsTab = 'email'; setTab('settings'); } })])
+    ]);
+    return box;
+  }
+  function emailUsageCard() {
+    var card = el('div', { class: 'admin-card admin-settings' }, [
+      el('h2', { text: 'Email usage' }),
+      el('p', { class: 'admin-intro', text: 'Every email the system sends (to you and to your customers) counts toward Resend\'s free plan: ' + (state.emailUsage ? state.emailUsage.limits.day : 100) + ' a day (resets at 1am Lagos time) and ' + (state.emailUsage ? state.emailUsage.limits.month : 3000) + ' a month. Past the limit, Resend refuses emails until it resets. Upgrading Resend to Pro removes the daily limit. Our email is only used for our own customers, never for their buyers or visitors.' })
+    ]);
+    var box = el('div', null, [el('p', { class: 'admin-hint', text: 'Loading…' })]);
+    card.appendChild(box);
+    api('POST', { action: 'email_usage' }).then(function (j) {
+      var u = j.usage; state.emailUsage = u; box.innerHTML = '';
+      if (!u) { box.appendChild(el('p', { class: 'admin-hint', text: 'No database: usage can\'t be counted.' })); return; }
+      if (u.blocked) box.appendChild(el('p', { class: 'admin-error', text: 'Resend last refused an email on ' + new Date(u.blocked.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + (u.blocked.why ? ' (' + u.blocked.why.replace(/_/g, ' ') + ')' : '') + '.' }));
+      box.appendChild(usageBar('Today', todayUsed(u), u.limits.day));
+      box.appendChild(usageBar('This month', monthUsed(u), u.limits.month));
+      if (u.today.resend != null) box.appendChild(el('p', { class: 'admin-hint', text: 'Resend\'s own count today: ' + u.today.resend + (u.month.resend != null ? ' · this month: ' + u.month.resend : '') + '.' }));
+      if (u.today.byKind.length) {
+        box.appendChild(el('h3', { text: 'Today by type' }));
+        box.appendChild(el('ul', { class: 'admin-usage-kinds' }, u.today.byKind.map(function (k) { return el('li', { text: k.kind + ': ' + k.sent + (k.failed ? ' (' + k.failed + ' refused)' : '') }); })));
+      }
+      box.appendChild(el('h3', { text: 'Last 14 days' }));
+      var max = Math.max.apply(null, u.days.map(function (d) { return d.sent; }).concat([u.limits.day]));
+      box.appendChild(el('div', { class: 'admin-usage-days' }, u.days.slice().reverse().map(function (d) {
+        var h = Math.round(100 * d.sent / max), lvl = usageLevel(d.sent, u.limits.day);
+        return el('div', { class: 'admin-usage-day', title: d.day + ': ' + d.sent + ' sent' + (d.failed ? ', ' + d.failed + ' refused' : '') }, [
+          el('span', { class: 'admin-usage-n', text: String(d.sent) }),
+          el('div', { class: 'admin-usage-col admin-usage--' + lvl, style: 'height:' + Math.max(2, h) + '%' }),
+          el('span', { class: 'admin-usage-d', text: d.day.slice(8) })
+        ]);
+      })));
+      box.appendChild(el('p', { class: 'admin-hint', text: 'Bars are days in UTC (Resend\'s day). The line at the top of the chart is the daily limit.' }));
+    }).catch(function (e) { box.innerHTML = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
+    return card;
+  }
+
   // Reviews of SIRRADDO left on www.sirraddo.com.ng (Websites page). Nothing shows until you choose Show on website.
   function reviewsCard() {
     var card = el('div', { class: 'admin-card admin-settings' }, [
@@ -494,6 +550,8 @@
     if (sc) view.appendChild(sc);
     var vn = paidHomeNudge(rs);
     if (vn) view.appendChild(vn);
+    var eu = emailUsageStrip();
+    if (eu) view.appendChild(eu);
     var weekAgo = Date.now() - 7 * 86400000;
     var thisWeek = rs.filter(function (r) { return new Date(r.created_at) > weekAgo; }).length;
     var open = rs.filter(isOpen).length;
@@ -1200,18 +1258,12 @@
     }
     box.appendChild(field('Or paste their Paystack secret key yourself', key, 'From THEIR Paystack (Live mode): Settings → API Keys & Webhooks → Live Secret Key (starts sk_live_; sk_test_ = practice only, no real money; pk_ = public key, not this one). Get it privately, paste it here and delete the message. It\'s checked with Paystack, stored encrypted and never shown again. Money goes straight to their account.'));
     box.appendChild(el('div', { class: 'admin-grid' }, [field('Delivery fee (₦, flat)', fee), field('Email new orders to', notify, 'Empty = the order-alert email from their form, else their email')]));
-    box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Receipts: ' }), sh.emailReceipts ? badge('Emailed to buyers', 'is-won') : badge('Save on phone only', ''), ' Buyers get a receipt on the thank-you page to save as a picture or PDF. ' + (sh.emailReceipts ? 'It is also emailed to them (uses your daily email limit).' : 'Emailing it is off to save your daily email limit.')]));
+    box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Receipts: ' }), 'buyers save their receipt on the thank-you page as a picture or PDF. Nothing is emailed to buyers (our email is only for our own customers).']))
     var acts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Save store settings', onclick: function (e) {
       var body = { deliveryFee: fee.value.trim(), notify: notify.value.trim() };
       if (key.value.trim()) body.secretKey = key.value.trim();
       save(body, key.value.trim() ? 'Key accepted. "Pay online" is now on their website.' : 'Store settings saved', e.currentTarget, 'Checking…');
     } })]);
-    // Receipts: buyers save them on the thank-you page (picture or PDF). Emailing them is off unless switched on here,
-    // because every receipt uses the shared daily email limit (Resend free plan: 100 a day for everything).
-    acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: sh.emailReceipts ? 'Stop emailing receipts' : 'Email receipts to buyers', onclick: function (e) {
-      if (!sh.emailReceipts && !window.confirm('Email a receipt to every buyer of this store?\n\nWarning: each receipt counts toward your daily email limit (100 a day on the free plan, shared with ALL your emails: requests, invoices, order alerts, the morning summary). On a busy day emails can stop until the next day.\n\nBuyers can already save their receipt as a picture or PDF on the thank-you page, so this is optional.')) return;
-      save({ emailReceipts: !sh.emailReceipts }, sh.emailReceipts ? 'Receipts are no longer emailed' : 'Receipts will be emailed to buyers', e.currentTarget, 'Saving…');
-    } }));
     if (sh.online) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Turn off Pay online', onclick: function (e) {
       if (!window.confirm('Remove their Paystack key? Their website goes back to WhatsApp orders only.')) return;
       save({ remove: true }, 'Pay online turned off', e.currentTarget, 'Removing…');
@@ -1741,7 +1793,7 @@
   // Settings are split into small sections (chips at the top) so there's no long scrolling.
   var SETTINGS_SECTIONS = [
     ['business', 'Bank & invoices'], ['messages', 'WhatsApp messages'], ['handover', 'Handover'],
-    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['greetings', 'Festive greetings'], ['backup', 'Backup']
+    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['greetings', 'Festive greetings'], ['backup', 'Backup']
   ];
   function renderSettings(view) {
     var s = state.settings;
@@ -1793,6 +1845,7 @@
     }));
     if (pick === 'notices') view.appendChild(noticesCard());
     if (pick === 'reviews') view.appendChild(reviewsCard());
+    if (pick === 'email') view.appendChild(emailUsageCard());
     if (pick === 'greetings') view.appendChild(greetingsCard());
     if (pick === 'backup') view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
       el('h2', { text: 'Backup' }),

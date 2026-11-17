@@ -36,7 +36,7 @@ export async function startHarness() {
     url = String(url);
     if (url.startsWith(base)) return realFetch(url, opts);
     if (url.includes("api.cloudflare.com")) return cfFetch(url, opts);
-    if (url.includes("resend.com")) { sent.push(JSON.parse(opts.body)); return new Response("{}", { status: 200 }); }
+    if (url.includes("resend.com")) { if (globalThis.__RESEND_429__) return new Response('{"name":"daily_quota_exceeded","message":"You have reached your daily email quota"}', { status: 429 }); sent.push(JSON.parse(opts.body)); return new Response("{}", { status: 200, headers: { "x-resend-daily-quota": String(sent.length), "x-resend-monthly-quota": String(sent.length) } }); }
     if (url.includes("api.paystack.co")) return paystackFake(url, opts);
     if (url.includes("generativelanguage")) return geminiFake(JSON.parse(opts.body));
     throw new Error("Test tried to reach the internet: " + url);

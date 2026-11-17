@@ -325,3 +325,25 @@ test("Email: different inboxes per address; changed inbox updated, dropped addre
   assert.equal(storeReplyTo(row), "sales@femistore.com.ng");
   assert.equal(storeReplyTo({ hosting: {} }), "");
 });
+
+test("Email usage: every send is counted by type, refusals recorded, and admin sees it", async () => {
+  const { sendCustomerEmail, sendEmail, emailUsage, emailKind } = await import("../api/_lib/store.mjs");
+  const before = (await emailUsage(2)).today.sent;
+  await sendCustomerEmail("someone@gmail.com", "Your invoice INV-1", "<p>x</p>");
+  await sendEmail("New request from Ada", "<p>x</p>");
+  const u = (await h.action({ action: "email_usage" })).json.usage;
+  assert.ok(u.today.sent >= before + 2);
+  assert.ok(u.today.byKind.some((k) => k.kind === "Invoices & receipts"));
+  assert.equal(u.limits.day, 100);
+  assert.equal(u.days.length, 14);
+  assert.equal(emailKind("New order ₦5,000 from Bisi", false), "Store order alerts");
+  globalThis.__RESEND_429__ = true;
+  await assert.rejects(sendCustomerEmail("someone@gmail.com", "Your invoice INV-2", "<p>x</p>"), /Resend 429/);
+  globalThis.__RESEND_429__ = false;
+  const u2 = (await h.action({ action: "email_usage" })).json.usage;
+  assert.equal(u2.blocked.why, "daily_quota_exceeded");
+  assert.ok(u2.today.failed >= 1);
+  assert.ok(u2.today.resend >= 1, "Resend's own count is kept");
+  const all = await h.admin("GET", "/api/requests?view=all");
+  assert.ok(all.json.email_usage && all.json.email_usage.today.sent >= 2, "dashboard gets the counts");
+});

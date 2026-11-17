@@ -1140,6 +1140,8 @@
         info.push(' ', badge('Balance owed: pauses in ' + Math.max(0, left) + ' day' + (left === 1 ? '' : 's'), 'is-due'));
       }
       box.appendChild(el('p', { class: 'admin-meta' }, info));
+      // Website improvements: automatic (default) or the owner chose "Ask me first" in their Manage link.
+      box.appendChild(el('p', { class: 'admin-hint', text: 'Improvements: ' + (h.lookMode === 'ask' ? 'the owner asked to approve them first' + (h.lookAsked && h.lookAsked !== h.look ? ' (new version offered, not applied yet)' : '') : 'applied automatically at 7am after our updates; the owner is emailed what changed') + '.' }));
     }
     var pubActs = el('div', { class: 'admin-actions' });
     if (!h.pausedAt) pubActs.appendChild(el('button', { class: 'btn btn--navy admin-golive-btn', type: 'button', text: h.publishedAt ? 'Update live site' : '2. Publish website', onclick: function (e) {

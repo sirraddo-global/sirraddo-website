@@ -1,7 +1,7 @@
 // /manage?t=TOKEN — "Manage my store" / "Manage my website": the owner changes prices, sold out, slogan, hours, phone/WhatsApp and a short
 // notice themselves. Save updates their live site and emails us what changed. Works on phones; no login.
 import { dbConfigured, esc } from "./_lib/store.mjs";
-import { findManageRequest, applyManage, afterManage, manageTitle } from "./_lib/manage.mjs";
+import { findManageRequest, applyManage, afterManage, manageTitle, lookStatus } from "./_lib/manage.mjs";
 import { listReviews, starsText } from "./_lib/reviews.mjs";
 import { COMPANY } from "./_lib/docs.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
@@ -28,7 +28,7 @@ function shell(res, code, title, body) {
 .c{background:#fff;border:1px solid #E1E6EF;border-radius:16px;padding:18px;margin-bottom:14px}h1{font-size:1.35rem;margin:0 0 6px;color:#13254F}h2{font-size:1.05rem;margin:0 0 10px;color:#13254F}
 label{display:block;font-weight:700;margin:12px 0 4px}input[type=text],input[type=tel],input[type=search],textarea{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:12px;border:1px solid #C9D1DE;border-radius:10px;background:#fff;color:inherit}
 .p{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:6px 10px;align-items:center;padding:10px 0;border-bottom:1px solid #EEF1F5}.p:last-child{border:0}
-.p .n{font-weight:600;overflow-wrap:anywhere}.p .cat{font-size:.8rem;color:#64748B}.p input[type=text]{padding:9px}.p .so{grid-column:1/-1;display:flex;gap:8px;align-items:center;font-size:.92rem;font-weight:600;margin:0}
+.p .n{font-weight:600;overflow-wrap:anywhere}.p .cat{font-size:.8rem;color:#64748B}.p input[type=text]{padding:9px}.p .so{grid-column:1/-1;display:flex;gap:8px;align-items:center;font-size:.92rem;font-weight:600;margin:0}.ck{display:flex;gap:10px;align-items:center;font-weight:600;margin:10px 0}.ck input{width:22px;height:22px;flex:none}
 .p.is-sold .n{text-decoration:line-through;opacity:.6}input[type=checkbox]{width:22px;height:22px}
 .bar{position:sticky;bottom:0;background:#F5F7FB;padding:10px 0}.bar button{width:100%;background:#13254F;color:#fff;border:0;border-radius:12px;padding:15px;font:inherit;font-weight:800;font-size:16px}
 .ok{background:#E8F6EC;border-left:4px solid #1E8E3E;padding:10px 12px;border-radius:8px}.err{background:#FDECEC;border-left:4px solid #C0392B;padding:10px 12px;border-radius:8px}
@@ -43,6 +43,16 @@ function reviewsCard(reviews) {
   return `<div class="c"><h2>Customer reviews${waiting ? ` <span class="new">${waiting} new</span>` : ""}</h2><p class="m">Choose <b>Show on website</b> for genuine reviews, <b>Hide</b> for fake or rude ones, then tap Save changes.</p>
 ${reviews.map((x) => `<div class="rv"><div class="rs">${starsText(x.stars)}</div><b>${esc(x.name)}</b> <span class="m">${new Date(x.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Lagos" })}</span>${x.body ? `<p>${esc(x.body)}</p>` : ""}
 <select name="rv_${x.id}" aria-label="Review from ${esc(x.name)}">${x.status === "pending" ? `<option value="pending" selected>New: choose</option>` : ""}<option value="shown"${x.status === "shown" ? " selected" : ""}>Show on website</option><option value="hidden"${x.status === "hidden" ? " selected" : ""}>Hide</option></select></div>`).join("")}</div>`;
+}
+
+// Website improvements: we improve all our websites from time to time. Automatic (default) or "Ask me first".
+function lookCard(r) {
+  if (!r.hosting?.publishedAt) return "";
+  const L = lookStatus(r);
+  return `<div class="c"><h2>Website improvements</h2><p class="m">From time to time we improve all the websites we build (new features, better looks). Your text, photos, prices and colours stay the same, and we email you what changed. Don't like something? Use your "Request a change" link and we'll adjust it for free.</p>
+<label class="ck"><input type="radio" name="look_mode" value="auto"${L.mode === "auto" ? " checked" : ""}> Apply improvements automatically (recommended)</label>
+<label class="ck"><input type="radio" name="look_mode" value="ask"${L.mode === "ask" ? " checked" : ""}> Ask me first (email me; I'll update it here)</label>
+${L.waiting ? `<div class="rv"><b>A new version of your website is ready:</b><ul>${L.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul><label class="ck"><input type="checkbox" name="update_look" value="1"> Update my website to the new version</label><p class="m">Saving any other change here also updates it to the new version.</p></div>` : ""}</div>`;
 }
 
 function form(r, token, note) {
@@ -63,6 +73,7 @@ ${items.length ? `<div class="c"><h2>Products (${items.length})</h2>${items.leng
 <label for="whatsapp">WhatsApp number</label><input type="tel" id="whatsapp" name="whatsapp" maxlength="30" value="${esc(b.whatsapp || "")}" placeholder="If different from the phone number">
 <label for="site_notice">Notice at the top of your website (optional)</label><textarea id="site_notice" name="site_notice" rows="2" maxlength="200" placeholder="e.g. Closed for Sallah, back on Monday. Leave empty to remove it.">${esc(b.site_notice || "")}</textarea></div>
 ${reviewsCard(r.reviews)}
+${lookCard(r)}
 <div class="bar"><button type="submit">Save changes</button></div></form>`;
 }
 
@@ -85,7 +96,7 @@ export default async function handler(req, res) {
     const reviews = {};
     for (const [k, v] of Object.entries(body)) { const m = k.match(/^rv_(\d{1,9})$/); if (m) reviews[m[1]] = String(v); }
     try {
-      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice, tagline: body.tagline, reviews });
+      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice, tagline: body.tagline, reviews, lookMode: body.look_mode, updateLook: body.update_look === "1" });
       row.reviews = await listReviews(row.id).catch(() => []);
       if (!changes.length) return shell(res, 200, manageTitle(row), form(row, token, `<p class="ok">Nothing changed.</p>`));
       const live = await afterManage(row, changes);

@@ -360,4 +360,13 @@ test("Manage my website: non-store sites get the same private link (hours, numbe
   const r = await h.row(id);
   await addHandoverExtras(r);
   assert.match(r.manage_link || "", /\/manage\?t=/, "live non-store sites get the link in the handover pack");
+  // Website improvements: choose "Ask me first"; a waiting new version is shown with its notes.
+  await h.sql(`UPDATE customer_requests SET hosting = '{"publishedAt":"2026-11-01T00:00:00Z","look":"old"}'::jsonb WHERE id = $1`, [id]);
+  const path = "/manage?" + link.split("?")[1];
+  const p2 = await h.call("GET", path);
+  assert.match(p2.text, /Website improvements/);
+  assert.match(p2.text, /A new version of your website is ready/);
+  const saved = await fetch(h.base + path, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ phone: "08035550000", look_mode: "ask" }) });
+  assert.match(await saved.text(), /Saved ✓/);
+  assert.equal((await h.row(id)).hosting.lookMode, "ask");
 });

@@ -1,8 +1,8 @@
 // Going live: put an approved customer website on Cloudflare Pages with their domain, keep it updated,
 // pause it when the renewal is 14+ days overdue and restore it when paid, and forward their business email.
 // Everything about it is kept in customer_requests.hosting (JSON).
-import { getPreviewById, getRequest, updateRequest, saveHosting, esc, reference } from "./store.mjs";
-import { buildSiteModel, exportFiles, slugify, SITE_LOOK } from "./sitegen.mjs";
+import { getPreviewById, getRequest, updateRequest, saveHosting, esc, reference, customerEmail, customerEmailConfigured, sendCustomerEmail } from "./store.mjs";
+import { buildSiteModel, exportFiles, slugify, SITE_LOOK, SITE_LOOK_NOTES } from "./sitegen.mjs";
 import { ensureStoreToken } from "./shop.mjs";
 import { ensureStatsKey } from "./stats.mjs";
 import { shownReviews } from "./reviews.mjs";
@@ -29,6 +29,29 @@ const need = () => {
 };
 
 // 1. Add the customer's domain to Cloudflare. Returns the nameservers to set at the registrar.
+// Tell the owner (our customer) their website got our latest improvements, or ask first if they chose that.
+export async function tellNewLook(r, mode) {
+  const to = customerEmail(r);
+  if (!to || !customerEmailConfigured()) return false;
+  const notes = SITE_LOOK_NOTES[SITE_LOOK] || [];
+  const { manageLink, manageTitle } = await import("./manage.mjs");
+  const { changeLink } = await import("./changes.mjs");
+  const manage = (await manageLink(r.id).catch(() => null))?.url;
+  const change = await changeLink(r.id).catch(() => null);
+  const site = r.website_url || (r.hosting?.domain ? `https://${r.hosting.domain}` : r.hosting?.pagesUrl) || "";
+  const btn = (href, text) => `<p><a href="${esc(href)}" style="display:inline-block;background:#13254F;color:#fff;padding:12px 18px;border-radius:10px;text-decoration:none;font-weight:700">${esc(text)}</a></p>`;
+  const html = `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.55;color:#1B2433">
+<p>Hello ${esc(String(r.name || "").split(" ")[0] || "there")},</p>
+<p>${mode === "ask" ? "We've made improvements to all the websites we build, and a new version is ready for yours. As you asked, we haven't changed your website yet." : `We've made improvements to all the websites we build, and <b>your website${site ? ` (${esc(site.replace(/^https?:\/\//, ""))})` : ""} now has them</b>. Your text, photos, prices and colours stay the same.`}</p>
+<p><b>What's new:</b></p><ul>${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>
+${mode === "ask" ? (manage ? `<p>To update your website now, open your ${esc(manageTitle(r))} link, tick <b>Update my website to the new version</b> and tap Save.</p>${btn(manage, "Open " + manageTitle(r))}` : "") : (site ? btn(site, "See your website") : "")}
+<p><b>Don't like something?</b> Reply to this email${change ? ` or use your <a href="${esc(change)}">Request a change link</a>` : ""} and tell us what you'd like different. We'll adjust it for you at no cost.</p>
+${mode === "ask" ? "" : manage ? `<p style="color:#4A5568;font-size:13px">Prefer to approve improvements before they reach your website? Open your <a href="${esc(manage)}">${esc(manageTitle(r))} link</a> and choose <b>Ask me first</b> under Website improvements.</p>` : ""}
+<p>SIRRADDO GLOBAL LIMITED</p></div>`;
+  await sendCustomerEmail(to, mode === "ask" ? "A new version of your website is ready" : "Your website has been improved", html);
+  return true;
+}
+
 // "Emails to info@x and sales@x arrive in owner@gmail.com; receipts@x arrives in acc@gmail.com."
 export function emailNote(email, domain) {
   const groups = {};
@@ -249,7 +272,7 @@ export async function afterProjectPayment(id) {
 // ---------- Daily ----------
 // Returns lines for the morning email.
 export async function dailyHosting(all, now = new Date()) {
-  const out = { refreshed: [], activated: [], paused: [], balancePaused: [], restored: [], unpublished: [], ready: [], errors: [] };
+  const out = { refreshed: [], lookAsked: [], activated: [], paused: [], balancePaused: [], restored: [], unpublished: [], ready: [], errors: [] };
   if (!cloudflareConfigured()) return out;
   const today = todayLagos(now);
   for (const r of all) {
@@ -272,10 +295,21 @@ export async function dailyHosting(all, now = new Date()) {
       }
       const unpublishedEdits = h.project && !h.pausedAt && h.publishedAt && [r.draft_at, r.design_at].some((t) => t && Date.parse(t) > Date.parse(h.publishedAt));
       if (unpublishedEdits) out.unpublished.push(r);
-      // New look for customer sites (after an update of ours): republish, a few per morning. Skipped when they have edits not yet published.
-      else if (h.project && !h.pausedAt && h.publishedAt && h.look !== SITE_LOOK && !owing(r) && out.refreshed.length < 15) {
-        await publish(r.id);
-        out.refreshed.push(r);
+      // New look for customer sites (after an update of ours), a few per morning. Skipped when they have edits not yet
+      // published. The owner is emailed what changed. If they chose "Ask me first", we only ask; they update it with
+      // their Manage link (or it updates next time they save something there).
+      else if (h.project && !h.pausedAt && h.publishedAt && h.look !== SITE_LOOK && !owing(r)) {
+        if (h.lookMode === "ask") {
+          if (h.lookAsked !== SITE_LOOK && out.lookAsked.length < 15) {
+            await tellNewLook(r, "ask").catch((e) => console.error("new look email", r.id, e));
+            await saveHosting(r.id, { lookAsked: SITE_LOOK });
+            out.lookAsked.push(r);
+          }
+        } else if (out.refreshed.length < 15) {
+          await publish(r.id);
+          await tellNewLook(r, "done").catch((e) => console.error("new look email", r.id, e));
+          out.refreshed.push(r);
+        }
       }
       if (!h.project && r.preview_status === "approved" && r.quote_amount != null && balance(r) === 0) out.ready.push(r);
     } catch (e) {

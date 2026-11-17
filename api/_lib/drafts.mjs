@@ -102,7 +102,7 @@ function extrasPrompt(kind, row, answers) {
   }
   if (kind === "store" && (b.products || []).length) {
     parts.push(`## Product descriptions
-(for each product in the form, in the same order: "### Product name" then 1–2 sentences. Keep any sizes, colours and prices exactly as given.)`);
+(for each product in the form, in the same order: "### Product name" then 1–2 sentences. Keep any sizes and colours exactly as given. Do NOT mention the price or ₦ amounts: the price already shows under the name and the owner changes it themselves.)`);
   }
   if (!parts.length) return null;
   return `Customer: ${row.name}. Package: ${KIND_LABEL[kind]}.

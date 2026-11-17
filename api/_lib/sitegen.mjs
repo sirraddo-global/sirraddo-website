@@ -154,6 +154,12 @@ function blocks(lines, mode) {
 }
 
 // ---------- The site model ----------
+// Older AI descriptions mention the price ("... is available for ₦6,500."). The price card shows the real price, which the owner can change, so drop those sentences.
+function noPrice(t) {
+  const parts = String(t || "").match(/[^.!?]+[.!?]*\s*/g) || [];
+  const kept = parts.filter((x) => !/₦\s?\d|\b(?:NGN|N)\s?(?:\d{1,3},\d{3}|\d{3,})/.test(x));
+  return kept.join("").trim();
+}
 export function buildSiteModel(row) {
   const b = row.brief || {};
   const files = row.brief_files || {};
@@ -205,7 +211,7 @@ export function buildSiteModel(row) {
     services: (b.services || []).filter((s) => s.name),
     // i = position in the form (the cart and checkout use it); amount = price as a number, if it is one.
     products: (b.products || []).map((p, i) => ({ ...p, i })).filter((p) => p.name).map((p, pos) => ({
-      ...p, pos, amount: priceAmount(p.price), text: (productText[p.name.toLowerCase()] || []).join(" "),
+      ...p, pos, amount: priceAmount(p.price), text: noPrice((productText[p.name.toLowerCase()] || []).join(" ")),
     })),
     shopToken: row.shop_token || row.shop?.token || "",
     statsKey: row.hosting?.statsKey || "",

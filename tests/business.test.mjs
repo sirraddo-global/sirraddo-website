@@ -195,18 +195,28 @@ test("Online Store: basket checkout into the store's own Paystack, order emails,
   const n = h.sent.length;
   assert.match((await h.call("GET", `/api/shop?paid=1&ref=${co.json.ref}`)).text, /Thank you/);
   await h.call("GET", `/api/shop?paid=1&ref=${co.json.ref}`);
-  const mails = h.newMail(n);
-  assert.equal(mails.length, 2, "store + buyer emailed once");
+  assert.equal(h.newMail(n).length, 1, "only the store is emailed: receipts aren't emailed unless switched on");
+  const thanks = await h.call("GET", `/api/shop?paid=1&ref=${co.json.ref}`);
+  assert.match(thanks.text, /data-save="png"/);
+  assert.match(thanks.text, /data-save="pdf"/);
+  assert.match(thanks.text, /id="rcpt">\{/);
+  assert.doesNotMatch(thanks.text, /on its way/);
+  const page = await h.call("GET", `/api/shop?ref=${co.json.ref}&receipt=1`);
+  assert.match(page.text, /Save as picture/);
+  assert.match(page.text, /₦12,500/, "unit price shown");
+  // Switched on in admin: the next buyer also gets the receipt by email.
+  await h.action({ action: "shop_settings", id, emailReceipts: true });
+  assert.equal((await h.row(id)).shop.emailReceipts, true);
+  const co2 = await h.call("POST", "/api/shop", { s: tok, items: [{ i: 0, q: 2, p: 1 }], buyer }, J);
+  const n2 = h.sent.length;
+  await h.call("GET", `/api/shop?paid=1&ref=${co2.json.ref}`);
+  const mails = h.newMail(n2);
+  assert.equal(mails.length, 2, "store + buyer");
   const rc = mails.find((m) => m.to.includes("bisi@x.com"));
   assert.match(rc.subject, /^Receipt for your order from .* \(/);
   assert.match(rc.html, /RECEIPT/);
   assert.match(rc.html, /BILLED TO[\s\S]*Bisi/);
   assert.match(rc.html, /Total paid[\s\S]*₦27,000/);
-  assert.match(rc.html, new RegExp(`receipt=1`));
-  const page = await h.call("GET", `/api/shop?ref=${co.json.ref}&receipt=1`);
-  assert.match(page.text, /Print or save as PDF/);
-  assert.match(page.text, /₦12,500/, "unit price shown");
-  assert.equal(h.newMail(n).length, 2, "viewing the receipt sends nothing more");
 });
 
 test("daily run completes without errors", async () => {

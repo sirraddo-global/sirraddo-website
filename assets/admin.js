@@ -1200,11 +1200,18 @@
     }
     box.appendChild(field('Or paste their Paystack secret key yourself', key, 'From THEIR Paystack (Live mode): Settings → API Keys & Webhooks → Live Secret Key (starts sk_live_; sk_test_ = practice only, no real money; pk_ = public key, not this one). Get it privately, paste it here and delete the message. It\'s checked with Paystack, stored encrypted and never shown again. Money goes straight to their account.'));
     box.appendChild(el('div', { class: 'admin-grid' }, [field('Delivery fee (₦, flat)', fee), field('Email new orders to', notify, 'Empty = the order-alert email from their form, else their email')]));
+    box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Receipts: ' }), sh.emailReceipts ? badge('Emailed to buyers', 'is-won') : badge('Save on phone only', ''), ' Buyers get a receipt on the thank-you page to save as a picture or PDF. ' + (sh.emailReceipts ? 'It is also emailed to them (uses your daily email limit).' : 'Emailing it is off to save your daily email limit.')]));
     var acts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Save store settings', onclick: function (e) {
       var body = { deliveryFee: fee.value.trim(), notify: notify.value.trim() };
       if (key.value.trim()) body.secretKey = key.value.trim();
       save(body, key.value.trim() ? 'Key accepted. "Pay online" is now on their website.' : 'Store settings saved', e.currentTarget, 'Checking…');
     } })]);
+    // Receipts: buyers save them on the thank-you page (picture or PDF). Emailing them is off unless switched on here,
+    // because every receipt uses the shared daily email limit (Resend free plan: 100 a day for everything).
+    acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: sh.emailReceipts ? 'Stop emailing receipts' : 'Email receipts to buyers', onclick: function (e) {
+      if (!sh.emailReceipts && !window.confirm('Email a receipt to every buyer of this store?\n\nWarning: each receipt counts toward your daily email limit (100 a day on the free plan, shared with ALL your emails: requests, invoices, order alerts, the morning summary). On a busy day emails can stop until the next day.\n\nBuyers can already save their receipt as a picture or PDF on the thank-you page, so this is optional.')) return;
+      save({ emailReceipts: !sh.emailReceipts }, sh.emailReceipts ? 'Receipts are no longer emailed' : 'Receipts will be emailed to buyers', e.currentTarget, 'Saving…');
+    } }));
     if (sh.online) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Turn off Pay online', onclick: function (e) {
       if (!window.confirm('Remove their Paystack key? Their website goes back to WhatsApp orders only.')) return;
       save({ remove: true }, 'Pay online turned off', e.currentTarget, 'Removing…');

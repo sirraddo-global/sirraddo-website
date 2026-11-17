@@ -432,7 +432,7 @@ export default async function handler(req, res) {
         if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
         if (body.action === "shop_orders") return res.status(200).json({ orders: await listOrders(id, 20) });
         try {
-          const row = await setShopPayments(id, { secretKey: body.secretKey, deliveryFee: body.deliveryFee, notify: body.notify, remove: Boolean(body.remove) });
+          const row = await setShopPayments(id, { secretKey: body.secretKey, deliveryFee: body.deliveryFee, notify: body.notify, remove: Boolean(body.remove), emailReceipts: body.emailReceipts === undefined ? undefined : Boolean(body.emailReceipts) });
           return res.status(200).json({ row, orders: await listOrders(id, 20) });
         } catch (e) { throw new Bad(e.message); }
       }

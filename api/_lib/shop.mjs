@@ -98,7 +98,7 @@ export async function ensureStoreToken(id) {
   const row = await getRequest(id);
   if (row && kindFor(row.interest) === "store" && !row.shop?.token) await ensureShopToken(id);
 }
-export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove }) {
+export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove, emailReceipts }) {
   let row = await ensureShopToken(id);
   const patch = {};
   if (remove) { patch.key = null; patch.keyEnd = null; patch.keyMode = null; }
@@ -113,6 +113,8 @@ export async function setShopPayments(id, { secretKey, deliveryFee, notify, remo
     if (n !== null && !(Number.isInteger(n) && n >= 0 && n <= 1000000)) throw new Error("Delivery fee must be a whole number of naira");
     patch.deliveryFee = n;
   }
+  // Emailing receipts to buyers is OFF unless switched on in admin: every receipt uses the shared daily email limit.
+  if (emailReceipts !== undefined) patch.emailReceipts = Boolean(emailReceipts);
   if (notify !== undefined) {
     const v = String(notify || "").trim().toLowerCase();
     if (v && !EMAIL.test(v)) throw new Error("Order alerts need an email address");
@@ -181,6 +183,21 @@ const naira = (n) => "₦" + Number(n || 0).toLocaleString("en-NG");
 // Used in the email and on the printable page (/api/shop?ref=REF&receipt=1).
 const RECEIPT_PREFER = ["receipts", "orders", "sales", "info"];
 export function receiptLink(o) { return `${SITE_URL}/api/shop?ref=${encodeURIComponent(o.ref)}&receipt=1`; }
+// The same receipt as plain data, for drawing it as a picture / PDF on the buyer's phone.
+export function receiptData(r, o) {
+  const b = o.buyer || {}, br = r.brief || {};
+  return {
+    store: storeName(r),
+    contact: [br.address, br.phone, storeReplyTo(r, RECEIPT_PREFER) || null].filter(Boolean).map((x) => String(x).replace(/\n/g, ", ")).join(" · "),
+    ref: o.ref,
+    when: new Date(o.paid_at || o.created_at || Date.now()).toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" }),
+    buyer: [b.name, b.phone, b.email, b.address].filter(Boolean).map(String),
+    items: o.items.map((l) => ({ name: l.name, qty: l.qty, price: naira(l.price || Math.round(l.total / (l.qty || 1))), amount: naira(l.total) })),
+    delivery: o.delivery ? naira(o.delivery) : "",
+    total: naira(o.total),
+    note: `Paid online through Paystack (card, bank transfer or USSD). Payment reference: ${o.ref}.`,
+  };
+}
 export function receiptHtml(r, o) {
   const b = o.buyer || {}, br = r.brief || {};
   const th = "padding:8px;border-bottom:2px solid #13254F;text-align:left;font-size:13px;color:#4A5568";
@@ -240,7 +257,8 @@ export async function confirmOrder(ref) {
 ${receiptHtml(r, order)}
 <p><a href="${receiptLink(order)}" style="color:#13254F;font-weight:700">View or print this receipt</a></p>
 <p>${esc(storeName(r))} will contact you about delivery. Questions? Just reply to this email${storeReplyTo(r, RECEIPT_PREFER) ? ` or write to ${esc(storeReplyTo(r, RECEIPT_PREFER))}` : ""}.</p></div>`;
-    await sendCustomerEmail(order.buyer.email, `Receipt for your order from ${storeName(r)} (${order.ref})`, buyerHtml, storeReplyTo(r, RECEIPT_PREFER) || owner || undefined, storeName(r)).catch((e) => console.error("order email to buyer failed", e));
+    // Off by default (it uses the shared daily email limit); buyers save their receipt from the thank-you page instead.
+    if (r.shop?.emailReceipts) await sendCustomerEmail(order.buyer.email, `Receipt for your order from ${storeName(r)} (${order.ref})`, buyerHtml, storeReplyTo(r, RECEIPT_PREFER) || owner || undefined, storeName(r)).catch((e) => console.error("order email to buyer failed", e));
   }
   if (!owner && emailConfigured()) await sendEmail(`🛒 Store order for ${storeName(r)} (${reference(r.id)}) has no alert email`, orderHtml(r, order, true)).catch(() => {});
   return { order, store: r };

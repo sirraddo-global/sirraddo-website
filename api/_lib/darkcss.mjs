@@ -7,7 +7,8 @@ export const DARK_PAGE_CSS = `:root[data-theme="dark"]{color-scheme:dark}
 :root[data-theme="dark"] .muted,:root[data-theme="dark"] .m{color:#A3AEC2}
 :root[data-theme="dark"] a{color:#E8B746}
 :root[data-theme="dark"] input,:root[data-theme="dark"] textarea{background:#0E1830;color:#E9EEF8;border-color:#3A4868}
-:root[data-theme="dark"] .err{color:#FF8A80}:root[data-theme="dark"] .ok{color:#8FE0B0}
+:root[data-theme="dark"] .err{background:#3A1418!important;color:#FFB4AB!important}:root[data-theme="dark"] .ok{background:#0F2E22!important;color:#A8EBC4!important}
+:root[data-theme="dark"] .warn{background:#33280C!important;color:#F6E2A8!important}
 :root[data-theme="dark"] .tag.ok{background:#12382A;color:#8FE0B0}:root[data-theme="dark"] .tag.open{background:#3A2E0E;color:#F3D58A}
 :root[data-theme="dark"] .item,:root[data-theme="dark"] td{border-color:#2A3756}
 :root[data-theme="dark"] .up{border-color:#3A4868}`;

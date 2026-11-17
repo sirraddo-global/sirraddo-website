@@ -1207,6 +1207,24 @@
     return box;
   }
 
+  // "Manage my store" (Online Store) / "Manage my website" (others): a private link where the owner changes urgent things
+  // themselves (prices and sold out for stores; hours, numbers, slogan, notice and which reviews show for everyone).
+  function manageBlock(r, box) {
+    var sh = r.shop || {};
+    var store = r.interest === 'Online Store';
+    var title = store ? 'Manage my store' : 'Manage my website';
+      var out = el('p', { class: 'admin-hint', text: sh.manage ? 'They have a link (made ' + new Date(sh.manage.created).toLocaleDateString('en-NG') + '). It\'s also in the handover pack.' : '' });
+      var get = function (renew, then) { api('POST', { action: 'manage_link', id: r.id, renew: renew }).then(function (j) { if (j.row) replaceRequest(j.row); then(j.url); }).catch(fail); };
+      var msg = function (url) { return 'Hello ' + String(r.name).split(' ')[0] + ', here is your private link to manage your ' + (store ? 'store: change prices, mark items sold out, ' : 'website: ') + 'update your opening hours and numbers, change your slogan, add a short notice, and choose which customer reviews show. Your website updates within a minute:\n' + url + '\nPlease keep it private. For new products, photos or text, use your "Request a change" link.'; };
+      var acts = el('div', { class: 'admin-actions' });
+      if (waNumber(r.contact)) acts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send "' + title + '" link', onclick: function () { var win = window.open('', '_blank'); get(false, function (url) { var u = 'https://wa.me/' + waNumber(r.contact) + '?text=' + encodeURIComponent(msg(url)); if (win) win.location = u; else window.location = u; }); } }));
+      acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy link', onclick: function () { get(false, function (url) { if (navigator.clipboard) navigator.clipboard.writeText(msg(url)).then(function () { flash('Message with the link copied'); }); }); } }));
+      if (sh.manage) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'New link (old stops)', onclick: function () { if (window.confirm('Make a new link? The old one stops working.')) get(true, function () { flash('New link made: send it to them'); render(); }); } }));
+      box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: title + ': ' }), 'a private link where they change ' + (store ? 'prices, sold out, ' : '') + 'opening hours, phone/WhatsApp, slogan, a short notice and which customer reviews show, themselves. Their live site updates within a minute and you get an email of what changed.']));
+      box.appendChild(acts);
+      box.appendChild(out);
+  }
+
   // Online Store: "Order on WhatsApp" always works; "Pay online" turns on once their own Paystack secret key is added.
   function storeBlock(r) {
     var sh = r.shop || {};
@@ -1223,19 +1241,7 @@
     var key = el('input', { type: 'password', placeholder: sh.online ? 'Paste a new key to replace it' : 'sk_live_…', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' });
     var fee = el('input', { type: 'number', min: '0', step: '100', value: sh.deliveryFee == null ? '' : sh.deliveryFee, placeholder: 'e.g. 2000 (leave empty to agree it later)' });
     var notify = el('input', { type: 'email', value: sh.notify || '', placeholder: r.email || 'owner@gmail.com' });
-    // "Manage my store": the owner changes prices, sold out, hours, numbers and a notice themselves; the live site updates.
-    (function () {
-      var out = el('p', { class: 'admin-hint', text: sh.manage ? 'They have a link (made ' + new Date(sh.manage.created).toLocaleDateString('en-NG') + '). It\'s also in the handover pack.' : '' });
-      var get = function (renew, then) { api('POST', { action: 'manage_link', id: r.id, renew: renew }).then(function (j) { if (j.row) replaceRequest(j.row); then(j.url); }).catch(fail); };
-      var msg = function (url) { return 'Hello ' + String(r.name).split(' ')[0] + ', here is your private link to manage your store: change prices, mark items sold out, update your opening hours and numbers, or add a short notice. Your website updates within a minute:\n' + url + '\nPlease keep it private. For new products, photos or text, use your "Request a change" link.'; };
-      var acts = el('div', { class: 'admin-actions' });
-      if (waNumber(r.contact)) acts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send "Manage my store" link', onclick: function () { var win = window.open('', '_blank'); get(false, function (url) { var u = 'https://wa.me/' + waNumber(r.contact) + '?text=' + encodeURIComponent(msg(url)); if (win) win.location = u; else window.location = u; }); } }));
-      acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy link', onclick: function () { get(false, function (url) { if (navigator.clipboard) navigator.clipboard.writeText(msg(url)).then(function () { flash('Message with the link copied'); }); }); } }));
-      if (sh.manage) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'New link (old stops)', onclick: function () { if (window.confirm('Make a new link? The old one stops working.')) get(true, function () { flash('New link made: send it to them'); render(); }); } }));
-      box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Manage my store: ' }), 'a private link where they change prices, sold out, opening hours, phone/WhatsApp and a short notice themselves. Their live site updates within a minute and you get an email of what changed.']));
-      box.appendChild(acts);
-      box.appendChild(out);
-    })();
+    manageBlock(r, box);
     // Best way: send them a private "Connect Paystack" link. They paste their own key, with step-by-step help
     // (Live vs Test keys), so you never see or handle it. Pay online switches on by itself and you get an email.
     if (!sh.online || sh.keyMode === 'test') {
@@ -1720,6 +1726,11 @@
     }
     if (r.interest === 'Online Store' && (r.has_draft || r.brief_submitted_at)) {
       card.appendChild(fold(r, 'store', 'Store payments', storeBlock(r), r.shop && r.shop.online ? ['Pay online ON', 'is-won'] : ['WhatsApp orders only', ''], false));
+    }
+    else if (r.website_url || r.live_on || (r.hosting && r.hosting.publishedAt)) {
+      var mb = el('div', { class: 'admin-golive' }, [el('span', { class: 'admin-label', text: 'Manage my website' })]);
+      manageBlock(r, mb);
+      card.appendChild(fold(r, 'manage', 'Manage my website', mb, r.shop && r.shop.manage ? ['Link made', 'is-won'] : null, false));
     }
     if (r.website_url || r.live_on) {
       var oc = r.open_changes || 0;

@@ -347,3 +347,17 @@ test("Email usage: every send is counted by type, refusals recorded, and admin s
   const all = await h.admin("GET", "/api/requests?view=all");
   assert.ok(all.json.email_usage && all.json.email_usage.today.sent >= 2, "dashboard gets the counts");
 });
+
+test("Manage my website: non-store sites get the same private link (hours, numbers, slogan, notice, reviews)", async () => {
+  const id = (await h.action({ action: "create", name: "Tayo Salon", contact: "08035550000", interest: "Business website", email: "tayo@gmail.com" })).json.id;
+  await h.sql(`UPDATE customer_requests SET brief = $1::jsonb, website_url = 'https://tayosalon.com.ng' WHERE id = $2`, [JSON.stringify({ business_name: "Tayo Salon", phone: "08035550000" }), id]);
+  const link = (await h.action({ action: "manage_link", id })).json.url;
+  const page = await h.call("GET", "/manage?" + link.split("?")[1]);
+  assert.match(page.text, /<h1>Manage my website<\/h1>/);
+  assert.doesNotMatch(page.text, /mark items sold out/);
+  assert.match(page.text, /Customer reviews/);
+  const { addHandoverExtras } = await import("../api/_lib/handover.mjs");
+  const r = await h.row(id);
+  await addHandoverExtras(r);
+  assert.match(r.manage_link || "", /\/manage\?t=/, "live non-store sites get the link in the handover pack");
+});

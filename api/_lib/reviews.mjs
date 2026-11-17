@@ -43,13 +43,13 @@ async function tellOwner(id, rv) {
   }
   const r = await getRequest(id);
   if (!r) return;
-  const { manageLink } = await import("./manage.mjs");
+  const { manageLink, manageTitle } = await import("./manage.mjs");
   const link = (await manageLink(id))?.url;
   const html = `<p>Hello ${esc(String(r.name || "").split(" ")[0] || "there")},</p>
 <p>Someone left a review on your website:</p>
 <blockquote style="border-left:4px solid #D9A21B;margin:0;padding:8px 12px;background:#FFF8E6"><b style="color:#B7791F">${starsText(rv.stars)}</b><br><b>${esc(rv.name)}</b>${rv.text ? `<br>${esc(rv.text)}` : ""}</blockquote>
-<p>It shows on your website once you choose <b>Show on website</b> in Manage my store and tap Save. If it isn't genuine or is rude, choose <b>Hide</b>.</p>
-${link ? `<p><a href="${esc(link)}" style="display:inline-block;background:#13254F;color:#fff;padding:12px 18px;border-radius:10px;text-decoration:none;font-weight:700">Open Manage my store</a></p>` : ""}`;
+<p>It shows on your website once you choose <b>Show on website</b> in ${manageTitle(r)} and tap Save. If it isn't genuine or is rude, choose <b>Hide</b>.</p>
+${link ? `<p><a href="${esc(link)}" style="display:inline-block;background:#13254F;color:#fff;padding:12px 18px;border-radius:10px;text-decoration:none;font-weight:700">Open ${manageTitle(r)}</a></p>` : ""}`;
   const to = customerEmail(r);
   if (to && customerEmailConfigured()) await sendCustomerEmail(to, `New ${rv.stars}-star review on your website`, html);
   else await sendEmail(`New review for ${r.business || r.name} (${reference(id)}): ${rv.stars} stars`, html + "<p>(The customer has no email on file, so this came to you.)</p>");

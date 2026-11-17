@@ -159,16 +159,31 @@ export async function addressVerified(to) {
   const a = (list || []).find((x) => x.email.toLowerCase() === to.toLowerCase());
   return Boolean(a?.verified);
 }
-// Step 2 (once verified): one rule per address, e.g. info@domain -> their inbox. Returns rule ids.
+// Step 2 (once every inbox is verified): one rule per address, e.g. info@domain -> owner's Gmail, receipts@domain ->
+// the accountant. `to` is one inbox for all, or { local: inbox }. A rule pointing at an old inbox is updated, and our
+// rules for addresses no longer in the list are removed. Returns rule ids.
 export async function createForwardRules(zoneId, domain, locals, to) {
+  const dest = (local) => (typeof to === "string" ? to : to[local]);
   const existing = await cf(`/zones/${zoneId}/email/routing/rules?per_page=50`);
   const ids = [];
+  const wanted = new Set(locals.map((l) => `${l}@${domain}`));
+  for (const r of existing || []) {
+    const v = (r.matchers || []).map((m) => m.value).find(Boolean) || "";
+    if (/^Forward /.test(r.name || "") && v.endsWith("@" + domain) && !wanted.has(v)) await cf(`/zones/${zoneId}/email/routing/rules/${r.id}`, { method: "DELETE" }).catch(() => {});
+  }
   for (const local of locals) {
     const from = `${local}@${domain}`;
     const found = (existing || []).find((r) => (r.matchers || []).some((m) => m.value === from));
-    if (found) { ids.push(found.id); continue; }
+    if (found) {
+      const now = (found.actions || [])[0]?.value?.[0];
+      if (now && now.toLowerCase() !== dest(local).toLowerCase()) {
+        await cf(`/zones/${zoneId}/email/routing/rules/${found.id}`, { method: "PUT", body: { name: found.name, matchers: found.matchers, enabled: true, actions: [{ type: "forward", value: [dest(local)] }] } });
+      }
+      ids.push(found.id);
+      continue;
+    }
     const r = await cf(`/zones/${zoneId}/email/routing/rules`, { method: "POST", body: {
-      name: `Forward ${from}`, enabled: true, matchers: [{ type: "literal", field: "to", value: from }], actions: [{ type: "forward", value: [to] }],
+      name: `Forward ${from}`, enabled: true, matchers: [{ type: "literal", field: "to", value: from }], actions: [{ type: "forward", value: [dest(local)] }],
     } });
     ids.push(r.id);
   }

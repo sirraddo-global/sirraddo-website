@@ -29,6 +29,23 @@ const need = () => {
 };
 
 // 1. Add the customer's domain to Cloudflare. Returns the nameservers to set at the registrar.
+// "Emails to info@x and sales@x arrive in owner@gmail.com; receipts@x arrives in acc@gmail.com."
+export function emailNote(email, domain) {
+  const groups = {};
+  for (const l of email.locals || []) (groups[inboxFor(email, l)] ||= []).push(`${l}@${domain}`);
+  return Object.entries(groups).map(([inbox, list]) => `Emails to ${list.join(", ")} arrive in ${inbox}.`).join(" ");
+}
+async function everyInboxVerified(email) {
+  for (const inbox of inboxesOf(email)) if (!(await addressVerified(inbox))) return false;
+  return true;
+}
+// Inboxes still waiting for the Cloudflare confirmation tap (for the admin hint).
+export async function unconfirmedInboxes(email) {
+  const out = [];
+  for (const inbox of inboxesOf(email)) if (!(await addressVerified(inbox).catch(() => false))) out.push(inbox);
+  return out;
+}
+
 export async function addDomain(id, input) {
   need();
   const domain = normDomain(input);
@@ -62,8 +79,9 @@ export async function checkHosting(id) {
     const st = await domainStatuses(h.project).catch(() => ({}));
     if (st[h.domain]) patch.domainStatus = st[h.domain];
   }
-  if (active && h.email?.status === "verifying" && (await addressVerified(h.email.to))) {
-    const rules = await createForwardRules(h.zoneId, h.domain, h.email.locals, h.email.to);
+  if (active && h.email?.status === "verifying" && (await everyInboxVerified(h.email))) {
+    const map = Object.fromEntries(h.email.locals.map((l) => [l, inboxFor(h.email, l)]));
+    const rules = await createForwardRules(h.zoneId, h.domain, h.email.locals, map);
     patch.email = { ...h.email, status: h.pausedAt ? "paused" : "active", rules };
     if (h.pausedAt) await setRulesEnabled(h.zoneId, rules, false);
   }
@@ -175,8 +193,14 @@ export async function restore(id) {
   return out.row;
 }
 
-// 4. Email forwarding: e.g. info@ and sales@theirdomain -> their Gmail. Cloudflare first emails them a link to confirm.
-export async function setupEmail(id, localsText, to) {
+// Which inbox each address goes to: routes override the main inbox for some addresses (e.g. receipts -> accountant).
+export const inboxFor = (email, local) => email?.routes?.[local] || email?.to;
+export const inboxesOf = (email) => [...new Set([email?.to, ...Object.values(email?.routes || {})].filter(Boolean))];
+const validInbox = (x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
+
+// 4. Email forwarding: e.g. info@ and sales@theirdomain -> their Gmail, and optionally receipts@ -> their accountant.
+// Cloudflare first emails each new inbox a link to confirm. routesText: lines like "receipts accountant@gmail.com".
+export async function setupEmail(id, localsText, to, routesText = "") {
   need();
   const row = await getRequest(id);
   const h = row.hosting || {};
@@ -187,11 +211,24 @@ export async function setupEmail(id, localsText, to) {
   to = String(to || "").trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) throw new Bad("Enter the inbox to forward to, e.g. theirname@gmail.com");
   if (to.endsWith("@" + h.domain)) throw new Bad("Forward to an inbox outside their domain (e.g. Gmail)");
-  const sent = await startForwarding(h.zoneId, to);
-  // Already confirmed before (same inbox): forwarding starts straight away in checkHosting below.
-  await saveHosting(id, { email: { locals, to, status: "verifying", rules: h.email?.rules || [], sentAt: new Date().toISOString(), alreadyVerified: sent.verified }, lastError: null });
+  const routes = {};
+  for (const line of String(routesText || "").split(/\n|,|;/).map((s) => s.trim()).filter(Boolean)) {
+    const m = line.match(/^([a-z0-9._-]{1,40})(?:@\S*)?\s*(?:[:=→>-]+\s*|\s+)(\S+@\S+)$/i);
+    if (!m) throw new Bad(`"${line}": write the address name, then the inbox, e.g. receipts accountant@gmail.com`);
+    const local = m[1].toLowerCase(), inbox = m[2].toLowerCase();
+    if (!validInbox(inbox)) throw new Bad(`${inbox} isn't an email address`);
+    if (inbox.endsWith("@" + h.domain)) throw new Bad(`${local}@: forward to an inbox outside their domain (e.g. Gmail)`);
+    if (!locals.includes(local)) locals.push(local);
+    if (inbox !== to) routes[local] = inbox;
+  }
+  if (locals.length > 10) throw new Bad("Up to 10 addresses");
+  const email = { locals, to, routes };
+  // Each inbox gets Cloudflare's confirmation email once; inboxes confirmed before start straight away.
+  let allVerified = true;
+  for (const inbox of inboxesOf(email)) allVerified = (await startForwarding(h.zoneId, inbox)).verified && allVerified;
+  await saveHosting(id, { email: { ...email, status: "verifying", rules: h.email?.rules || [], sentAt: new Date().toISOString(), alreadyVerified: allVerified }, lastError: null });
   const emails = locals.map((l) => `${l}@${h.domain}`).join("\n");
-  await updateRequest(id, { handover: { ...(row.handover || {}), emails, notes: row.handover?.notes || `Emails to ${locals.map((l) => l + "@" + h.domain).join(", ")} arrive in ${to}.` } });
+  await updateRequest(id, { handover: { ...(row.handover || {}), emails, notes: !row.handover?.notes || /^Emails to /.test(row.handover.notes) ? emailNote(email, h.domain) : row.handover.notes } });
   return checkHosting(id);
 }
 

@@ -187,7 +187,7 @@ ${o.delivery ? `<tr><td style="${td}">Delivery</td><td style="${td};text-align:r
 <tr><td style="${td}"><b>Paid</b></td><td style="${td};text-align:right"><b>${naira(o.total)}</b></td></tr></table>
 <p>Order: ${esc(o.ref)}${o.delivery ? "" : "<br>Delivery cost, if any, will be confirmed by the store."}</p>
 ${forOwner ? `<p><b>Customer:</b> ${esc(b.name)} · ${esc(b.phone)} · ${esc(b.email)}${b.address ? `<br><b>Deliver to:</b> ${esc(b.address)}` : ""}${b.note ? `<br><b>Note:</b> ${esc(b.note)}` : ""}</p><p>The money is in your Paystack account (check Paystack → Transactions). Reply to this email to contact the customer.</p>`
-    : `<p>${esc(storeName(r))} will contact you about delivery. Questions? Just reply to this email.</p>`}
+    : `<p>${esc(storeName(r))} will contact you about delivery. Questions? Just reply to this email${storeReplyTo(r) ? ` or write to ${esc(storeReplyTo(r))}` : ""}.</p>`}
 </div>`;
 }
 
@@ -212,10 +212,18 @@ export async function confirmOrder(ref) {
   const owner = ownerEmail(r);
   if (customerEmailConfigured()) {
     if (owner) await sendCustomerEmail(owner, `New order ${naira(order.total)} from ${order.buyer.name} (${storeName(r)})`, orderHtml(r, order, true), order.buyer.email, `${storeName(r)} orders`).catch((e) => console.error("order email to store failed", e));
-    await sendCustomerEmail(order.buyer.email, `Your order from ${storeName(r)} is confirmed`, orderHtml(r, order, false), owner || undefined, storeName(r)).catch((e) => console.error("order email to buyer failed", e));
+    await sendCustomerEmail(order.buyer.email, `Your order from ${storeName(r)} is confirmed`, orderHtml(r, order, false), storeReplyTo(r) || owner || undefined, storeName(r)).catch((e) => console.error("order email to buyer failed", e));
   }
   if (!owner && emailConfigured()) await sendEmail(`🛒 Store order for ${storeName(r)} (${reference(r.id)}) has no alert email`, orderHtml(r, order, true)).catch(() => {});
   return { order, store: r };
+}
+// Once their business email forwarding works, buyers reply to the store's own address (orders@, sales@, receipts@ or
+// info@ at their domain) instead of the owner's Gmail. It still lands in the right inbox through forwarding.
+export function storeReplyTo(r) {
+  const h = r?.hosting || {}, e = h.email;
+  if (!h.domain || e?.status !== "active" || !(e.locals || []).length) return "";
+  const pick = ["orders", "sales", "receipts", "info"].find((l) => e.locals.includes(l)) || e.locals[0];
+  return `${pick}@${h.domain}`;
 }
 async function storeById(id) {
   const rows = await q(`SELECT id, name, business, contact, email, interest, brief, shop, hosting, website_url FROM customer_requests WHERE id = $1`, [id]);

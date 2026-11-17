@@ -59,6 +59,7 @@ export function handoverAuto(r, settings = {}) {
     domain_expires: ours && r.live_on ? plusYear(r.live_on) : "",
     emails: host.domain && mail.locals?.length ? mail.locals.map((l) => `${l}@${host.domain}`).join("\n") : "",
     inbox: mail.to || "",
+    email_routes: host.domain ? Object.entries(mail.routes || {}).filter(([l]) => (mail.locals || []).includes(l)).map(([l, to]) => `${l}@${host.domain} → ${to}`).join("\n") : "",
     gbp_owner: r.brief_wants?.gbp_gmail || "",
   };
   const out = { ...typed };
@@ -100,6 +101,7 @@ function handoverDoc(r, settings) {
   ${section("Business email", [
     row(emails.length > 1 ? "Addresses" : "Address", emails.map(esc).join("<br>")),
     row("Emails arrive in", h.inbox && emails.length ? `${esc(h.inbox)}<br><span style="color:#4A5568;font-size:13px">Messages sent to your business address come straight to this inbox, so there's nothing new to log in to.</span>` : ""),
+    row("Except", h.email_routes && emails.length ? String(h.email_routes).split("\n").map(esc).join("<br>") : ""),
     row("Read your email at", h.webmail ? link(h.webmail) : ""),
     row("Replying", h.inbox && emails.length && !h.webmail ? `When you reply, the email goes out from ${esc(h.inbox)}. If you'd like to send from your business address too, ask us about a mailbox.` : ""),
     row("More addresses", emailAllowance(r.interest) > emails.length && emails.length ? `Your package includes ${emailAllowance(r.interest)}. You can have ${emailAllowance(r.interest) - emails.length} more at no extra cost: just tell us the names (for example sales@).` : ""),

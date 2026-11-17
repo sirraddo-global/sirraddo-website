@@ -294,3 +294,34 @@ test("Reviews of SIRRADDO: sent from our website, approved in admin, then listed
   assert.match(html, /id="reviews"/);
   assert.match(html, /\/assets\/reviews\.js\?v=/);
 });
+
+test("Email: different inboxes per address; changed inbox updated, dropped address removed; store buyers reply to the business address", async () => {
+  const { CF } = h;
+  const id = (await h.action({ action: "create", name: "Femi Store", contact: "08037770000", interest: "Online Store", email: "femi@gmail.com" })).json.id;
+  await h.sql(`UPDATE customer_requests SET hosting = $1::jsonb WHERE id = $2`, [JSON.stringify({ zoneId: "zone-femi", domain: "femistore.com.ng", zoneStatus: "active" }), id]);
+  const bad = await h.action({ action: "host_email", id, locals: "info, sales", to: "femi@gmail.com", routes: "receipts not-an-email" });
+  assert.equal(bad.status, 400);
+  const r1 = await h.action({ action: "host_email", id, locals: "info, sales", to: "femi@gmail.com", routes: "receipts acct@gmail.com" });
+  assert.equal(r1.status, 200, r1.text);
+  let em = r1.json.row.hosting.email;
+  assert.deepEqual(em.locals, ["info", "sales", "receipts"], "a routed name is added to the list");
+  assert.equal(em.routes.receipts, "acct@gmail.com");
+  assert.equal(em.status, "verifying");
+  assert.ok(CF.addresses.some((a) => a.email === "femi@gmail.com") && CF.addresses.some((a) => a.email === "acct@gmail.com"), "both inboxes get a confirmation");
+  CF.addresses.filter((a) => a.email === "femi@gmail.com").forEach((a) => (a.verified = "2026-11-17"));
+  em = (await h.action({ action: "host_check", id })).json.row.hosting.email;
+  assert.equal(em.status, "verifying", "waits for every inbox");
+  CF.addresses.filter((a) => a.email === "acct@gmail.com").forEach((a) => (a.verified = "2026-11-17"));
+  em = (await h.action({ action: "host_check", id })).json.row.hosting.email;
+  assert.equal(em.status, "active");
+  const rules = () => CF.rules.filter((r) => r.zone === "zone-femi").map((r) => r.matchers[0].value + ">" + r.actions[0].value[0]).sort();
+  assert.deepEqual(rules(), ["info@femistore.com.ng>femi@gmail.com", "receipts@femistore.com.ng>acct@gmail.com", "sales@femistore.com.ng>femi@gmail.com"]);
+  // Move sales to the accountant too, drop info.
+  await h.action({ action: "host_email", id, locals: "sales, receipts", to: "femi@gmail.com", routes: "sales acct@gmail.com\nreceipts acct@gmail.com" });
+  assert.deepEqual(rules(), ["receipts@femistore.com.ng>acct@gmail.com", "sales@femistore.com.ng>acct@gmail.com"]);
+  const row = await h.row(id);
+  assert.match(row.handover.notes || "", /arrive in/);
+  const { storeReplyTo } = await import("../api/_lib/shop.mjs");
+  assert.equal(storeReplyTo(row), "sales@femistore.com.ng");
+  assert.equal(storeReplyTo({ hosting: {} }), "");
+});

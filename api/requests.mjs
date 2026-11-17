@@ -446,7 +446,7 @@ export default async function handler(req, res) {
           else if (body.action === "host_publish") Object.assign(out, await publish(id, { force: Boolean(body.force) }));
           else if (body.action === "host_pause") out.row = await pause(id, "manual");
           else if (body.action === "host_restore") out.row = await restore(id);
-          else if (body.action === "host_email") out.row = await setupEmail(id, body.locals, body.to);
+          else if (body.action === "host_email") out.row = await setupEmail(id, body.locals, body.to, body.routes);
           else throw new Bad("Unknown action");
           // It worked: clear an old error so the badge stops saying "Problem".
           if (out.row?.hosting?.lastError || (!out.row && body.action === "host_publish")) {

@@ -1110,8 +1110,12 @@
       var em = h.email;
       if (em && em.status) {
         var lbl = em.status === 'active' ? badge('Working', 'is-won') : em.status === 'paused' ? badge('Paused', 'is-due') : badge('Waiting for them to confirm', 'is-new');
-        box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Email: ' }), em.locals.map(function (l) { return l + '@' + h.domain; }).join(', ') + ' → ' + em.to + ' ', lbl]));
-        if (em.status === 'verifying') box.appendChild(el('p', { class: 'admin-hint', text: 'Cloudflare emailed ' + em.to + ' a link to confirm (sender: Cloudflare, subject like "Verify your email address"; check Spam and Promotions). Once they tap it, forwarding starts by itself (or tap Check now). No email after 10 minutes? Tap "Save and check" below to send a new one.' }));
+        // Grouped by inbox: "info@x, sales@x → owner@gmail.com · receipts@x → acc@gmail.com"
+        var routes = em.routes || {}, groups = {};
+        em.locals.forEach(function (l) { var to = routes[l] || em.to; (groups[to] = groups[to] || []).push(l + '@' + h.domain); });
+        var inboxes = Object.keys(groups);
+        box.appendChild(el('p', { class: 'admin-meta' }, [el('b', { text: 'Email: ' }), inboxes.map(function (to) { return groups[to].join(', ') + ' → ' + to; }).join(' · ') + ' ', lbl]));
+        if (em.status === 'verifying') box.appendChild(el('p', { class: 'admin-hint', text: 'Cloudflare emailed ' + inboxes.join(' and ') + ' a link to confirm (sender: Cloudflare, subject like "Verify your email address"; check Spam and Promotions). Inboxes confirmed before need nothing. Once every inbox is confirmed, forwarding starts by itself (or tap Check now). No email after 10 minutes? Tap "Save and check" below to send a new one.' }));
       }
       // Starter includes 1 address, Business and Online Store up to 5. Prefilled with what they asked for on the project form.
       var allow = emailAllowance(r.interest);
@@ -1122,8 +1126,11 @@
         var lin = el('input', { value: start.slice(0, Math.max(allow, em ? em.locals.length : 1) || 1).join(', '), placeholder: 'info, sales' });
         var tin = el('input', { type: 'email', value: em ? em.to : (r.email || ''), placeholder: 'theirname@gmail.com' });
         into.appendChild(el('div', { class: 'admin-grid' }, [field('3. Business email addresses', lin, 'Before the @, e.g. info, sales' + (allow ? ' · package includes ' + allow : '') + (asked.length ? ' · they asked for ' + asked.join(', ') : '')), field('Forward to (their inbox)', tin)]));
+        var rts = em && em.routes ? Object.keys(em.routes).map(function (l) { return l + ' ' + em.routes[l]; }).join('\n') : '';
+        var rin = el('textarea', { rows: 2, placeholder: 'receipts accountant@gmail.com\norders manager@gmail.com' }); rin.value = rts;
+        into.appendChild(field('Different inbox for some addresses (optional)', rin, 'One per line: the address name, then the inbox. Everything else goes to the inbox above. Each new inbox gets one confirmation email from Cloudflare.'));
         if (more) into.appendChild(el('p', { class: 'admin-hint', text: 'Keep the addresses already working in the list and add the new ones. Same inbox: no new confirmation needed.' }));
-        return { lin: lin, tin: tin };
+        return { lin: lin, tin: tin, rin: rin };
       };
       if (more) {
         var fold = el('details', { class: 'admin-fold' }, [el('summary', { text: 'Add or change email addresses (' + em.locals.length + (allow ? ' of ' + allow : '') + ' set up)' })]);
@@ -1132,9 +1139,9 @@
       if (!em || em.status === 'verifying' || more) {
         var holder = more ? fold : box;
         var ef = emailForm(holder);
-        var lin = ef.lin, tin = ef.tin;
+        var lin = ef.lin, tin = ef.tin, rin = ef.rin;
         var eacts = el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: more ? 'Save addresses' : em ? 'Save and check' : 'Set up email forwarding', onclick: function (e) {
-          act({ action: 'host_email', locals: lin.value, to: tin.value }, function (j) { var s = j.row && j.row.hosting && j.row.hosting.email; return s && s.status === 'active' ? 'Email forwarding is working' : 'Cloudflare sent a confirmation email to ' + (s ? s.to : 'their inbox') + ' (from Cloudflare; check Spam and Promotions)'; }, e.currentTarget, 'Setting up…');
+          act({ action: 'host_email', locals: lin.value, to: tin.value, routes: rin.value }, function (j) { var s = j.row && j.row.hosting && j.row.hosting.email; return s && s.status === 'active' ? 'Email forwarding is working' : 'Cloudflare sent a confirmation email to ' + (s ? [s.to].concat(Object.keys(s.routes || {}).map(function (k) { return s.routes[k]; })).filter(function (x, i, a) { return a.indexOf(x) === i; }).join(' and ') : 'their inbox') + ' (from Cloudflare; check Spam and Promotions)'; }, e.currentTarget, 'Setting up…');
         } })]);
         holder.appendChild(eacts);
       }

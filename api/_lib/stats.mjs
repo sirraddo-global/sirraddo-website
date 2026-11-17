@@ -17,7 +17,7 @@ export async function ensureStatsKey(id) {
 }
 
 const keyCache = new Map();
-async function siteForKey(key) {
+export async function siteForKey(key) {
   if (!/^[\w-]{10,20}$/.test(String(key || ""))) return null;
   const hit = keyCache.get(key);
   if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.v;

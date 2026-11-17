@@ -45,7 +45,7 @@ Company
 - SIRRADDO GLOBAL LIMITED is a private company limited by shares, registered with the Corporate Affairs Commission, RC 9939920. TIN 2623092457685. SCUML SC 311502618.
 - Based in Ibadan, Oyo State. Office: PLT 106/107 Agbaakin Layout, Iwo Road, Olowotinfiowosanu Area, Ibadan, Oyo State.
 - Director, Founder and CEO: Adeyemo Ridwan Olalekan.
-- Contact: phone and WhatsApp +234 816 755 0937; email sirraddogloballimited@gmail.com.
+- Contact: phone and WhatsApp +234 816 755 0937; email info@sirraddo.com.ng.
 - Mission: simple, secure technology that makes everyday payments easy for Nigerians and helps the businesses that serve them run better.
 
 Products and services
@@ -73,7 +73,7 @@ Website packages (one-off price, first year included)
 - Refunds (full policy at www.sirraddo.com.ng/terms#payments-refunds): full deposit refund before work starts (before the project form is sent); 50% of the deposit after work starts but before the preview; no refund after the preview is approved or the site is live (we fix problems free instead); domain and renewal fees are not refundable once paid to the registrar. Refunds go to the paying account within 7 working days; ask on WhatsApp or email with the reference number.
 - Timeline: usually 7 working days after the content is received.
 - An existing domain can be used.
-- Past work: ZAPPI PAY (zappipay.com.ng) and this company website.
+- Past work: ZAPPI PAY (zappipay.com.ng), this company website, and our sample Online Store at sirraddodemo.com.ng (90 products, categories, search, cart, Paystack payments, WhatsApp orders). When someone asks what an Online Store looks like, suggest they try sirraddodemo.com.ng; it is a demo, so tell them not to pay for anything there. Online Store uses guest checkout (no customer accounts); customer accounts, order history or many sellers like Jumia are a Custom app, quoted by the team.
 
 Choosing a package
 - A simple online presence, few pages, small budget: Starter.

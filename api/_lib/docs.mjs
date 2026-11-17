@@ -9,7 +9,9 @@ export const COMPANY = {
   tin: "TIN 2623092457685",
   address: "PLT 106/107 Agbaakin Layout, Iwo Road, Olowotinfiowosanu Area, Ibadan, Oyo State, Nigeria",
   phone: "+234 816 755 0937",
-  email: "sirraddogloballimited@gmail.com",
+  email: "info@sirraddo.com.ng",
+  invoiceEmail: "invoices@sirraddo.com.ng", // on invoices and renewal invoices
+  receiptEmail: "receipts@sirraddo.com.ng", // on receipts
 };
 
 export const naira = (n) => (n == null || n === "" ? "-" : "₦" + Number(n).toLocaleString("en-NG"));
@@ -145,6 +147,7 @@ function handoverDoc(r, settings) {
 
 // Returns { title, number, subject, html } or { error } if the document can't be made yet.
 export function buildDoc(r, type, settings = {}) {
+  const docEmail = type === "receipt" ? COMPANY.receiptEmail : type === "invoice" || type === "renewal" ? COMPANY.invoiceEmail : COMPANY.email;
   if (type === "handover") {
     if (r.quote_amount == null || balance(r) > 0) return { error: "The handover pack unlocks once the balance is paid" };
     if (!r.website_url) return { error: "Add their website address first" };
@@ -197,7 +200,7 @@ export function buildDoc(r, type, settings = {}) {
         <div style="font-weight:700;font-size:9px;letter-spacing:5px;color:#13254F;margin-top:4px;">GLOBAL LIMITED</div>
       </td>
       <td style="padding:0 0 10px;text-align:right;font-size:12px;line-height:1.45;vertical-align:top;">
-        <b>${COMPANY.name}</b><br>${COMPANY.rc} · ${COMPANY.tin}<br>${esc(COMPANY.address)}<br>${COMPANY.phone} · ${COMPANY.email}
+        <b>${COMPANY.name}</b><br>${COMPANY.rc} · ${COMPANY.tin}<br>${esc(COMPANY.address)}<br>${COMPANY.phone} · ${docEmail}
       </td>
     </tr>
   </table>

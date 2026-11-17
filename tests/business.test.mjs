@@ -202,8 +202,13 @@ test("daily run completes without errors", async () => {
   const errors = [];
   const orig = console.error;
   console.error = (...a) => { errors.push(a.join(" ")); orig(...a); };
+  // A live site built with an older look is republished by the morning job (no unpublished edits on it).
+  await h.sql(`UPDATE customer_requests SET hosting = hosting || '{"look":"old"}'::jsonb, draft_at = NULL, design_at = NULL WHERE id = $1`, [ada]);
+  const before = h.CF.deployments.length;
   try { await h.daily(); } finally { console.error = orig; }
   assert.deepEqual(errors.filter((e) => /daily cron failed/.test(e)), []);
+  assert.ok(h.CF.deployments.length > before, "old-look site republished");
+  assert.notEqual((await h.row(ada)).hosting.look, "old");
 });
 
 test("backup: download has every table; Monday's email goes once with the file attached", async () => {

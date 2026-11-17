@@ -1,7 +1,8 @@
-// /manage?t=TOKEN — "Manage my store": the store owner changes prices, sold out, hours, phone/WhatsApp and a short
+// /manage?t=TOKEN — "Manage my store": the store owner changes prices, sold out, slogan, hours, phone/WhatsApp and a short
 // notice themselves. Save updates their live site and emails us what changed. Works on phones; no login.
 import { dbConfigured, esc } from "./_lib/store.mjs";
 import { findManageRequest, applyManage, afterManage } from "./_lib/manage.mjs";
+import { listReviews, starsText } from "./_lib/reviews.mjs";
 import { COMPANY } from "./_lib/docs.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
 
@@ -31,9 +32,17 @@ label{display:block;font-weight:700;margin:12px 0 4px}input[type=text],input[typ
 .p.is-sold .n{text-decoration:line-through;opacity:.6}input[type=checkbox]{width:22px;height:22px}
 .bar{position:sticky;bottom:0;background:#F5F7FB;padding:10px 0}.bar button{width:100%;background:#13254F;color:#fff;border:0;border-radius:12px;padding:15px;font:inherit;font-weight:800;font-size:16px}
 .ok{background:#E8F6EC;border-left:4px solid #1E8E3E;padding:10px 12px;border-radius:8px}.err{background:#FDECEC;border-left:4px solid #C0392B;padding:10px 12px;border-radius:8px}
-.m{color:#4A5568;font-size:.9rem}.p[hidden]{display:none}${DARK_PAGE_CSS}
+.m{color:#4A5568;font-size:.9rem}.p[hidden]{display:none}.rv{border-top:1px solid #EEF1F5;padding:12px 0}.rv p{margin:4px 0;overflow-wrap:anywhere}.rs{color:#D9A21B;font-size:1.2rem;letter-spacing:2px}.rv select{font:inherit;font-size:16px;padding:10px;border-radius:10px;border:1px solid #C9D1DE;margin-top:6px}.new{background:#D9A21B;color:#13254F;border-radius:999px;padding:2px 10px;font-size:.8rem}${DARK_PAGE_CSS}
 @media (prefers-color-scheme:dark){.p{border-color:#2A3242}}</style><script src="/assets/theme.js"></script></head><body><div class="w">${body}
 <p class="m" style="text-align:center">${esc(COMPANY.name)} · WhatsApp ${esc(COMPANY.phone)}</p></div></body></html>`);
+}
+
+function reviewsCard(reviews) {
+  if (!reviews?.length) return `<div class="c"><h2>Customer reviews</h2><p class="m">No reviews yet. When a customer leaves one on your website, we email you and it appears here. It only shows on your website after you choose "Show on website".</p></div>`;
+  const waiting = reviews.filter((x) => x.status === "pending").length;
+  return `<div class="c"><h2>Customer reviews${waiting ? ` <span class="new">${waiting} new</span>` : ""}</h2><p class="m">Choose <b>Show on website</b> for genuine reviews, <b>Hide</b> for fake or rude ones, then tap Save changes.</p>
+${reviews.map((x) => `<div class="rv"><div class="rs">${starsText(x.stars)}</div><b>${esc(x.name)}</b> <span class="m">${new Date(x.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Lagos" })}</span>${x.body ? `<p>${esc(x.body)}</p>` : ""}
+<select name="rv_${x.id}" aria-label="Review from ${esc(x.name)}">${x.status === "pending" ? `<option value="pending" selected>New: choose</option>` : ""}<option value="shown"${x.status === "shown" ? " selected" : ""}>Show on website</option><option value="hidden"${x.status === "hidden" ? " selected" : ""}>Hide</option></select></div>`).join("")}</div>`;
 }
 
 function form(r, token, note) {
@@ -44,14 +53,16 @@ function form(r, token, note) {
 <input type="text" inputmode="decimal" name="price_${p.i}" value="${esc(p.price || "")}" aria-label="Price of ${esc(p.name)}" placeholder="Price">
 <label class="so"><input type="checkbox" name="sold_${p.i}"${p.soldout ? " checked" : ""} onchange="this.closest('.p').classList.toggle('is-sold',this.checked)"> Sold out</label></div>`).join("");
   return `<div class="c"><h1>Manage my store</h1><p>${esc(b.business_name || r.business || r.name)}${r.website_url ? ` · <a href="${esc(r.website_url)}">${esc(r.website_url.replace(/^https?:\/\//, ""))}</a>` : ""}</p>
-<p class="m">Change prices, mark items sold out, and update your hours and numbers. Tap <b>Save changes</b> at the bottom: your website updates within a minute. For new products, photos or text, use your "Request a change" link.</p>${note || ""}</div>
+<p class="m">Change prices, mark items sold out, update your hours and numbers, and choose which customer reviews show. Tap <b>Save changes</b> at the bottom: your website updates within a minute. For new products, photos or text, use your "Request a change" link.</p>${note || ""}</div>
 <form method="post" action="/manage?t=${esc(token)}">
 ${items.length ? `<div class="c"><h2>Products (${items.length})</h2>${items.length > 8 ? `<input type="search" placeholder="Find a product" aria-label="Find a product" oninput="var w=this.value.toLowerCase();document.querySelectorAll('.p').forEach(function(x){x.hidden=w&&x.getAttribute('data-s').indexOf(w)<0})">` : ""}${rows}</div>` : ""}
 <div class="c"><h2>Shop details</h2>
+<label for="tagline">Slogan (shows at the bottom of every page)</label><input type="text" id="tagline" name="tagline" maxlength="100" value="${esc(b.tagline || "")}" placeholder="e.g. Fresh bread every morning in Ibadan">
 <label for="hours">Opening hours</label><input type="text" id="hours" name="hours" maxlength="120" value="${esc(b.hours || "")}" placeholder="e.g. Mon–Sat 8am–6pm">
 <label for="phone">Phone number</label><input type="tel" id="phone" name="phone" maxlength="30" value="${esc(b.phone || "")}">
 <label for="whatsapp">WhatsApp number</label><input type="tel" id="whatsapp" name="whatsapp" maxlength="30" value="${esc(b.whatsapp || "")}" placeholder="If different from the phone number">
 <label for="site_notice">Notice at the top of your website (optional)</label><textarea id="site_notice" name="site_notice" rows="2" maxlength="200" placeholder="e.g. Closed for Sallah, back on Monday. Leave empty to remove it.">${esc(b.site_notice || "")}</textarea></div>
+${reviewsCard(r.reviews)}
 <div class="bar"><button type="submit">Save changes</button></div></form>`;
 }
 
@@ -59,6 +70,7 @@ export default async function handler(req, res) {
   if (!dbConfigured()) return shell(res, 503, "Not available", `<div class="c"><h1>Not available right now</h1><p>Please try again later.</p></div>`);
   const token = new URL(req.url, "http://x").searchParams.get("t") || "";
   const r = await findManageRequest(token).catch(() => null);
+  if (r) r.reviews = await listReviews(r.id).catch(() => []);
   if (!r) return shell(res, 404, "Link not working", `<div class="c"><h1>This link doesn't work</h1><p>It may have been replaced by a newer one. Message us on WhatsApp for your current link.</p></div>`);
   if (req.method === "POST") {
     const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
@@ -70,8 +82,11 @@ export default async function handler(req, res) {
       if ((m = k.match(/^price_(\d{1,3})$/))) (products[m[1]] ||= {}).price = v;
     }
     for (const p of (r.brief?.products || []).map((p, i) => ({ ...p, i }))) (products[p.i] ||= {}).soldout = body[`sold_${p.i}`] === "on";
+    const reviews = {};
+    for (const [k, v] of Object.entries(body)) { const m = k.match(/^rv_(\d{1,9})$/); if (m) reviews[m[1]] = String(v); }
     try {
-      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice });
+      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice, tagline: body.tagline, reviews });
+      row.reviews = await listReviews(row.id).catch(() => []);
       if (!changes.length) return shell(res, 200, "Manage my store", form(row, token, `<p class="ok">Nothing changed.</p>`));
       const live = await afterManage(row, changes);
       const msg = live === "updated" ? `Saved ✓ Your website is updated (refresh it to see). ${changes.length} change${changes.length === 1 ? "" : "s"}.`

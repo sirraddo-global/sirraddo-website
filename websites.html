@@ -27,6 +27,7 @@
   <script src="/assets/chat.js" defer></script>
   <script src="/assets/greeting.js" defer></script>
   <script src="/assets/lead.js" defer></script>
+  <script src="/assets/reviews.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -69,7 +70,14 @@
         <div class="btn-row">
           <a class="btn btn--gold" data-lead="Other" href="https://wa.me/2348167550937?text=Hi%2C%20I%27m%20interested%20in%20a%20website%20for%20my%20business" target="_blank" rel="noopener">Chat on WhatsApp<span class="visually-hidden"> (opens WhatsApp in a new tab)</span></a>
           <a class="btn btn--outline-light" href="#packages">See packages</a>
+          <a class="btn btn--outline-light" href="https://sirraddodemo.com.ng" target="_blank" rel="noopener">Try our demo store<span class="visually-hidden"> (opens in a new tab)</span></a>
         </div>
+        <ul class="trust-row">
+          <li>Ready in about 7 working days</li>
+          <li>Your domain and content stay yours</li>
+          <li>Card and transfer payments by Paystack</li>
+          <li>WhatsApp support</li>
+        </ul>
       </div>
     </section>
 
@@ -178,6 +186,14 @@
             </div>
           </article>
           <article class="card work">
+            <div class="work-preview work-preview--shot"><img src="/assets/work/demo-store.jpg" alt="Home page of the SIRRADDO DEMO STORE website" width="960" height="600" loading="lazy" decoding="async"></div>
+            <div class="work-body">
+              <h3>SIRRADDO DEMO STORE</h3>
+              <p>Our sample Online Store: 90 products in categories, search, cart, card or transfer payments by Paystack and WhatsApp orders. Try it.</p>
+              <a class="card-link" href="https://sirraddodemo.com.ng" target="_blank" rel="noopener">Visit sirraddodemo.com.ng<span class="visually-hidden"> (opens in a new tab)</span> →</a>
+            </div>
+          </article>
+          <article class="card work">
             <div class="work-preview work-preview--shot"><img src="/assets/work/sirraddo.jpg" alt="Home page of the SIRRADDO GLOBAL LIMITED website" width="960" height="600" loading="lazy" decoding="async"></div>
             <div class="work-body">
               <h3>SIRRADDO GLOBAL LIMITED</h3>
@@ -212,6 +228,40 @@
           </article>
           <!-- DEMO_CARDS:END -->
         </div>
+      </div>
+    </section>
+
+    <!-- ===== Client reviews (approved in Admin → Settings → Reviews; loaded by assets/reviews.js) ===== -->
+    <section class="section" id="reviews" aria-labelledby="reviews-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow eyebrow--dark">Reviews</p>
+          <h2 id="reviews-title">What our clients say</h2>
+        </div>
+        <p class="rv-sum" id="rv-sum" hidden></p>
+        <div class="grid grid--3 rv-list" id="rv-list"></div>
+        <details class="rv-write" id="rv-write">
+          <summary class="btn btn--navy">Rate SIRRADDO</summary>
+          <form class="form rv-form" id="rv-form" novalidate>
+            <h3>Worked with us? Tell others how it went</h3>
+            <div class="field">
+              <p class="rv-lbl" id="rv-lbl">Your rating</p>
+              <fieldset class="rv-pick" aria-labelledby="rv-lbl">
+                <input type="radio" name="stars" id="rv5" value="5"><label for="rv5" title="5 stars">★<span class="visually-hidden">5 stars</span></label>
+                <input type="radio" name="stars" id="rv4" value="4"><label for="rv4" title="4 stars">★<span class="visually-hidden">4 stars</span></label>
+                <input type="radio" name="stars" id="rv3" value="3"><label for="rv3" title="3 stars">★<span class="visually-hidden">3 stars</span></label>
+                <input type="radio" name="stars" id="rv2" value="2"><label for="rv2" title="2 stars">★<span class="visually-hidden">2 stars</span></label>
+                <input type="radio" name="stars" id="rv1" value="1"><label for="rv1" title="1 star">★<span class="visually-hidden">1 star</span></label>
+              </fieldset>
+            </div>
+            <div class="field"><label for="rv-name">Your name and business</label><input id="rv-name" maxlength="50" autocomplete="name" placeholder="e.g. Ada, Ada's Kitchen"></div>
+            <div class="field"><label for="rv-text">Your review (optional)</label><textarea id="rv-text" maxlength="600" rows="3"></textarea></div>
+            <input class="rv-hp" id="rv-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+            <button class="btn btn--gold" type="submit">Send review</button>
+            <p class="rv-msg" id="rv-msg" role="status"></p>
+            <p class="form-hint">Your review shows here after we check it's genuine.</p>
+          </form>
+        </details>
       </div>
     </section>
 

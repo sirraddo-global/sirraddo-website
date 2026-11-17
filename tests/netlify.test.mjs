@@ -234,3 +234,63 @@ test("Manage my store: the owner changes a price, marks sold out, sets a notice;
   assert.notEqual(renewed, link);
   assert.equal((await h.call("GET", path)).status, 404, "old link stops");
 });
+
+test("Reviews: a visitor gives stars; nothing shows until the owner chooses Show in Manage my store; then the site shows it", async () => {
+  const id = (await h.action({ action: "create", name: "Bisi Shop", contact: "08036660000", interest: "Online Store", email: "bisi@gmail.com" })).json.id;
+  await h.sql(`UPDATE customer_requests SET brief = $1::jsonb, hosting = $2::jsonb WHERE id = $3`, [JSON.stringify({ business_name: "Bisi Shop", phone: "08036660000", whatsapp: "08036660000",
+    products: [{ name: "Garri 5kg", price: "6000" }] }), JSON.stringify({ statsKey: "bisikey1234567" }), id]);
+  const post = (b, ip = "5.5.5.5") => h.call("POST", "/api/site?review=1", JSON.stringify({ k: "bisikey1234567", ...b }), { "content-type": "application/json", "x-forwarded-for": ip, "user-agent": "Mozilla/5.0" });
+  assert.equal((await post({ stars: 9, name: "Ada" })).status, 400, "stars 1–5 only");
+  assert.equal((await post({ stars: 5, name: "Ada", text: "visit www.spam.com" })).status, 400, "no links");
+  assert.equal((await post({ stars: 5, name: "Ada", text: "x", k: "wrongkey12345" })).status, 400);
+  const n = h.sent.length;
+  const ok = await post({ stars: 5, name: "Ada Obi", text: "Fast delivery & <b>great</b> garri" });
+  assert.equal(ok.status, 200, ok.text);
+  assert.ok(h.newMail(n).some((m) => m.to.includes("bisi@gmail.com") && /5-star review/.test(m.subject) && /Manage my store/.test(m.html)), "owner emailed with the link");
+  assert.equal((await post({ stars: 4, name: "Bot", website: "http://x" })).status, 200, "robots get a quiet OK");
+  for (let i = 0; i < 3; i++) await post({ stars: 1, name: "Same person" }, "6.6.6.6");
+  assert.equal((await post({ stars: 1, name: "Same person" }, "6.6.6.6")).status, 400, "3 a day per person");
+  const { shownReviews } = await import("../api/_lib/reviews.mjs");
+  assert.equal((await shownReviews(id)).count, 0, "waits for the owner");
+  const link = (await h.action({ action: "manage_link", id })).json.url;
+  const path = "/manage?" + link.split("?")[1];
+  const page = await h.call("GET", path);
+  assert.match(page.text, /Ada Obi/);
+  assert.match(page.text, /4 new/);
+  const rv = (await h.sql(`SELECT id, name FROM site_reviews WHERE request_id = $1 ORDER BY id`, [id]));
+  const ada = rv.find((x) => x.name === "Ada Obi").id, spam = rv.find((x) => x.name === "Same person").id;
+  const r = await fetch(h.base + path, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ price_0: "6000", phone: "08036660000", [`rv_${ada}`]: "shown", [`rv_${spam}`]: "hidden" }) });
+  assert.match(await r.text(), /Saved ✓/);
+  const shown = await shownReviews(id);
+  assert.equal(shown.count, 1);
+  assert.equal(shown.average, 5);
+  const { buildSiteModel, renderPage } = await import("../api/_lib/sitegen.mjs");
+  const site = buildSiteModel({ id, name: "Bisi", interest: "Online Store", status: "won", brief: (await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]))[0].brief,
+    hosting: { statsKey: "bisikey1234567" }, reviews: shown, draft_md: "## Page: Home\n### Hero\n**Headline:** Hi" });
+  const html = renderPage(site, site.pages[0].slug, { mode: "export", link: (s) => s });
+  assert.match(html, /What customers say/);
+  assert.match(html, /5\.0<\/b> out of 5 from 1 review/);
+  assert.match(html, /Fast delivery &amp; &lt;b&gt;great/, "review text escaped");
+  assert.doesNotMatch(html, /Same person/);
+  assert.match(html, /class="rv-form/, "the form is there to write another");
+});
+
+test("Reviews of SIRRADDO: sent from our website, approved in admin, then listed for the Websites page", async () => {
+  const n = h.sent.length;
+  const ok = await h.call("POST", "/api/site?review=1", JSON.stringify({ k: "sirraddo", stars: 5, name: "Ada, Ada's Kitchen", text: "Our website was ready in a week." }), { "content-type": "application/json", "x-forwarded-for": "9.9.9.9", "user-agent": "Mozilla/5.0" });
+  assert.equal(ok.status, 200, ok.text);
+  assert.ok(h.newMail(n).some((m) => /review for SIRRADDO/.test(m.subject)), "you get an email");
+  let pub = await h.call("GET", "/api/site?reviews=sirraddo");
+  assert.equal(pub.json.count, 0, "nothing shows before approval");
+  const list = (await h.action({ action: "reviews" })).json.reviews;
+  assert.equal(list[0].status, "pending");
+  const after = (await h.action({ action: "review_set", reviewId: list[0].id, status: "shown" })).json.reviews;
+  assert.equal(after[0].status, "shown");
+  pub = await h.call("GET", "/api/site?reviews=sirraddo");
+  assert.equal(pub.json.count, 1);
+  assert.equal(pub.json.list[0].name, "Ada, Ada's Kitchen");
+  const html = await readFile(join(ROOT, "public/websites.html"), "utf8");
+  assert.match(html, /id="reviews"/);
+  assert.match(html, /\/assets\/reviews\.js\?v=/);
+});

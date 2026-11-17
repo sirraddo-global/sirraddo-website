@@ -126,7 +126,14 @@ export function priceAmount(p) {
 }
 const isImage = (f) => /^image\//.test(f?.type || "") || /\.(jpe?g|png|webp|gif|svg)$/i.test(f?.name || f?.url || "");
 
+// On a live site a sentence that still has an [ADD: …] gap is left out (the preview still shows it, so it can be filled in).
+function dropTodo(text) {
+  if (!/\[ADD:/.test(text)) return text;
+  const parts = String(text).match(/[^.!?]+[.!?]*\s*/g) || [];
+  return parts.filter((x) => !/\[ADD:/.test(x)).join("").replace(/\[ADD:[^\]]*\]/g, "").trim();
+}
 function inline(text, mode) {
+  if (mode !== "preview") text = dropTodo(text);
   return esc(text)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
@@ -136,6 +143,7 @@ function blocks(lines, mode) {
   const out = [];
   let list = null;
   for (const line of lines) {
+    if (mode !== "preview" && /\[ADD:/.test(line) && !dropTodo(line.replace(/^\s*(?:[-*•]|\d+\.|#{3,4})\s+/, "")).replace(/^(?:\*\*)?(?:text|answer|a)\s*:(?:\*\*)?\s*/i, "").trim()) continue;
     const m = line.match(/^\s*(?:[-*•]|\d+\.)\s+(.*)/);
     if (m) {
       if (!list) { out.push("<ul>"); list = true; }
@@ -154,6 +162,20 @@ function blocks(lines, mode) {
 }
 
 // ---------- The site model ----------
+// Older AI descriptions mention the price ("... is available for ₦6,500."). The price card shows the real price, which the owner can change, so drop those sentences.
+function noPrice(t) {
+  const parts = String(t || "").match(/[^.!?]+[.!?]*\s*/g) || [];
+  const kept = parts.filter((x) => !/₦\s?\d|\b(?:NGN|N)\s?(?:\d{1,3},\d{3}|\d{3,})/.test(x));
+  return kept.join("").trim();
+}
+function bizEmail(row) {
+  const h = row.hosting || {}, e = h.email;
+  if (!h.domain || !e || e.status !== "active" || !(e.locals || []).length) return "";
+  return `${e.locals.includes("info") ? "info" : e.locals[0]}@${h.domain}`;
+}
+// Bump this whenever the look or layout of customer sites changes: the 7am job then republishes every live site
+// still built with an older version (text the owner hasn't published yet is never pushed).
+export const SITE_LOOK = "2026-11-17b";
 export function buildSiteModel(row) {
   const b = row.brief || {};
   const files = row.brief_files || {};
@@ -195,7 +217,8 @@ export function buildSiteModel(row) {
     notice: String(b.site_notice || "").trim().slice(0, 200), // short note from the owner (Manage my store)
     phone: b.phone || row.contact || "",
     whatsapp: waNumber(b.whatsapp || b.phone || row.contact),
-    email: b.email || "",
+    // Once email forwarding works, the site shows their business address (info@theirdomain) instead of their Gmail.
+    email: bizEmail(row) || b.email || "",
     address: b.address || "",
     hours: b.hours || "",
     socials,
@@ -205,10 +228,11 @@ export function buildSiteModel(row) {
     services: (b.services || []).filter((s) => s.name),
     // i = position in the form (the cart and checkout use it); amount = price as a number, if it is one.
     products: (b.products || []).map((p, i) => ({ ...p, i })).filter((p) => p.name).map((p, pos) => ({
-      ...p, pos, amount: priceAmount(p.price), text: (productText[p.name.toLowerCase()] || []).join(" "),
+      ...p, pos, amount: priceAmount(p.price), text: noPrice((productText[p.name.toLowerCase()] || []).join(" ")),
     })),
     shopToken: row.shop_token || row.shop?.token || "",
     statsKey: row.hosting?.statsKey || "",
+    reviews: row.reviews?.list?.length ? row.reviews : { list: [], count: 0, average: 0 }, // approved in Manage my store
     testimonials: String(b.testimonials || "").split(/\n+/).map((s) => s.trim()).filter(Boolean),
     delivery: b.delivery_areas || "",
     returns: b.returns || "",
@@ -265,7 +289,10 @@ section.block{padding:48px 0}section.block:nth-of-type(even){background:#F6F7F9}
 .card{background:#fff;border:1px solid #E4E7EB;border-radius:${t.radius};padding:20px}
 .site-notice{background:${t.accent};color:#fff;text-align:center;padding:10px 16px;font-weight:700}
 .soldout{display:inline-block;padding:8px 14px;border-radius:999px;background:#6B7280;color:#fff;font-weight:700}.card.is-soldout img{filter:grayscale(.7);opacity:.75}
-.cards.products{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+.cards.products{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+.card.prod{display:flex;flex-direction:column}.card.prod img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:calc(${t.radius} - 4px);cursor:pointer}.card.prod h3{margin:10px 0 2px;font-size:1.02rem;line-height:1.3}
+.pname{all:unset;cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.pname:focus-visible{outline:2px solid ${t.accent};outline-offset:2px}
+.card.prod .price{margin:2px 0 8px;font-weight:800}.card.prod .buy{margin:auto 0 0}
 @media (max-width:560px){.cards.products{grid-template-columns:1fr 1fr;gap:10px}.cards.products .card{padding:12px}.cards.products h3{font-size:1rem}.cards.products .btn{padding:10px 12px;font-size:.9rem}}
 .menu-btn{display:none;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:${t.radius};padding:10px 14px;font:700 15px/1 system-ui,Arial,sans-serif;cursor:pointer;min-height:44px}
 @media(max-width:760px){.menu-btn{display:inline-flex;align-items:center}nav.many{display:none;width:100%;flex-direction:column;gap:2px;padding-bottom:6px}nav.many.open{display:flex}nav.many a{padding:12px}}
@@ -284,7 +311,17 @@ details.faq p{margin:0 0 12px}li.qa{list-style:none}
 .cards.products .card img{aspect-ratio:1/1}.cat-nav a span{opacity:.6;font-weight:400}.cat{scroll-margin-top:64px;margin-top:28px}
 .card .price{font-weight:800;color:${t.primary};margin:0}
 .card img{border-radius:calc(${t.radius} - 4px);margin:-6px -6px 12px;width:calc(100% + 12px);aspect-ratio:4/3;object-fit:cover}
-.gallery{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.gallery{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}@media(max-width:560px){.gallery{grid-template-columns:1fr 1fr}}
+.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.hero .hero-grid img{aspect-ratio:1;max-height:none;box-shadow:0 10px 24px rgba(0,0,0,.25)}@media(max-width:819px){.hero-grid{grid-template-columns:repeat(4,1fr);gap:8px}}
+.trust{border-bottom:1px solid rgba(127,127,127,.2)}.trust .wrap{display:flex;flex-wrap:wrap;gap:8px 18px;padding-top:14px;padding-bottom:14px;font-weight:600;font-size:.95rem}.trust span{white-space:nowrap}
+main a,footer a,.card{overflow-wrap:anywhere}
+.rv-stars{color:#F5A623;letter-spacing:2px;font-size:1.15rem}.rv-stars .off{color:rgba(127,127,127,.35)}.rv-sum{font-size:1.05rem;margin:0 0 14px}.rv blockquote{margin:8px 0;border:0;padding:0}.rv figcaption{font-weight:700}.card.rv{margin:0}
+.rv-write{margin-top:18px}.rv-write summary{list-style:none;display:inline-block}.rv-write summary::-webkit-details-marker{display:none}.rv-write[open] summary{display:none}
+.rv-form{max-width:560px}.rv-form label{display:block;font-weight:600;margin:12px 0 4px}.rv-form input:not([type=radio]),.rv-form textarea{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:12px;border:1px solid rgba(127,127,127,.45);border-radius:10px;background:transparent;color:inherit}
+.rv-form .btn{margin-top:12px}.rv-form .hp{position:absolute;left:-5000px;width:1px;height:1px;opacity:0}.rv-msg{font-weight:700;margin:8px 0 0}.rv-done{font-weight:700;font-size:1.05rem}
+.rv-pick{border:0;padding:0;margin:4px 0 0;display:inline-flex;flex-direction:row-reverse;justify-content:flex-end}.rv-lbl{font-weight:600;margin:12px 0 0}
+.rv-pick input{position:absolute;opacity:0;width:1px;height:1px}.rv-pick label{font-size:40px;line-height:1;margin:0;padding:2px 3px;cursor:pointer;color:rgba(127,127,127,.4)}
+.rv-pick input:checked~label,.rv-pick label:hover,.rv-pick label:hover~label{color:#F5A623}.rv-pick input:focus-visible+label{outline:2px solid #F5A623;border-radius:6px}.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .gallery img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:${t.radius}}
 blockquote{margin:0;background:#fff;border-left:4px solid ${t.accent};padding:16px 18px;border-radius:${t.radius}}
 .contact dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 1em}.contact dt{font-weight:700}.contact dd{margin:0}
@@ -390,9 +427,29 @@ function productCards(site, img) {
     const buy = p.soldout ? `<p class="buy"><span class="soldout">Sold out</span></p>` : p.amount
       ? `<p class="buy" data-i="${p.i}"><button class="btn add" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}"${photo ? ` data-img="${img(photo.url)}"` : ""}>Add to cart</button><span class="step" hidden><button type="button" data-d="-1" aria-label="One less ${esc(p.name)}">\u2212</button><b>0</b><button type="button" data-d="1" aria-label="One more ${esc(p.name)}">+</button><small>in cart</small></span></p>`
       : order ? `<p class="buy"><a class="btn" href="${order}">${p.price ? "Order on WhatsApp" : "Ask on WhatsApp"}</a></p>` : "";
-    return `<div class="card${p.soldout ? " is-soldout" : ""}">${photo ? `<img src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3>${esc(p.name)}</h3>${p.text || p.details ? `<p>${esc(p.text || p.details)}</p>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
+    // Compact card: photo, name and price. Tapping the photo or name opens the full description (and the same Add to cart) in a pop-up.
+    const text = p.text || p.details;
+    return `<div class="card prod${p.soldout ? " is-soldout" : ""}">${photo ? `<img class="pv-open" src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3><button class="pname pv-open" type="button" aria-haspopup="dialog">${esc(p.name)}</button></h3>${text ? `<div class="pdesc" hidden>${esc(text)}</div>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
   }).join("")}</div>`;
 }
+
+// Product pop-up: the full description, a bigger photo and the same Add to cart / WhatsApp button, in the site's own colours.
+const PRODUCT_POP = `<style>.ppop{position:fixed;inset:0;z-index:65;background:rgba(15,23,42,.6);display:flex;align-items:flex-end;justify-content:center}.ppop[hidden]{display:none}
+.ppop .box{width:min(520px,100vw);max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:0 18px 22px;box-shadow:0 -8px 30px rgba(0,0,0,.3)}
+@media(min-width:700px){.ppop{align-items:center}.ppop .box{border-radius:18px}}
+.ppop .bar{position:sticky;top:0;display:flex;justify-content:flex-end;background:inherit;margin:0 -18px;padding:6px 8px;z-index:1}.ppop .x{background:none;border:0;font-size:32px;line-height:1;width:46px;height:46px;cursor:pointer;color:inherit}
+.ppop img{width:100%;max-height:52vh;object-fit:contain;border-radius:12px;display:block;margin:0 auto 12px}.ppop h3{margin:4px 0 6px;font-size:1.3rem;color:inherit}.ppop .price{font-size:1.2rem;font-weight:800;margin:0 0 10px}
+.ppop .desc{white-space:pre-line;margin:0 0 16px;opacity:.9}.ppop .buy{margin:0}.ppop .buy .btn{width:100%;text-align:center;padding:15px;box-sizing:border-box}</style>
+<div class="ppop" hidden role="dialog" aria-modal="true" aria-label="Product details"><div class="box"><div class="bar"><button class="x" type="button" aria-label="Close">×</button></div><div class="in"></div></div></div>
+<script>(function(){var pop=document.querySelector('.ppop'),box=pop.querySelector('.box'),inn=pop.querySelector('.in'),last=null;
+function solid(el){while(el){var c=getComputedStyle(el).backgroundColor;if(c&&c!=='transparent'&&!/rgba\\(.*,\\s*0\\)$/.test(c))return c;el=el.parentElement}return '#fff'}
+function close(){pop.hidden=true;inn.innerHTML='';document.body.style.overflow='';if(last)last.focus()}
+document.addEventListener('click',function(e){var o=e.target.closest('.pv-open');if(!o)return;var c=o.closest('.card.prod');if(!c)return;last=c.querySelector('.pname');
+box.style.background=solid(c);box.style.color=getComputedStyle(c).color;var im=c.querySelector('img'),d=c.querySelector('.pdesc'),pr=c.querySelector('.price'),b=c.querySelector('.buy');
+inn.innerHTML='';if(im){var i=im.cloneNode();i.removeAttribute('loading');i.className='';inn.appendChild(i)}var h=document.createElement('h3');h.textContent=c.querySelector('.pname').textContent;inn.appendChild(h);
+if(pr)inn.appendChild(pr.cloneNode(true));if(d){var p=document.createElement('p');p.className='desc';p.textContent=d.textContent;inn.appendChild(p)}if(b)inn.appendChild(b.cloneNode(true));
+pop.hidden=false;document.body.style.overflow='hidden';pop.querySelector('.x').focus();});
+pop.addEventListener('click',function(e){if(e.target===pop||e.target.closest('.x'))close()});document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!pop.hidden)close()});})();</script>`;
 
 // ---------- Cart (Online Store) ----------
 // Every store page gets a cart (stored in the browser under the old "basket-" key, so nobody loses their items). "Order on WhatsApp" always works. "Pay online" appears only once online payment is
@@ -483,6 +540,42 @@ function sectionHtml(sec, mode) {
   return `<section class="block"><div class="wrap">${heading ? `<h2>${inline(heading, mode)}</h2>` : ""}${body}</div></section>`;
 }
 
+// Short reasons to trust the business, shown under the home hero. Only facts from the form, never invented.
+// Approved reviews (stars, name, words) and the "Write a review" form. The form posts to our API; the owner
+// then chooses "Show on website" in Manage my store, which republishes the site.
+function reviewsHtml(site, mode, { all = false, form = true } = {}) {
+  const R = site.reviews;
+  const star = (n) => `<span class="rv-stars" aria-label="${n} out of 5 stars">${"\u2605".repeat(n)}<span class="off">${"\u2605".repeat(5 - n)}</span></span>`;
+  const list = (all ? R.list : R.list.slice(0, 3)).map((x) => `<figure class="card rv"><div>${star(x.stars)}</div>${x.text ? `<blockquote>${esc(x.text)}</blockquote>` : ""}<figcaption>${esc(x.name)}</figcaption></figure>`).join("");
+  const summary = R.count ? `<p class="rv-sum">${star(Math.round(R.average))} <b>${R.average.toFixed(1)}</b> out of 5 from ${R.count} review${R.count === 1 ? "" : "s"}</p>` : "";
+  const live = mode === "export" && site.statsKey;
+  const box = !form ? "" : `<details class="rv-write"${R.count ? "" : " open"}><summary class="btn">${R.count ? "Write a review" : "Be the first to leave a review"}</summary>
+<form class="rv-form card" novalidate><p>${R.count ? "Tell other customers how it went." : `Shopped or worked with ${esc(site.name)}? Tell other customers how it went.`}</p>
+<p class="rv-lbl" id="rv-lbl">Your rating</p><fieldset class="rv-pick" aria-labelledby="rv-lbl">${[5, 4, 3, 2, 1].map((n) => `<input type="radio" name="stars" id="rv${n}" value="${n}"><label for="rv${n}" title="${n} star${n === 1 ? "" : "s"}">\u2605<span class="vh">${n} star${n === 1 ? "" : "s"}</span></label>`).join("")}</fieldset>
+<label for="rv-name">Your name</label><input id="rv-name" name="name" maxlength="50" autocomplete="name">
+<label for="rv-text">Your review (optional)</label><textarea id="rv-text" name="text" maxlength="600" rows="3"></textarea>
+<input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+<button class="btn" type="submit">Send review</button><p class="rv-msg" role="status"></p></form></details>
+<script>(function(){var f=document.currentScript.previousElementSibling.querySelector('form'),m=f.querySelector('.rv-msg'),live=${live ? "true" : "false"};
+f.addEventListener('submit',function(e){e.preventDefault();var s=f.querySelector('input[name=stars]:checked'),n=f.querySelector('#rv-name').value.trim();
+if(!s){m.textContent='Please tap the stars to give a rating.';return}if(n.length<2){m.textContent='Please write your name.';return}
+if(!live){m.textContent='Reviews can be sent once the website is live.';return}
+var b=f.querySelector('button');b.disabled=true;m.textContent='Sending\u2026';
+fetch(${JSON.stringify(SITE_URL + "/api/site?review=1")},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({k:${JSON.stringify(site.statsKey)},stars:+s.value,name:n,text:f.querySelector('#rv-text').value,website:f.querySelector('.hp').value})})
+.then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(x){if(x.ok){f.innerHTML='<p class="rv-done">Thank you! Your review will appear here once ${esc(site.name).replace(/'/g, "\\'")} has checked it.</p>'}else{b.disabled=false;m.textContent=x.j.error||'Sorry, that didn\'t send.'}})
+.catch(function(){b.disabled=false;m.textContent='No connection. Please try again.'})});})();</script>`;
+  return `${summary}${list ? `<div class="cards rv-list">${list}</div>` : ""}${box}`;
+}
+function trustPoints(site) {
+  const t = [];
+  const city = String(site.address || "").split(/\n|,/).map((x) => x.trim()).filter(Boolean).pop() || "";
+  if (site.delivery) t.push(/nationwide|all states|across nigeria|anywhere in nigeria/i.test(site.delivery) ? "Delivery nationwide" : "Delivery available");
+  if (site.products.some((p) => p.amount)) t.push("Order online or on WhatsApp");
+  else if (site.whatsapp) t.push("Quick replies on WhatsApp");
+  if (site.hours && site.hours.length <= 34) t.push(site.hours);
+  if (city && city.length <= 30) t.push(`Visit us in ${city.replace(/\s+nigeria$/i, "")}`);
+  return t.slice(0, 4);
+}
 function pageBody(site, page, mode, link, img) {
   const out = [];
   let sections = page.sections;
@@ -505,7 +598,9 @@ function pageBody(site, page, mode, link, img) {
     const btn = heroSec?.fields["button text"] || "Contact us";
     const contactPage = site.pages.find((p) => p.kind === "contact");
     const href = site.whatsapp ? waLink(site) : contactPage ? link(contactPage.slug) : "#";
-    out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}<a class="btn" href="${href}">${inline(btn, mode)}</a></div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}" fetchpriority="high" decoding="async">` : ""}</div></section>`);
+    out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}<a class="btn" href="${href}">${inline(btn, mode)}</a></div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}" fetchpriority="high" decoding="async">` : site.productPhotos.length >= 4 ? `<div class="hero-grid">${site.productPhotos.slice(0, 4).map((p, k) => `<img src="${img(p.url)}" alt=""${k ? ' loading="lazy"' : ' fetchpriority="high"'} decoding="async">`).join("")}</div>` : ""}</div></section>`);
+    const trust = trustPoints(site);
+    if (trust.length) out.push(`<div class="trust"><div class="wrap">${trust.map((t) => `<span>\u2713 ${esc(t)}</span>`).join("")}</div></div>`);
   } else {
     out.push(`<div class="page-head"><div class="wrap"><h1>${esc(page.name)}</h1></div></div>`);
   }
@@ -538,7 +633,11 @@ function pageBody(site, page, mode, link, img) {
       const sp = find("services", "prices");
       extra("What we offer", serviceCards({ ...site, services: sp ? site.services.slice(0, 3) : site.services }, true) + (sp && site.services.length > 3 ? more(sp, "See all services") : ""));
     }
-    if (site.products.length) extra("Featured products", productCards({ ...site, products: site.products.slice(0, 3) }, img) + more(find("shop"), "Shop all products"));
+    if (site.products.length) extra("Featured products", productCards({ ...site, products: site.products.slice(0, 8) }, img) + more(find("shop"), "Shop all products"));
+    // Reviews: the latest approved ones, or (with no Testimonials page) an invitation to leave the first.
+    const tp = find("testimonials");
+    if (site.reviews.count) extra("What customers say", reviewsHtml(site, mode, { all: false, form: !tp }) + more(tp, `Read all ${site.reviews.count} review${site.reviews.count === 1 ? "" : "s"}`));
+    else if (!tp) extra("", reviewsHtml(site, mode, { all: false, form: true }));
     if (site.photos.length > 1) {
       const gp = find("gallery");
       extra(gp ? "Our work" : "", gallery(site.photos.slice(1, gp ? 5 : 7), img) + more(gp, "See the gallery"));
@@ -549,6 +648,7 @@ function pageBody(site, page, mode, link, img) {
   const galleryPhotos = site.photos.length ? site.photos : site.productPhotos.slice(0, 12);
   if (page.kind === "gallery") extra("", galleryPhotos.length ? gallery(galleryPhotos, img) : mode === "preview" ? `<p><mark class="todo">To be added: photos</mark></p>` : "");
   if (page.kind === "testimonials" && site.testimonials.length) extra("", `<div class="cards">${site.testimonials.map((t) => `<blockquote>${esc(t)}</blockquote>`).join("")}</div>`);
+  if (page.kind === "testimonials") extra("", reviewsHtml(site, mode, { all: true }));
   if (page.kind === "shop") {
     extra("", site.products.length ? shopSections(site, img) : "");
     if (site.delivery || site.returns) extra("Delivery and returns", `${site.delivery ? `<p><strong>Delivery:</strong> ${esc(site.delivery)}</p>` : ""}${site.returns ? `<p><strong>Returns:</strong> ${esc(site.returns)}</p>` : ""}`);
@@ -626,7 +726,7 @@ ${site.notice ? `<div class="site-notice" role="status">${esc(site.notice)}</div
 <main>${notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
 ${preview ? previewPanel(row, token, choice) : ""}
 ${footer(site, link)}
-${hasCart(site) ? cartScript(site, mode) : ""}${mode === "export" && !notFound ? statsScript(site) : ""}
+${site.products && site.products.length ? PRODUCT_POP : ""}${hasCart(site) ? cartScript(site, mode) : ""}${mode === "export" && !notFound ? statsScript(site) : ""}
 </body></html>`;
 }
 

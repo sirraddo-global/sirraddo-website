@@ -130,16 +130,22 @@ const emailPerm = (e, what) => {
   throw e;
 };
 export async function startForwarding(zoneId, to) {
-  // Switch Email Routing on for the domain (adds Cloudflare's MX records), then make sure it really is on.
-  try {
-    await cf(`/zones/${zoneId}/email/routing/dns`, { method: "POST", body: {} });
-  } catch (e) {
-    if (!/already/i.test(e.message)) emailPerm(e, "switch on email forwarding for this domain");
-  }
-  const on = async () => { const st = await cf(`/zones/${zoneId}/email/routing`).catch(() => null); return !st || st.enabled === true || st.status === "ready"; };
-  if (!(await on())) {
-    await cf(`/zones/${zoneId}/email/routing/enable`, { method: "POST", body: {} }).catch(() => {});
-    if (!(await on())) throw new Error("Cloudflare: email forwarding couldn't be switched on for this domain. In Cloudflare → the domain → Email → Email Routing, tap Onboard Domain / Enable (it may ask to remove old MX records), then try again.");
+  // Switch Email Routing on for the domain (adds Cloudflare's MX records). Needs Zone Settings · Edit; skipped when
+  // it's already on (e.g. switched on by hand in Cloudflare).
+  const status = async () => (await cf(`/zones/${zoneId}/email/routing`).catch(() => null));
+  const st = await status();
+  if (!st?.enabled) {
+    try {
+      await cf(`/zones/${zoneId}/email/routing/dns`, { method: "POST", body: {} });
+    } catch (e) {
+      const now = await status();
+      if (!/already/i.test(e.message) && !now?.enabled) {
+        if (e?.status === 403 || (e?.codes || []).some((c) => c === 10000 || c === 9109)) {
+          throw new Error("Cloudflare: your API token can't switch on email for a new domain. Either add the permission Zone · Zone Settings · Edit to the token (My Profile → API Tokens → edit → + Add more; nothing to change in Netlify), or switch it on by hand: Cloudflare → the domain → Email → Email Routing → Onboard Domain. Then try again.");
+        }
+        throw e;
+      }
+    }
   }
   const list = await cf(`/accounts/${acct()}/email/routing/addresses?per_page=50`).catch((e) => emailPerm(e, "manage email forwarding inboxes"));
   const found = (list || []).find((a) => a.email.toLowerCase() === to.toLowerCase());

@@ -10,7 +10,7 @@ import { balance } from "./docs.mjs";
 import { applyRules, todayLagos, daysBetween } from "./automation.mjs";
 import {
   cloudflareConfigured, ensureZone, zoneStatus, getProject, createProject, deploy, attachDomain, domainStatuses,
-  startForwarding, addressVerified, createForwardRules, setRulesEnabled,
+  startForwarding, addressVerified, createForwardRules, setRulesEnabled, rollbackDeployment,
 } from "./cloudflare.mjs";
 
 class Bad extends Error {}
@@ -29,6 +29,24 @@ const need = () => {
 };
 
 // 1. Add the customer's domain to Cloudflare. Returns the nameservers to set at the registrar.
+// "Restore previous version": puts the version before the current one back live (e.g. the owner dislikes a new look).
+// The site then waits for the owner's OK before our next improvements ("Ask me first"), so 7am doesn't undo it.
+export async function restorePrevious(id) {
+  need();
+  const row = await getRequest(id);
+  const h = row.hosting || {};
+  if (!h.project) throw new Bad("This site isn't published yet");
+  if (h.pausedAt) throw new Bad("The site is paused. Restore it first.");
+  const list = h.history || [];
+  const cur = list.findIndex((v) => v.id === h.deploymentId);
+  const prev = list[cur >= 0 ? cur + 1 : 1];
+  if (!prev) throw new Bad("There's no earlier version saved for this site yet (versions are kept from now on).");
+  await rollbackDeployment(h.project, prev.id);
+  await saveHosting(id, { deploymentId: prev.id, look: prev.look, restoredAt: new Date().toISOString(), restoredFrom: h.deploymentId, lookMode: "ask", lookAsked: SITE_LOOK,
+    history: list.filter((v) => v.id !== h.deploymentId) });
+  return getRequest(id);
+}
+
 // Tell the owner (our customer) their website got our latest improvements, or ask first if they chose that.
 export async function tellNewLook(r, mode) {
   const to = customerEmail(r);
@@ -164,7 +182,9 @@ export async function publish(id, { force = false } = {}) {
   const files = [...pages.map((p) => ({ path: p.name, data: p.html })), ...(await fetchImages(images))];
   const project = await pickProject(row, h);
   const dep = await deploy(project, files);
-  const patch = { project, pagesUrl: `https://${project}.pages.dev`, publishedAt: new Date().toISOString(), look: SITE_LOOK, deploymentId: dep?.id || null, pausedAt: null, pauseReason: null,
+  // The last few versions, newest first, so "Restore previous version" can put one back.
+  const history = dep?.id ? [{ id: dep.id, at: new Date().toISOString(), look: SITE_LOOK }, ...(h.history || []).filter((v) => v.id !== dep.id)].slice(0, 6) : h.history || [];
+  const patch = { project, pagesUrl: `https://${project}.pages.dev`, publishedAt: new Date().toISOString(), look: SITE_LOOK, deploymentId: dep?.id || null, history, pausedAt: null, pauseReason: null,
     // When it first went online with money still owed (auto-pauses after BALANCE_GRACE_DAYS).
     owingSince: owed ? h.owingSince || new Date().toISOString() : null };
   let attached = h.attached && h.project === project;

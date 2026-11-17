@@ -15,7 +15,7 @@ import {
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
   ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
-  ensurePreviewToken, getPreviewById, markSent, saveDesign, saveHosting, emailUsage,
+  ensurePreviewToken, getPreviewById, markSent, saveDesign, saveHosting, emailUsage, listRefused, resendRefused, removeRefused,
 } from "./_lib/store.mjs";
 import { buildDoc, DOC_TYPES } from "./_lib/docs.mjs";
 import { applyRules, emailBriefLink, SITE, customerHtml } from "./_lib/automation.mjs";
@@ -36,7 +36,7 @@ import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
 import { pickProvider, friendlyAiError } from "./_lib/providers.mjs";
 import { generateDesign, changeDesignOptions } from "./_lib/design.mjs";
-import { addDomain, checkHosting, publish, pause, restore, setupEmail, afterProjectPayment, GoLiveError } from "./_lib/golive.mjs";
+import { addDomain, checkHosting, publish, pause, restore, setupEmail, afterProjectPayment, GoLiveError, restorePrevious } from "./_lib/golive.mjs";
 import { cloudflareConfigured } from "./_lib/cloudflare.mjs";
 import { todayLagos } from "./_lib/automation.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
@@ -376,7 +376,30 @@ export default async function handler(req, res) {
         } catch (e) { throw new Bad(e.message); }
         return res.status(200).json({ notices: await noticesForAdmin(), kinds: NOTICE_KINDS });
       }
-      if (body.action === "email_usage") return res.status(200).json({ usage: await emailUsage(14) });
+      if (body.action === "email_usage") return res.status(200).json({ usage: await emailUsage(14), refused: await listRefused(50) });
+      if (body.action === "email_resend" || body.action === "email_refused_remove") {
+        let result = null;
+        if (body.action === "email_resend") result = await resendRefused(body.all ? "all" : [Number(body.emailId)]);
+        else await removeRefused(body.emailId);
+        return res.status(200).json({ result, usage: await emailUsage(14), refused: await listRefused(50) });
+      }
+      // A customer's website reviews, from admin (same as the owner's Manage link, plus Delete). Republishes a live site.
+      if (body.action === "site_reviews" || body.action === "site_review_set") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
+        const { listReviews, setReviewStatuses, deleteReview } = await import("./_lib/reviews.mjs");
+        let republished = null;
+        if (body.action === "site_review_set") {
+          const st = String(body.status || "");
+          const changed = st === "delete" ? await deleteReview(id, body.reviewId) : (await setReviewStatuses(id, { [Number(body.reviewId)]: st })).length > 0;
+          const h = (await getRequest(id))?.hosting || {};
+          if (changed && h.project && !h.pausedAt) {
+            const { publish } = await import("./_lib/golive.mjs");
+            republished = await publish(id, { force: true }).then(() => true).catch((e) => e.message);
+          }
+        }
+        return res.status(200).json({ reviews: await listReviews(id, 100), republished });
+      }
       if (body.action === "reviews" || body.action === "review_set") {
         const { listReviews, setReviewStatuses, OUR_ID } = await import("./_lib/reviews.mjs");
         if (body.action === "review_set") await setReviewStatuses(OUR_ID, { [Number(body.reviewId)]: String(body.status || "") });
@@ -445,6 +468,7 @@ export default async function handler(req, res) {
           let out = { ok: true };
           if (body.action === "host_domain") out.row = await addDomain(id, body.domain);
           else if (body.action === "host_check") out.row = await checkHosting(id);
+          else if (body.action === "host_rollback") out.row = await restorePrevious(id);
           else if (body.action === "host_publish") Object.assign(out, await publish(id, { force: Boolean(body.force) }));
           else if (body.action === "host_pause") out.row = await pause(id, "manual");
           else if (body.action === "host_restore") out.row = await restore(id);

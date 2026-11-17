@@ -70,6 +70,13 @@ export async function shownReviews(id) {
   return { list: rows.map((x) => ({ name: x.name, stars: x.stars, text: x.body, date: new Date(x.created_at).toISOString().slice(0, 10) })), count: n, average: Math.round(avg * 10) / 10 };
 }
 
+// Removes a review for good (e.g. the person asked us to). Returns true if one was removed.
+export async function deleteReview(requestId, reviewId) {
+  await ensureSchema();
+  const rows = await q(`DELETE FROM site_reviews WHERE request_id = $1 AND id = $2 RETURNING id`, [requestId, Number(reviewId)]);
+  return rows.length > 0;
+}
+
 // wanted = { reviewId: "shown" | "hidden" | "pending" }. Returns the change lines.
 export async function setReviewStatuses(id, wanted) {
   const ids = Object.keys(wanted || {}).map(Number).filter((n) => Number.isInteger(n) && n > 0);

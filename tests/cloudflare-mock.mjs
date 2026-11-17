@@ -25,6 +25,10 @@ export async function cfFetch(url, opts = {}) {
   if (p === "/pages/assets/check-missing") return ok(body.hashes.filter((h) => !CF.assets.has(h)));
   if (p === "/pages/assets/upload") { for (const f of body) CF.assets.set(f.key, f); return ok(null); }
   if (p === "/pages/assets/upsert-hashes") return ok(null);
+  if ((mm = p.match(/^\/accounts\/acct1\/pages\/projects\/([^/]+)\/deployments\/([^/]+)\/rollback$/))) {
+    const d = CF.deployments.find((x) => x.id === mm[2] && x.project === mm[1]); if (!d) return err(404, 8000007, "Deployment not found");
+    CF.rolledBack = (CF.rolledBack || []).concat(mm[2]); return ok(d);
+  }
   if ((mm = p.match(/^\/accounts\/acct1\/pages\/projects\/([^/]+)\/deployments$/))) {
     const manifest = JSON.parse(opts.body.get("manifest"));
     const missing = Object.values(manifest).filter((h) => !CF.assets.has(h));

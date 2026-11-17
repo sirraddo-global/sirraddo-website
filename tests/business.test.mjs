@@ -230,6 +230,17 @@ test("daily run completes without errors", async () => {
   assert.equal(h.CF.deployments.length, d0, "not republished");
   assert.ok(h.newMail(n0).some((m) => /A new version of your website is ready/.test(m.subject)));
   assert.equal((await h.row(ada)).hosting.lookAsked !== undefined, true);
+  // Restore previous version: two publishes are kept, so the earlier one can be put back.
+  await h.sql(`UPDATE customer_requests SET hosting = hosting || '{"lookMode":"auto"}'::jsonb WHERE id = $1`, [ada]);
+  await h.action({ action: "host_publish", id: ada, force: true });
+  const hb = (await h.row(ada)).hosting;
+  assert.ok(hb.history.length >= 2, "versions kept");
+  const rb = await h.action({ action: "host_rollback", id: ada });
+  assert.equal(rb.status, 200, rb.text);
+  assert.ok(h.CF.rolledBack.includes(hb.history[1].id), "the earlier deployment is live again");
+  const ha = rb.json.row.hosting;
+  assert.equal(ha.deploymentId, hb.history[1].id);
+  assert.equal(ha.lookMode, "ask", "7am won't undo it");
 });
 
 test("backup: download has every table; Monday's email goes once with the file attached", async () => {

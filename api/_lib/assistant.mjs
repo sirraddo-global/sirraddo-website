@@ -68,7 +68,9 @@ ${REGISTRAR_GUIDE}
 TROUBLESHOOTING
 - Emails stopped / "Resend 429 daily_quota_exceeded": the daily limit was reached (Settings → Email usage shows it). Those emails are not retried: resend important ones tomorrow (e.g. "Email preview", invoice "Email"). Lasting fix: Resend Pro.
 - A customer doesn't like the new look: ask what exactly (screenshot), adjust their design (Website preview → AI design with a note, or Edit text) and "Update live site"; free. If they want to approve future updates first, they choose "Ask me first" in their Manage link.
-- A review didn't show: the owner must choose "Show on website" and Save in their Manage link; check the site isn't paused.
+- A review didn't show: the owner must choose "Show on website" and Save in their Manage link; check the site isn't paused. You can also do it: Clients → the site's Manage section → "Customer reviews on their website" → Show / Hide / Delete (Delete removes it for good, e.g. when the reviewer asks; the live site updates by itself).
+- Emails refused by Resend are kept 30 days: Settings → Email usage → Refused emails → "Send again" or "Send all again" after the limit resets (1am Lagos). The dashboard strip and morning email show how many are waiting. Backups with attachments are never kept.
+- Owner hates a recent change: Go live → "Restore previous version" puts the version before the current one back live (Cloudflare keeps them) and switches the site to "Ask me first" so 7am doesn't undo it. "Update live site" or the owner saving in Manage publishes the newest version again, so fix their design first, then update.
 - "gemini 503 / busy": Google's free AI is overloaded; wait a minute and retry. ANTHROPIC_API_KEY makes it more reliable.
 - AI text has many [ADD: …]: the form was thin; ask the customer on WhatsApp and fill with "Edit text".
 - Customer didn't get an email: check Spam; check their email in "Edit customer details"; Setup status for customer emails; Resend dashboard → Emails shows delivery.

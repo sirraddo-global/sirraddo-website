@@ -126,6 +126,19 @@ const SCHEMA = [
      question TEXT NOT NULL,
      resolved BOOLEAN NOT NULL DEFAULT false)`,
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS email_outbox (
+     id SERIAL PRIMARY KEY,
+     kind TEXT NOT NULL DEFAULT '',
+     to_us BOOLEAN NOT NULL DEFAULT false,
+     recipient TEXT NOT NULL DEFAULT '',
+     subject TEXT NOT NULL DEFAULT '',
+     html TEXT NOT NULL DEFAULT '',
+     reply_to TEXT,
+     from_name TEXT,
+     error TEXT NOT NULL DEFAULT '',
+     status TEXT NOT NULL DEFAULT 'refused',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     sent_at TIMESTAMPTZ)`,
   `CREATE TABLE IF NOT EXISTS email_usage (
      day DATE NOT NULL,
      kind TEXT NOT NULL,
@@ -684,11 +697,12 @@ export async function emailUsage(days = 14) {
     month: { sent: sum(monthRows, "sent"), failed: sum(monthRows, "failed"), resend: resend && String(resend.at).slice(0, 7) === today.slice(0, 7) ? resend.monthly : null },
     days: list,
     blocked: parse(meta.email_blocked),
+    refusedWaiting: await countRefused().catch(() => 0),
   };
 }
 
 // Send to a customer (needs LEAD_EMAIL_FROM). Replies go to LEAD_EMAIL_TO.
-export async function sendCustomerEmail(to, subject, html, replyTo, fromName) {
+export async function sendCustomerEmail(to, subject, html, replyTo, fromName, { keep = true } = {}) {
   if (!customerEmailConfigured()) return null;
   const sender = process.env.LEAD_EMAIL_FROM;
   const from = fromName ? `${String(fromName).replace(/[<>"\r\n]/g, "").slice(0, 60)} <${(sender.match(/<([^>]+)>/) || [, sender])[1].trim()}>` : sender;
@@ -704,12 +718,16 @@ export async function sendCustomerEmail(to, subject, html, replyTo, fromName) {
     }),
   });
   const kind = emailKind(subject, false);
-  if (!res.ok) throw await resendFailed(res, kind, 1);
+  if (!res.ok) {
+    const err = await resendFailed(res, kind, 1);
+    if (keep) await keepRefused({ kind, toUs: false, to, subject, html, replyTo, fromName, error: err.message });
+    throw err;
+  }
   await recordEmail(kind, true, res, 1);
   return true;
 }
 
-export async function sendEmail(subject, html, attachments) {
+export async function sendEmail(subject, html, attachments, { keep = true } = {}) {
   if (!emailConfigured()) return null;
   const from = process.env.LEAD_EMAIL_FROM || "SIRRADDO Website Assistant <onboarding@resend.dev>";
   const res = await fetch("https://api.resend.com/emails", {
@@ -725,9 +743,58 @@ export async function sendEmail(subject, html, attachments) {
   });
   const n = process.env.LEAD_EMAIL_TO.split(",").map((s) => s.trim()).filter(Boolean).length || 1;
   const kind = emailKind(subject, true);
-  if (!res.ok) throw await resendFailed(res, kind, n);
+  if (!res.ok) {
+    const err = await resendFailed(res, kind, n);
+    // Emails with attachments (the weekly backup) are never stored.
+    if (keep && !attachments) await keepRefused({ kind, toUs: true, to: "", subject, html, error: err.message });
+    throw err;
+  }
   await recordEmail(kind, true, res, n);
   return true;
+}
+
+// ---------- Refused emails ----------
+// When Resend refuses an email (usually the daily limit), it's kept here so you can send it again from
+// Admin → Settings → Email usage once the limit resets. Kept 30 days.
+async function keepRefused(m) {
+  try {
+    if (!dbConfigured() || !(await ensureSchema())) return;
+    await q(`INSERT INTO email_outbox (kind, to_us, recipient, subject, html, reply_to, from_name, error) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [m.kind, m.toUs, m.to || "", String(m.subject || "").slice(0, 300), String(m.html || ""), m.replyTo || null, m.fromName || null, String(m.error || "").slice(0, 300)]);
+  } catch (e) { console.error("refused email not kept", e?.message); }
+}
+export async function listRefused(limit = 50) {
+  if (!(await ensureSchema())) return [];
+  return q(`SELECT id, kind, to_us, recipient, subject, error, created_at FROM email_outbox WHERE status = 'refused' ORDER BY created_at DESC LIMIT $1`, [limit]);
+}
+export async function countRefused() {
+  if (!(await ensureSchema())) return 0;
+  return Number((await q(`SELECT count(*)::int AS n FROM email_outbox WHERE status = 'refused'`))[0]?.n || 0);
+}
+// "Send again" (one id, or all). Returns { sent, failed, error }.
+export async function resendRefused(ids) {
+  const where = ids === "all" ? `status = 'refused'` : `status = 'refused' AND id = ANY($1::int[])`;
+  const rows = await q(`SELECT * FROM email_outbox WHERE ${where} ORDER BY created_at LIMIT 40`, ids === "all" ? [] : [[].concat(ids).map(Number)]);
+  let sent = 0, failed = 0, error = "";
+  for (const m of rows) {
+    try {
+      if (m.to_us) await sendEmail(m.subject, m.html, null, { keep: false });
+      else await sendCustomerEmail(m.recipient, m.subject, m.html, m.reply_to || undefined, m.from_name || undefined, { keep: false });
+      await q(`UPDATE email_outbox SET status = 'sent', sent_at = now() WHERE id = $1`, [m.id]);
+      sent++;
+    } catch (e) {
+      failed++; error = e.message;
+      if (/429/.test(e.message)) break; // still over the limit: stop and try later
+    }
+  }
+  return { sent, failed, error };
+}
+export async function removeRefused(id) {
+  await q(`UPDATE email_outbox SET status = 'removed' WHERE id = $1 AND status = 'refused'`, [Number(id)]);
+}
+export async function cleanupRefused() {
+  if (!(await ensureSchema())) return;
+  await q(`DELETE FROM email_outbox WHERE created_at < now() - interval '30 days'`);
 }
 
 export function waLink(contact) {

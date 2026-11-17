@@ -5,6 +5,7 @@ import { getPreviewById, getRequest, updateRequest, saveHosting, esc, reference 
 import { buildSiteModel, exportFiles, slugify, SITE_LOOK } from "./sitegen.mjs";
 import { ensureStoreToken } from "./shop.mjs";
 import { ensureStatsKey } from "./stats.mjs";
+import { shownReviews } from "./reviews.mjs";
 import { balance } from "./docs.mjs";
 import { applyRules, todayLagos, daysBetween } from "./automation.mjs";
 import {
@@ -117,6 +118,7 @@ export async function publish(id, { force = false } = {}) {
   if (h.pausedAt && !force) throw new Bad("This site is paused. Use Restore instead.");
   const owed = owing(full);
   if (!force && owed) throw new Bad(`The balance (${balance(full)}) isn't paid yet.`);
+  row.reviews = await shownReviews(id).catch(() => null);
   const { pages, images } = filesFor(row);
   const files = [...pages.map((p) => ({ path: p.name, data: p.html })), ...(await fetchImages(images))];
   const project = await pickProject(row, h);

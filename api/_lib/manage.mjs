@@ -1,5 +1,5 @@
 // "Manage my store": a private link for the store owner to change urgent things themselves — product prices,
-// sold out / in stock, opening hours, phone and WhatsApp, and a short notice on their site. Saving updates the
+// sold out / in stock, opening hours, phone and WhatsApp, a short notice on their site, and which reviews show. Saving updates the
 // live site on Cloudflare (free, no Netlify deploy) and emails you what changed. Bigger changes stay with you
 // (Request a change). The link keeps working until you make a new one in admin.
 import { randomBytes } from "node:crypto";
@@ -12,6 +12,7 @@ async function load(id) {
   return r ? { ...r, brief: b?.brief || {} } : null;
 }
 import { cloudflareConfigured } from "./cloudflare.mjs";
+import { setReviewStatuses } from "./reviews.mjs";
 
 export async function manageLink(id, { renew = false } = {}) {
   const r = await getRequest(id);
@@ -54,6 +55,7 @@ export async function applyManage(r, input) {
     if ((key === "phone" || key === "whatsapp") && v && !/^\+?[\d\s()-]{7,20}$/.test(v)) throw new Error(`${label}: please write a phone number, e.g. 0803 123 4567`);
     if (v !== String(b[key] || "")) { changes.push(`${label}: ${v || "(removed)"}`); patch[key] = v; }
   }
+  changes.push(...(await setReviewStatuses(r.id, input.reviews))); // after the checks above, so a bad phone number saves nothing
   if (!changes.length) return { changes, row: r };
   await mergeBrief(r.id, patch);
   return { changes, row: await load(r.id) };

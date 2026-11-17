@@ -175,7 +175,7 @@ function bizEmail(row) {
 }
 // Bump this whenever the look or layout of customer sites changes: the 7am job then republishes every live site
 // still built with an older version (text the owner hasn't published yet is never pushed).
-export const SITE_LOOK = "2026-11-17";
+export const SITE_LOOK = "2026-11-17b";
 export function buildSiteModel(row) {
   const b = row.brief || {};
   const files = row.brief_files || {};
@@ -232,6 +232,7 @@ export function buildSiteModel(row) {
     })),
     shopToken: row.shop_token || row.shop?.token || "",
     statsKey: row.hosting?.statsKey || "",
+    reviews: row.reviews?.list?.length ? row.reviews : { list: [], count: 0, average: 0 }, // approved in Manage my store
     testimonials: String(b.testimonials || "").split(/\n+/).map((s) => s.trim()).filter(Boolean),
     delivery: b.delivery_areas || "",
     returns: b.returns || "",
@@ -313,7 +314,14 @@ details.faq p{margin:0 0 12px}li.qa{list-style:none}
 .gallery{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}@media(max-width:560px){.gallery{grid-template-columns:1fr 1fr}}
 .hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.hero .hero-grid img{aspect-ratio:1;max-height:none;box-shadow:0 10px 24px rgba(0,0,0,.25)}@media(max-width:819px){.hero-grid{grid-template-columns:repeat(4,1fr);gap:8px}}
 .trust{border-bottom:1px solid rgba(127,127,127,.2)}.trust .wrap{display:flex;flex-wrap:wrap;gap:8px 18px;padding-top:14px;padding-bottom:14px;font-weight:600;font-size:.95rem}.trust span{white-space:nowrap}
-main a,footer a,.card{overflow-wrap:anywhere}.card.invite{max-width:560px}.card.invite .btn{margin-top:6px}
+main a,footer a,.card{overflow-wrap:anywhere}
+.rv-stars{color:#F5A623;letter-spacing:2px;font-size:1.15rem}.rv-stars .off{color:rgba(127,127,127,.35)}.rv-sum{font-size:1.05rem;margin:0 0 14px}.rv blockquote{margin:8px 0;border:0;padding:0}.rv figcaption{font-weight:700}.card.rv{margin:0}
+.rv-write{margin-top:18px}.rv-write summary{list-style:none;display:inline-block}.rv-write summary::-webkit-details-marker{display:none}.rv-write[open] summary{display:none}
+.rv-form{max-width:560px}.rv-form label{display:block;font-weight:600;margin:12px 0 4px}.rv-form input:not([type=radio]),.rv-form textarea{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:12px;border:1px solid rgba(127,127,127,.45);border-radius:10px;background:transparent;color:inherit}
+.rv-form .btn{margin-top:12px}.rv-form .hp{position:absolute;left:-5000px;width:1px;height:1px;opacity:0}.rv-msg{font-weight:700;margin:8px 0 0}.rv-done{font-weight:700;font-size:1.05rem}
+.rv-pick{border:0;padding:0;margin:4px 0 0;display:inline-flex;flex-direction:row-reverse;justify-content:flex-end}.rv-lbl{font-weight:600;margin:12px 0 0}
+.rv-pick input{position:absolute;opacity:0;width:1px;height:1px}.rv-pick label{font-size:40px;line-height:1;margin:0;padding:2px 3px;cursor:pointer;color:rgba(127,127,127,.4)}
+.rv-pick input:checked~label,.rv-pick label:hover,.rv-pick label:hover~label{color:#F5A623}.rv-pick input:focus-visible+label{outline:2px solid #F5A623;border-radius:6px}.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .gallery img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:${t.radius}}
 blockquote{margin:0;background:#fff;border-left:4px solid ${t.accent};padding:16px 18px;border-radius:${t.radius}}
 .contact dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:0 0 1em}.contact dt{font-weight:700}.contact dd{margin:0}
@@ -533,6 +541,31 @@ function sectionHtml(sec, mode) {
 }
 
 // Short reasons to trust the business, shown under the home hero. Only facts from the form, never invented.
+// Approved reviews (stars, name, words) and the "Write a review" form. The form posts to our API; the owner
+// then chooses "Show on website" in Manage my store, which republishes the site.
+function reviewsHtml(site, mode, { all = false, form = true } = {}) {
+  const R = site.reviews;
+  const star = (n) => `<span class="rv-stars" aria-label="${n} out of 5 stars">${"\u2605".repeat(n)}<span class="off">${"\u2605".repeat(5 - n)}</span></span>`;
+  const list = (all ? R.list : R.list.slice(0, 3)).map((x) => `<figure class="card rv"><div>${star(x.stars)}</div>${x.text ? `<blockquote>${esc(x.text)}</blockquote>` : ""}<figcaption>${esc(x.name)}</figcaption></figure>`).join("");
+  const summary = R.count ? `<p class="rv-sum">${star(Math.round(R.average))} <b>${R.average.toFixed(1)}</b> out of 5 from ${R.count} review${R.count === 1 ? "" : "s"}</p>` : "";
+  const live = mode === "export" && site.statsKey;
+  const box = !form ? "" : `<details class="rv-write"${R.count ? "" : " open"}><summary class="btn">${R.count ? "Write a review" : "Be the first to leave a review"}</summary>
+<form class="rv-form card" novalidate><p>${R.count ? "Tell other customers how it went." : `Shopped or worked with ${esc(site.name)}? Tell other customers how it went.`}</p>
+<p class="rv-lbl" id="rv-lbl">Your rating</p><fieldset class="rv-pick" aria-labelledby="rv-lbl">${[5, 4, 3, 2, 1].map((n) => `<input type="radio" name="stars" id="rv${n}" value="${n}"><label for="rv${n}" title="${n} star${n === 1 ? "" : "s"}">\u2605<span class="vh">${n} star${n === 1 ? "" : "s"}</span></label>`).join("")}</fieldset>
+<label for="rv-name">Your name</label><input id="rv-name" name="name" maxlength="50" autocomplete="name">
+<label for="rv-text">Your review (optional)</label><textarea id="rv-text" name="text" maxlength="600" rows="3"></textarea>
+<input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+<button class="btn" type="submit">Send review</button><p class="rv-msg" role="status"></p></form></details>
+<script>(function(){var f=document.currentScript.previousElementSibling.querySelector('form'),m=f.querySelector('.rv-msg'),live=${live ? "true" : "false"};
+f.addEventListener('submit',function(e){e.preventDefault();var s=f.querySelector('input[name=stars]:checked'),n=f.querySelector('#rv-name').value.trim();
+if(!s){m.textContent='Please tap the stars to give a rating.';return}if(n.length<2){m.textContent='Please write your name.';return}
+if(!live){m.textContent='Reviews can be sent once the website is live.';return}
+var b=f.querySelector('button');b.disabled=true;m.textContent='Sending\u2026';
+fetch(${JSON.stringify(SITE_URL + "/api/site?review=1")},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({k:${JSON.stringify(site.statsKey)},stars:+s.value,name:n,text:f.querySelector('#rv-text').value,website:f.querySelector('.hp').value})})
+.then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(x){if(x.ok){f.innerHTML='<p class="rv-done">Thank you! Your review will appear here once ${esc(site.name).replace(/'/g, "\\'")} has checked it.</p>'}else{b.disabled=false;m.textContent=x.j.error||'Sorry, that didn\'t send.'}})
+.catch(function(){b.disabled=false;m.textContent='No connection. Please try again.'})});})();</script>`;
+  return `${summary}${list ? `<div class="cards rv-list">${list}</div>` : ""}${box}`;
+}
 function trustPoints(site) {
   const t = [];
   const city = String(site.address || "").split(/\n|,/).map((x) => x.trim()).filter(Boolean).pop() || "";
@@ -601,6 +634,10 @@ function pageBody(site, page, mode, link, img) {
       extra("What we offer", serviceCards({ ...site, services: sp ? site.services.slice(0, 3) : site.services }, true) + (sp && site.services.length > 3 ? more(sp, "See all services") : ""));
     }
     if (site.products.length) extra("Featured products", productCards({ ...site, products: site.products.slice(0, 8) }, img) + more(find("shop"), "Shop all products"));
+    // Reviews: the latest approved ones, or (with no Testimonials page) an invitation to leave the first.
+    const tp = find("testimonials");
+    if (site.reviews.count) extra("What customers say", reviewsHtml(site, mode, { all: false, form: !tp }) + more(tp, `Read all ${site.reviews.count} review${site.reviews.count === 1 ? "" : "s"}`));
+    else if (!tp) extra("", reviewsHtml(site, mode, { all: false, form: true }));
     if (site.photos.length > 1) {
       const gp = find("gallery");
       extra(gp ? "Our work" : "", gallery(site.photos.slice(1, gp ? 5 : 7), img) + more(gp, "See the gallery"));
@@ -611,7 +648,7 @@ function pageBody(site, page, mode, link, img) {
   const galleryPhotos = site.photos.length ? site.photos : site.productPhotos.slice(0, 12);
   if (page.kind === "gallery") extra("", galleryPhotos.length ? gallery(galleryPhotos, img) : mode === "preview" ? `<p><mark class="todo">To be added: photos</mark></p>` : "");
   if (page.kind === "testimonials" && site.testimonials.length) extra("", `<div class="cards">${site.testimonials.map((t) => `<blockquote>${esc(t)}</blockquote>`).join("")}</div>`);
-  else if (page.kind === "testimonials" && site.whatsapp) extra("", `<div class="card invite"><h3>Shopped or worked with us?</h3><p>We'd love to hear how it went. Your review helps other customers choose with confidence.</p><a class="btn" href="${waLink(site, `Hello ${site.name}, here is my review:`)}">Send your review on WhatsApp</a></div>`);
+  if (page.kind === "testimonials") extra("", reviewsHtml(site, mode, { all: true }));
   if (page.kind === "shop") {
     extra("", site.products.length ? shopSections(site, img) : "");
     if (site.delivery || site.returns) extra("Delivery and returns", `${site.delivery ? `<p><strong>Delivery:</strong> ${esc(site.delivery)}</p>` : ""}${site.returns ? `<p><strong>Returns:</strong> ${esc(site.returns)}</p>` : ""}`);

@@ -126,6 +126,16 @@ const SCHEMA = [
      question TEXT NOT NULL,
      resolved BOOLEAN NOT NULL DEFAULT false)`,
   `CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS site_reviews (
+     id SERIAL PRIMARY KEY,
+     request_id INTEGER NOT NULL,
+     name TEXT NOT NULL,
+     stars INTEGER NOT NULL,
+     body TEXT NOT NULL DEFAULT '',
+     status TEXT NOT NULL DEFAULT 'pending',
+     who TEXT NOT NULL DEFAULT '',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
+  `CREATE INDEX IF NOT EXISTS site_reviews_req ON site_reviews (request_id, status)`,
 ];
 let schemaReady = null;
 export async function ensureSchema() {

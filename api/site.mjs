@@ -3,11 +3,13 @@
 //   GET  /change?t=TOKEN             the owner's private "request a change" page
 //   POST ?upload=1&t=TOKEN&name=&type=   a photo/file for a change request (body = the file)
 //   POST { t, text, files }          send the change request
+//   POST ?review=1 { k, stars, name, text }   a visitor's review (waits for the owner's OK)
 //   GET  ?greeting=1                 the festive greeting showing on sirraddo.com.ng now (or null)
 //   GET  ?nogreet=ID.SIG             stop festive greeting emails for that customer
 import { putFile } from "./_lib/platform.mjs";
 import { dbConfigured, getByPreviewToken, esc } from "./_lib/store.mjs";
 import { recordHit } from "./_lib/stats.mjs";
+import { addReview } from "./_lib/reviews.mjs";
 import { addChange, listChanges, freeUntil, isFree, MAX_CHANGE_FILES } from "./_lib/changes.mjs";
 import { uploadsEnabled } from "./brief.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
@@ -107,6 +109,24 @@ export default async function handler(req, res) {
       await recordHit({ k: b.k, e: b.e, p: b.p, r: b.r }, { ip, ua: String(req.headers["user-agent"] || "") });
     } catch (e) { console.error("hit failed", e); }
     return res.status(204).end();
+  }
+
+  // A review from a customer's website (shows only after the owner approves it in Manage my store).
+  if (query.review) {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    if (req.method === "OPTIONS") return res.status(204).end();
+    if (req.method !== "POST" || !dbConfigured()) return res.status(405).json({ error: "Not available" });
+    try {
+      const b = await readJson(req);
+      const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+      const out = await addReview(b, { ip, ua: String(req.headers["user-agent"] || "") });
+      return res.status(out.error ? 400 : 200).json(out.error ? { error: out.error } : { ok: true });
+    } catch (e) {
+      console.error("review failed", e);
+      return res.status(500).json({ error: "Sorry, that didn't send. Please try again." });
+    }
   }
 
   if (query.greeting) {

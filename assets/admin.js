@@ -1575,20 +1575,33 @@
   // A small Markdown renderer for the draft: headings, bold, lists, rules, paragraphs.
   function mdToHtml(md) {
     var inline = function (t) { return h(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>').replace(/\[ADD:([^\]]*)\]/g, '<mark>[ADD:$1]</mark>'); };
-    var out = [], list = null;
+    // Lists keep their numbers ("2." stays 2 even after a bullet), and indented bullets under a numbered step
+    // are shown inside that step instead of breaking the list.
+    var out = [], list = null, sub = false;
+    var closeSub = function () { if (sub) { out.push('</ul></li>'); sub = false; } else if (list === 'ol') out.push('</li>'); };
+    var closeList = function () { if (!list) return; closeSub(); out.push('</' + list + '>'); list = null; };
     md.split('\n').forEach(function (line) {
       var m;
-      if ((m = line.match(/^\s*[-*] (.*)/)) || (m = line.match(/^\s*\d+\. (.*)/))) {
-        var tag = /^\s*\d+\./.test(line) ? 'ol' : 'ul';
-        if (list !== tag) { if (list) out.push('</' + list + '>'); out.push('<' + tag + '>'); list = tag; }
+      if (list === 'ol' && (m = line.match(/^\s{2,}[-*] (.*)/))) {
+        if (!sub) { out.push('<ul>'); sub = true; }
         out.push('<li>' + inline(m[1]) + '</li>'); return;
       }
-      if (list) { out.push('</' + list + '>'); list = null; }
+      if ((m = line.match(/^\s*(\d+)\. (.*)/))) {
+        if (list === 'ol') closeSub(); else { closeList(); out.push('<ol start="' + m[1] + '">'); list = 'ol'; }
+        out.push('<li>' + inline(m[2])); return;
+      }
+      if ((m = line.match(/^\s*[-*] (.*)/))) {
+        if (list === 'ol' && /^\s/.test(line)) return; // handled above
+        if (list !== 'ul') { closeList(); out.push('<ul>'); list = 'ul'; }
+        out.push('<li>' + inline(m[1]) + '</li>'); return;
+      }
+      if (!line.trim() && list) return; // a blank line between list items keeps the list going
+      closeList();
       if ((m = line.match(/^(#{1,4}) (.*)/))) out.push('<h' + (m[1].length + 1) + '>' + inline(m[2]) + '</h' + (m[1].length + 1) + '>');
       else if (/^---+\s*$/.test(line)) out.push('<hr>');
       else if (line.trim()) out.push('<p>' + inline(line) + '</p>');
     });
-    if (list) out.push('</' + list + '>');
+    closeList();
     return out.join('');
   }
   function plain(md) { return md.replace(/^#{1,4} /gm, '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/^\s*[-*] /gm, '• ').trim(); }

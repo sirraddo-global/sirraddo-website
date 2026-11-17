@@ -266,6 +266,38 @@
     api('POST', { action: 'notices' }).then(draw).catch(function (e) { box.innerHTML = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
     return card;
   }
+  // Reviews of SIRRADDO left on www.sirraddo.com.ng (Websites page). Nothing shows until you choose Show on website.
+  function reviewsCard() {
+    var card = el('div', { class: 'admin-card admin-settings' }, [
+      el('h2', { text: 'Reviews of SIRRADDO' }),
+      el('p', { class: 'admin-intro', text: 'Clients rate you on the Websites page of your website. New ones wait here (and you get an email). Choose Show on website for genuine reviews, Hide for fake or rude ones. Shown reviews appear on your website within about 5 minutes.' })
+    ]);
+    var box = el('div', null, [el('p', { class: 'admin-hint', text: 'Loading…' })]);
+    card.appendChild(box);
+    function draw(j) {
+      box.innerHTML = '';
+      if (!j.reviews.length) { box.appendChild(el('p', { class: 'admin-hint', text: 'No reviews yet. Ask happy clients to leave one at sirraddo.com.ng/websites#reviews.' })); return; }
+      j.reviews.forEach(function (r) {
+        var st = { pending: ['New', 'is-new'], shown: ['On website', 'is-won'], hidden: ['Hidden', ''] }[r.status] || ['', ''];
+        var stars = new Array(r.stars + 1).join('\u2605') + new Array(6 - r.stars).join('\u2606');
+        box.appendChild(el('div', { class: 'admin-golive' }, [
+          el('p', null, [el('b', { text: stars + '  ' + r.name }), ' ', badge(st[0], st[1])]),
+          r.body ? el('p', { text: r.body }) : null,
+          el('p', { class: 'admin-hint', text: new Date(r.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) }),
+          el('div', { class: 'admin-actions' }, [
+            r.status !== 'shown' ? el('button', { class: 'admin-btn', type: 'button', text: 'Show on website', onclick: function (e) { set(r.id, 'shown', e.currentTarget); } }) : null,
+            r.status !== 'hidden' ? el('button', { class: 'admin-btn', type: 'button', text: 'Hide', onclick: function (e) { set(r.id, 'hidden', e.currentTarget); } }) : null
+          ])
+        ]));
+      });
+    }
+    function set(id, status, btn) {
+      btn.disabled = true;
+      api('POST', { action: 'review_set', reviewId: id, status: status }).then(function (j) { flash(status === 'shown' ? 'Shown on your website' : 'Hidden'); draw(j); }).catch(function (e) { btn.disabled = false; fail(e); });
+    }
+    api('POST', { action: 'reviews' }).then(draw).catch(function (e) { box.innerHTML = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
+    return card;
+  }
   // Festive greetings: a banner on the website during each festival (automatic) + optional emails you send.
   function greetingsCard() {
     var card = el('div', { class: 'admin-card admin-settings' }, [
@@ -1695,7 +1727,7 @@
   // Settings are split into small sections (chips at the top) so there's no long scrolling.
   var SETTINGS_SECTIONS = [
     ['business', 'Bank & invoices'], ['messages', 'WhatsApp messages'], ['handover', 'Handover'],
-    ['notices', 'Service notices'], ['greetings', 'Festive greetings'], ['backup', 'Backup']
+    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['greetings', 'Festive greetings'], ['backup', 'Backup']
   ];
   function renderSettings(view) {
     var s = state.settings;
@@ -1746,6 +1778,7 @@
       f.appendChild(text('handover_terms', 'Changes and support policy (shown in every handover pack)', DEFAULT_HANDOVER_TERMS, true));
     }));
     if (pick === 'notices') view.appendChild(noticesCard());
+    if (pick === 'reviews') view.appendChild(reviewsCard());
     if (pick === 'greetings') view.appendChild(greetingsCard());
     if (pick === 'backup') view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
       el('h2', { text: 'Backup' }),

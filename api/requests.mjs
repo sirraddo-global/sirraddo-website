@@ -375,6 +375,11 @@ export default async function handler(req, res) {
         } catch (e) { throw new Bad(e.message); }
         return res.status(200).json({ notices: await noticesForAdmin(), kinds: NOTICE_KINDS });
       }
+      if (body.action === "reviews" || body.action === "review_set") {
+        const { listReviews, setReviewStatuses, OUR_ID } = await import("./_lib/reviews.mjs");
+        if (body.action === "review_set") await setReviewStatuses(OUR_ID, { [Number(body.reviewId)]: String(body.status || "") });
+        return res.status(200).json({ reviews: await listReviews(OUR_ID, 100) });
+      }
       if (body.action === "manage_link") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");

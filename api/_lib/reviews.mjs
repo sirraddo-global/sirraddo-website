@@ -6,6 +6,9 @@ import { q, ensureSchema, getRequest, sendCustomerEmail, customerEmailConfigured
 import { siteForKey } from "./stats.mjs";
 
 export const MAX_SHOWN = 60;
+// Reviews of SIRRADDO itself (on www.sirraddo.com.ng) use request_id 0 and are approved in admin → Settings → Reviews.
+export const OUR_ID = 0;
+export const OUR_KEY = "sirraddo";
 const clean = (v, max) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 const STATUSES = new Set(["pending", "shown", "hidden"]);
 export const starsText = (n) => "★".repeat(n) + "☆".repeat(5 - n);
@@ -13,7 +16,7 @@ export const starsText = (n) => "★".repeat(n) + "☆".repeat(5 - n);
 // Returns { ok } or { error } (a message the visitor can read).
 export async function addReview(input, { ip, ua }) {
   if (clean(input.website, 100)) return { ok: true }; // the hidden box only robots fill in
-  const site = await siteForKey(input.k);
+  const site = input.k === OUR_KEY ? { id: OUR_ID } : await siteForKey(input.k);
   if (!site) return { error: "This website can't take reviews right now." };
   const stars = Number(input.stars);
   if (!Number.isInteger(stars) || stars < 1 || stars > 5) return { error: "Please tap the stars to give a rating." };
@@ -33,6 +36,11 @@ export async function addReview(input, { ip, ua }) {
 }
 
 async function tellOwner(id, rv) {
+  if (id === OUR_ID) {
+    const { SITE_URL } = await import("../../site.config.mjs");
+    return sendEmail(`New ${rv.stars}-star review for SIRRADDO from ${rv.name}`, `<p><b style="color:#B7791F">${starsText(rv.stars)}</b><br><b>${esc(rv.name)}</b>${rv.text ? `<br>${esc(rv.text)}` : ""}</p>
+<p>It shows on your website once you choose <b>Show on website</b> in <a href="${SITE_URL}/admin">Admin → Settings → Reviews</a>.</p>`);
+  }
   const r = await getRequest(id);
   if (!r) return;
   const { manageLink } = await import("./manage.mjs");

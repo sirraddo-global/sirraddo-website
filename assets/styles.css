@@ -555,3 +555,26 @@ p { margin: 0 0 1em; }
 .map-link { margin: 8px 0 0; font-weight: 600; }
 .trust-row { list-style: none; padding: 0; margin: 28px 0 0; display: flex; flex-wrap: wrap; gap: 10px 22px; color: #DCE3F1; font-weight: 600; font-size: .98rem; position: relative; z-index: 1; }
 .trust-row li::before { content: "\2713"; color: var(--gold); margin-right: 8px; }
+
+/* Client reviews (websites page) */
+.rv-sum { font-size: 1.1rem; margin: 0 0 18px; }
+.rv-stars { color: #F5A623; letter-spacing: 2px; font-size: 1.15rem; }
+.rv-stars .off { color: rgba(127,127,127,.35); }
+.rv-card { margin: 0; }
+.rv-card blockquote { margin: 10px 0; padding: 0; border: 0; color: var(--ink); }
+.rv-card figcaption { font-weight: 700; margin-top: auto; }
+.rv-write { margin-top: 24px; }
+.rv-write summary { list-style: none; display: inline-flex; cursor: pointer; }
+.rv-write summary::-webkit-details-marker { display: none; }
+.rv-write[open] summary { display: none; }
+.rv-form { max-width: 620px; }
+.rv-form h3 { margin: 0; }
+.rv-lbl { font-weight: 700; margin: 0; color: var(--ink); }
+.rv-pick { border: 0; padding: 0; margin: 0; display: inline-flex; flex-direction: row-reverse; justify-content: flex-end; }
+.rv-pick input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.rv-pick label { font-size: 42px; line-height: 1; padding: 2px 3px; cursor: pointer; color: rgba(127,127,127,.4); }
+.rv-pick input:checked ~ label, .rv-pick label:hover, .rv-pick label:hover ~ label { color: #F5A623; }
+.rv-pick input:focus-visible + label { outline: 2px solid #F5A623; border-radius: 6px; }
+.rv-hp { position: absolute; left: -5000px; width: 1px; height: 1px; opacity: 0; }
+.rv-msg { font-weight: 700; margin: 0; }
+.rv-msg:empty { display: none; }

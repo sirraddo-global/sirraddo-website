@@ -275,3 +275,22 @@ test("Reviews: a visitor gives stars; nothing shows until the owner chooses Show
   assert.doesNotMatch(html, /Same person/);
   assert.match(html, /class="rv-form/, "the form is there to write another");
 });
+
+test("Reviews of SIRRADDO: sent from our website, approved in admin, then listed for the Websites page", async () => {
+  const n = h.sent.length;
+  const ok = await h.call("POST", "/api/site?review=1", JSON.stringify({ k: "sirraddo", stars: 5, name: "Ada, Ada's Kitchen", text: "Our website was ready in a week." }), { "content-type": "application/json", "x-forwarded-for": "9.9.9.9", "user-agent": "Mozilla/5.0" });
+  assert.equal(ok.status, 200, ok.text);
+  assert.ok(h.newMail(n).some((m) => /review for SIRRADDO/.test(m.subject)), "you get an email");
+  let pub = await h.call("GET", "/api/site?reviews=sirraddo");
+  assert.equal(pub.json.count, 0, "nothing shows before approval");
+  const list = (await h.action({ action: "reviews" })).json.reviews;
+  assert.equal(list[0].status, "pending");
+  const after = (await h.action({ action: "review_set", reviewId: list[0].id, status: "shown" })).json.reviews;
+  assert.equal(after[0].status, "shown");
+  pub = await h.call("GET", "/api/site?reviews=sirraddo");
+  assert.equal(pub.json.count, 1);
+  assert.equal(pub.json.list[0].name, "Ada, Ada's Kitchen");
+  const html = await readFile(join(ROOT, "public/websites.html"), "utf8");
+  assert.match(html, /id="reviews"/);
+  assert.match(html, /\/assets\/reviews\.js\?v=/);
+});

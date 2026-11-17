@@ -2,7 +2,7 @@
 // pause it when the renewal is 14+ days overdue and restore it when paid, and forward their business email.
 // Everything about it is kept in customer_requests.hosting (JSON).
 import { getPreviewById, getRequest, updateRequest, saveHosting, esc, reference } from "./store.mjs";
-import { buildSiteModel, exportFiles, slugify } from "./sitegen.mjs";
+import { buildSiteModel, exportFiles, slugify, SITE_LOOK } from "./sitegen.mjs";
 import { ensureStoreToken } from "./shop.mjs";
 import { ensureStatsKey } from "./stats.mjs";
 import { balance } from "./docs.mjs";
@@ -121,7 +121,7 @@ export async function publish(id, { force = false } = {}) {
   const files = [...pages.map((p) => ({ path: p.name, data: p.html })), ...(await fetchImages(images))];
   const project = await pickProject(row, h);
   const dep = await deploy(project, files);
-  const patch = { project, pagesUrl: `https://${project}.pages.dev`, publishedAt: new Date().toISOString(), deploymentId: dep?.id || null, pausedAt: null, pauseReason: null,
+  const patch = { project, pagesUrl: `https://${project}.pages.dev`, publishedAt: new Date().toISOString(), look: SITE_LOOK, deploymentId: dep?.id || null, pausedAt: null, pauseReason: null,
     // When it first went online with money still owed (auto-pauses after BALANCE_GRACE_DAYS).
     owingSince: owed ? h.owingSince || new Date().toISOString() : null };
   let attached = h.attached && h.project === project;
@@ -210,7 +210,7 @@ export async function afterProjectPayment(id) {
 // ---------- Daily ----------
 // Returns lines for the morning email.
 export async function dailyHosting(all, now = new Date()) {
-  const out = { activated: [], paused: [], balancePaused: [], restored: [], unpublished: [], ready: [], errors: [] };
+  const out = { refreshed: [], activated: [], paused: [], balancePaused: [], restored: [], unpublished: [], ready: [], errors: [] };
   if (!cloudflareConfigured()) return out;
   const today = todayLagos(now);
   for (const r of all) {
@@ -231,7 +231,13 @@ export async function dailyHosting(all, now = new Date()) {
       } else if (h.project && h.pausedAt && reason === "balance" && !owing(r)) {
         out.restored.push(await restore(r.id)); // balance paid
       }
-      if (h.project && !h.pausedAt && h.publishedAt && [r.draft_at, r.design_at].some((t) => t && Date.parse(t) > Date.parse(h.publishedAt))) out.unpublished.push(r);
+      const unpublishedEdits = h.project && !h.pausedAt && h.publishedAt && [r.draft_at, r.design_at].some((t) => t && Date.parse(t) > Date.parse(h.publishedAt));
+      if (unpublishedEdits) out.unpublished.push(r);
+      // New look for customer sites (after an update of ours): republish, a few per morning. Skipped when they have edits not yet published.
+      else if (h.project && !h.pausedAt && h.publishedAt && h.look !== SITE_LOOK && !owing(r) && out.refreshed.length < 15) {
+        await publish(r.id);
+        out.refreshed.push(r);
+      }
       if (!h.project && r.preview_status === "approved" && r.quote_amount != null && balance(r) === 0) out.ready.push(r);
     } catch (e) {
       console.error("hosting check failed", r.id, e);

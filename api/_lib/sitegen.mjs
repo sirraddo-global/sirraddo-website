@@ -173,6 +173,9 @@ function bizEmail(row) {
   if (!h.domain || !e || e.status !== "active" || !(e.locals || []).length) return "";
   return `${e.locals.includes("info") ? "info" : e.locals[0]}@${h.domain}`;
 }
+// Bump this whenever the look or layout of customer sites changes: the 7am job then republishes every live site
+// still built with an older version (text the owner hasn't published yet is never pushed).
+export const SITE_LOOK = "2026-11-17";
 export function buildSiteModel(row) {
   const b = row.brief || {};
   const files = row.brief_files || {};

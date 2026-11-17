@@ -334,6 +334,7 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
     ...(host ? [
       section("Customer domains now active", host.activated.map((r) => item(r, `${esc(r.hosting.domain)} is active on Cloudflare.${r.hosting.project ? " Their website is now connected to it." : " You can publish their website now."}`, null))),
       section("Ready to go live (approved and paid)", host.ready.map((r) => item(r, "Admin → Clients → Go live → Publish website.", null))),
+      section("Websites updated to our new look", (host.refreshed || []).map((r) => item(r, "Republished automatically with the latest website improvements.", null))),
       section("Live sites with changes not yet published", host.unpublished.map((r) => item(r, "You edited the text or design after publishing. Tap Update live site.", null))),
       section("Sites paused today (renewal 15+ days overdue)", host.paused.map((r) => item(r, `${esc(r.hosting?.domain || r.website_url || "")} paused. It restores itself when the renewal is paid.`, fill(tpl("tpl_renewal"), r)))),
       section("Sites paused for an unpaid balance (7+ days)", host.balancePaused.map((r) => item(r, `balance ${naira(balance(r))}. It comes back by itself once paid.`, r.doc_token ? fill(tpl("tpl_invoice"), r, { doc_link: docLink(r, "invoice") }) : fill(tpl("tpl_invoice"), r)))),

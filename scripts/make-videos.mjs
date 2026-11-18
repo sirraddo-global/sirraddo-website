@@ -36,7 +36,7 @@ const CSS = `
 .big{font-weight:800;letter-spacing:-.03em;line-height:1.02}
 .card{background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.14);border-radius:30px}
 .phone{width:560px;height:1080px;border-radius:64px;background:#0B1022;border:14px solid #1E2A4A;box-shadow:0 30px 80px rgba(0,0,0,.5);overflow:hidden;position:relative}
-.scr{position:absolute;inset:0;background:#F5F6FA;color:#13244F;padding:34px 26px;font-size:24px}
+.scr{position:absolute;inset:0;background:#F5F6FA;color:#13244F;padding:34px 26px;font-size:24px;text-align:left}
 .tap{position:absolute;width:110px;height:110px;margin:-55px 0 0 -55px;border-radius:50%;background:rgba(217,162,27,.55);border:4px solid ${GOLD};opacity:0;pointer-events:none}
 .pill{display:inline-block;background:${GOLD};color:${DEEP};font-weight:800;border-radius:999px}
 .design{width:270px;border-radius:22px;overflow:hidden;outline:0 solid ${GOLD};outline-offset:8px;transition:none}
@@ -160,6 +160,124 @@ ${await endCard("video-store", 18.4, "Start your online store")}`,
   </div>
 </div>
 ${await endCard("video-see-first", 15.6, "Websites from ₦50,000")}`,
+    },
+    {
+      file: "video-why", dur: 21,
+      html: `
+<div class="scene center" data-in="0" data-out="3.4" data-fx="fade" data-dur="0.01">
+  <div data-in="0.2" data-fx="pop">${logo(1.6)}</div>
+  <div class="big" style="font-size:132px;margin-top:80px" data-in="0.5">Tired of answering <span style="color:${GOLD}">"How much?"</span> all day?</div>
+</div>
+<div class="scene center" data-in="3.6" data-out="9.4" data-fx="fade" data-dur="0.3">
+  <div class="phone" data-in="3.7" data-fx="up" style="height:1180px">
+    <div class="scr" style="background:#ECE5DD;padding:0">
+      <div style="background:#075E54;color:#fff;padding:30px 26px;font-weight:700;font-size:34px">💬 WhatsApp · 23 unread</div>
+      <div style="padding:24px;display:flex;flex-direction:column;gap:20px;font-size:36px">
+        ${["How much is this one?", "Do you deliver to Bodija?", "Send me your price list", "Where is your shop?", "Are you open on Sunday?", "How much again? 🙏", "Do you have it in red?"].map((t, i) => `<div style="background:#fff;border-radius:20px 20px 20px 6px;padding:20px 24px;max-width:88%;box-shadow:0 1px 2px rgba(0,0,0,.12)" data-in="${4.1 + i * 0.6}" data-fx="left">${t}</div>`).join("")}
+      </div>
+    </div>
+  </div>
+  <div class="big" style="position:absolute;left:84px;right:84px;bottom:150px;font-size:64px;text-shadow:0 6px 30px rgba(0,0,0,.6)" data-in="8.4" data-fx="pop">Same questions. Every day. 😩</div>
+</div>
+<div class="scene" data-in="9.6" data-out="15.6" data-fx="fade" data-dur="0.3">
+  <div class="big" style="font-size:104px" data-in="9.7">Your website answers for you, <span style="color:${GOLD}">24/7</span></div>
+  <div style="display:flex;flex-direction:column;gap:40px;margin-top:80px;font-size:58px;font-weight:700">
+    ${["Prices and photos of everything", "Delivery areas and opening hours", "Your location on Google Maps", "Customers order on WhatsApp in one tap"].map((t, i) => `<div style="display:flex;gap:28px;align-items:center" data-in="${10.4 + i * 0.45}" data-fx="left"><span style="font-size:1.1em">${tick}</span><span>${t}</span></div>`).join("")}
+  </div>
+  <div style="font-size:52px;font-weight:800;margin-top:80px;color:${GOLD}" data-in="12.8">You focus on selling.</div>
+</div>
+${await endCard("video-why", 15.8, "Websites from ₦50,000")}`,
+    },
+    {
+      file: "video-maps", dur: 21,
+      html: `
+<div class="scene center" data-in="0" data-out="3.6" data-fx="fade" data-dur="0.01">
+  <div data-in="0.2" data-fx="pop">${logo(1.6)}</div>
+  <div class="big" style="font-size:136px;margin-top:80px" data-in="0.5">Can customers find you on <span style="color:${GOLD}">Google Maps?</span></div>
+</div>
+<div class="scene center" data-in="3.8" data-out="10.4" data-fx="fade" data-dur="0.3">
+  <div class="phone" data-in="3.9" data-fx="up" style="height:1180px">
+    <div class="scr" style="padding:0;background:#E8EEF3">
+      <div style="position:absolute;inset:0;background:
+        linear-gradient(90deg,transparent 47%,#fff 47%,#fff 53%,transparent 53%),
+        linear-gradient(0deg,transparent 30%,#fff 30%,#fff 34%,transparent 34%),
+        linear-gradient(0deg,transparent 68%,#fff 68%,#fff 71%,transparent 71%),
+        linear-gradient(120deg,#DDE8D5 0 22%,transparent 22%),#E8EEF3"></div>
+      <div style="position:absolute;left:24px;right:24px;top:26px;background:#fff;border-radius:40px;padding:22px 30px;font-size:28px;color:#555;box-shadow:0 2px 8px rgba(0,0,0,.15)"><span data-in="4.4" data-type="1" data-fx="fade" data-dur="0.01">salon near me</span></div>
+      <div style="position:absolute;left:236px;top:330px;font-size:96px" data-in="6.0" data-fx="pop">📍</div>
+      <div style="position:absolute;left:20px;right:20px;bottom:20px;background:#fff;border-radius:28px;padding:30px;box-shadow:0 -6px 24px rgba(0,0,0,.18)" data-in="6.6" data-fx="up">
+        <div style="font-size:38px;font-weight:800;color:#13244F">Your Business</div>
+        <div style="font-size:26px;color:#555;margin-top:6px"><span style="color:#E8A317">★★★★★</span> 4.9 · Hair salon · Open now</div>
+        <div style="display:flex;gap:14px;margin-top:22px">${["Directions", "Call", "Website"].map((b, i) => `<div style="flex:1;text-align:center;border-radius:30px;padding:16px 0;font-weight:700;font-size:24px;${i === 0 ? "background:#1A73E8;color:#fff" : "border:2px solid #C9D3E0;color:#1A73E8"}">${b}</div>`).join("")}</div>
+      </div>
+      <div class="tap" data-tap="8.6" style="left:440px;top:1060px"></div>
+    </div>
+  </div>
+  <div class="big" style="position:absolute;left:84px;right:84px;bottom:130px;font-size:62px;text-shadow:0 6px 30px rgba(0,0,0,.6)" data-in="9.0" data-fx="pop">Be the one they visit. 📍</div>
+</div>
+<div class="scene" data-in="10.6" data-out="16" data-fx="fade" data-dur="0.3">
+  <div class="kick" style="font-size:36px" data-in="10.7">Business website</div>
+  <div class="big" style="font-size:180px;margin-top:20px;color:${GOLD}" data-in="10.9" data-fx="pop">₦100,000</div>
+  <div style="display:flex;flex-direction:column;gap:38px;margin-top:70px;font-size:56px;font-weight:700">
+    ${["Up to 10 pages", "Help setting up Google Maps", "Customer reviews on your site", "Free .com.ng domain and hosting"].map((t, i) => `<div style="display:flex;gap:28px;align-items:center" data-in="${11.6 + i * 0.4}" data-fx="left"><span style="font-size:1.1em">${tick}</span><span>${t}</span></div>`).join("")}
+  </div>
+</div>
+${await endCard("video-maps", 16.2, "Get found on Google")}`,
+    },
+    {
+      file: "video-manage", dur: 21,
+      html: `
+<div class="scene center" data-in="0" data-out="3.6" data-fx="fade" data-dur="0.01">
+  <div data-in="0.2" data-fx="pop">${logo(1.6)}</div>
+  <div class="big" style="font-size:132px;margin-top:80px" data-in="0.5">Your website. <span style="color:${GOLD}">Your control.</span></div>
+  <div style="font-size:50px;margin-top:40px;color:#C9D1E6" data-in="1.2">Update it from your phone.</div>
+</div>
+<div class="scene center" data-in="3.8" data-out="11.4" data-fx="fade" data-dur="0.3">
+  <div style="font-size:52px;font-weight:800;margin-bottom:44px" data-in="3.9">Your private Manage link</div>
+  <div class="phone" data-in="4.1" data-fx="up">
+    <div class="scr" style="padding:30px 24px">
+      <div style="font-size:40px;font-weight:800">Manage my store</div>
+      <div style="font-size:28px;color:#556;margin-top:4px">Kemi Wears</div>
+      ${[["Ankara gown", "20000", "4", false], ["Lace blouse", "12000", "", false], ["Gele", "5000", "0", true]].map(([n, p, st, so], i) => `<div style="background:#fff;border-radius:16px;padding:18px;margin-top:18px;box-shadow:0 2px 8px rgba(0,0,0,.06)">
+        <div style="font-weight:700;font-size:32px">${n}</div>
+        <div style="display:flex;gap:10px;margin-top:12px;align-items:center;font-size:25px">
+          <div style="flex:1;border:2px solid #D5DAE6;border-radius:10px;padding:10px 12px;white-space:nowrap">₦ ${i === 1 ? `<span data-in="6.4" data-fx="fade" data-dur="0.01" style="font-weight:800;color:#0E7C3A">15000</span><span data-in="0" data-out="6.3" data-fx="fade" data-dur="0.01">${p}</span>` : p}</div>
+          <div style="border:2px solid #D5DAE6;border-radius:10px;padding:10px 12px">Stock ${i === 0 ? `<span data-in="7.6" data-fx="fade" data-dur="0.01" style="font-weight:800;color:#0E7C3A">10</span><span data-in="0" data-out="7.5" data-fx="fade" data-dur="0.01">${st}</span>` : st || "–"}</div>
+          <div style="border-radius:10px;padding:10px 12px;font-weight:700;${so ? "background:#FDE2E1;color:#B42318" : "background:#E6F4EA;color:#0E7C3A"}">${so ? "Sold out" : "In stock"}</div>
+        </div></div>`).join("")}
+      <div class="tap" data-tap="6.0" style="left:150px;top:420px"></div>
+      <div class="tap" data-tap="7.2" style="left:360px;top:250px"></div>
+      <div style="background:#13244F;color:#fff;border-radius:14px;text-align:center;padding:20px;margin-top:26px;font-weight:800;font-size:28px">Save changes</div>
+      <div class="tap" data-tap="8.6" style="left:256px;top:890px"></div>
+      <div style="position:absolute;left:24px;right:24px;top:980px;background:#0E7C3A;color:#fff;border-radius:14px;text-align:center;padding:16px;font-weight:700;font-size:24px" data-in="9.0" data-fx="pop">Saved ✓ Your website is updated</div>
+    </div>
+  </div>
+</div>
+<div class="scene" data-in="11.6" data-out="16" data-fx="fade" data-dur="0.3">
+  <div class="big" style="font-size:100px" data-in="11.7">No waiting. No extra cost.</div>
+  <div style="display:flex;flex-direction:column;gap:40px;margin-top:80px;font-size:56px;font-weight:700">
+    ${["Prices, stock and opening hours", "Mark items sold out", "Approve customer reviews", "Bigger changes: free for your first month"].map((t, i) => `<div style="display:flex;gap:28px;align-items:center" data-in="${12.2 + i * 0.4}" data-fx="left"><span style="font-size:1.1em">${tick}</span><span>${t}</span></div>`).join("")}
+  </div>
+</div>
+${await endCard("video-manage", 16.2, "Websites you control")}`,
+    },
+    {
+      file: "video-pidgin", dur: 20,
+      html: `
+<div class="scene center" data-in="0" data-out="3.6" data-fx="fade" data-dur="0.01">
+  <div data-in="0.2" data-fx="pop">${logo(1.6)}</div>
+  <div class="big" style="font-size:136px;margin-top:80px" data-in="0.5">Your business dey <span style="color:${GOLD}">Google</span>?</div>
+</div>
+<div class="scene" data-in="3.8" data-out="8.6" data-fx="fade" data-dur="0.3">
+  <div class="big" style="font-size:100px" data-in="3.9">Customers dey search before dem buy.</div>
+  <div style="font-size:60px;font-weight:700;margin-top:60px;color:${GOLD}" data-in="5.0">If dem no see you, dem go buy from another person. 🤷🏾</div>
+</div>
+<div class="scene" data-in="8.8" data-out="14" data-fx="fade" data-dur="0.3">
+  <div class="big" style="font-size:100px" data-in="8.9">We go build your website</div>
+  <div style="display:flex;flex-direction:column;gap:26px;margin-top:70px">${priceRows(9.6)}</div>
+  <div style="font-size:44px;margin-top:44px;color:#C9D1E6" data-in="10.9">E go ready inside 7 working days. Domain, hosting and business email dey inside.</div>
+</div>
+${await endCard("video-pidgin", 14.2, "Make we start today!")}`,
     },
   ];
 }

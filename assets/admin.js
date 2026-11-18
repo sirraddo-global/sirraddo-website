@@ -436,7 +436,7 @@
   // or download. Images live in /assets/marketing (made from the "SIRRADDO website ads" design canvas).
   // Each picture has its own QR code (tagged, so Dashboard → "Where customers come from" shows "qr / <piece>"),
   // and each caption link is tagged too. Made by scripts/make-marketing.mjs (change the wording there).
-  var MK_V = '3';
+  var MK_V = '4';
   var L = function (src, camp) { return 'https://www.sirraddo.com.ng/websites?utm_source=' + src + '&utm_campaign=' + camp; };
   var ADS = [
     { file: 'story-websites.jpg', title: 'Status / Story: Websites', size: '1080 × 1920', group: 'story',
@@ -457,6 +457,14 @@
       caption: 'Sell online and get paid straight to your account 🛒 Your own online store from ₦150,000 👉 ' + L('video', 'store') },
     { file: 'video-see-first.mp4', poster: 'video-see-first.jpg', title: 'Video: See it first (20 s)', size: '1080 × 1920 · MP4', group: 'video',
       caption: 'See your website before you pay the balance. Pick your favourite of up to 3 designs 👉 ' + L('video', 'see-first') },
+    { file: 'video-why.mp4', poster: 'video-why.jpg', title: 'Video: Tired of "How much?" (21 s)', size: '1080 × 1920 · MP4', group: 'video',
+      caption: 'Tired of answering the same questions on WhatsApp all day? 😅 Your own website shows your prices, photos, delivery areas and location 24/7. From ₦50,000 👉 ' + L('video', 'why') },
+    { file: 'video-maps.mp4', poster: 'video-maps.jpg', title: 'Video: Google Maps (21 s)', size: '1080 × 1920 · MP4', group: 'video',
+      caption: 'When people search "near me", can they find your business? 📍 Business website with Google Maps setup help: ₦100,000 👉 ' + L('video', 'maps') },
+    { file: 'video-manage.mp4', poster: 'video-manage.jpg', title: 'Video: Update from your phone (21 s)', size: '1080 × 1920 · MP4', group: 'video',
+      caption: 'Your website, your control 📱 Change prices, stock and opening hours from your phone in seconds. Bigger changes are free for your first month 👉 ' + L('video', 'manage') },
+    { file: 'video-pidgin.mp4', poster: 'video-pidgin.jpg', title: 'Video: Pidgin (20 s)', size: '1080 × 1920 · MP4', group: 'video',
+      caption: 'Your business dey Google? 👀 Customers dey search before dem buy. Make we build your website from ₦50,000, e go ready inside 7 working days 👉 ' + L('video', 'pidgin') },
     { file: 'flyer-a5.jpg', pdf: 'flyer-a5.pdf', title: 'Flyer (A5, print)', size: 'A5 · 148 × 210 mm', group: 'print',
       caption: 'Print the PDF at any business centre (A5, or 2 on one A4 sheet). Hand out at markets, shops and association meetings.' },
     { file: 'qr-card.jpg', pdf: 'qr-card.pdf', title: 'QR counter card (A6, print)', size: 'A6 · 105 × 148 mm', group: 'print',

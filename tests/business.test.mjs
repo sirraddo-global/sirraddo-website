@@ -32,6 +32,10 @@ test("a website lead is saved and emailed; bots and bad numbers are not", async 
   const man = (await h.action({ action: "create", name: "Wale", contact: "08030001111", interest: "Other", came_from: "whatsapp ad" })).json;
   assert.equal(man.came_from, "whatsapp ad");
   assert.equal((await h.admin("PATCH", "/api/requests", { id: man.id, came_from: "referral" })).json.came_from, "referral");
+  // Saving the card with an empty summary works (it used to fail).
+  const saved = await h.admin("PATCH", "/api/requests", { id: man.id, name: "Wale", contact: "08030001111", details: "", came_from: "flyer" });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.details, "");
   assert.ok(h.newMail(n).some((m) => /Ada/.test(m.subject)));
   assert.equal((await h.call("POST", "/api/lead", { name: "Bot", contact: "08011112222", website: "http://spam" })).status, 200);
   assert.ok(!(await h.admin("GET", "/api/requests?view=all")).json.requests.some((r) => r.name === "Bot"));

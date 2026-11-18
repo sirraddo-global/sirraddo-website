@@ -254,7 +254,8 @@ export async function updateRequest(id, fields) {
   for (const [key, type] of Object.entries(EDITABLE)) {
     if (!(key in fields)) continue;
     let v = fields[key];
-    if (v === "" || v === undefined) v = null;
+    // Empty means "not set" (null), except the summary, which the database keeps as text (it can't be null).
+    if (v === "" || v === undefined) v = key === "details" ? "" : null;
     params.push(type === "jsonb" ? JSON.stringify(v ?? (key === "handover" ? {} : [])) : v);
     sets.push(`${key} = $${params.length}${type === "jsonb" ? "::jsonb" : type === "date" ? "::date" : ""}`);
   }

@@ -15,6 +15,20 @@ export function wantedEmails(r) {
     .map((s) => s.replace(/@.*$/, "").toLowerCase().replace(/[^a-z0-9._-]/g, "")).filter(Boolean))];
 }
 
+// Only if a customer must SEND from their business address (e.g. reply as info@): a real Zoho Mail mailbox, set up by hand.
+// Zoho and Cloudflare forwarding can't work together on one domain: email goes to one or the other (the MX records).
+export const ZOHO_STEPS = [
+  "Only if they need to SEND as info@ (forwarding only receives). Zoho Mail Forever Free: up to 5 mailboxes, 5 GB each, web and the Zoho Mail app only (no Outlook or phone's built-in mail app).",
+  "IMPORTANT: Zoho and Cloudflare forwarding can't run together on one domain. Email goes to whichever the MX records point to. Switching to Zoho ends forwarding for ALL their addresses, so create every address they need in Zoho.",
+  "1. With the customer: sign up at zoho.com/mail → Forever Free plan (if it isn't offered, the cheapest paid plan) → 'Sign up with a domain I already own' → their domain. Their own account, their phone number.",
+  "2. Zoho shows a TXT code to verify the domain. Cloudflare dashboard → their domain → DNS → Add record: Type TXT, Name @, Content = Zoho's code → Save → back in Zoho tap Verify.",
+  "3. In Zoho, create the mailboxes (info@, sales@ …) and set each password. Send the logins to the owner privately on WhatsApp.",
+  "4. Switch email to Zoho: Cloudflare → their domain → Email → Email Routing → Settings → Disable Email Routing (removes Cloudflare's MX records). Then DNS → add Zoho's 3 MX records exactly as Zoho lists them (mx.zoho.com 10, mx2.zoho.com 20, mx3.zoho.com 50; check Zoho's page, regions differ).",
+  "5. Add Zoho's SPF (TXT @ v=spf1 include:zoho.com ~all, replacing any old SPF) and the DKIM TXT record Zoho generates (Zoho → Domains → Email configuration → DKIM). Then tap Verify for MX, SPF and DKIM in Zoho.",
+  "6. Test: send to info@ from another address and reply from Zoho. Then in admin's handover details tick 'I set up logins for them' and put the Zoho webmail (mail.zoho.com) in Webmail.",
+  "To go back to free forwarding later: delete Zoho's MX records in Cloudflare, re-enable Email Routing, and run Go live → Set up email forwarding again.",
+];
+
 export function handoverChecklist(r, settings = {}) {
   const kind = kindFor(r.interest);
   if (kind === "project" || r.status !== "won") return [];
@@ -65,6 +79,7 @@ export function handoverChecklist(r, settings = {}) {
       "Go live → Set up email forwarding: the names are filled in from their form; type their Gmail in 'Forward to' → tap the button.",
       "Cloudflare emails their Gmail once. Send them the message below so they tap Verify.",
       "The badge turns Working by itself (or tap Check now). Adding more names later doesn't need a new confirmation.",
+      ...ZOHO_STEPS,
     ],
     // Only once the addresses exist on their real domain.
     tell: !domain || !have.length ? "" : `Hello ${first}, your business email${names.length > 1 ? "s are" : " is"} ready: ${addrs}. Cloudflare (our email service) has sent an email to ${[...new Set([mail.to, ...Object.values(mail.routes || {})].filter(Boolean))].join(" and ") || "your Gmail"} to confirm it. Please open it (check Spam or Promotions if you don't see it) and tap "Verify email address". After that, every email sent to your business address${names.length > 1 ? "es" : ""} arrives in your Gmail.`,

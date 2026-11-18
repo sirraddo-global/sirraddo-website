@@ -306,7 +306,9 @@ export async function dailyHosting(all, now = new Date()) {
   for (const r of all) {
     const h = r.hosting || {};
     try {
-      if (h.zoneId && (h.zoneStatus !== "active" || (h.project && !h.attached) || h.email?.status === "verifying")) {
+      // Also sites already live but not yet submitted to Google (Search Console), until done (max 40 tries).
+      const googlePending = h.zoneStatus === "active" && h.attached && !h.pausedAt && googleSearchConfigured() && h.google?.step !== "done" && (h.google?.tries || 0) < 40;
+      if (h.zoneId && (h.zoneStatus !== "active" || (h.project && !h.attached) || h.email?.status === "verifying" || googlePending)) {
         const before = h.zoneStatus;
         const after = await checkHosting(r.id);
         if (before !== "active" && after.hosting?.zoneStatus === "active") out.activated.push(after);

@@ -33,6 +33,10 @@ const SCHEMA = [
      notes TEXT)`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'chat'`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS came_from TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ref_code TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ref_used INTEGER NOT NULL DEFAULT 0`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS customer_requests_ref_code ON customer_requests (ref_code)`,
+  `CREATE TABLE IF NOT EXISTS ad_spend (id SERIAL PRIMARY KEY, day DATE NOT NULL, platform TEXT NOT NULL, tag TEXT NOT NULL, amount INTEGER NOT NULL, note TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS follow_up_on DATE`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS quote_amount INTEGER`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS payments JSONB NOT NULL DEFAULT '[]'::jsonb`,
@@ -176,7 +180,7 @@ export async function ensureSchema() {
 export const STATUSES = ["new", "contacted", "quoted", "won", "lost"];
 export const STAGES = ["content", "building", "review", "live"];
 
-const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, name, contact, business, interest, details, page,
+const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, ref_code, ref_used, name, contact, business, interest, details, page,
   transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, payments, project_stage,
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
   brief_token, brief_saved_at, brief_submitted_at, email, doc_token,
@@ -565,7 +569,7 @@ export async function deleteUnanswered(id) {
 export const SETTING_KEYS = [
   "bank_name", "account_name", "account_number", "invoice_note",
   "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief", "tpl_receipt", "tpl_invoice",
-  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at",
+  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward",
 ];
 export async function getSettings() {
   await ensureSchema();

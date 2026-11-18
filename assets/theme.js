@@ -51,6 +51,8 @@
   var KEY = 'sirraddo-from', DAYS = 30;
   function label() {
     var p = new URLSearchParams(location.search);
+    var ref = (p.get('ref') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 20);
+    if (ref) return 'referral:' + ref.toLowerCase();
     var src = (p.get('utm_source') || p.get('src') || '').trim(), camp = (p.get('utm_campaign') || '').trim();
     if (!src && p.get('gclid')) src = 'google-ads';
     if (!src && p.get('fbclid')) src = 'facebook';
@@ -71,7 +73,8 @@
     var now = Date.now(), saved = JSON.parse(localStorage.getItem(KEY) || 'null');
     if (saved && now - saved.at > DAYS * 86400000) saved = null;
     var l = label();
-    if (l && (!saved || !saved.v)) localStorage.setItem(KEY, JSON.stringify({ v: l, at: now }));
+    // A customer's referral link always counts (so they get their reward); otherwise the first source is kept.
+    if (l && (!saved || !saved.v || (/^referral:/.test(l) && saved.v !== l))) localStorage.setItem(KEY, JSON.stringify({ v: l, at: now }));
     else if (!saved) localStorage.setItem(KEY, JSON.stringify({ v: '', at: now }));
   } catch (e) {}
   window.sirraddoFrom = function () {

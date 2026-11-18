@@ -462,48 +462,553 @@
     { file: 'qr-card.jpg', pdf: 'qr-card.pdf', title: 'QR counter card (A6, print)', size: 'A6 · 105 × 148 mm', group: 'print',
       caption: 'Print, laminate and stand it on the counter of every customer whose website you built (with their permission).' }
   ];
+  // ===================== Marketing =====================
+  // Tabs: Today (what to post), Ready ads, Showcase, Review cards, Festive, Offer, Referrals, Ad spend.
+  // Pictures for Showcase / Review cards / Festive / Offer are drawn here in the browser (canvas), with a tagged QR.
+  var MKC = { navy: '#13244F', deep: '#0C1733', gold: '#D9A21B', soft: '#C9D1E6', dim: '#AEB8D3' };
+  var MK_TABS = [['today', 'Today'], ['ads', 'Ready ads'], ['showcase', 'Showcase'], ['reviews', 'Review cards'], ['festive', 'Festive'], ['offer', 'Offer'], ['referrals', 'Referrals'], ['spend', 'Ad spend']];
+  var LINKS_URL = 'https://www.sirraddo.com.ng/links';
   function renderMarketing(view) {
-    view.appendChild(el('p', { class: 'admin-intro', text: 'Ads that lead people to your website. On your phone, Share opens WhatsApp, Instagram or Facebook with the picture ready (the caption is copied, so paste it in). Post one Status a day and rotate them. Videos have no music: add a sound from WhatsApp, Instagram or TikTok’s own library when you post (it’s licensed there).' }));
-    // Group the ads by where they're posted, so only a few show at a time.
+    var tab = state.mkTab || 'today';
+    view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Marketing' }, MK_TABS.map(function (t) {
+      return el('button', { type: 'button', 'aria-pressed': t[0] === tab ? 'true' : 'false', text: t[1], onclick: function () { state.mkTab = t[0]; render(); } });
+    })));
+    ({ today: mkToday, ads: mkReadyAds, showcase: mkShowcase, reviews: mkReviewCards, festive: mkFestive, offer: mkOffer, referrals: mkReferrals, spend: mkSpend })[tab](view);
+  }
+
+  // ---------- Ready ads (pictures, videos, flyers) ----------
+  function adCard(ad) {
+    var url = '/assets/marketing/' + ad.file + '?v=' + MK_V;
+    var actions = el('div', { class: 'admin-actions' });
+    if (navigator.canShare && window.File && !ad.pdf) actions.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Share', onclick: function (e) {
+      var b = e.currentTarget; b.disabled = true;
+      if (navigator.clipboard) navigator.clipboard.writeText(ad.caption).catch(function () {});
+      fetch(url).then(function (r) { return r.blob(); }).then(function (blob) {
+        return shareFile(new File([blob], 'sirraddo-' + ad.file, { type: /\.mp4$/.test(ad.file) ? 'video/mp4' : 'image/jpeg' }), ad.caption);
+      }).catch(function (err) { if (err && err.name !== 'AbortError') fail(err); }).then(function () { b.disabled = false; });
+    } }));
+    if (ad.pdf) actions.appendChild(el('a', { class: 'admin-btn admin-btn--primary', href: '/assets/marketing/' + ad.pdf + '?v=' + MK_V, download: 'sirraddo-' + ad.pdf, text: 'Download PDF for printing' }));
+    actions.appendChild(el('a', { class: 'admin-btn', href: url, download: 'sirraddo-' + ad.file, text: ad.pdf ? 'Download picture' : 'Download' }));
+    if (!ad.pdf) actions.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy caption', onclick: function (e) { copyText(ad.caption, 'Caption', e.currentTarget); } }));
+    var card = el('article', { class: 'admin-card mk-card' }, [
+      ad.poster ? el('video', { src: url, poster: '/assets/marketing/' + ad.poster + '?v=' + MK_V, controls: true, playsinline: true, muted: true, preload: 'none', class: 'mk-img' })
+        : el('img', { src: url, alt: ad.title, loading: 'lazy', class: 'mk-img' }),
+      el('h3', { text: ad.title }),
+      el('p', { class: 'admin-meta', text: ad.size }),
+      el('p', { class: 'mk-caption', text: ad.caption }),
+      actions
+    ]);
+    if (!ad.pdf) card.appendChild(captionBox(ad.title + ': ' + ad.caption.replace(/👉.*$/, ''), (ad.caption.match(/https:\/\/\S+/) || [LINKS_URL])[0]));
+    return card;
+  }
+  function shareFile(file, caption) {
+    var data = { files: [file], text: caption };
+    if (!navigator.canShare(data)) data = { files: [file] };
+    if (!navigator.canShare(data)) return Promise.reject(new Error('This device can’t share this file. Use Download instead.'));
+    return navigator.share(data).then(function () { flash('Shared. The caption is copied: paste it in.'); });
+  }
+  function mkReadyAds(view) {
+    view.appendChild(el('p', { class: 'admin-intro', text: 'Ready-made ads. On your phone, Share opens WhatsApp, Instagram, TikTok or Facebook with the file ready (the caption is copied: paste it in). Videos have no music: add a sound from the app’s own library when you post (it’s licensed there).' }));
     var groups = [['story', 'Status & Story'], ['video', 'Videos'], ['square', 'Square posts'], ['banner', 'Banner'], ['print', 'Flyers (print)']];
-    var groupOf = function (ad) { return ad.group; };
     var pickAd = state.adsTab || 'story';
     view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Ad types' }, groups.map(function (g) {
-      var n = ADS.filter(function (a) { return groupOf(a) === g[0]; }).length;
+      var n = ADS.filter(function (a) { return a.group === g[0]; }).length;
       return el('button', { type: 'button', 'aria-pressed': g[0] === pickAd ? 'true' : 'false', text: g[1] + ' (' + n + ')', onclick: function () { state.adsTab = g[0]; render(); } });
     })));
-    var grid = el('div', { class: 'mk-grid' });
-    ADS.filter(function (a) { return groupOf(a) === pickAd; }).forEach(function (ad) {
-      var url = '/assets/marketing/' + ad.file + '?v=' + MK_V;
-      var actions = el('div', { class: 'admin-actions' });
-      var canShareFiles = !!(navigator.canShare && window.File);
-      if (canShareFiles && !ad.pdf) actions.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Share', onclick: function (e) {
-        var b = e.currentTarget; b.disabled = true;
-        if (navigator.clipboard) navigator.clipboard.writeText(ad.caption).catch(function () {});
-        fetch(url).then(function (r) { return r.blob(); }).then(function (blob) {
-          var file = new File([blob], 'sirraddo-' + ad.file, { type: /\.mp4$/.test(ad.file) ? 'video/mp4' : 'image/jpeg' });
-          var data = { files: [file], text: ad.caption };
-          if (!navigator.canShare(data)) data = { files: [file] };
-          if (!navigator.canShare(data)) throw new Error('This device can\'t share this file. Use Download instead.');
-          return navigator.share(data);
-        }).then(function () { flash('Shared. The caption is copied: paste it in.'); })
-          .catch(function (err) { if (err && err.name !== 'AbortError') fail(err); })
-          .then(function () { b.disabled = false; });
-      } }));
-      if (ad.pdf) actions.appendChild(el('a', { class: 'admin-btn admin-btn--primary', href: '/assets/marketing/' + ad.pdf + '?v=' + MK_V, download: 'sirraddo-' + ad.pdf, text: 'Download PDF for printing' }));
-      actions.appendChild(el('a', { class: 'admin-btn', href: url, download: 'sirraddo-' + ad.file, text: ad.pdf ? 'Download picture' : 'Download' }));
-      if (!ad.pdf) actions.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy caption', onclick: function (e) { copyText(ad.caption, 'Caption', e.currentTarget); } }));
-      grid.appendChild(el('article', { class: 'admin-card mk-card' }, [
-        ad.poster ? el('video', { src: url, poster: '/assets/marketing/' + ad.poster + '?v=' + MK_V, controls: true, playsinline: true, muted: true, preload: 'none', class: 'mk-img' })
-          : el('img', { src: url, alt: ad.title, loading: 'lazy', class: 'mk-img' }),
-        el('h3', { text: ad.title }),
-        el('p', { class: 'admin-meta', text: ad.size }),
-        el('p', { class: 'mk-caption', text: ad.caption }),
-        actions
-      ]));
+    view.appendChild(el('div', { class: 'mk-grid' }, ADS.filter(function (a) { return a.group === pickAd; }).map(adCard)));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Every QR code and caption link is tagged, so Dashboard → "Where customers come from" shows which ad brought each customer. To change wording or prices, ask Claude to update scripts/make-marketing.mjs and scripts/make-videos.mjs.' }));
+  }
+
+  // ---------- AI captions (English, Pidgin, Yoruba, Hausa, Igbo) ----------
+  function captionBox(topic, link) {
+    var box = el('details', { class: 'mk-cap' }, [el('summary', { text: '✨ Write captions with AI' })]);
+    var lang = select(['English', 'Nigerian Pidgin', 'Yoruba', 'Hausa', 'Igbo'], state.mkLang || 'English', { 'aria-label': 'Language' });
+    lang.addEventListener('change', function () { state.mkLang = lang.value; });
+    var out = el('div');
+    var go = el('button', { class: 'admin-btn', type: 'button', text: 'Write 3 captions', onclick: function () {
+      go.disabled = true; go.textContent = 'Writing…'; out.innerHTML = '';
+      api('POST', { action: 'mk_captions', topic: topic, lang: lang.value, link: link }).then(function (j) {
+        j.captions.forEach(function (c) {
+          out.appendChild(el('div', { class: 'mk-capt' }, [el('p', { text: c }), el('button', { class: 'admin-btn admin-btn--small', type: 'button', text: 'Copy', onclick: function (e) { copyText(c, 'Caption', e.currentTarget); } })]));
+        });
+      }).catch(fail).then(function () { go.disabled = false; go.textContent = 'Write 3 more'; });
+    } });
+    box.appendChild(el('div', { class: 'admin-actions' }, [lang, go]));
+    box.appendChild(out);
+    return box;
+  }
+
+  // ---------- Picture maker (canvas) ----------
+  function mkFonts() {
+    if (!document.fonts || !document.fonts.load) return Promise.resolve();
+    return Promise.all(['800 60px Inter', '700 60px Inter', '500 60px Inter'].map(function (f) { return document.fonts.load(f).catch(function () {}); }));
+  }
+  function mkImg(src) {
+    return new Promise(function (res) { if (!src) return res(null); var i = new Image(); i.onload = function () { res(i); }; i.onerror = function () { res(null); }; i.src = src; });
+  }
+  var qrCache = {};
+  function mkQr(tag) {
+    if (qrCache[tag]) return Promise.resolve(qrCache[tag]);
+    return api('POST', { action: 'mk_qr', tag: tag }).then(function (j) {
+      return mkImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(j.svg.replace('<svg ', '<svg width="600" height="600" '))).then(function (im) { qrCache[tag] = { img: im, url: j.url }; return qrCache[tag]; });
     });
-    view.appendChild(grid);
-    view.appendChild(el('p', { class: 'admin-hint', text: 'Tip: to advertise, boost the Starter post on Facebook/Instagram with ₦5,000–10,000 for a week, targeted to Ibadan. Every QR code and caption link is tagged, so Dashboard → "Where customers come from" shows which picture or flyer brought each customer. To change wording or prices, ask Claude to update scripts/make-marketing.mjs.' }));
+  }
+  function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+  function font(c, weight, size) { c.font = weight + ' ' + size + 'px Inter, Arial, sans-serif'; }
+  function bgFill(c, w, h, a, b, d) {
+    var g = c.createRadialGradient(w, 0, 0, w, 0, Math.max(w, h) * 1.1);
+    g.addColorStop(0, a || '#1B3170'); g.addColorStop(0.45, b || MKC.navy); g.addColorStop(1, d || MKC.deep);
+    c.fillStyle = g; c.fillRect(0, 0, w, h);
+  }
+  function mkLogo(c, x, y, s, align) {
+    var parts = [['SI', '#fff'], ['RR', MKC.gold], ['A', '#fff'], ['DD', MKC.gold], ['O', '#fff']];
+    font(c, 800, 46 * s);
+    var total = parts.reduce(function (a, p) { return a + c.measureText(p[0]).width; }, 0);
+    var sx = align === 'center' ? x - total / 2 : x;
+    c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+    parts.forEach(function (p) { c.fillStyle = p[1]; c.fillText(p[0], sx, y); sx += c.measureText(p[0]).width; });
+    font(c, 700, 12.5 * s); c.fillStyle = 'rgba(255,255,255,.85)';
+    var gl = 'G L O B A L   L I M I T E D';
+    c.fillText(gl, align === 'center' ? x - c.measureText(gl).width / 2 : x, y + 22 * s);
+  }
+  function wrapText(c, text, x, y, maxW, lh, maxLines, align) {
+    var words = String(text || '').split(/\s+/), lines = [], line = '';
+    words.forEach(function (w) { var t = line ? line + ' ' + w : w; if (c.measureText(t).width > maxW && line) { lines.push(line); line = w; } else line = t; });
+    if (line) lines.push(line);
+    if (maxLines && lines.length > maxLines) { lines = lines.slice(0, maxLines); lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, '') + '…'; }
+    c.textAlign = align || 'left';
+    lines.forEach(function (l, i) { c.fillText(l, x, y + i * lh); });
+    c.textAlign = 'left';
+    return y + lines.length * lh;
+  }
+  // Largest font size (from max down to min) at which the text fits in maxLines lines.
+  function fitSize(c, text, weight, max, min, maxW, maxLines) {
+    for (var s = max; s > min; s -= 2) {
+      font(c, weight, s);
+      var words = String(text || '').split(/\s+/), n = 1, line = '';
+      for (var i = 0; i < words.length; i++) { var t = line ? line + ' ' + words[i] : words[i]; if (c.measureText(t).width > maxW && line) { n++; line = words[i]; } else line = t; }
+      if (n <= maxLines) return s;
+    }
+    return min;
+  }
+  // Largest size whose wrapped text fits in maxW wide and maxH tall (line height = size × lh).
+  function fitBox(c, text, weight, max, min, maxW, maxH, lh) {
+    for (var s = max; s > min; s -= 2) {
+      font(c, weight, s);
+      var words = String(text || '').split(/\s+/), n = 1, line = '';
+      for (var i = 0; i < words.length; i++) { var t = line ? line + ' ' + words[i] : words[i]; if (c.measureText(t).width > maxW && line) { n++; line = words[i]; } else line = t; }
+      if (n * s * lh <= maxH) return { size: s, lines: n };
+    }
+    return { size: min, lines: Math.max(1, Math.floor(maxH / (min * lh))) };
+  }
+  function footerTop(h, fmt) { return h - (fmt === 'story' ? 260 + 110 : 190 + 70); }
+  function cover(c, img, x, y, w, h) {
+    if (!img) return;
+    var r = Math.max(w / img.width, h / img.height), iw = img.width * r, ih = img.height * r;
+    c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip(); c.drawImage(img, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih); c.restore();
+  }
+  function qrTile(c, q, x, y, size) {
+    c.save(); c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 24; c.shadowOffsetY = 8;
+    c.fillStyle = '#fff'; rr(c, x, y, size, size, size * 0.09); c.fill(); c.restore();
+    if (q && q.img) c.drawImage(q.img, x + size * 0.07, y + size * 0.07, size * 0.86, size * 0.86);
+  }
+  function pill(c, text, cx, y, size, fill, color) {
+    font(c, 800, size); var w = c.measureText(text).width + size * 1.4, h = size * 1.7;
+    c.fillStyle = fill || MKC.gold; rr(c, cx - w / 2, y, w, h, h / 2); c.fill();
+    c.fillStyle = color || MKC.deep; c.textAlign = 'center'; c.fillText(text, cx, y + h * 0.66); c.textAlign = 'left';
+    return y + h;
+  }
+  function stars(c, n, x, y, size, align) {
+    font(c, 800, size); var s = '★★★★★'.slice(0, Math.round(n)) + '☆☆☆☆☆'.slice(0, 5 - Math.round(n));
+    c.fillStyle = MKC.gold; c.textAlign = align || 'left'; c.fillText(s, x, y); c.textAlign = 'left';
+  }
+  // A picture with Story / Square switch, Share, Download and AI captions.
+  function mkOutput(title, draw, tag, topic) {
+    var fmt = state.mkFmt || 'story';
+    var canvas = el('canvas', { class: 'mk-canvas' });
+    var box = el('article', { class: 'admin-card mk-card' });
+    var sw = el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Size' });
+    var status = el('p', { class: 'admin-hint', text: 'Drawing…' });
+    function paint() {
+      var w = 1080, h = fmt === 'story' ? 1920 : 1080;
+      canvas.width = w; canvas.height = h;
+      status.textContent = 'Drawing…';
+      return mkFonts().then(function () { return mkQr(tag); }).then(function (q) { return draw(canvas.getContext('2d'), w, h, q, fmt); })
+        .then(function () { status.textContent = (fmt === 'story' ? 'Status / Story / Reels (1080 × 1920)' : 'Post (1080 × 1080)') + ' · QR tagged "' + tag + '"'; })
+        .catch(function (e) { status.textContent = 'Could not draw: ' + e.message; });
+    }
+    [['story', 'Status / Story'], ['square', 'Square post']].forEach(function (f) {
+      sw.appendChild(el('button', { type: 'button', 'aria-pressed': f[0] === fmt ? 'true' : 'false', text: f[1], onclick: function (e) {
+        fmt = state.mkFmt = f[0]; Array.prototype.forEach.call(sw.children, function (b) { b.setAttribute('aria-pressed', b === e.currentTarget ? 'true' : 'false'); }); paint();
+      } }));
+    });
+    var name = 'sirraddo-' + tag + '.jpg';
+    function blob() { return new Promise(function (res) { canvas.toBlob(res, 'image/jpeg', 0.92); }); }
+    var acts = el('div', { class: 'admin-actions' });
+    if (navigator.canShare && window.File) acts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Share', onclick: function (e) {
+      var b = e.currentTarget; b.disabled = true;
+      blob().then(function (bl) { return shareFile(new File([bl], name, { type: 'image/jpeg' }), ''); }).catch(function (err) { if (err && err.name !== 'AbortError') fail(err); }).then(function () { b.disabled = false; });
+    } }));
+    acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Download', onclick: function () {
+      blob().then(function (bl) { var a = el('a', { href: URL.createObjectURL(bl), download: name }); document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000); });
+    } }));
+    [el('h3', { text: title }), sw, canvas, status, acts, captionBox(topic, 'https://www.sirraddo.com.ng/websites?utm_source=post&utm_campaign=' + tag)].forEach(function (x) { box.appendChild(x); });
+    paint();
+    return box;
+  }
+  function footerQr(c, w, h, q, fmt, line) {
+    var size = fmt === 'story' ? 260 : 190, y = h - size - (fmt === 'story' ? 110 : 70);
+    qrTile(c, q, 84, y, size);
+    font(c, 800, fmt === 'story' ? 52 : 40); c.fillStyle = '#fff';
+    c.fillText(line || 'Want a website?', 84 + size + 40, y + size * 0.36);
+    font(c, 800, fmt === 'story' ? 50 : 40); c.fillStyle = MKC.gold;
+    c.fillText('sirraddo.com.ng', 84 + size + 40, y + size * 0.36 + (fmt === 'story' ? 70 : 54));
+    font(c, 600, fmt === 'story' ? 32 : 26); c.fillStyle = MKC.soft;
+    c.fillText('WhatsApp 0816 755 0937', 84 + size + 40, y + size * 0.36 + (fmt === 'story' ? 124 : 96));
+  }
+
+  // ---------- Showcase: "We built this" ----------
+  function drawPhone(c, d, imgs, x, y, pw, ph) {
+    c.save(); c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowBlur = 50; c.shadowOffsetY = 20;
+    c.fillStyle = '#1E2A4A'; rr(c, x, y, pw, ph, pw * 0.11); c.fill(); c.restore();
+    var b = pw * 0.025, sx = x + b, sy = y + b, sw = pw - 2 * b, sh = ph - 2 * b;
+    c.save(); rr(c, sx, sy, sw, sh, pw * 0.095); c.clip();
+    c.fillStyle = '#F5F6FA'; c.fillRect(sx, sy, sw, sh);
+    var hh = sh * 0.085; c.fillStyle = d.primary; c.fillRect(sx, sy, sw, hh);
+    var u = sw / 100;
+    if (imgs.logo) { var lh = hh * 0.6, lw = Math.min(sw * 0.35, imgs.logo.width * lh / imgs.logo.height); c.drawImage(imgs.logo, sx + 6 * u, sy + (hh - lh) / 2, lw, lh); }
+    else { font(c, 800, 5 * u); c.fillStyle = '#fff'; wrapText(c, d.name, sx + 6 * u, sy + hh * 0.62, sw * 0.8, 6 * u, 1); }
+    var heroH = sh * 0.36, hy = sy + hh;
+    if (imgs.hero) { cover(c, imgs.hero, sx, hy, sw, heroH); c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(sx, hy, sw, heroH); }
+    else { c.fillStyle = d.primary; c.fillRect(sx, hy, sw, heroH); }
+    font(c, 800, 7.2 * u); c.fillStyle = '#fff';
+    var ty = wrapText(c, d.headline || d.name, sx + 6 * u, hy + heroH * 0.34, sw * 0.86, 8.4 * u, 2);
+    font(c, 500, 4 * u); c.fillStyle = 'rgba(255,255,255,.9)';
+    ty = wrapText(c, d.tagline, sx + 6 * u, ty + 2 * u, sw * 0.86, 5.2 * u, 2);
+    font(c, 800, 4 * u); var bt = d.kind === 'store' ? 'Shop now' : 'Contact us', bw = c.measureText(bt).width + 8 * u;
+    c.fillStyle = d.accent; rr(c, sx + 6 * u, ty + 2 * u, bw, 10 * u, 5 * u); c.fill();
+    c.fillStyle = d.accentText || '#111'; c.fillText(bt, sx + 10 * u, ty + 8.6 * u);
+    var py = hy + heroH + 5 * u;
+    if (d.products && d.products.length) {
+      var gw = (sw - 15 * u) / 2, gh = gw * 1.25;
+      d.products.slice(0, 4).forEach(function (p, i) {
+        var gx = sx + 5 * u + (i % 2) * (gw + 5 * u), gy = py + Math.floor(i / 2) * (gh + 4 * u);
+        c.fillStyle = '#fff'; rr(c, gx, gy, gw, gh, 3 * u); c.fill();
+        c.save(); rr(c, gx, gy, gw, gh * 0.62, 3 * u); c.clip();
+        if (imgs.products[i]) cover(c, imgs.products[i], gx, gy, gw, gh * 0.62); else { c.fillStyle = '#E3E7F0'; c.fillRect(gx, gy, gw, gh * 0.62); }
+        c.restore();
+        font(c, 700, 3.6 * u); c.fillStyle = '#13244F'; wrapText(c, p.name, gx + 3 * u, gy + gh * 0.62 + 6 * u, gw - 6 * u, 4.4 * u, 1);
+        font(c, 800, 3.6 * u); c.fillStyle = '#0E7C3A'; c.fillText(p.price ? (/^[\d,.]+$/.test(p.price) ? '₦' + Number(String(p.price).replace(/,/g, '')).toLocaleString('en-NG') : p.price) : '', gx + 3 * u, gy + gh * 0.62 + 12 * u);
+      });
+    } else {
+      font(c, 800, 5 * u); c.fillStyle = '#13244F'; c.fillText('Welcome', sx + 6 * u, py + 6 * u);
+      c.fillStyle = '#D5DAE6'; [0.86, 0.72, 0.8, 0.5].forEach(function (f, i) { rr(c, sx + 6 * u, py + 12 * u + i * 6 * u, sw * f - 12 * u, 3 * u, 1.5 * u); c.fill(); });
+      c.fillStyle = d.accent; rr(c, sx + 6 * u, py + 40 * u, sw - 12 * u, 22 * u, 3 * u); c.globalAlpha = 0.25; c.fill(); c.globalAlpha = 1;
+    }
+    c.restore();
+  }
+  function drawShowcase(d) {
+    return function (c, w, h, q, fmt) {
+      return Promise.all([mkImg(d.logo), mkImg(d.hero)].concat((d.products || []).map(function (p) { return mkImg(p.photo); }))).then(function (im) {
+        var imgs = { logo: im[0], hero: im[1], products: im.slice(2) };
+        bgFill(c, w, h);
+        var story = fmt === 'story';
+        mkLogo(c, 84, story ? 150 : 110, story ? 1.3 : 1.05);
+        font(c, 700, story ? 34 : 28); c.fillStyle = MKC.gold; c.fillText('W E   B U I L T   T H I S   F O R', 84, story ? 260 : 200);
+        var ns = fitSize(c, d.name, 800, story ? 110 : 84, 50, w - 168, 2); font(c, 800, ns); c.fillStyle = '#fff';
+        var y = wrapText(c, d.name, 84, (story ? 260 : 200) + ns * 1.05, w - 168, ns * 1.02, 2);
+        if (story) {
+          var ph = Math.min(1010, footerTop(h, fmt) - (y + 30) - 170), pw = Math.round(ph * 0.555);
+          drawPhone(c, d, imgs, (w - pw) / 2, y + 30, pw, ph);
+          var by = y + 30 + ph + 30;
+          if (d.rating) { stars(c, d.rating.average, w / 2, by + 44, 46, 'center'); font(c, 600, 30); c.fillStyle = MKC.soft; c.textAlign = 'center'; c.fillText(d.rating.average + ' from ' + d.rating.count + ' review' + (d.rating.count === 1 ? '' : 's') + ' · ' + d.interest, w / 2, by + 92); c.textAlign = 'left'; }
+          else { font(c, 600, 34); c.fillStyle = MKC.soft; c.textAlign = 'center'; c.fillText(d.interest + (d.url ? ' · ' + d.url : ''), w / 2, by + 50); c.textAlign = 'left'; }
+          footerQr(c, w, h, q, fmt, 'Want yours?');
+        } else {
+          drawPhone(c, d, imgs, w - 84 - 400, y + 20, 400, 730);
+          var ly = y + 70;
+          font(c, 600, 30); c.fillStyle = MKC.soft; wrapText(c, d.interest, 84, ly, 460, 38, 2);
+          if (d.rating) { stars(c, d.rating.average, 84, ly + 80, 38); font(c, 600, 26); c.fillStyle = MKC.soft; c.fillText(d.rating.average + ' from ' + d.rating.count + ' review' + (d.rating.count === 1 ? '' : 's'), 84, ly + 120); }
+          if (d.url) { font(c, 700, 28); c.fillStyle = '#fff'; wrapText(c, d.url, 84, ly + 180, 460, 34, 2); }
+          var size = 170, qy = h - size - 70; qrTile(c, q, 84, qy, size);
+          font(c, 800, 32); c.fillStyle = '#fff'; c.fillText('Want yours?', 84 + size + 28, qy + 70);
+          font(c, 800, 32); c.fillStyle = MKC.gold; c.fillText('sirraddo.com.ng', 84 + size + 28, qy + 116);
+        }
+      });
+    };
+  }
+  function mkShowcase(view) {
+    view.appendChild(el('p', { class: 'admin-intro', text: 'Show off websites you built. Only post a customer’s site after they say yes (tick "Customer agreed"). Their photos, colours, products and star rating are used.' }));
+    var list = el('div'), out = el('div', { class: 'mk-grid' });
+    view.appendChild(list); view.appendChild(out);
+    function draw(sites) {
+      list.innerHTML = '';
+      if (!sites.length) { list.appendChild(el('p', { class: 'admin-empty', text: 'No live client websites yet.' })); return; }
+      sites.forEach(function (s) {
+        var cb = el('input', { type: 'checkbox' }); cb.checked = Boolean(s.ok);
+        cb.addEventListener('change', function () { api('POST', { action: 'mk_showcase_ok', id: s.id, ok: cb.checked }).then(function (j) { flash(cb.checked ? 'Marked: customer agreed' : 'Unmarked'); draw(j.sites); }).catch(fail); });
+        list.appendChild(el('div', { class: 'admin-card mk-row' }, [
+          el('div', null, [el('b', { text: s.business || s.name }), el('div', { class: 'admin-meta', text: s.interest + ' · ' + String(s.website_url || '').replace(/^https?:\/\//, '') })]),
+          el('label', { class: 'admin-hint' }, [cb, ' Customer agreed']),
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Make post', disabled: !s.ok, onclick: function (e) {
+            var b = e.currentTarget; b.disabled = true;
+            api('POST', { action: 'mk_showcase', id: s.id }).then(function (d) {
+              out.innerHTML = '';
+              out.appendChild(mkOutput('We built this: ' + d.name, drawShowcase(d), 'showcase-' + s.id, 'A website we built for ' + d.name + ' (' + d.interest + ')' + (d.url ? ' at ' + d.url : '')));
+              out.scrollIntoView({ behavior: 'smooth' });
+            }).catch(fail).then(function () { b.disabled = false; });
+          } })
+        ]));
+      });
+    }
+    api('POST', { action: 'mk_showcase_list' }).then(function (j) { draw(j.sites); }).catch(fail);
+  }
+
+  // ---------- Review cards ----------
+  function drawReview(rv) {
+    return function (c, w, h, q, fmt) {
+      bgFill(c, w, h);
+      var story = fmt === 'story';
+      mkLogo(c, 84, story ? 150 : 110, story ? 1.3 : 1.05);
+      font(c, 800, story ? 300 : 170); c.fillStyle = MKC.gold; c.globalAlpha = 0.9; c.fillText('“', 64, story ? 520 : 290); c.globalAlpha = 1;
+      stars(c, rv.stars, 84, story ? 560 : 300, story ? 70 : 48);
+      var text = rv.body || '', maxW = w - 168, top = story ? 660 : 360;
+      var room = footerTop(h, fmt) - 50 - (story ? 110 : 90) - top; // leave space for the name lines
+      var f = fitBox(c, text, 700, story ? 76 : 56, story ? 36 : 26, maxW, room, 1.25); font(c, 700, f.size); c.fillStyle = '#fff';
+      var s = f.size;
+      var y = wrapText(c, text, 84, top + s * 0.9, maxW, s * 1.25, f.lines) - s * 0.5;
+      font(c, 800, story ? 44 : 34); c.fillStyle = MKC.gold; c.fillText('— ' + (rv.name || 'A customer'), 84, y + (story ? 50 : 30));
+      font(c, 500, story ? 30 : 24); c.fillStyle = MKC.dim; c.fillText('Review on sirraddo.com.ng', 84, y + (story ? 100 : 70));
+      footerQr(c, w, h, q, fmt, 'Get your website');
+    };
+  }
+  function mkReviewCards(view) {
+    view.appendChild(el('p', { class: 'admin-intro', text: 'Your 4 and 5-star reviews (shown on your website) as branded pictures. Short reviews look best.' }));
+    var list = el('div'), out = el('div', { class: 'mk-grid' });
+    view.appendChild(list); view.appendChild(out);
+    api('POST', { action: 'mk_reviews' }).then(function (j) {
+      if (!j.reviews.length) { list.appendChild(el('p', { class: 'admin-empty', text: 'No 4 or 5-star reviews shown on your website yet. Ask happy customers to leave one at sirraddo.com.ng/websites#reviews.' })); return; }
+      j.reviews.forEach(function (rv) {
+        list.appendChild(el('div', { class: 'admin-card mk-row' }, [
+          el('div', null, [el('b', { text: '★'.repeat(rv.stars) + ' ' + rv.name }), el('div', { class: 'admin-meta', text: rv.body.length > 140 ? rv.body.slice(0, 140) + '…' : rv.body })]),
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Make picture', onclick: function () {
+            out.innerHTML = '';
+            out.appendChild(mkOutput('Review from ' + rv.name, drawReview(rv), 'review-' + rv.id, 'A ' + rv.stars + '-star customer review: "' + rv.body + '" by ' + rv.name));
+            out.scrollIntoView({ behavior: 'smooth' });
+          } })
+        ]));
+      });
+    }).catch(fail);
+  }
+
+  // ---------- Festive pictures ----------
+  var FEST_COLORS = { christmas: ['#1C6B47', '#0F5132', '#062A1A'], new_year: ['#1B3170', MKC.navy, MKC.deep], independence: ['#0E8A4F', '#006B3C', '#003D22'], eid_fitr: ['#14706B', '#0B4F4A', '#05302D'], eid_adha: ['#14706B', '#0B4F4A', '#05302D'], easter: ['#5B3E96', '#3F2A6B', '#22173B'] };
+  function drawFestive(f) {
+    return function (c, w, h, q, fmt) {
+      var col = FEST_COLORS[f.id] || [];
+      bgFill(c, w, h, col[0], col[1], col[2]);
+      var story = fmt === 'story';
+      mkLogo(c, w / 2, story ? 170 : 110, story ? 1.3 : 1.05, 'center');
+      font(c, 400, story ? 240 : 150); c.textAlign = 'center'; c.fillStyle = '#fff'; c.fillText(f.emoji, w / 2, story ? 560 : 330); c.textAlign = 'left';
+      var ts = fitSize(c, f.title, 800, story ? 130 : 96, 60, w - 168, 2); font(c, 800, ts); c.fillStyle = MKC.gold;
+      var y = wrapText(c, f.title, w / 2, (story ? 640 : 400) + ts * 0.8, w - 168, ts * 1.05, 2, 'center');
+      font(c, 600, story ? 46 : 34); c.fillStyle = '#fff';
+      y = wrapText(c, f.message, w / 2, y + (story ? 40 : 24), w - 200, story ? 62 : 46, story ? 6 : 3, 'center');
+      font(c, 600, story ? 34 : 26); c.fillStyle = MKC.soft; c.textAlign = 'center';
+      c.fillText('From all of us at SIRRADDO GLOBAL LIMITED', w / 2, y + (story ? 50 : 34)); c.textAlign = 'left';
+      footerQr(c, w, h, q, fmt, 'Websites from ₦50,000');
+    };
+  }
+  function mkFestive(view) {
+    view.appendChild(el('p', { class: 'admin-intro', text: 'Greeting pictures for the next festivals (the same ones as Settings → Festive greetings). Post on the day.' }));
+    var out = el('div', { class: 'mk-grid' });
+    api('POST', { action: 'greetings' }).then(function (j) {
+      var list = el('div');
+      j.festivals.slice(0, 6).forEach(function (f) {
+        list.appendChild(el('div', { class: 'admin-card mk-row' }, [
+          el('div', null, [el('b', { text: f.emoji + ' ' + f.name }), el('div', { class: 'admin-meta', text: niceDay(f.date) + (f.moon ? ' (moon sighting may move it)' : '') })]),
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Make picture', onclick: function () {
+            out.innerHTML = '';
+            out.appendChild(mkOutput(f.title, drawFestive(f), 'festive-' + f.id, f.title + ' greeting from SIRRADDO GLOBAL LIMITED: ' + f.message));
+            out.scrollIntoView({ behavior: 'smooth' });
+          } })
+        ]));
+      });
+      view.insertBefore(list, out);
+    }).catch(fail);
+    view.appendChild(out);
+  }
+
+  // ---------- Offer ----------
+  function drawOffer(o) {
+    return function (c, w, h, q, fmt) {
+      bgFill(c, w, h);
+      var story = fmt === 'story';
+      var bd = story ? 170 : 130, bh = story ? 84 : 64;
+      c.save(); c.translate(w, 0); c.rotate(Math.PI / 4); c.fillStyle = MKC.gold; c.fillRect(-500, bd, 1000, bh);
+      font(c, 800, story ? 36 : 28); c.fillStyle = MKC.deep; c.textAlign = 'center'; c.fillText('LIMITED OFFER', 0, bd + bh * 0.66); c.restore(); c.textAlign = 'left';
+      mkLogo(c, 84, story ? 150 : 110, story ? 1.3 : 1.05);
+      font(c, 700, story ? 34 : 28); c.fillStyle = MKC.gold; c.fillText('S P E C I A L   O F F E R', 84, story ? 330 : 210);
+      var ts = fitSize(c, o.title, 800, story ? 140 : 84, 50, w - 168, story ? 4 : 2); font(c, 800, ts); c.fillStyle = '#fff';
+      var y = wrapText(c, o.title, 84, (story ? 330 : 210) + ts * 1.1, w - 168, ts * 1.02, story ? 4 : 2);
+      if (o.text) { font(c, 600, story ? 46 : 30); c.fillStyle = MKC.soft; y = wrapText(c, o.text, 84, y + (story ? 50 : 16), w - 168, story ? 60 : 40, story ? 3 : 2); }
+      var d = new Date(o.until + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+      var ps = story ? 48 : 30; font(c, 800, ps); var pw2 = c.measureText('Ends ' + d).width + ps * 1.4;
+      pill(c, 'Ends ' + d, story ? w / 2 : 84 + pw2 / 2, Math.min(y + (story ? 70 : 24), footerTop(h, fmt) - ps * 1.7 - 30), ps);
+      footerQr(c, w, h, q, fmt, 'Claim it now');
+    };
+  }
+  function mkOffer(view) {
+    var card = el('div', { class: 'admin-card' }, [el('h2', { text: 'Special offer' }), el('p', { class: 'admin-hint', text: 'While it runs, every page of your website shows a gold bar with a live countdown, the chat mentions it, and you can make ad pictures for it. The offer is applied by you on the quote.' })]);
+    var title = el('input', { placeholder: 'e.g. ₦10,000 off Business websites', maxlength: 80 });
+    var text = el('input', { placeholder: 'Short detail (optional), e.g. For new customers who start this month', maxlength: 200 });
+    var until = el('input', { type: 'date' });
+    var status = el('p', { class: 'admin-hint' });
+    var out = el('div', { class: 'mk-grid' });
+    function show(o) {
+      out.innerHTML = '';
+      if (o) { title.value = o.title || ''; text.value = o.text || ''; until.value = o.until || ''; }
+      var live = o && o.on && o.until && o.until >= new Date(Date.now() + 3600000).toISOString().slice(0, 10);
+      status.textContent = live ? '🔥 Showing on your website now, until the end of ' + niceDay(o.until) + '.' : o ? 'Not showing (ended or switched off).' : 'No offer set.';
+      if (live) out.appendChild(mkOutput('Offer: ' + o.title, drawOffer(o), 'offer-' + o.tag, 'Limited offer: ' + o.title + (o.text ? ' (' + o.text + ')' : '') + ', ends ' + o.until));
+    }
+    card.appendChild(field('Offer', title)); card.appendChild(field('Detail', text)); card.appendChild(field('Last day', until));
+    card.appendChild(el('div', { class: 'admin-actions' }, [
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Save & show on website', onclick: function () {
+        api('POST', { action: 'mk_offer_save', offer: { title: title.value, text: text.value, until: until.value, on: true } }).then(function (j) { flash('Offer is live'); show(j.offer); }).catch(fail);
+      } }),
+      el('button', { class: 'admin-btn', type: 'button', text: 'End offer now', onclick: function () {
+        if (!window.confirm('Stop the offer now? The bar disappears from your website.')) return;
+        api('POST', { action: 'mk_offer_save', offer: { remove: true } }).then(function () { flash('Offer ended'); title.value = text.value = until.value = ''; show(null); }).catch(fail);
+      } })
+    ]));
+    card.appendChild(status);
+    view.appendChild(card); view.appendChild(out);
+    api('POST', { action: 'mk_offer_get' }).then(function (j) { show(j.offer); }).catch(fail);
+  }
+
+  // ---------- Referrals ----------
+  function mkReferrals(view) {
+    var card = el('div', { class: 'admin-card' }, [el('h2', { text: 'Referral programme' }),
+      el('p', { class: 'admin-hint', text: 'Every live customer gets their own link (in their Manage page, and under their client card → Referrals). When a business comes from it and pays, the customer earns the reward below. You give it on their next renewal and tap "Reward given".' })]);
+    var reward = el('input', { value: (state.settings && state.settings.referral_reward) || '₦5,000 off your next renewal', maxlength: 120 });
+    card.appendChild(field('Reward for each business that pays', reward));
+    card.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Save reward', onclick: function () {
+      api('POST', { action: 'settings', settings: { referral_reward: reward.value } }).then(function (j) { state.settings = j.settings; flash('Saved'); }).catch(fail);
+    } }));
+    view.appendChild(card);
+    var top = el('div', { class: 'admin-card' }, [el('h2', { text: 'Top referrers' }), el('p', { class: 'admin-hint', text: 'Loading…' })]);
+    view.appendChild(top);
+    api('POST', { action: 'mk_ref_top' }).then(function (j) {
+      top.lastChild.remove();
+      top.appendChild(j.top.length ? el('ul', { class: 'admin-mini' }, j.top.map(function (t) {
+        return el('li', null, [el('b', { text: t.business || t.name }), ' · code ' + t.ref_code + ' · ' + t.sent + ' sent · ' + t.paid + ' paid']);
+      })) : el('p', { class: 'admin-empty', text: 'No referrals yet. Remind happy customers about their link (it’s on their Manage page).' }));
+    }).catch(fail);
+  }
+  // Client card → Referrals
+  function referralBlock(r) {
+    var box = el('div', { class: 'admin-golive' }, [el('span', { class: 'admin-label', text: 'Referrals' })]);
+    var body = el('div');
+    function draw(j) {
+      body.innerHTML = '';
+      var msg = 'Hello ' + String(r.name).split(' ')[0] + ', thank you for working with us! 🎁 Know a business that needs a website? Share your link: ' + j.link + '\nFor each business that pays for a website, you get ' + j.reward + '.';
+      body.appendChild(el('p', { class: 'admin-meta', text: 'Code ' + j.code + ' · ' + j.list.length + ' came · ' + j.paid + ' paid · rewards given ' + j.used + ' of ' + j.paid }));
+      var num = waNumber(r.contact);
+      body.appendChild(el('div', { class: 'admin-actions' }, [
+        el('button', { class: 'admin-btn', type: 'button', text: 'Copy link', onclick: function (e) { copyText(j.link, 'Link', e.currentTarget); } }),
+        num ? el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + num + '?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Send their link on WhatsApp' }) : null,
+        j.paid > j.used ? el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Reward given (1)', onclick: function () { api('POST', { action: 'mk_ref_use', id: r.id, n: 1 }).then(draw).catch(fail); } }) : null
+      ]));
+      if (j.list.length) body.appendChild(el('ul', { class: 'admin-mini' }, j.list.map(function (x) { return el('li', null, [el('b', { text: x.business || x.name }), ' · ' + x.interest + ' · ' + x.status]); })));
+    }
+    box.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Show referrals', onclick: function (e) { e.currentTarget.remove(); api('POST', { action: 'mk_ref', id: r.id }).then(draw).catch(fail); } }));
+    box.appendChild(body);
+    return box;
+  }
+
+  // ---------- Ad spend ----------
+  function mkSpend(view) {
+    var card = el('div', { class: 'admin-card' }, [el('h2', { text: 'What you spent on ads' }),
+      el('p', { class: 'admin-hint', text: 'Type each top-up or boost. Use the same campaign name as in your ad link (…?utm_source=facebook&utm_campaign=ibadan-test → "ibadan-test"; for QR flyers use e.g. "flyer-a5"). The table shows what each campaign cost per enquiry and per paying customer.' })]);
+    var day = el('input', { type: 'date', value: new Date(Date.now() + 3600000).toISOString().slice(0, 10) });
+    var plat = select(['Facebook / Instagram', 'Google', 'TikTok', 'WhatsApp', 'Flyers / print', 'Other'], 'Facebook / Instagram', { 'aria-label': 'Where' });
+    var tags = {};
+    state.requests.forEach(function (r) { if (r.came_from && / \/ /.test(r.came_from)) tags[r.came_from.split(' / ')[1]] = 1; });
+    var dl = el('datalist', { id: 'mk-tags' }, Object.keys(tags).concat(['flyer-a5', 'qr-card', 'banner']).map(function (t) { return el('option', { value: t }); }));
+    var tag = el('input', { placeholder: 'Campaign name, e.g. ibadan-test', list: 'mk-tags' });
+    var amount = el('input', { type: 'text', inputmode: 'numeric', placeholder: 'Amount in ₦, e.g. 5000' });
+    var note = el('input', { placeholder: 'Note (optional)' });
+    var table = el('div'), entries = el('div');
+    function draw(j) {
+      table.innerHTML = ''; entries.innerHTML = '';
+      if (!j.report.length) table.appendChild(el('p', { class: 'admin-empty', text: 'Nothing yet.' }));
+      else table.appendChild(el('div', { class: 'admin-table-wrap' }, [el('table', { class: 'admin-table' }, [
+        el('thead', null, [el('tr', null, ['Campaign', 'Spent', 'Enquiries', 'Paid', 'Cost / enquiry', 'Cost / paying customer', 'They paid you'].map(function (x) { return el('th', { text: x }); }))]),
+        el('tbody', null, j.report.map(function (x) {
+          return el('tr', null, [x.tag + ' (' + x.platforms + ')', naira(x.spend), String(x.leads), String(x.paid), x.perLead == null ? '-' : naira(x.perLead), x.perPaid == null ? '-' : naira(x.perPaid), naira(x.value)].map(function (v, i) { return el('td', { text: v, class: i === 6 && x.value > x.spend ? 'is-good' : '' }); }));
+        }))
+      ])]));
+      entries.appendChild(el('ul', { class: 'admin-mini' }, j.spend.slice(0, 30).map(function (s) {
+        return el('li', null, [niceDay(String(s.day).slice(0, 10)) + ' · ' + s.platform + ' · ', el('b', { text: s.tag }), ' · ' + naira(s.amount) + (s.note ? ' · ' + s.note : '') + ' ',
+          el('button', { class: 'admin-btn admin-btn--small', type: 'button', text: 'Delete', onclick: function () { api('POST', { action: 'mk_spend_del', spend_id: s.id }).then(draw).catch(fail); } })]);
+      })));
+    }
+    [field('Date', day), field('Where', plat), field('Campaign', tag), field('Amount (₦)', amount), field('Note', note)].forEach(function (x) { card.appendChild(x); });
+    card.appendChild(dl);
+    card.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Add', onclick: function () {
+      api('POST', { action: 'mk_spend_add', entry: { day: day.value, platform: plat.value, tag: tag.value, amount: amount.value, note: note.value } }).then(function (j) { amount.value = ''; note.value = ''; flash('Added'); draw(j); }).catch(fail);
+    } }));
+    view.appendChild(card);
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Which ads pay off' })); view.appendChild(table);
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Entries' })); view.appendChild(entries);
+    api('POST', { action: 'mk_spend' }).then(draw).catch(fail);
+  }
+
+  // ---------- Today: a posting plan ----------
+  var PLAN_WHERE = { story: 'WhatsApp Status + Instagram Story', video: 'WhatsApp Status + Reels / TikTok', square: 'Instagram + Facebook post', banner: 'Facebook page and groups' };
+  function planFor(dayIndex, extras) {
+    var items = ADS.filter(function (a) { return a.group !== 'print'; }).map(function (a) { return { ad: a }; });
+    // Every few days: something made in the picture maker (proof beats prices).
+    items.splice(2, 0, { make: 'showcase', title: 'A "We built this" post', where: 'WhatsApp Status + Instagram' });
+    items.splice(6, 0, { make: 'reviews', title: 'A customer review card', where: 'WhatsApp Status + Facebook' });
+    items.splice(9, 0, { make: 'referrals', title: 'Remind 3 happy customers about their referral link', where: 'WhatsApp (to each customer)' });
+    if (extras.offer) items.unshift({ make: 'offer', title: 'Your offer: ' + extras.offer.title, where: 'Status, Instagram and Facebook' });
+    return items[dayIndex % items.length];
+  }
+  function mkToday(view) {
+    var today = new Date(Date.now() + 3600000), d0 = Math.floor(today.getTime() / 86400000);
+    var key = function (i) { return 'sirraddo-posted-' + new Date((d0 + i) * 86400000).toISOString().slice(0, 10); };
+    var posted = function (i) { try { return localStorage.getItem(key(i)) === '1'; } catch (e) { return false; } };
+    var box = el('div');
+    view.appendChild(box);
+    api('POST', { action: 'mk_offer_get' }).catch(function () { return {}; }).then(function (j) {
+      var o = j && j.offer, live = o && o.on && o.until >= today.toISOString().slice(0, 10);
+      var extras = { offer: live ? o : null };
+      var it = planFor(d0, extras);
+      var head = el('div', { class: 'admin-card' }, [el('h2', { text: 'Post today' }), el('p', { class: 'admin-meta', text: 'Where: ' + (it.ad ? PLAN_WHERE[it.ad.group] : it.where) })]);
+      var done = el('input', { type: 'checkbox' }); done.checked = posted(0);
+      done.addEventListener('change', function () { try { localStorage.setItem(key(0), done.checked ? '1' : '0'); } catch (e) {} flash(done.checked ? 'Nice one! ✓' : 'Unmarked'); });
+      if (it.ad) head.appendChild(el('div', { class: 'mk-grid' }, [adCard(it.ad)]));
+      else head.appendChild(el('div', { class: 'admin-actions' }, [el('b', { text: it.title }), el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Open ' + (MK_TABS.filter(function (t) { return t[0] === it.make; })[0] || ['', 'tab'])[1], onclick: function () { state.mkTab = it.make; render(); } })]));
+      head.appendChild(el('label', { class: 'admin-hint' }, [done, ' I posted today']));
+      box.appendChild(head);
+      var next = el('ul', { class: 'admin-mini' });
+      for (var i = 1; i <= 13; i++) {
+        var n = planFor(d0 + i, extras), day = new Date((d0 + i) * 86400000);
+        next.appendChild(el('li', null, [el('b', { text: day.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) }), ' · ' + (n.ad ? n.ad.title : n.title) + ' · ' + (n.ad ? PLAN_WHERE[n.ad.group] : n.where)]));
+      }
+      box.appendChild(el('details', { class: 'admin-card' }, [el('summary', { text: 'Next 2 weeks' }), next]));
+      var bio = function (src) { return LINKS_URL + '?utm_source=' + src + '&utm_campaign=bio'; };
+      box.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Link in bio' }),
+        el('p', { class: 'admin-hint', text: 'One page with your packages, demo store, reviews and WhatsApp. Put it in your Instagram, TikTok and Facebook bio; the offer bar shows there too.' }),
+        el('div', { class: 'admin-actions' }, [
+          el('a', { class: 'admin-btn', href: '/links', target: '_blank', rel: 'noopener', text: 'Open page' }),
+          el('button', { class: 'admin-btn', type: 'button', text: 'Copy for Instagram', onclick: function (e) { copyText(bio('instagram'), 'Link', e.currentTarget); } }),
+          el('button', { class: 'admin-btn', type: 'button', text: 'Copy for TikTok', onclick: function (e) { copyText(bio('tiktok'), 'Link', e.currentTarget); } }),
+          el('button', { class: 'admin-btn', type: 'button', text: 'Copy for Facebook', onclick: function (e) { copyText(bio('facebook'), 'Link', e.currentTarget); } })
+        ])]));
+    });
   }
 
   function renderAssistant(view) {
@@ -1949,6 +2454,7 @@
       var oc = r.open_changes || 0;
       card.appendChild(fold(r, 'after', 'After launch', aftercareBlock(r), oc ? [oc + ' change' + (oc === 1 ? '' : 's') + ' waiting', 'is-due'] : ['Up to date', 'is-won'], oc > 0));
     }
+    if (r.status === 'won' && (r.website_url || r.live_on)) card.appendChild(fold(r, 'referral', 'Referrals', referralBlock(r), r.ref_code ? ['Code ' + r.ref_code, ''] : null, false));
     var hsent = (r.auto_sent || {}).handover, hbal = balance(r), hlocked = r.quote_amount == null || hbal > 0;
     card.appendChild(fold(r, 'handover', 'Handover pack', handoverBlock(r), hsent ? ['Sent', 'is-won'] : hlocked ? ['Locked', ''] : ['Ready to send', 'is-new'], !hsent && !hlocked));
     return card;

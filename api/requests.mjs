@@ -545,6 +545,34 @@ export default async function handler(req, res) {
         const ok = body.remove ? await deleteUnanswered(id) : await setUnansweredResolved(id, Boolean(body.resolved));
         return ok ? res.status(200).json({ ok: true }) : res.status(404).json({ error: "Not found" });
       }
+      // Admin → Marketing (offers, referrals, ad spend, captions, picture maker data).
+      if (String(body.action || "").startsWith("mk_")) {
+        const m = await import("./_lib/marketing.mjs");
+        const id = Number(body.id);
+        try {
+          switch (body.action) {
+            case "mk_qr": return res.status(200).json(await m.qrSvg(body.tag, body.src || "qr"));
+            case "mk_offer_get": return res.status(200).json({ offer: await m.getOffer() });
+            case "mk_offer_save": return res.status(200).json({ offer: await m.saveOffer(body.offer || {}) });
+            case "mk_ref": return res.status(200).json(await m.referralInfo(id));
+            case "mk_ref_use": await m.useReward(id, Number(body.n) || 1); return res.status(200).json(await m.referralInfo(id));
+            case "mk_ref_top": return res.status(200).json({ top: await m.topReferrers(), reward: await m.rewardText() });
+            case "mk_spend": return res.status(200).json({ spend: await m.listSpend(), report: await m.spendReport() });
+            case "mk_spend_add": await m.addSpend(body.entry || {}); return res.status(200).json({ spend: await m.listSpend(), report: await m.spendReport() });
+            case "mk_spend_del": await m.deleteSpend(body.spend_id); return res.status(200).json({ spend: await m.listSpend(), report: await m.spendReport() });
+            case "mk_showcase_list": return res.status(200).json({ sites: await m.showcaseList() });
+            case "mk_showcase_ok": return res.status(200).json({ sites: await m.setShowcaseOk(id, body.ok) });
+            case "mk_showcase": return res.status(200).json(await m.showcaseData(id));
+            case "mk_reviews": return res.status(200).json({ reviews: await m.ourReviews() });
+            case "mk_captions": return res.status(200).json({ captions: await m.writeCaptions(body) });
+            default: throw new Bad("Unknown action");
+          }
+        } catch (e) {
+          if (e instanceof Bad) throw e;
+          if (e.message === "Not found") return res.status(404).json({ error: "Not found" });
+          throw new Bad(e.message);
+        }
+      }
       throw new Bad("Unknown action");
     }
 

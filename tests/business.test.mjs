@@ -243,6 +243,71 @@ test("Do it with AI: a change request is read and applied to the live site (add,
   delete globalThis.__AI_CHANGE_REPLY__;
 });
 
+test("Marketing: offer bar + chat, referrals with rewards, ad spend report, QR, showcase, captions, link page", async () => {
+  // Offer: shows on the website feed and the chat knows it.
+  assert.match((await h.action({ action: "mk_offer_save", offer: { title: "", until: "2099-01-01" } })).json.error, /title/);
+  const off = (await h.action({ action: "mk_offer_save", offer: { title: "₦10,000 off Business websites", text: "This month only", until: "2099-12-31" } })).json.offer;
+  assert.equal(off.tag, "10000-off-business-websites");
+  const feed = (await h.call("GET", "/api/site?greeting=1")).json;
+  assert.equal(feed.offer.title, "₦10,000 off Business websites");
+  assert.match(feed.offer.ends, /2099-12-31T23:59:59/);
+  await h.call("POST", "/api/chat", { sessionId: "s-offer-chat-0001", messages: [{ role: "user", content: "how much?" }] });
+  assert.match(globalThis.__LAST_AI_SYSTEM__, /SPECIAL OFFER RUNNING NOW[^"]*10,000 off Business/);
+  await h.action({ action: "mk_offer_save", offer: { remove: true } });
+  assert.equal((await h.call("GET", "/api/site?greeting=1")).json.offer, null);
+
+  // Referral: a live customer's link brings a business that pays; the reward shows and can be marked given.
+  const id = (await h.action({ action: "create", name: "Tunde Bello", contact: "08037778888", business: "Tunde Prints", interest: "Business website" })).json.id;
+  await h.sql(`UPDATE customer_requests SET status = 'won', website_url = 'https://tundeprints.com.ng' WHERE id = $1`, [id]);
+  const ref = (await h.action({ action: "mk_ref", id })).json;
+  assert.equal(ref.code, "TUND" + id);
+  assert.match(ref.link, /websites\?ref=TUND/);
+  await h.call("POST", "/api/lead", { name: "Bisi Cakes", contact: "08039990000", interest: "Starter website", from: "referral:" + ref.code.toLowerCase() });
+  const friend = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((r) => r.name === "Bisi Cakes");
+  await h.admin("PATCH", "/api/requests", { id: friend.id, status: "won" });
+  let info = (await h.action({ action: "mk_ref", id })).json;
+  assert.equal(info.list.length, 1); assert.equal(info.paid, 1); assert.equal(info.used, 0);
+  info = (await h.action({ action: "mk_ref_use", id, n: 1 })).json;
+  assert.equal(info.used, 1);
+  assert.equal((await h.action({ action: "mk_ref_top" })).json.top[0].paid, 1);
+  const mlink = (await h.action({ action: "manage_link", id })).json.url;
+  const mp = (await h.call("GET", "/manage?" + mlink.split("?")[1])).text;
+  assert.match(mp, /Invite a business/);
+  assert.match(mp, new RegExp("ref=" + ref.code));
+
+  // Ad spend: cost per enquiry and per paying customer for a campaign.
+  assert.match((await h.action({ action: "mk_spend_add", entry: { tag: "x", amount: "" } })).json.error, /how much/);
+  await h.call("POST", "/api/lead", { name: "Kola Ads", contact: "08031110001", interest: "Online Store", from: "facebook / nov-test" });
+  await h.call("POST", "/api/lead", { name: "Ife Ads", contact: "08031110002", interest: "Online Store", from: "facebook / nov-test" });
+  const kola = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((r) => r.name === "Kola Ads");
+  await h.admin("PATCH", "/api/requests", { id: kola.id, status: "won", quote_amount: 150000 });
+  const sp = (await h.action({ action: "mk_spend_add", entry: { platform: "Facebook / Instagram", tag: "nov-test", amount: "₦10,000" } })).json;
+  const row = sp.report.find((x) => x.tag === "nov-test");
+  assert.equal(row.spend, 10000); assert.equal(row.leads, 2); assert.equal(row.paid, 1);
+  assert.equal(row.perLead, 5000); assert.equal(row.perPaid, 10000); assert.equal(row.value, 150000);
+  assert.equal((await h.action({ action: "mk_spend_del", spend_id: sp.spend[0].id })).json.spend.length, 0);
+
+  // QR (tagged), showcase (only with the customer's OK), our review list, AI captions.
+  const qr = (await h.action({ action: "mk_qr", tag: "Showcase 12" })).json;
+  assert.match(qr.url, /utm_source=qr&utm_campaign=showcase-12/); assert.match(qr.svg, /^<svg/);
+  let sites = (await h.action({ action: "mk_showcase_list" })).json.sites;
+  assert.ok(sites.some((x) => x.id === id && !x.ok));
+  sites = (await h.action({ action: "mk_showcase_ok", id, ok: true })).json.sites;
+  assert.ok(sites.find((x) => x.id === id).ok);
+  const sc = (await h.action({ action: "mk_showcase", id })).json;
+  assert.equal(sc.name, "Tunde Prints"); assert.equal(sc.url, "tundeprints.com.ng"); assert.ok(sc.primary);
+  assert.ok(Array.isArray((await h.action({ action: "mk_reviews" })).json.reviews));
+  const cap = (await h.action({ action: "mk_captions", topic: "Starter ₦50,000", lang: "Nigerian Pidgin", link: "https://www.sirraddo.com.ng/websites?utm_source=post" })).json;
+  assert.equal(cap.captions.length, 3);
+  assert.match(globalThis.__LAST_AI_PROMPT__, /in Nigerian Pidgin/);
+  assert.match(globalThis.__LAST_AI_PROMPT__, /Never name or compare with any other company/);
+
+  // Link-in-bio page.
+  const lp = await h.call("GET", "/links");
+  assert.equal(lp.status, 200);
+  assert.match(lp.text, /sirraddodemo\.com\.ng/);
+});
+
 test("change requests: private page, emails, Mark done; free month then quote first", async () => {
   await h.sql(`UPDATE customer_requests SET live_on = CURRENT_DATE - 5 WHERE id = $1`, [ada]);
   const info = (await h.action({ action: "changes", id: ada })).json;

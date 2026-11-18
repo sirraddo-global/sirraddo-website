@@ -143,9 +143,10 @@ export default async function handler(req, res) {
     // The festive banner on sirraddo.com.ng asks this.
     // Service notices ride along, so planned upgrades show on every page that has the banner script.
     res.setHeader("Cache-Control", "public, s-maxage=120, max-age=60");
-    if (!dbConfigured()) return res.status(200).json({ greeting: null, notices: [] });
-    const [greeting, notices] = await Promise.all([currentGreeting().catch(() => null), currentNotices().catch(() => [])]);
-    return res.status(200).json({ greeting, notices });
+    if (!dbConfigured()) return res.status(200).json({ greeting: null, notices: [], offer: null });
+    const { currentOffer } = await import("./_lib/marketing.mjs");
+    const [greeting, notices, offer] = await Promise.all([currentGreeting().catch(() => null), currentNotices().catch(() => []), currentOffer().catch(() => null)]);
+    return res.status(200).json({ greeting, notices, offer });
   }
 
   res.setHeader("X-Robots-Tag", "noindex, nofollow");

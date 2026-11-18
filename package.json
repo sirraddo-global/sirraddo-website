@@ -8,14 +8,14 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
     "@netlify/blobs": "^11.1.9",
-    "@noble/hashes": "^2.4.0"
+    "@noble/hashes": "^2.4.0",
+    "qrcode": "^1.5.4"
   },
   "scripts": {
     "build": "node scripts/build.mjs",
     "test": "node scripts/build.mjs && node --test --test-reporter=spec tests/*.test.mjs"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.16",
-    "qrcode": "^1.5.4"
+    "@electric-sql/pglite": "^0.5.16"
   }
 }

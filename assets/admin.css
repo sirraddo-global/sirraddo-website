@@ -305,3 +305,15 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .admin-ai-own{margin:6px 0}.admin-ai-own summary{cursor:pointer;font-size:14px;color:var(--muted,#5B6475);padding:6px 0}
 a.admin-btn{text-decoration:none}
 .admin-badge.is-from{background:#EEF2FF;color:#3730A3;border-color:#C7D2FE}:root[data-theme="dark"] .admin-badge.is-from{background:#1E1B4B;color:#C7D2FE;border-color:#3730A3}
+/* Marketing studio */
+.mk-canvas { width: 100%; max-height: 520px; object-fit: contain; background: var(--bg-soft); border-radius: 8px; display: block; }
+.mk-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; justify-content: space-between; padding: 14px 16px; margin: 8px 0; }
+.mk-row > div:first-child { flex: 1 1 220px; min-width: 0; }
+.mk-cap { margin-top: 10px; border-top: 1px solid var(--line, #E3E7F0); padding-top: 8px; }
+.mk-cap summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.mk-capt { display: flex; gap: 10px; align-items: flex-start; background: var(--bg-soft); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
+.mk-capt p { margin: 0; flex: 1; white-space: pre-wrap; font-size: .95rem; }
+.admin-table-wrap { overflow-x: auto; }
+.admin-table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+.admin-table th, .admin-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line, #E3E7F0); white-space: nowrap; }
+.admin-table td.is-good { color: #1F8A4C; font-weight: 700; }

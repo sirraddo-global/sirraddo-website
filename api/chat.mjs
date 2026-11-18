@@ -2,7 +2,10 @@
 // Body: { sessionId, page, messages: [{ role: "user" | "assistant", content: "..." }] }
 // Returns: { reply, saved }
 import { FUNCTION_BUDGET_MS, readImageForAi } from "./_lib/platform.mjs";
-import { SYSTEM_PROMPT, SAVE_TOOL, QUESTION_TOOL } from "./_lib/knowledge.mjs";
+import { SYSTEM_PROMPT as BASE_PROMPT, SAVE_TOOL, QUESTION_TOOL } from "./_lib/knowledge.mjs";
+import { SITE_FAQ } from "./_lib/site-faq.generated.mjs";
+// The FAQ published on our website, word for word, so the chat always agrees with the page.
+const SYSTEM_PROMPT = `${BASE_PROMPT}\n\nOUR WEBSITE FAQ (published on www.sirraddo.com.ng; answers must agree with it):\n${SITE_FAQ}`;
 import { currentNotices } from "./_lib/notices.mjs";
 import { saveRequest, emailRequest, logChat, addUnanswered, reference } from "./_lib/store.mjs";
 import { chatProviders, CHAT_MODELS } from "./_lib/providers.mjs";

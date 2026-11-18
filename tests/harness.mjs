@@ -74,6 +74,7 @@ export async function startHarness() {
     return paystack[ref] ? json({ status: true, data: paystack[ref] }) : json({ status: false, message: "Transaction reference not found" }, 400);
   }
   function geminiFake(body) {
+    globalThis.__LAST_AI_SYSTEM__ = JSON.stringify(body.systemInstruction || body.system_instruction || '');
     const reply = (parts) => new Response(JSON.stringify({ candidates: [{ content: { role: "model", parts } }] }), { status: 200 });
     if (!body.tools) {
       const p = body.contents[0].parts[0].text;

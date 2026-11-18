@@ -54,3 +54,18 @@ console.log(`Built ${pages.length} pages into public/ for ${SITE_URL} (demo card
 
 // The commit this build is from (Netlify sets COMMIT_REF), so the live check knows the new version is up.
 writeFileSync(join(out, "version.txt"), (process.env.COMMIT_REF || "local") + "\n");
+
+// The website chat always knows the current FAQ: every question and answer on the Websites and Home pages is
+// copied into api/_lib/site-faq.generated.mjs on each build, so editing the FAQ updates the chat too.
+{
+  const plain = (h) => h.replace(/<br\s*\/?>/g, " ").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").replace(/&#39;|&rsquo;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
+  const faq = [];
+  for (const page of ["websites.html", "index.html"]) {
+    const html = readFileSync(join(root, page), "utf8");
+    for (const m of html.matchAll(/<details[^>]*>\s*<summary[^>]*>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g)) faq.push({ q: plain(m[1]), a: plain(m[2]), page });
+  }
+  const text = faq.map((f) => `Q: ${f.q}\nA: ${f.a}`).join("\n\n");
+  writeFileSync(join(root, "api/_lib/site-faq.generated.mjs"),
+    `// Made by scripts/build.mjs from the FAQ on our pages. Don't edit: edit the FAQ in websites.html instead.\nexport const SITE_FAQ = ${JSON.stringify(text)};\nexport const SITE_FAQ_COUNT = ${faq.length};\n`);
+  console.log(`Chat knows ${faq.length} FAQ answers`);
+}

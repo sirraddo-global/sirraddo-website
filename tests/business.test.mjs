@@ -428,3 +428,14 @@ test("Google Search Console: a live domain is verified, added, sitemap submitted
     assert.equal(h.CF.dns.filter((r) => r.zone === "zone-kp" && r.type === "TXT").length, 1, "TXT added once");
   } finally { delete process.env.GOOGLE_SERVICE_ACCOUNT; }
 });
+
+test("Website chat knows our whole published FAQ (kept in step by the build) and recent features", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const html = await readFile(new URL("../websites.html", import.meta.url), "utf8");
+  const questions = [...html.matchAll(/<summary>([^<]+)<\/summary>/g)].map((m) => m[1].replace(/&amp;/g, "&").trim());
+  assert.ok(questions.length >= 15);
+  await h.call("POST", "/api/chat", { sessionId: "s-test-faq-00001", messages: [{ role: "user", content: "Can I have a .com?" }] });
+  const sys = globalThis.__LAST_AI_SYSTEM__ || "";
+  for (const q of questions) assert.ok(sys.includes(q.replace(/"/g, '\\"')) || sys.includes(q), `chat doesn't know: ${q}`);
+  for (const fact of ["Manage", "Ask me first", "Search Console", ".com.ng", "sirraddodemo.com.ng", "receipt"]) assert.ok(sys.includes(fact), `chat doesn't know: ${fact}`);
+});

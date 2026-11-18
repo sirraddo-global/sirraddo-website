@@ -436,7 +436,7 @@
   // or download. Images live in /assets/marketing (made from the "SIRRADDO website ads" design canvas).
   // Each picture has its own QR code (tagged, so Dashboard → "Where customers come from" shows "qr / <piece>"),
   // and each caption link is tagged too. Made by scripts/make-marketing.mjs (change the wording there).
-  var MK_V = '2';
+  var MK_V = '3';
   var L = function (src, camp) { return 'https://www.sirraddo.com.ng/websites?utm_source=' + src + '&utm_campaign=' + camp; };
   var ADS = [
     { file: 'story-websites.jpg', title: 'Status / Story: Websites', size: '1080 × 1920', group: 'story',
@@ -451,15 +451,21 @@
       caption: 'No surprises: see your website and pick your favourite design before paying the balance 👉 ' + L('post', 'see-first') },
     { file: 'banner.jpg', title: 'Banner (Facebook, groups)', size: '1200 × 630', group: 'banner',
       caption: 'Websites for your business from ₦50,000. Domain, hosting and business email included 👉 ' + L('facebook', 'banner') },
+    { file: 'video-websites.mp4', poster: 'video-websites.jpg', title: 'Video: Websites (21 s)', size: '1080 × 1920 · MP4', group: 'video',
+      caption: 'Is your business on Google yet? 📍 Get a professional website from ₦50,000, live in 7 working days 👉 ' + L('video', 'websites') },
+    { file: 'video-store.mp4', poster: 'video-store.jpg', title: 'Video: Online Store (22 s)', size: '1080 × 1920 · MP4', group: 'video',
+      caption: 'Sell online and get paid straight to your account 🛒 Your own online store from ₦150,000 👉 ' + L('video', 'store') },
+    { file: 'video-see-first.mp4', poster: 'video-see-first.jpg', title: 'Video: See it first (20 s)', size: '1080 × 1920 · MP4', group: 'video',
+      caption: 'See your website before you pay the balance. Pick your favourite of up to 3 designs 👉 ' + L('video', 'see-first') },
     { file: 'flyer-a5.jpg', pdf: 'flyer-a5.pdf', title: 'Flyer (A5, print)', size: 'A5 · 148 × 210 mm', group: 'print',
       caption: 'Print the PDF at any business centre (A5, or 2 on one A4 sheet). Hand out at markets, shops and association meetings.' },
     { file: 'qr-card.jpg', pdf: 'qr-card.pdf', title: 'QR counter card (A6, print)', size: 'A6 · 105 × 148 mm', group: 'print',
       caption: 'Print, laminate and stand it on the counter of every customer whose website you built (with their permission).' }
   ];
   function renderMarketing(view) {
-    view.appendChild(el('p', { class: 'admin-intro', text: 'Ads that lead people to your website. On your phone, Share opens WhatsApp, Instagram or Facebook with the picture ready (the caption is copied, so paste it in). Post one Status a day and rotate them.' }));
+    view.appendChild(el('p', { class: 'admin-intro', text: 'Ads that lead people to your website. On your phone, Share opens WhatsApp, Instagram or Facebook with the picture ready (the caption is copied, so paste it in). Post one Status a day and rotate them. Videos have no music: add a sound from WhatsApp, Instagram or TikTok’s own library when you post (it’s licensed there).' }));
     // Group the ads by where they're posted, so only a few show at a time.
-    var groups = [['story', 'Status & Story'], ['square', 'Square posts'], ['banner', 'Banner'], ['print', 'Flyers (print)']];
+    var groups = [['story', 'Status & Story'], ['video', 'Videos'], ['square', 'Square posts'], ['banner', 'Banner'], ['print', 'Flyers (print)']];
     var groupOf = function (ad) { return ad.group; };
     var pickAd = state.adsTab || 'story';
     view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Ad types' }, groups.map(function (g) {
@@ -475,10 +481,10 @@
         var b = e.currentTarget; b.disabled = true;
         if (navigator.clipboard) navigator.clipboard.writeText(ad.caption).catch(function () {});
         fetch(url).then(function (r) { return r.blob(); }).then(function (blob) {
-          var file = new File([blob], 'sirraddo-' + ad.file, { type: 'image/jpeg' });
+          var file = new File([blob], 'sirraddo-' + ad.file, { type: /\.mp4$/.test(ad.file) ? 'video/mp4' : 'image/jpeg' });
           var data = { files: [file], text: ad.caption };
           if (!navigator.canShare(data)) data = { files: [file] };
-          if (!navigator.canShare(data)) throw new Error('This device can\'t share pictures. Use Download instead.');
+          if (!navigator.canShare(data)) throw new Error('This device can\'t share this file. Use Download instead.');
           return navigator.share(data);
         }).then(function () { flash('Shared. The caption is copied: paste it in.'); })
           .catch(function (err) { if (err && err.name !== 'AbortError') fail(err); })
@@ -488,7 +494,8 @@
       actions.appendChild(el('a', { class: 'admin-btn', href: url, download: 'sirraddo-' + ad.file, text: ad.pdf ? 'Download picture' : 'Download' }));
       if (!ad.pdf) actions.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy caption', onclick: function (e) { copyText(ad.caption, 'Caption', e.currentTarget); } }));
       grid.appendChild(el('article', { class: 'admin-card mk-card' }, [
-        el('img', { src: url, alt: ad.title, loading: 'lazy', class: 'mk-img' }),
+        ad.poster ? el('video', { src: url, poster: '/assets/marketing/' + ad.poster + '?v=' + MK_V, controls: true, playsinline: true, muted: true, preload: 'none', class: 'mk-img' })
+          : el('img', { src: url, alt: ad.title, loading: 'lazy', class: 'mk-img' }),
         el('h3', { text: ad.title }),
         el('p', { class: 'admin-meta', text: ad.size }),
         el('p', { class: 'mk-caption', text: ad.caption }),

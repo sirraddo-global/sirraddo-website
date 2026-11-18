@@ -426,6 +426,12 @@ test("Google Search Console: a live domain is verified, added, sitemap submitted
     await h.action({ action: "host_check", id });
     assert.equal(G.calls.length, n, "nothing more once done");
     assert.equal(h.CF.dns.filter((r) => r.zone === "zone-kp" && r.type === "TXT").length, 1, "TXT added once");
+    // A site already live before this was set up is submitted by the 7am job too.
+    const id2 = (await h.action({ action: "create", name: "Old Site", contact: "08031110001", interest: "Business website" })).json.id;
+    await h.sql(`UPDATE customer_requests SET hosting = $1::jsonb WHERE id = $2`, [JSON.stringify({ zoneId: "zone-old", domain: "oldsite.com.ng", zoneStatus: "active", attached: true, project: "old-site", publishedAt: "2026-11-01T00:00:00Z", look: "x", lookMode: "ask", lookAsked: "x" }), id2]);
+    const { dailyHosting } = await import("../api/_lib/golive.mjs");
+    await dailyHosting([await h.row(id2)]);
+    assert.equal((await h.row(id2)).hosting.google?.step, "done", "already-live site submitted by the daily job");
   } finally { delete process.env.GOOGLE_SERVICE_ACCOUNT; }
 });
 

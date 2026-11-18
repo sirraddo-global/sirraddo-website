@@ -77,7 +77,10 @@ export async function startHarness() {
     globalThis.__LAST_AI_SYSTEM__ = JSON.stringify(body.systemInstruction || body.system_instruction || '');
     const reply = (parts) => new Response(JSON.stringify({ candidates: [{ content: { role: "model", parts } }] }), { status: 200 });
     if (!body.tools) {
-      const p = body.contents[0].parts[0].text;
+      const parts0 = body.contents[0].parts;
+      const p = parts0[parts0.length - 1].text;
+      globalThis.__LAST_AI_PARTS__ = parts0;
+      if (p.includes("CHANGE REQUEST FROM THE OWNER")) { globalThis.__LAST_AI_PROMPT__ = p; return reply([{ text: globalThis.__AI_CHANGE_REPLY__ || '{"understood":"nothing","ops":[],"not_done":[]}' }]); }
       if (p.includes("Write the CSS that gives")) return reply([{ text: "```css\n/* fonts: Playfair Display, Inter */\nbody{font-family:Inter,sans-serif;background:#FBF7F2}\nh1,h2,h3{font-family:'Playfair Display',serif;letter-spacing:-.5px}\n.top{background:#2B0F3A;border-bottom:3px solid #C9971C}\n.hero{background:radial-gradient(circle at 80% 20%,#5B2A86,#2B0F3A 70%);padding:72px 0}\n.hero h1{font-size:clamp(2.2rem,8vw,3.6rem)}\n.card{border:0;box-shadow:0 10px 30px rgba(43,15,58,.12);border-top:4px solid #C9971C}\n.btn{border-radius:999px;padding:14px 26px}\nsection.block:nth-of-type(even){background:#F3ECF7}\n.bad{background:url(https://evil.example/x.png)} </style><script>alert(1)</script>\n@import url(https://evil.example/a.css);\n.cta{background:linear-gradient(90deg,#C9971C,#E8B600)}\n```" }]);
       return reply([{ text: "# Website text: Ada Salon\n## Page: Home\n**SEO title:** Ada Salon | Hair salon in Bodija, Ibadan\n**Meta description:** Braids and wigs in Bodija.\n### Hero\nBeautiful hair, done right\nBraids and wigs in Bodija.\nBook on WhatsApp\n### Our services\n- Braids\n- Wigs\n## Page: About us\n**SEO title:** About Ada Salon\n**Meta description:** Our story.\n### Our story\nAda Salon has served Bodija since 2015.\n## Google Business Profile description\nAda Salon is a hair salon in Bodija, Ibadan." }]);
     }

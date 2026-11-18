@@ -30,7 +30,7 @@ import { putFile, deleteFiles } from "./_lib/platform.mjs";
 import { setDesignRefs, MAX_DESIGN_REFS } from "./_lib/store.mjs";
 import { noticesForAdmin, saveNotice, deleteNotice, NOTICE_KINDS } from "./_lib/notices.mjs";
 import { getConfig, saveConfig, occurrences, queueEmails, emailStatus, audience, GREETING_EMAILS_PER_DAY } from "./_lib/greetings.mjs";
-import { changeLink, listChanges, markChange, freeUntil } from "./_lib/changes.mjs";
+import { changeLink, listChanges, markChange, freeUntil, addChange } from "./_lib/changes.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
@@ -427,12 +427,32 @@ export default async function handler(req, res) {
         for (const o of list) o.email = await emailStatus(o.key);
         return res.status(200).json({ festivals: list, audience: (await audience()).length, per_day: GREETING_EMAILS_PER_DAY, can_email: customerEmailConfigured() });
       }
-      if (["changes", "change_mark", "site_stats", "report_send", "report_toggle"].includes(body.action)) {
+      if (["changes", "change_mark", "change_add", "change_ai_plan", "change_ai_apply", "change_ai_undo", "site_stats", "report_send", "report_toggle"].includes(body.action)) {
         const id = Number(body.id);
         if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
         const row = await getRequest(id);
         if (!row) return res.status(404).json({ error: "Not found" });
         if (body.action === "changes") return res.status(200).json({ link: await changeLink(id), free_until: freeUntil(row), changes: await listChanges(id, 20) });
+        // A request the customer sent on WhatsApp: type it in here so it's kept with the others (and AI can do it).
+        if (body.action === "change_add") {
+          try { await addChange(row, body.body, [], { quiet: true }); } catch (e) { throw new Bad(e.message); }
+          return res.status(200).json({ link: await changeLink(id), free_until: freeUntil(row), changes: await listChanges(id, 20) });
+        }
+        // "Do it with AI": plan (nothing changes yet), apply (site updated + customer told), undo.
+        if (body.action.startsWith("change_ai_")) {
+          const { planChange, applyChange, undoChange } = await import("./_lib/ai-change.mjs");
+          const cid = Number(body.change_id);
+          try {
+            let out = {};
+            if (body.action === "change_ai_plan") out.plan = await planChange(id, cid);
+            else if (body.action === "change_ai_apply") out = await applyChange(id, cid, { tell: body.tell !== false });
+            else out = await undoChange(id, cid);
+            return res.status(200).json({ ...out, changes: await listChanges(id, 20) });
+          } catch (e) {
+            if (e.status === 404) return res.status(404).json({ error: "Not found" });
+            throw new Bad(e.message);
+          }
+        }
         if (body.action === "change_mark") {
           const c = await markChange(id, Number(body.change_id), { done: Boolean(body.done), note: body.note });
           if (!c) return res.status(404).json({ error: "Not found" });

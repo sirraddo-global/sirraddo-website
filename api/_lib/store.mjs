@@ -86,6 +86,7 @@ const SCHEMA = [
      note TEXT,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      done_at TIMESTAMPTZ)`,
+  `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS plan JSONB`,
   `CREATE TABLE IF NOT EXISTS site_stats (
      request_id INTEGER NOT NULL,
      day DATE NOT NULL,

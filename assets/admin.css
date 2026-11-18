@@ -296,3 +296,8 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 :root[data-theme="dark"] .admin-usage-strip.admin-usage--warn { background: #33280C; color: #F6E2A8; }
 :root[data-theme="dark"] .admin-usage-strip.admin-usage--danger { background: #3A1418; color: #FFB4AB; }
 :root[data-theme="dark"] .admin-usage-n, :root[data-theme="dark"] .admin-usage-day { color: #DCE3F1; }
+
+.admin-ai-change{margin:6px 0}.admin-ai-list{margin:6px 0 8px;padding-left:20px;font-size:14px;line-height:1.5}
+.admin-ai-list li.is-skip{color:#B45309}
+.admin-btn--primary { background: var(--navy); border-color: var(--navy); color: var(--white); }
+:root[data-theme="dark"] .admin-btn--primary { background: var(--gold); border-color: var(--gold); color: #0B1530; }

@@ -164,6 +164,12 @@ async function runJobs(jobs, limit, deadline) {
   return results;
 }
 
+// Pages chosen in the form that the website text doesn't have yet.
+function newPages(row) {
+  const have = new Set(splitPages(row.draft_md).filter((b) => b.page).map((b) => b.page.trim().toLowerCase()));
+  return have.size ? sitePages(row).filter((p) => !have.has(String(p).trim().toLowerCase())) : [];
+}
+
 // The draft split into its page blocks ("## Page: Home" … up to the next "## ").
 function splitPages(md) {
   const out = [];
@@ -197,9 +203,13 @@ export async function generateDraft(id, budgetMs = FUNCTION_BUDGET_MS() - 2000, 
     let body;
     if (kind === "project") {
       body = await ask(provider, scopePrompt(row, answers), budgetMs, 4000);
-    } else if (missingOnly && row.draft_md && /wasn't written/.test(row.draft_md)) {
+    } else if (missingOnly && row.draft_md && (/wasn't written/.test(row.draft_md) || newPages(row).length)) {
       const all = sitePages(row);
       const blocks = splitPages(row.draft_md.replace(/\n---\n\*Draft written by AI[\s\S]*$/, ""));
+      // Pages that failed last time, plus pages added to the form later (e.g. after launch).
+      const added = newPages(row);
+      const lastPage = blocks.map((b) => Boolean(b.page)).lastIndexOf(true);
+      blocks.splice(lastPage + 1, 0, ...added.map((p) => ({ page: p, text: `## Page: ${p}\n[ADD: wasn't written yet]` })));
       const missing = blocks.filter((b) => b.page && /wasn't written/.test(b.text)).map((b) => b.page);
       const gbpMissing = blocks.some((b) => !b.page && /^## Google Business Profile/.test(b.text) && /wasn't written/.test(b.text));
       const groups = chunk(missing, 2);

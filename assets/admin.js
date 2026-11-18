@@ -1387,6 +1387,15 @@
       out.innerHTML = '';
       out.appendChild(el('p', { class: 'admin-hint', text: j.free_until ? 'Free changes until ' + j.free_until + '. After that, requests are marked "Quote first".' : 'Free month starts when you set the go-live date.' }));
       if (!j.changes.length) out.appendChild(el('p', { class: 'admin-hint', text: 'No requests yet. Send them their link so they can ask for edits any time.' }));
+      out.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Add a request from WhatsApp', onclick: function (e) {
+        var text = window.prompt('Paste or type what the customer asked for (text only; for photos, ask them to use their change link):', '');
+        if (!text || !text.trim()) return;
+        var btn = e.currentTarget; btn.disabled = true;
+        api('POST', { action: 'change_add', id: r.id, body: text.trim() }).then(function (k) {
+          r.open_changes = k.changes.filter(function (x) { return x.status === 'open'; }).length;
+          flash('Request added'); drawChanges(k);
+        }).catch(function (er) { btn.disabled = false; fail(er); });
+      } })]));
       j.changes.forEach(function (c) {
         var item = el('div', { class: 'admin-change' }, [
           el('p', { class: 'admin-meta' }, [badge(c.status === 'done' ? 'Done' : 'Open', c.status === 'done' ? 'is-won' : 'is-due'), ' ', badge(c.free ? 'Free' : 'Quote first', c.free ? '' : 'is-new'), ' ' + when(c.created_at)]),
@@ -1394,6 +1403,7 @@
         ]);
         if (c.files && c.files.length) item.appendChild(el('p', { class: 'admin-meta' }, c.files.map(function (f, i) { return el('a', { href: f.url, target: '_blank', rel: 'noopener', text: (i ? ' · ' : '') + f.name }); })));
         if (c.note) item.appendChild(el('p', { class: 'admin-hint', text: 'Note to customer: ' + c.note }));
+        item.appendChild(aiBox(c));
         item.appendChild(el('div', { class: 'admin-actions' }, [c.status === 'done'
           ? el('button', { class: 'admin-btn', type: 'button', text: 'Reopen', onclick: function (e) { mark(c, false, null, e.currentTarget); } })
           : el('button', { class: 'admin-btn', type: 'button', text: 'Mark done & tell customer', onclick: function (e) {
@@ -1403,6 +1413,53 @@
             } })]));
         out.appendChild(item);
       });
+    }
+    // "Do it with AI": the AI reads the request (and photos) and lists the exact edits; you check, then apply.
+    // The site keeps its design and all other text; only what they asked for changes. Undo puts it back.
+    function aiBox(c) {
+      var p = c.plan;
+      var box = el('div', { class: 'admin-ai-change' });
+      function act(action, btn, extra, msg) {
+        btn.disabled = true;
+        var was = btn.textContent;
+        if (action === 'change_ai_plan') btn.textContent = 'Reading the request…';
+        if (action === 'change_ai_apply') btn.textContent = 'Updating the website…';
+        api('POST', Object.assign({ action: action, id: r.id, change_id: c.id }, extra || {})).then(function (j) {
+          r.open_changes = j.changes.filter(function (x) { return x.status === 'open'; }).length;
+          if (msg) flash(typeof msg === 'function' ? msg(j) : msg);
+          drawChanges({ changes: j.changes, free_until: state.changeInfo && state.changeInfo[r.id] });
+        }).catch(function (e) { btn.disabled = false; btn.textContent = was; fail(e); });
+      }
+      if (p && p.applied_at && c.can_undo) {
+        box.appendChild(el('p', { class: 'admin-hint', text: 'Done with AI on ' + when(p.applied_at) + '. Live site: ' + (p.live || '') + '.' }));
+        if (p.results) box.appendChild(el('ul', { class: 'admin-ai-list' }, p.results.map(function (x) { return el('li', { class: x.ok ? '' : 'is-skip', text: (x.ok ? '✓ ' : '✗ ') + x.text }); })));
+        box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Undo', onclick: function (e) {
+          if (!window.confirm('Put the website back as it was before this change? (The request goes back to Open; the customer is not emailed.)')) return;
+          act('change_ai_undo', e.currentTarget, null, 'Undone. The website is back as it was.');
+        } })]));
+        return box;
+      }
+      if (c.status === 'done') return box;
+      if (p && p.ops && !p.applied_at) {
+        if (p.understood) box.appendChild(el('p', { class: 'admin-meta', text: 'AI understood: ' + p.understood }));
+        box.appendChild(p.lines.length ? el('ul', { class: 'admin-ai-list' }, p.lines.map(function (t) { return el('li', { text: t }); }))
+          : el('p', { class: 'admin-hint', text: 'No edits found that the AI can make.' }));
+        if (p.not_done && p.not_done.length) {
+          box.appendChild(el('p', { class: 'admin-hint', text: 'Not done by AI (do these yourself or ask the customer):' }));
+          box.appendChild(el('ul', { class: 'admin-ai-list' }, p.not_done.map(function (t) { return el('li', { class: 'is-skip', text: t }); })));
+        }
+        var tell = el('input', { type: 'checkbox' }); tell.checked = true;
+        var acts = el('div', { class: 'admin-actions' });
+        if (p.lines.length) acts.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Apply & update live site', onclick: function (e) {
+          act('change_ai_apply', e.currentTarget, { tell: tell.checked }, function (j) { return 'Website ' + (j.live === 'updated' ? 'updated' : 'saved (' + j.live + ')') + (tell.checked ? '. The customer has been emailed.' : '.'); });
+        } }));
+        acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Ask AI again', onclick: function (e) { act('change_ai_plan', e.currentTarget); } }));
+        if (p.lines.length) box.appendChild(el('label', { class: 'admin-hint' }, [tell, ' Mark done & email the customer what changed']));
+        box.appendChild(acts);
+        return box;
+      }
+      box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Do it with AI', onclick: function (e) { act('change_ai_plan', e.currentTarget); } })]));
+      return box;
     }
     function mark(c, done, note, btn) {
       btn.disabled = true;

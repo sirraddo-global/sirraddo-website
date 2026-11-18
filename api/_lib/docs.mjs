@@ -25,6 +25,8 @@ export const COMPANY = {
   name: "SIRRADDO GLOBAL LIMITED",
   rc: "RC 9939920",
   tin: "TIN 2623092457685",
+  // CAMA 2020 s.304: business letters show the directors' names (CAC enforcing from 1 Aug 2026).
+  directors: "Ridwan Olalekan ADEYEMO",
   address: "PLT 106/107 Agbaakin Layout, Iwo Road, Olowotinfiowosanu Area, Ibadan, Oyo State, Nigeria",
   phone: "+234 816 755 0937",
   email: "info@sirraddo.com.ng",
@@ -61,7 +63,7 @@ const letterhead = () => `
       </td>
     </tr>
   </table>`;
-const footNote = `<p style="margin-top:28px;font-size:12px;color:#4A5568;border-top:1px solid #E1E6EF;padding-top:8px;">${COMPANY.name} is a private company limited by shares, registered with the Corporate Affairs Commission of Nigeria (${COMPANY.rc}).</p>`;
+const footNote = `<p style="margin-top:28px;font-size:12px;color:#4A5568;border-top:1px solid #E1E6EF;padding-top:8px;">${COMPANY.name} is a private company limited by shares, registered with the Corporate Affairs Commission of Nigeria (${COMPANY.rc}). Registered office: ${esc(COMPANY.address)}. Director: ${COMPANY.directors}.</p>`;
 
 // Everything the customer needs once their site is live. Passwords are never in here: they go privately on WhatsApp.
 // The handover details: what you typed wins; anything left empty is filled from what the admin already knows
@@ -242,7 +244,7 @@ export function buildDoc(r, type, settings = {}) {
     }).join("")}</tfoot>
   </table>
   ${type === "receipt" ? `<p style="margin:12px 0">Thank you for your payment.</p>` : bank + (settings.invoice_note ? `<p style="margin:12px 0">${esc(settings.invoice_note)}</p>` : "")}
-  <p style="margin-top:28px;font-size:12px;color:#4A5568;border-top:1px solid #E1E6EF;padding-top:8px;">${COMPANY.name} is a private company limited by shares, registered with the Corporate Affairs Commission of Nigeria (${COMPANY.rc}).</p>
+  <p style="margin-top:28px;font-size:12px;color:#4A5568;border-top:1px solid #E1E6EF;padding-top:8px;">${COMPANY.name} is a private company limited by shares, registered with the Corporate Affairs Commission of Nigeria (${COMPANY.rc}). Registered office: ${esc(COMPANY.address)}. Director: ${COMPANY.directors}.</p>
 </div>`;
   const subject = `${title === "RECEIPT" ? "Receipt" : "Invoice"} ${number} from ${COMPANY.name}`;
   return { title, number, subject, html };

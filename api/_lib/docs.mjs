@@ -47,7 +47,7 @@ export const balance = (r) => (r.quote_amount == null ? null : Math.max(0, r.quo
 
 export const DOC_TYPES = ["invoice", "receipt", "renewal", "handover"];
 
-export const DEFAULT_HANDOVER_TERMS = "Small fixes to text and photos are free for 30 days after your website goes live. After that, tell us what you'd like changed and we'll quote it before we start. Your yearly renewal keeps your domain, hosting, SSL certificate, business email and backups running.";
+export const DEFAULT_HANDOVER_TERMS = "Small fixes to text and photos are free for 30 days after your website goes live. After that, tell us what you'd like changed and we'll quote it before we start. Your yearly renewal keeps your domain, hosting, SSL certificate, business email and backups running. Everyday details (prices, opening hours, numbers, a notice, reviews) you change yourself with your Manage link. From time to time we improve your website at no cost and email you what changed.";
 
 const letterhead = () => `
   <table role="presentation" style="width:100%;border-collapse:collapse;border-bottom:3px solid #D9A21B;">

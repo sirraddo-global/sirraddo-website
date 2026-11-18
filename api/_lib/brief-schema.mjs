@@ -83,7 +83,7 @@ export const SECTIONS = [
         hint: "Add one row per service. Leave the price empty if you don't want prices shown." },
       { key: "photos", label: "Photos for the website", type: "files", max: 12, accept: "image/*",
         hint: "Your shop, products, team or work. Up to 12. Clear, bright photos work best." },
-      { key: "testimonials", label: "Customer reviews you'd like to show (optional)", type: "textarea", hint: "Name and what they said" },
+      { key: "testimonials", label: "Customer reviews you'd like to show (optional)", type: "textarea", hint: "Name and what they said. After launch, visitors can also leave star reviews on your website (you approve them)." },
     ],
   },
   {

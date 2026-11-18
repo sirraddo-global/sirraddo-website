@@ -43,3 +43,38 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
 })();
+
+/* Where this visitor came from (an ad, Google, Facebook…), so admin shows which ads bring customers.
+   The first source in the last 30 days is kept on this device; nothing is sent anywhere until they
+   leave their details. Ad links: add ?utm_source=facebook&utm_campaign=ibadan-test (any names). */
+(function () {
+  var KEY = 'sirraddo-from', DAYS = 30;
+  function label() {
+    var p = new URLSearchParams(location.search);
+    var src = (p.get('utm_source') || p.get('src') || '').trim(), camp = (p.get('utm_campaign') || '').trim();
+    if (!src && p.get('gclid')) src = 'google-ads';
+    if (!src && p.get('fbclid')) src = 'facebook';
+    if (src) return (src + (camp ? ' / ' + camp : '')).toLowerCase().slice(0, 80);
+    var ref = '';
+    try { ref = document.referrer ? new URL(document.referrer).hostname : ''; } catch (e) {}
+    if (!ref || ref === location.hostname) return '';
+    if (/(^|\.)google\./.test(ref)) return 'google (search)';
+    if (/facebook|fb\.com/.test(ref)) return 'facebook';
+    if (/instagram/.test(ref)) return 'instagram';
+    if (/whatsapp|wa\.me/.test(ref)) return 'whatsapp';
+    if (/t\.co$|twitter|x\.com/.test(ref)) return 'x (twitter)';
+    if (/tiktok/.test(ref)) return 'tiktok';
+    if (/bing\.|yahoo\.|duckduckgo/.test(ref)) return 'search engine';
+    return ref.replace(/^www\./, '').slice(0, 80);
+  }
+  try {
+    var now = Date.now(), saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (saved && now - saved.at > DAYS * 86400000) saved = null;
+    var l = label();
+    if (l && (!saved || !saved.v)) localStorage.setItem(KEY, JSON.stringify({ v: l, at: now }));
+    else if (!saved) localStorage.setItem(KEY, JSON.stringify({ v: '', at: now }));
+  } catch (e) {}
+  window.sirraddoFrom = function () {
+    try { var s = JSON.parse(localStorage.getItem(KEY) || 'null'); return (s && s.v) || 'direct'; } catch (e) { return ''; }
+  };
+})();

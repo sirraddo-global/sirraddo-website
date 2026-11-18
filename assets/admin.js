@@ -624,6 +624,22 @@
       ]);
     })) : el('p', { class: 'admin-empty', text: 'No requests yet.' }));
 
+    // Which ads and places bring customers (last 90 days): requests, and how many became paying customers.
+    var since = Date.now() - 90 * 86400000, srcs = {};
+    rs.forEach(function (r) {
+      if (new Date(r.created_at) < since) return;
+      var k = r.came_from || (r.source === 'manual' ? 'not set (added by you)' : 'direct / unknown');
+      var o = srcs[k] = srcs[k] || { n: 0, won: 0, value: 0 };
+      o.n++; if (r.status === 'won') { o.won++; o.value += Number(r.quote_amount || 0); }
+    });
+    var keys = Object.keys(srcs).sort(function (a, b) { return srcs[b].won - srcs[a].won || srcs[b].n - srcs[a].n; });
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Where customers come from (90 days)' }));
+    view.appendChild(keys.length ? el('ul', { class: 'admin-mini admin-from' }, keys.map(function (k) {
+      var o = srcs[k];
+      return el('li', null, [el('b', { text: k }), ' · ' + o.n + ' request' + (o.n === 1 ? '' : 's') + ' · ' + o.won + ' paid' + (o.won ? ' (' + naira(o.value) + ')' : '')]);
+    })) : el('p', { class: 'admin-empty', text: 'No requests in the last 90 days.' }));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Ads: add ?utm_source=facebook&utm_campaign=ibadan-test to the website link in your ad (any names you like) and it shows here. WhatsApp-only ads: set "Came from" on the customer.' }));
+
     if (due.length) {
       view.appendChild(el('h2', { class: 'admin-h2', text: 'Follow up now' }));
       view.appendChild(el('ul', { class: 'admin-mini' }, due.map(function (r) {
@@ -700,6 +716,16 @@
   }
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
+  // How a customer found us. Ads add their own label from the ad link (?utm_source=…), e.g. "facebook / ibadan-test".
+  var FROM_CHOICES = ['', 'whatsapp ad', 'facebook / instagram ad', 'google ads', 'google (search)', 'google maps', 'referral', 'flyer', 'walk-in', 'other'];
+  var FROM_LABELS = { '': 'How did they find us? (optional)' };
+  function fromSelect(value) {
+    var list = FROM_CHOICES.slice();
+    if (value && list.indexOf(value) === -1) list.push(value);
+    var s = el('select', { 'aria-label': 'How did they find us?' });
+    list.forEach(function (v) { var o = el('option', { value: v, text: FROM_LABELS[v] || v }); if (v === (value || '')) o.selected = true; s.appendChild(o); });
+    return s;
+  }
   function renderAddForm() {
     var name = el('input', { required: true, placeholder: 'Name' });
     var contact = el('input', { required: true, placeholder: 'Phone (WhatsApp) or email' });
@@ -707,13 +733,14 @@
     var business = el('input', { placeholder: 'Business (optional)' });
     var interest = select(PACKAGES, 'Starter website', { 'aria-label': 'Package' });
     var details = el('textarea', { rows: 2, placeholder: 'What they need' });
+    var from = fromSelect('');
     var form = el('form', { class: 'admin-card admin-add', hidden: true }, [
-      el('h2', { text: 'Add a customer' }), name, contact, email, business, interest, details,
+      el('h2', { text: 'Add a customer' }), name, contact, email, business, interest, from, details,
       el('button', { class: 'btn btn--navy', type: 'submit', text: 'Save' })
     ]);
     form.addEventListener('submit', function (e) {
       e.preventDefault();
-      api('POST', { action: 'create', name: name.value, contact: contact.value, email: email.value, business: business.value, interest: interest.value, details: details.value })
+      api('POST', { action: 'create', name: name.value, contact: contact.value, email: email.value, business: business.value, interest: interest.value, details: details.value, came_from: from.value })
         .then(function (row) {
           state.requests.unshift(row); state.open[row.id] = true; flash('Customer added'); render();
         }).catch(fail);
@@ -734,6 +761,7 @@
     var badges = el('div', { class: 'admin-badges' }, [badge(cap(r.status), 'is-' + r.status)]);
     var SOURCE = { manual: 'Added by hand', form: 'Package form', contact: 'Contact form', 'chat-form': 'Chat (no AI reply)' };
     if (SOURCE[r.source]) badges.appendChild(badge(SOURCE[r.source]));
+    if (r.came_from && r.came_from !== 'direct') badges.appendChild(badge('From: ' + r.came_from, 'is-from'));
     if (r.follow_up_on && isOpen(r)) {
       var d = daysUntil(r.follow_up_on);
       badges.appendChild(badge(d < 0 ? 'Follow-up ' + (-d) + 'd overdue' : d === 0 ? 'Follow up today' : 'Follow up ' + niceDate(r.follow_up_on), d <= 0 ? 'is-due' : ''));
@@ -873,10 +901,11 @@
     var em = el('input', { type: 'email', value: r.email || '', placeholder: 'For invoices and receipts' });
     var i = select(PACKAGES.indexOf(r.interest) === -1 ? PACKAGES.concat([r.interest]) : PACKAGES, r.interest, null);
     var dt = el('textarea', { rows: 3, value: r.details });
+    var fr = fromSelect(r.came_from || '');
     var saveBtn = el('button', { class: 'admin-btn', type: 'button', text: 'Save details', onclick: function () {
-      update(r, { name: n.value, contact: c.value, email: em.value, business: b.value, interest: i.value, details: dt.value }, 'Details saved');
+      update(r, { name: n.value, contact: c.value, email: em.value, business: b.value, interest: i.value, details: dt.value, came_from: fr.value }, 'Details saved');
     } });
-    [field('Name', n), field('Phone (WhatsApp)', c), field('Email', em), field('Business', b), field('Package', i), field('Summary', dt), saveBtn].forEach(function (x) { edit.appendChild(x); });
+    [field('Name', n), field('Phone (WhatsApp)', c), field('Email', em), field('Business', b), field('Package', i), field('Came from', fr, 'Set by itself from ad links and Google; choose one for WhatsApp and walk-in customers.'), field('Summary', dt), saveBtn].forEach(function (x) { edit.appendChild(x); });
     wrap.appendChild(edit);
 
     // Conversation

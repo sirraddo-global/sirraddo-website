@@ -63,7 +63,7 @@
       Promise.race([
         fetch('/api/lead', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ source: 'contact', name: fields[0].value.trim(), contact: fields[1].value.trim(), details: fields[2].value.trim(), page: location.pathname })
+          body: JSON.stringify({ source: 'contact', name: fields[0].value.trim(), contact: fields[1].value.trim(), details: fields[2].value.trim(), page: location.pathname, from: window.sirraddoFrom ? window.sirraddoFrom() : '' })
         }).then(function (r) { return r.json().catch(function () { return {}; }); }).catch(function () { return null; }),
         timer
       ]).then(function (j) { openWa(j && j.ref); });

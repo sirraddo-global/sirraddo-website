@@ -51,6 +51,7 @@ async function handleSave(input, ctx) {
   const r = {
     sessionId: ctx.sessionId,
     page: ctx.page,
+    cameFrom: ctx.cameFrom,
     transcript: ctx.transcript,
     name: str(input.name, 120),
     contact: str(input.contact, 120),
@@ -140,6 +141,7 @@ export default async function handler(req, res) {
   const ctx = {
     sessionId: str(body.sessionId, 64) || `anon-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     page: str(body.page, 200),
+    cameFrom: str(body.from, 80),
     transcript: messages,
   };
 

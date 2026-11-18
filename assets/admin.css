@@ -304,3 +304,4 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .admin-ai-said{color:#B45309;font-weight:600;margin:6px 0}:root[data-theme="dark"] .admin-ai-said,:root[data-theme="dark"] .admin-ai-list li.is-skip{color:#FBBF77}
 .admin-ai-own{margin:6px 0}.admin-ai-own summary{cursor:pointer;font-size:14px;color:var(--muted,#5B6475);padding:6px 0}
 a.admin-btn{text-decoration:none}
+.admin-badge.is-from{background:#EEF2FF;color:#3730A3;border-color:#C7D2FE}:root[data-theme="dark"] .admin-badge.is-from{background:#1E1B4B;color:#C7D2FE;border-color:#3730A3}

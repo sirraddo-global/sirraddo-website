@@ -11,7 +11,7 @@
 //   POST   { action: "send_preview", id }  email the preview link to the customer
 //   GET    ?view=export&id=123  the website as a .zip (pages + images) to upload to any host
 import { timingSafeEqual, createHash, createHmac } from "node:crypto";
-import {
+import { cleanFrom,
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
   ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
@@ -103,6 +103,7 @@ function cleanFields(body) {
     if (has(k)) out[k] = text(body[k], n);
   }
   if ((has("name") && !out.name) || (has("contact") && !out.contact)) throw new Bad("Name and contact can't be empty");
+  if (has("came_from")) out.came_from = cleanFrom(body.came_from);
   if (has("email")) {
     out.email = text(body.email, 200).toLowerCase() || null;
     if (out.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.email)) throw new Bad("That email address doesn't look right");
@@ -264,7 +265,7 @@ export default async function handler(req, res) {
       if (body.action === "create") {
         const f = cleanFields({ name: body.name, contact: body.contact, email: body.email || "", business: body.business, interest: body.interest || "Other", details: body.details || "" });
         if (!f.name || !f.contact) throw new Bad("Name and contact are required");
-        return res.status(201).json(await createRequest(f));
+        return res.status(201).json(await createRequest({ ...f, came_from: body.came_from }));
       }
       if (body.action === "brief_link") {
         const id = Number(body.id);

@@ -32,6 +32,7 @@ const SCHEMA = [
      status TEXT NOT NULL DEFAULT 'new',
      notes TEXT)`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'chat'`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS came_from TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS follow_up_on DATE`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS quote_amount INTEGER`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS payments JSONB NOT NULL DEFAULT '[]'::jsonb`,
@@ -175,7 +176,7 @@ export async function ensureSchema() {
 export const STATUSES = ["new", "contacted", "quoted", "won", "lost"];
 export const STAGES = ["content", "building", "review", "live"];
 
-const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, business, interest, details, page,
+const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, name, contact, business, interest, details, page,
   transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, payments, project_stage,
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
   brief_token, brief_saved_at, brief_submitted_at, email, doc_token,
@@ -199,19 +200,22 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
 export async function saveRequest(r) {
   if (!(await ensureSchema())) return null;
   const rows = await q(
-    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript, email, chat_ideas, follow_up_on)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, (now() AT TIME ZONE 'Africa/Lagos')::date + 1)
-     ON CONFLICT (session_id) DO UPDATE SET
+    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript, email, chat_ideas, came_from, follow_up_on)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, (now() AT TIME ZONE 'Africa/Lagos')::date + 1)
+     ON CONFLICT (session_id) DO UPDATE SET came_from = COALESCE(customer_requests.came_from, EXCLUDED.came_from),
        name = EXCLUDED.name, contact = EXCLUDED.contact, business = EXCLUDED.business,
        email = COALESCE(EXCLUDED.email, customer_requests.email),
        interest = EXCLUDED.interest, details = EXCLUDED.details, page = EXCLUDED.page,
        transcript = EXCLUDED.transcript, chat_ideas = customer_requests.chat_ideas || EXCLUDED.chat_ideas, updated_at = now()
      RETURNING id, (xmax = 0) AS inserted`,
     [r.sessionId, r.source || "chat", r.name, r.contact, r.business || null, r.interest, r.details || "", r.page || null,
-      JSON.stringify(r.transcript || []), r.email || null, JSON.stringify(r.ideas || {})]
+      JSON.stringify(r.transcript || []), r.email || null, JSON.stringify(r.ideas || {}), cleanFrom(r.cameFrom)]
   );
   return rows[0] ? { id: rows[0].id, inserted: rows[0].inserted === true } : null;
 }
+
+// Where a customer came from: "facebook / ibadan-test", "google (search)", "referral"… (short, lower case).
+export const cleanFrom = (v) => String(v ?? "").replace(/[^\w ./()&+:-]/g, "").trim().toLowerCase().slice(0, 80) || null;
 
 export const reference = (id) => "SGL-" + String(id).padStart(4, "0");
 
@@ -220,9 +224,9 @@ export async function createRequest(f) {
   await ensureSchema();
   const sessionId = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const rows = await q(
-    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, email, follow_up_on)
-     VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7, (now() AT TIME ZONE 'Africa/Lagos')::date + 1) RETURNING ${REQUEST_COLUMNS}`,
-    [sessionId, f.name, f.contact, f.business || null, f.interest, f.details || "", f.email || null]
+    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, email, came_from, follow_up_on)
+     VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7, $8, (now() AT TIME ZONE 'Africa/Lagos')::date + 1) RETURNING ${REQUEST_COLUMNS}`,
+    [sessionId, f.name, f.contact, f.business || null, f.interest, f.details || "", f.email || null, cleanFrom(f.came_from)]
   );
   return rows[0];
 }
@@ -237,7 +241,7 @@ const EDITABLE = {
   name: "text", contact: "text", email: "text", business: "text", interest: "text", details: "text", notes: "text",
   status: "text", follow_up_on: "date", quote_amount: "int", payments: "jsonb", project_stage: "text",
   live_on: "date", renewal_amount: "int", renewal_due: "date", website_url: "text",
-  handover: "jsonb", draft_md: "text",
+  handover: "jsonb", draft_md: "text", came_from: "text",
 };
 export async function updateRequest(id, fields) {
   await ensureSchema();

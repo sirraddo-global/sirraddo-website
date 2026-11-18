@@ -58,6 +58,7 @@ export default async function handler(req, res) {
     name,
     contact,
     business: str(body.business, 200),
+    cameFrom: str(body.from, 80),
     email: email || null,
     interest,
     details: str(body.details, 1500),

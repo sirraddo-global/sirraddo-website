@@ -23,10 +23,15 @@ test("public pages are served and admin needs the password", async () => {
 
 test("a website lead is saved and emailed; bots and bad numbers are not", async () => {
   const n = h.sent.length;
-  const ok = await h.call("POST", "/api/lead", { name: "Ada Obi", contact: "0803 111 2222", business: "Ada Salon", interest: "Starter website" });
+  const ok = await h.call("POST", "/api/lead", { name: "Ada Obi", contact: "0803 111 2222", business: "Ada Salon", interest: "Starter website", from: "Facebook / Ibadan-Test<script>" });
   assert.equal(ok.status, 200);
   const rows = (await h.admin("GET", "/api/requests?view=all")).json.requests;
   assert.ok(rows.some((r) => r.name === "Ada Obi" && r.interest === "Starter website"));
+  assert.equal(rows.find((r) => r.name === "Ada Obi").came_from, "facebook / ibadan-testscript", "where they came from is kept (cleaned)");
+  // Added by you (a WhatsApp ad customer), and changed later.
+  const man = (await h.action({ action: "create", name: "Wale", contact: "08030001111", interest: "Other", came_from: "whatsapp ad" })).json;
+  assert.equal(man.came_from, "whatsapp ad");
+  assert.equal((await h.admin("PATCH", "/api/requests", { id: man.id, came_from: "referral" })).json.came_from, "referral");
   assert.ok(h.newMail(n).some((m) => /Ada/.test(m.subject)));
   assert.equal((await h.call("POST", "/api/lead", { name: "Bot", contact: "08011112222", website: "http://spam" })).status, 200);
   assert.ok(!(await h.admin("GET", "/api/requests?view=all")).json.requests.some((r) => r.name === "Bot"));
@@ -34,10 +39,11 @@ test("a website lead is saved and emailed; bots and bad numbers are not", async 
 });
 
 test("the chat assistant saves the customer's request with their ideas and suggested package", async () => {
-  const r = await h.call("POST", "/api/chat", { sessionId: "s-test-chat-0001", messages: [{ role: "user", content: "please save my details" }] });
+  const r = await h.call("POST", "/api/chat", { sessionId: "s-test-chat-0001", from: "google (search)", messages: [{ role: "user", content: "please save my details" }] });
   assert.equal(r.status, 200, r.text);
   const row = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((x) => x.name === "Bola Ade");
   assert.ok(row, "chat request saved");
+  assert.equal(row.came_from, "google (search)");
   assert.equal(row.chat_ideas.business_name, "Bola Bakery");
   assert.ok(!("junk" in row.chat_ideas), "unknown idea fields are dropped");
   assert.match(row.chat_ideas.recommended || "", /Business/);

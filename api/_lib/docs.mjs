@@ -3,8 +3,8 @@
 import { esc } from "./store.mjs";
 import { emailAllowance } from "./brief-schema.mjs";
 
-// Looking after a Google Business Profile: what we do once added as Manager, and the same as a guide the owner
-// can follow themselves (WhatsApp from the checklist, and in the handover pack).
+// Looking after a Google Business Profile: a guide the owner follows themselves (WhatsApp from the checklist,
+// and in the handover pack). We guide them; we don't ask to be added as a Manager.
 export const GBP_SETUP = [
   "Business info: the name exactly as on the signboard (never add keywords like \"Best … in Ibadan\": Google can suspend it), the most specific main category plus 2–3 extra ones, address or service area, phone, opening hours, and the website address.",
   "Description: the one from the website text (no links or prices).",
@@ -132,7 +132,7 @@ function handoverDoc(r, settings) {
     row("Order alerts go to", esc(r.shop?.notify || r.brief?.order_alerts || r.email || "")),
   ]) : ""}
   ${r.website_url ? section("Found on Google", [
-    row("Google Business Profile", h.gbp_done || h.gbp_owner ? `${h.gbp_done ? "Set up" : "Being set up"}${h.gbp_owner ? `, owned by ${esc(h.gbp_owner)}` : ""}. Manage it at ${link("https://business.google.com")} or in the Google Maps app with that Gmail. You can add us as a Manager to look after it for you, or do it yourself:<br><b>Once:</b><ol style="margin:4px 0 6px 18px;padding:0">${GBP_SETUP.map((t) => `<li>${esc(t)}</li>`).join("")}</ol><b>Every month:</b><ul style="margin:4px 0 6px 18px;padding:0">${GBP_MONTHLY.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>${esc(GBP_NEVER)}` : ""),
+    row("Google Business Profile", h.gbp_done || h.gbp_owner ? `${h.gbp_done ? "Set up" : "Being set up"}${h.gbp_owner ? `, owned by ${esc(h.gbp_owner)}` : ""}. Manage it at ${link("https://business.google.com")} or in the Google Maps app with that Gmail. Keep it strong:<br><b>Once:</b><ol style="margin:4px 0 6px 18px;padding:0">${GBP_SETUP.map((t) => `<li>${esc(t)}</li>`).join("")}</ol><b>Every month:</b><ul style="margin:4px 0 6px 18px;padding:0">${GBP_MONTHLY.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>${esc(GBP_NEVER)}` : ""),
     row("Your sitemap", link(r.website_url.replace(/\/$/, "") + "/sitemap.xml")),
     row("Next step", h.gbp_done ? "" : "Add your business to Google Business Profile (free) with your website link, so you show up on Google Maps. Ask us if you'd like help."),
   ]) : ""}

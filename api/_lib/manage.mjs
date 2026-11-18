@@ -55,7 +55,18 @@ export async function applyManage(r, input) {
     if (!p || !p.name) continue;
     const price = cleanPrice(v?.price);
     if (price && price !== String(p.price || "")) { changes.push(`${p.name}: price ${p.price || "(none)"} → ${price}`); p.price = price; }
-    const sold = v?.soldout === true || v?.soldout === "1" || v?.soldout === "on";
+    let sold = v?.soldout === true || v?.soldout === "1" || v?.soldout === "on";
+    // Stock count: empty = not counted. A number is taken down by paid online orders; at 0 it shows Sold out.
+    if (v && "stock" in v) {
+      const raw = String(v.stock ?? "").trim();
+      if (raw && !/^\d{1,6}$/.test(raw)) throw new Error(`${p.name}: stock must be a whole number (or empty to not count it)`);
+      const before = String(p.stock ?? "").trim();
+      if (raw !== before) {
+        changes.push(`${p.name}: stock ${before === "" ? "not counted" : before} → ${raw === "" ? "not counted" : raw}`);
+        if (raw === "") delete p.stock; else p.stock = raw;
+        if (raw !== "" && Number(raw) > 0 && p.soldout) sold = false; // restocked
+      }
+    }
     if (sold !== Boolean(p.soldout)) { changes.push(`${p.name}: ${sold ? "SOLD OUT" : "back in stock"}`); if (sold) p.soldout = true; else delete p.soldout; }
   }
   const patch = { products };

@@ -300,7 +300,7 @@ section.block{padding:48px 0}section.block:nth-of-type(even){background:#F6F7F9}
 .cards{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
 .card{background:#fff;border:1px solid #E4E7EB;border-radius:${t.radius};padding:20px}
 .site-notice{background:${t.accent};color:#fff;text-align:center;padding:10px 16px;font-weight:700}
-.soldout{display:inline-block;padding:8px 14px;border-radius:999px;background:#6B7280;color:#fff;font-weight:700}.card.is-soldout img{filter:grayscale(.7);opacity:.75}
+.stock{margin:0 0 6px;font-size:.9rem;font-weight:600;opacity:.85}.stock.low{color:#C2410C;opacity:1}.soldout{display:inline-block;padding:8px 14px;border-radius:999px;background:#6B7280;color:#fff;font-weight:700}.card.is-soldout img{filter:grayscale(.7);opacity:.75}
 .cards.products{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
 .card.prod{display:flex;flex-direction:column}.card.prod img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:calc(${t.radius} - 4px);cursor:pointer}.card.prod h3{margin:10px 0 2px;font-size:1.02rem;line-height:1.3}
 .pname{all:unset;cursor:pointer;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.pname:focus-visible{outline:2px solid ${t.accent};outline-offset:2px}
@@ -436,12 +436,15 @@ function productCards(site, img) {
   return `<div class="cards products">${site.products.map((p) => {
     const photo = productPhotoFor(site, p);
     const order = waLink(site, `Hello ${site.name}, I'd like to order: ${p.name}${p.price ? " (" + naira(p.price) + ")" : ""}`);
-    const buy = p.soldout ? `<p class="buy"><span class="soldout">Sold out</span></p>` : p.amount
-      ? `<p class="buy" data-i="${p.i}"><button class="btn add" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}"${photo ? ` data-img="${img(photo.url)}"` : ""}>Add to cart</button><span class="step" hidden><button type="button" data-d="-1" aria-label="One less ${esc(p.name)}">\u2212</button><b>0</b><button type="button" data-d="1" aria-label="One more ${esc(p.name)}">+</button><small>in cart</small></span></p>`
-      : order ? `<p class="buy"><a class="btn" href="${order}">${p.price ? "Order on WhatsApp" : "Ask on WhatsApp"}</a></p>` : "";
+    const left = /^\d{1,6}$/.test(String(p.stock ?? "").trim()) ? Number(p.stock) : null;
+    const sold = p.soldout || left === 0;
+    const stockLine = !sold && left !== null ? `<p class="stock${left <= 5 ? " low" : ""}">${left <= 5 ? `Only ${left} left` : `${left} in stock`}</p>` : "";
+    const buy = sold ? `<p class="buy"><span class="soldout">Sold out</span></p>` : p.amount
+      ? `${stockLine}<p class="buy" data-i="${p.i}"><button class="btn add" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}"${left !== null ? ` data-max="${left}"` : ""}${photo ? ` data-img="${img(photo.url)}"` : ""}>Add to cart</button><span class="step" hidden><button type="button" data-d="-1" aria-label="One less ${esc(p.name)}">\u2212</button><b>0</b><button type="button" data-d="1" aria-label="One more ${esc(p.name)}">+</button><small>in cart</small></span></p>`
+      : order ? `${stockLine}<p class="buy"><a class="btn" href="${order}">${p.price ? "Order on WhatsApp" : "Ask on WhatsApp"}</a></p>` : "";
     // Compact card: photo, name and price. Tapping the photo or name opens the full description (and the same Add to cart) in a pop-up.
     const text = p.text || p.details;
-    return `<div class="card prod${p.soldout ? " is-soldout" : ""}">${photo ? `<img class="pv-open" src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3><button class="pname pv-open" type="button" aria-haspopup="dialog">${esc(p.name)}</button></h3>${text ? `<div class="pdesc" hidden>${esc(text)}</div>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
+    return `<div class="card prod${sold ? " is-soldout" : ""}">${photo ? `<img class="pv-open" src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3><button class="pname pv-open" type="button" aria-haspopup="dialog">${esc(p.name)}</button></h3>${text ? `<div class="pdesc" hidden>${esc(text)}</div>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
   }).join("")}</div>`;
 }
 
@@ -521,10 +524,12 @@ document.querySelectorAll('.buy[data-i]').forEach(function(p){var i=+p.getAttrib
 $('.cart .sum').textContent=money(sub()+(online&&fee?fee:0));
 $('.cart .dl').textContent=fee&&online?'Includes delivery: '+money(fee):'Delivery cost, if any, is confirmed by the store.';
 pay.hidden=!online;pay.disabled=!B.length;$('.cart .waorder').hidden=!C.wa;$('.cart .waorder').disabled=!B.length;}
-document.addEventListener('click',function(e){var s=e.target.closest('.buy .step button');if(s){var bi=+s.closest('.buy').getAttribute('data-i'),bl=B.filter(function(x){return x.i===bi})[0];if(bl){bl.q=Math.min(99,bl.q+(+s.getAttribute('data-d')));if(bl.q<1)B.splice(B.indexOf(bl),1);save();draw();}return}
+function mx(i){var a=document.querySelector('.btn.add[data-i="'+i+'"]'),m=a&&a.getAttribute('data-max');return m===null||m===undefined||m===''?99:+m}
+function cap(l,d){var m=mx(l.i),q=l.q+d;if(q>m){q=m;msg.textContent='Only '+m+' '+l.n+' left.';}l.q=Math.min(99,q);}
+document.addEventListener('click',function(e){var s=e.target.closest('.buy .step button');if(s){var bi=+s.closest('.buy').getAttribute('data-i'),bl=B.filter(function(x){return x.i===bi})[0];if(bl){cap(bl,+s.getAttribute('data-d'));if(bl.q<1)B.splice(B.indexOf(bl),1);save();draw();}return}
 var a=e.target.closest('.btn.add');if(!a)return;var i=+a.getAttribute('data-i'),l=B.filter(function(x){return x.i===i})[0];
-if(l)l.q=Math.min(99,l.q+1);else B.push({i:i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:1,u:a.getAttribute('data-img')||''});save();draw();});
-box.addEventListener('click',function(e){if(e.target===box||e.target.closest('.x')){box.hidden=true;document.body.style.overflow='';return}var r=e.target.closest('.rm');if(r){B.splice(+r.getAttribute('data-k'),1);save();draw();return}var q=e.target.closest('.qty button');if(!q)return;var l=B[+q.getAttribute('data-k')];l.q=Math.min(99,l.q+(+q.getAttribute('data-d')));if(l.q<1)B.splice(B.indexOf(l),1);save();draw();});
+if(l)cap(l,1);else if(mx(i)>0)B.push({i:i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:1,u:a.getAttribute('data-img')||''});save();draw();});
+box.addEventListener('click',function(e){if(e.target===box||e.target.closest('.x')){box.hidden=true;document.body.style.overflow='';return}var r=e.target.closest('.rm');if(r){B.splice(+r.getAttribute('data-k'),1);save();draw();return}var q=e.target.closest('.qty button');if(!q)return;var l=B[+q.getAttribute('data-k')];cap(l,+q.getAttribute('data-d'));if(l.q<1)B.splice(B.indexOf(l),1);save();draw();});
 // The cart takes the website's own colours and font (light or dark design).
 function paint(){var bg='#fff',el=document.body;while(el){var c=getComputedStyle(el).backgroundColor;if(c&&c!=='transparent'&&!/rgba\\(.*,\\s*0\\)$/.test(c)){bg=c;break}el=el.parentElement}
 var m=bg.match(/\\d+/g)||[255,255,255],dark=(+m[0]*299+ +m[1]*587+ +m[2]*114)/1000<128,st=document.documentElement.style,acc=getComputedStyle(document.querySelector('.btn')||document.body).backgroundColor;
@@ -539,7 +544,11 @@ pay.disabled=true;msg.textContent='Opening secure payment\u2026';
 fetch(C.api+'/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s:C.s,items:B.map(function(l){return{i:l.i,q:l.q}}),buyer:b})})
 .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Error');return j})})
 .then(function(j){B=[];save();location.href=j.url}).catch(function(err){pay.disabled=false;msg.innerHTML='<span class="err">'+String(err.message).replace(/[&<>]/g,'')+'</span>'});});
-if(C.s&&!C.preview)fetch(C.api+'/api/shop?config=1&s='+encodeURIComponent(C.s)).then(function(r){return r.json()}).then(function(j){online=!!j.online;fee=j.deliveryFee;draw()}).catch(function(){});
+if(C.s&&!C.preview)fetch(C.api+'/api/shop?config=1&s='+encodeURIComponent(C.s)).then(function(r){return r.json()}).then(function(j){online=!!j.online;fee=j.deliveryFee;
+var st=j.stock||{};Object.keys(st).forEach(function(i){var n=+st[i];document.querySelectorAll('.btn.add[data-i="'+i+'"]').forEach(function(a){a.setAttribute('data-max',n);var bp=a.closest('.buy'),sl=bp.previousElementSibling;
+if(n<=0){bp.innerHTML='<span class="soldout">Sold out</span>';bp.removeAttribute('data-i');var c=bp.closest('.card');if(c)c.classList.add('is-soldout');if(sl&&sl.classList.contains('stock'))sl.remove();}
+else{if(!sl||!sl.classList.contains('stock')){sl=document.createElement('p');bp.parentNode.insertBefore(sl,bp)}sl.className='stock'+(n<=5?' low':'');sl.textContent=n<=5?'Only '+n+' left':n+' in stock';}});
+B.forEach(function(l){if(+l.i===+i&&l.q>n)l.q=n});});B=B.filter(function(l){return l.q>0});save();draw()}).catch(function(){});
 if(C.preview){online=true}
 draw();})();</script>`;
 }

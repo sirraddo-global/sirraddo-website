@@ -28,7 +28,7 @@ function shell(res, code, title, body) {
 .c{background:#fff;border:1px solid #E1E6EF;border-radius:16px;padding:18px;margin-bottom:14px}h1{font-size:1.35rem;margin:0 0 6px;color:#13254F}h2{font-size:1.05rem;margin:0 0 10px;color:#13254F}
 label{display:block;font-weight:700;margin:12px 0 4px}input[type=text],input[type=tel],input[type=search],textarea{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:12px;border:1px solid #C9D1DE;border-radius:10px;background:#fff;color:inherit}
 .p{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:6px 10px;align-items:center;padding:10px 0;border-bottom:1px solid #EEF1F5}.p:last-child{border:0}
-.p .n{font-weight:600;overflow-wrap:anywhere}.p .cat{font-size:.8rem;color:#64748B}.p input[type=text]{padding:9px}.p .so{grid-column:1/-1;display:flex;gap:8px;align-items:center;font-size:.92rem;font-weight:600;margin:0}.ck{display:flex;gap:10px;align-items:center;font-weight:600;margin:10px 0}.ck input{width:22px;height:22px;flex:none}
+.p .n{font-weight:600;overflow-wrap:anywhere}.p .cat{font-size:.8rem;color:#64748B}.p input[type=text]{padding:9px}.p .st{grid-column:1/-1;display:flex;gap:8px;align-items:center;font-size:.92rem;font-weight:600;margin:0}.st input{width:120px}.so{grid-column:1/-1;display:flex;gap:8px;align-items:center;font-size:.92rem;font-weight:600;margin:0}.ck{display:flex;gap:10px;align-items:center;font-weight:600;margin:10px 0}.ck input{width:22px;height:22px;flex:none}
 .p.is-sold .n{text-decoration:line-through;opacity:.6}input[type=checkbox]{width:22px;height:22px}
 .bar{position:sticky;bottom:0;background:#F5F7FB;padding:10px 0}.bar button{width:100%;background:#13254F;color:#fff;border:0;border-radius:12px;padding:15px;font:inherit;font-weight:800;font-size:16px}
 .ok{background:#E8F6EC;border-left:4px solid #1E8E3E;padding:10px 12px;border-radius:8px}.err{background:#FDECEC;border-left:4px solid #C0392B;padding:10px 12px;border-radius:8px}
@@ -61,11 +61,12 @@ function form(r, token, note) {
   const rows = items.map((p) => `<div class="p${p.soldout ? " is-sold" : ""}" data-s="${esc((p.name + " " + (p.category || "")).toLowerCase())}">
 <div><div class="n">${esc(p.name)}</div>${p.category ? `<div class="cat">${esc(p.category)}</div>` : ""}</div>
 <input type="text" inputmode="decimal" name="price_${p.i}" value="${esc(p.price || "")}" aria-label="Price of ${esc(p.name)}" placeholder="Price">
+<label class="st">In stock <input type="text" inputmode="numeric" pattern="[0-9]*" name="stock_${p.i}" value="${esc(String(p.stock ?? ""))}" aria-label="How many ${esc(p.name)} in stock" placeholder="not counted"></label>
 <label class="so"><input type="checkbox" name="sold_${p.i}"${p.soldout ? " checked" : ""} onchange="this.closest('.p').classList.toggle('is-sold',this.checked)"> Sold out</label></div>`).join("");
   return `<div class="c"><h1>${esc(manageTitle(r))}</h1><p>${esc(b.business_name || r.business || r.name)}${r.website_url ? ` · <a href="${esc(r.website_url)}">${esc(r.website_url.replace(/^https?:\/\//, ""))}</a>` : ""}</p>
-<p class="m">${r.interest === "Online Store" ? "Change prices, mark items sold out, update" : "Update"} your hours and numbers, slogan and notice, and choose which customer reviews show. Tap <b>Save changes</b> at the bottom: your website updates within a minute. For new ${r.interest === "Online Store" ? "products, " : ""}photos or text, use your "Request a change" link.</p>${note || ""}</div>
+<p class="m">${r.interest === "Online Store" ? "Change prices, set how many you have in stock (online orders take it down; at 0 it shows Sold out), mark items sold out, update" : "Update"} your hours and numbers, slogan and notice, and choose which customer reviews show. Tap <b>Save changes</b> at the bottom: your website updates within a minute. For new ${r.interest === "Online Store" ? "products, " : ""}photos or text, use your "Request a change" link.</p>${note || ""}</div>
 <form method="post" action="/manage?t=${esc(token)}">
-${items.length ? `<div class="c"><h2>Products (${items.length})</h2>${items.length > 8 ? `<input type="search" placeholder="Find a product" aria-label="Find a product" oninput="var w=this.value.toLowerCase();document.querySelectorAll('.p').forEach(function(x){x.hidden=w&&x.getAttribute('data-s').indexOf(w)<0})">` : ""}${rows}</div>` : ""}
+${items.length ? `<div class="c"><h2>Products (${items.length})</h2><p class="m">Stock: type how many you have, or leave it empty to not count. Paid online orders take it down by themselves. WhatsApp and in-shop sales don't, so adjust the number here. You are responsible for keeping prices and stock right.</p>${items.length > 8 ? `<input type="search" placeholder="Find a product" aria-label="Find a product" oninput="var w=this.value.toLowerCase();document.querySelectorAll('.p').forEach(function(x){x.hidden=w&&x.getAttribute('data-s').indexOf(w)<0})">` : ""}${rows}</div>` : ""}
 <div class="c"><h2>Shop details</h2>
 <label for="tagline">Slogan (shows at the bottom of every page)</label><input type="text" id="tagline" name="tagline" maxlength="100" value="${esc(b.tagline || "")}" placeholder="e.g. Fresh bread every morning in Ibadan">
 <label for="hours">Opening hours</label><input type="text" id="hours" name="hours" maxlength="120" value="${esc(b.hours || "")}" placeholder="e.g. Mon–Sat 8am–6pm">
@@ -92,6 +93,7 @@ export default async function handler(req, res) {
     for (const [k, v] of Object.entries(body)) {
       let m;
       if ((m = k.match(/^price_(\d{1,3})$/))) (products[m[1]] ||= {}).price = v;
+      if ((m = k.match(/^stock_(\d{1,3})$/))) (products[m[1]] ||= {}).stock = v;
     }
     for (const p of (r.brief?.products || []).map((p, i) => ({ ...p, i }))) (products[p.i] ||= {}).soldout = body[`sold_${p.i}`] === "on";
     const reviews = {};

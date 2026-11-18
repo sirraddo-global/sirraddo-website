@@ -208,6 +208,37 @@ test("Online Store: basket checkout into the store's own Paystack, order emails,
   assert.match(page.text, /Save as picture/);
   assert.match(page.text, /₦12,500/, "unit price shown");
   assert.ok(!h.sent.some((m) => m.to.includes("bisi@x.com")), "buyers are never emailed by us");
+
+  const briefOf = async () => (await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]))[0].brief;
+  // Stock: the owner sets 3 in their Manage link; a cart of 5 is refused; a paid order of 2 leaves 1; buying the last one sells it out.
+  const link = (await h.action({ action: "manage_link", id })).json.url;
+  const mpath = "/manage?" + link.split("?")[1];
+  const setStock = (v) => fetch(h.base + mpath, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ price_0: "₦12,500", price_1: "from 20k", stock_0: v, phone: "08031112222" }) }).then((r) => r.text());
+  assert.match(await setStock("abc"), /whole number/);
+  assert.match(await setStock("3"), /Saved ✓/);
+  assert.match((await h.call("GET", mpath)).text, /name="stock_0" value="3"/);
+  assert.equal((await h.call("GET", `/api/shop?config=1&s=${tok}`)).json.stock[0], 3, "live stock for the website");
+  const tooMany = await h.call("POST", "/api/shop", { s: tok, items: [{ i: 0, q: 5 }], buyer }, J);
+  assert.equal(tooMany.status, 409);
+  assert.match(tooMany.json.error, /Only 3 Ankara 6 yards left/);
+  const co2 = await h.call("POST", "/api/shop", { s: tok, items: [{ i: 0, q: 2 }], buyer }, J);
+  const n2 = h.sent.length;
+  await h.call("GET", `/api/shop?paid=1&ref=${co2.json.ref}`);
+  assert.equal((await briefOf()).products[0].stock, "1");
+  assert.match(h.newMail(n2)[0].html, /Stock left:<\/b> Ankara 6 yards: 1/);
+  const co3 = await h.call("POST", "/api/shop", { s: tok, items: [{ i: 0, q: 1 }], buyer }, J);
+  await h.call("GET", `/api/shop?paid=1&ref=${co3.json.ref}`);
+  assert.equal((await briefOf()).products[0].stock, "0");
+  assert.equal((await h.call("GET", `/api/shop?config=1&s=${tok}`)).json.stock[0], 0);
+  assert.match((await h.call("POST", "/api/shop", { s: tok, items: [{ i: 0, q: 1 }], buyer }, J)).json.error, /empty/, "sold out can't be bought");
+  const { buildSiteModel, renderPage } = await import("../api/_lib/sitegen.mjs");
+  const site = buildSiteModel({ ...(await h.row(id)), brief: await briefOf() });
+  assert.match(renderPage(site, site.pages[0].slug, { mode: "export", link: (x) => x }), /Sold out/);
+  // Restock: typing a number above 0 brings it back.
+  assert.match(await setStock("10"), /Saved ✓/);
+  const b2 = (await briefOf()).products[0];
+  assert.equal(b2.stock, "10");
+  assert.ok(!b2.soldout);
 });
 
 test("daily run completes without errors", async () => {

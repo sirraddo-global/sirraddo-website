@@ -121,7 +121,7 @@ function handoverDoc(r, settings) {
     row("Emails arrive in", h.inbox && emails.length ? `${esc(h.inbox)}<br><span style="color:#4A5568;font-size:13px">Messages sent to your business address come straight to this inbox, so there's nothing new to log in to.</span>` : ""),
     row("Except", h.email_routes && emails.length ? String(h.email_routes).split("\n").map(esc).join("<br>") : ""),
     row("Read your email at", h.webmail ? link(h.webmail) : ""),
-    row("Replying", h.inbox && emails.length && !h.webmail ? `When you reply, the email goes out from ${esc(h.inbox)}. If you'd like to send from your business address too, ask us about a mailbox.` : ""),
+    row("Replying", h.inbox && emails.length && !h.webmail ? `When you reply, the email goes out from ${esc(h.inbox)}.` : ""),
     row("More addresses", emailAllowance(r.interest) > emails.length && emails.length ? `Your package includes ${emailAllowance(r.interest)}. You can have ${emailAllowance(r.interest) - emails.length} more at no extra cost: just tell us the names (for example sales@).` : ""),
   ])}
   ${r.interest === "Online Store" ? section("Your online store", [

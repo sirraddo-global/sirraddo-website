@@ -434,25 +434,33 @@
 
   // Ready-made ads that lead to sirraddo.com.ng: share straight to WhatsApp Status / Instagram from a phone,
   // or download. Images live in /assets/marketing (made from the "SIRRADDO website ads" design canvas).
+  // Each picture has its own QR code (tagged, so Dashboard → "Where customers come from" shows "qr / <piece>"),
+  // and each caption link is tagged too. Made by scripts/make-marketing.mjs (change the wording there).
+  var MK_V = '2';
+  var L = function (src, camp) { return 'https://www.sirraddo.com.ng/websites?utm_source=' + src + '&utm_campaign=' + camp; };
   var ADS = [
-    { file: 'story-websites.jpg', title: 'Status / Story: Websites', size: '1080 × 1920',
-      caption: 'Is your business on Google yet? Get a professional website from ₦50,000, live in 7 working days 👉 https://www.sirraddo.com.ng/websites' },
-    { file: 'story-online-store.jpg', title: 'Status / Story: Online Store', size: '1080 × 1920',
-      caption: 'Let customers order and pay you online, any time 🛒 Online Store websites from ₦150,000 👉 https://www.sirraddo.com.ng/websites' },
-    { file: 'post-starter.jpg', title: 'Post: Starter ₦50,000', size: '1080 × 1080',
-      caption: 'A professional website for your business: ₦50,000 with a free .com.ng domain, hosting, SSL and business email. Live in 7 working days 👉 https://www.sirraddo.com.ng/websites' },
-    { file: 'post-how-it-works.jpg', title: 'Post: How it works', size: '1080 × 1080',
-      caption: 'Your website in 4 easy steps: chat with us, pay 70% to start, approve your preview, then go live 👉 https://www.sirraddo.com.ng/websites' },
-    { file: 'post-see-it-first.jpg', title: 'Post: See it first', size: '1080 × 1080',
-      caption: 'No surprises: see your website and pick your favourite design before paying the balance 👉 https://www.sirraddo.com.ng/websites' },
-    { file: 'banner.jpg', title: 'Banner (Facebook, groups)', size: '1200 × 630',
-      caption: 'Websites for your business from ₦50,000. Domain, hosting and business email included 👉 https://www.sirraddo.com.ng/websites' }
+    { file: 'story-websites.jpg', title: 'Status / Story: Websites', size: '1080 × 1920', group: 'story',
+      caption: 'Is your business on Google yet? Get a professional website from ₦50,000, live in 7 working days 👉 ' + L('status', 'websites') },
+    { file: 'story-online-store.jpg', title: 'Status / Story: Online Store', size: '1080 × 1920', group: 'story',
+      caption: 'Let customers order and pay you online, any time 🛒 Online Store websites from ₦150,000. Try our demo store 👉 ' + L('status', 'store') },
+    { file: 'post-starter.jpg', title: 'Post: Starter ₦50,000', size: '1080 × 1080', group: 'square',
+      caption: 'A professional website for your business: ₦50,000 with a free .com.ng domain, hosting, SSL and business email. Live in 7 working days 👉 ' + L('post', 'starter') },
+    { file: 'post-how-it-works.jpg', title: 'Post: How it works', size: '1080 × 1080', group: 'square',
+      caption: 'Your website in 4 easy steps: chat with us, pay 70% to start, approve your preview, then go live 👉 ' + L('post', 'steps') },
+    { file: 'post-see-it-first.jpg', title: 'Post: See it first', size: '1080 × 1080', group: 'square',
+      caption: 'No surprises: see your website and pick your favourite design before paying the balance 👉 ' + L('post', 'see-first') },
+    { file: 'banner.jpg', title: 'Banner (Facebook, groups)', size: '1200 × 630', group: 'banner',
+      caption: 'Websites for your business from ₦50,000. Domain, hosting and business email included 👉 ' + L('facebook', 'banner') },
+    { file: 'flyer-a5.jpg', pdf: 'flyer-a5.pdf', title: 'Flyer (A5, print)', size: 'A5 · 148 × 210 mm', group: 'print',
+      caption: 'Print the PDF at any business centre (A5, or 2 on one A4 sheet). Hand out at markets, shops and association meetings.' },
+    { file: 'qr-card.jpg', pdf: 'qr-card.pdf', title: 'QR counter card (A6, print)', size: 'A6 · 105 × 148 mm', group: 'print',
+      caption: 'Print, laminate and stand it on the counter of every customer whose website you built (with their permission).' }
   ];
   function renderMarketing(view) {
     view.appendChild(el('p', { class: 'admin-intro', text: 'Ads that lead people to your website. On your phone, Share opens WhatsApp, Instagram or Facebook with the picture ready (the caption is copied, so paste it in). Post one Status a day and rotate them.' }));
     // Group the ads by where they're posted, so only a few show at a time.
-    var groups = [['story', 'Status & Story'], ['square', 'Square posts'], ['banner', 'Banner']];
-    var groupOf = function (ad) { return /1920/.test(ad.size) ? 'story' : /1080 × 1080|1080 x 1080/.test(ad.size) ? 'square' : 'banner'; };
+    var groups = [['story', 'Status & Story'], ['square', 'Square posts'], ['banner', 'Banner'], ['print', 'Flyers (print)']];
+    var groupOf = function (ad) { return ad.group; };
     var pickAd = state.adsTab || 'story';
     view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Ad types' }, groups.map(function (g) {
       var n = ADS.filter(function (a) { return groupOf(a) === g[0]; }).length;
@@ -460,10 +468,10 @@
     })));
     var grid = el('div', { class: 'mk-grid' });
     ADS.filter(function (a) { return groupOf(a) === pickAd; }).forEach(function (ad) {
-      var url = '/assets/marketing/' + ad.file;
+      var url = '/assets/marketing/' + ad.file + '?v=' + MK_V;
       var actions = el('div', { class: 'admin-actions' });
       var canShareFiles = !!(navigator.canShare && window.File);
-      if (canShareFiles) actions.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Share', onclick: function (e) {
+      if (canShareFiles && !ad.pdf) actions.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Share', onclick: function (e) {
         var b = e.currentTarget; b.disabled = true;
         if (navigator.clipboard) navigator.clipboard.writeText(ad.caption).catch(function () {});
         fetch(url).then(function (r) { return r.blob(); }).then(function (blob) {
@@ -476,8 +484,9 @@
           .catch(function (err) { if (err && err.name !== 'AbortError') fail(err); })
           .then(function () { b.disabled = false; });
       } }));
-      actions.appendChild(el('a', { class: 'admin-btn', href: url, download: 'sirraddo-' + ad.file, text: 'Download' }));
-      actions.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy caption', onclick: function (e) { copyText(ad.caption, 'Caption', e.currentTarget); } }));
+      if (ad.pdf) actions.appendChild(el('a', { class: 'admin-btn admin-btn--primary', href: '/assets/marketing/' + ad.pdf + '?v=' + MK_V, download: 'sirraddo-' + ad.pdf, text: 'Download PDF for printing' }));
+      actions.appendChild(el('a', { class: 'admin-btn', href: url, download: 'sirraddo-' + ad.file, text: ad.pdf ? 'Download picture' : 'Download' }));
+      if (!ad.pdf) actions.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy caption', onclick: function (e) { copyText(ad.caption, 'Caption', e.currentTarget); } }));
       grid.appendChild(el('article', { class: 'admin-card mk-card' }, [
         el('img', { src: url, alt: ad.title, loading: 'lazy', class: 'mk-img' }),
         el('h3', { text: ad.title }),
@@ -487,7 +496,7 @@
       ]));
     });
     view.appendChild(grid);
-    view.appendChild(el('p', { class: 'admin-hint', text: 'Tip: to advertise, boost the Starter post on Facebook/Instagram with ₦5,000–10,000 for a week, targeted to Ibadan. To change the designs, edit the "SIRRADDO website ads" canvas in Claude, then ask Claude to update these pictures.' }));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Tip: to advertise, boost the Starter post on Facebook/Instagram with ₦5,000–10,000 for a week, targeted to Ibadan. Every QR code and caption link is tagged, so Dashboard → "Where customers come from" shows which picture or flyer brought each customer. To change wording or prices, ask Claude to update scripts/make-marketing.mjs.' }));
   }
 
   function renderAssistant(view) {

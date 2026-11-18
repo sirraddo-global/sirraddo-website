@@ -385,4 +385,10 @@ test("Manage my website: non-store sites get the same private link (hours, numbe
   const saved = await fetch(h.base + path, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ phone: "08035550000", look_mode: "ask" }) });
   assert.match(await saved.text(), /Saved ✓/);
   assert.equal((await h.row(id)).hosting.lookMode, "ask");
+  // Owner confirms their Google Business Profile: "Google profile done" ticks itself; the box then disappears.
+  assert.match(p2.text, /My Google Business Profile is verified/);
+  const g = await fetch(h.base + path, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ phone: "08035550000", gbp_verified: "1" }) });
+  assert.match(await g.text(), /Saved ✓/);
+  assert.equal((await h.row(id)).handover.gbp_done, true);
+  assert.doesNotMatch((await h.call("GET", path)).text, /My Google Business Profile is verified/);
 });

@@ -4,7 +4,8 @@
 // (Request a change). The link keeps working until you make a new one in admin.
 import { randomBytes } from "node:crypto";
 import { SITE_URL } from "../../site.config.mjs";
-import { q, getRequest, getBriefById, updateRequestShop, mergeBrief, reference, esc, emailConfigured, sendEmail, saveHosting } from "./store.mjs";
+import { q, getRequest, getBriefById, updateRequestShop, updateRequest, mergeBrief, reference, esc, emailConfigured, sendEmail, saveHosting } from "./store.mjs";
+import { kindFor } from "./brief-schema.mjs";
 
 // The customer row plus their project form answers (the admin row leaves the answers out).
 async function load(id) {
@@ -21,6 +22,8 @@ export function lookStatus(r) {
   const h = r?.hosting || {};
   return { mode: h.lookMode === "ask" ? "ask" : "auto", waiting: Boolean(h.publishedAt && h.look && h.look !== SITE_LOOK), notes: SITE_LOOK_NOTES[SITE_LOOK] || [] };
 }
+// Show the "My Google profile is verified" box: business websites and stores, until it's ticked.
+export const gbpAsk = (r) => kindFor(r?.interest) !== "starter" && !r?.handover?.gbp_done;
 export const manageTitle = (r) => (r?.interest === "Online Store" ? "Manage my store" : "Manage my website");
 export async function manageLink(id, { renew = false } = {}) {
   const r = await getRequest(id);
@@ -74,6 +77,12 @@ export async function applyManage(r, input) {
     }
   }
   if (input.updateLook && h.publishedAt && h.look !== SITE_LOOK) changes.push("Updated the website to the new version");
+  // The owner confirms their Google Business Profile is verified: ticks "Google profile done" in admin for you.
+  if (input.gbpVerified && gbpAsk(r)) {
+    await updateRequest(r.id, { handover: { ...(r.handover || {}), gbp_done: true, gbp_confirmed: new Date().toISOString() } });
+    r.handover = { ...(r.handover || {}), gbp_done: true };
+    changes.push("Google Business Profile: verified (confirmed by the owner)");
+  }
   if (!changes.length) return { changes, row: r };
   await mergeBrief(r.id, patch);
   return { changes, row: await load(r.id) };

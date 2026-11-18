@@ -1,7 +1,7 @@
 // /manage?t=TOKEN — "Manage my store" / "Manage my website": the owner changes prices, sold out, slogan, hours, phone/WhatsApp and a short
 // notice themselves. Save updates their live site and emails us what changed. Works on phones; no login.
 import { dbConfigured, esc } from "./_lib/store.mjs";
-import { findManageRequest, applyManage, afterManage, manageTitle, lookStatus } from "./_lib/manage.mjs";
+import { findManageRequest, applyManage, afterManage, manageTitle, lookStatus, gbpAsk } from "./_lib/manage.mjs";
 import { listReviews, starsText } from "./_lib/reviews.mjs";
 import { COMPANY } from "./_lib/docs.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
@@ -74,6 +74,7 @@ ${items.length ? `<div class="c"><h2>Products (${items.length})</h2>${items.leng
 <label for="site_notice">Notice at the top of your website (optional)</label><textarea id="site_notice" name="site_notice" rows="2" maxlength="200" placeholder="e.g. Closed for Sallah, back on Monday. Leave empty to remove it.">${esc(b.site_notice || "")}</textarea></div>
 ${reviewsCard(r.reviews)}
 ${lookCard(r)}
+${gbpAsk(r) ? `<div class="c"><h2>Google Maps and Search</h2><p class="m">Once Google has verified your Google Business Profile (it says "Your business is verified" at business.google.com or in the Google Maps app), tick this and save so we know it's done.</p><label class="ck"><input type="checkbox" name="gbp_verified" value="1"> My Google Business Profile is verified</label></div>` : ""}
 <div class="bar"><button type="submit">Save changes</button></div></form>`;
 }
 
@@ -96,7 +97,7 @@ export default async function handler(req, res) {
     const reviews = {};
     for (const [k, v] of Object.entries(body)) { const m = k.match(/^rv_(\d{1,9})$/); if (m) reviews[m[1]] = String(v); }
     try {
-      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice, tagline: body.tagline, reviews, lookMode: body.look_mode, updateLook: body.update_look === "1" });
+      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice, tagline: body.tagline, reviews, lookMode: body.look_mode, updateLook: body.update_look === "1", gbpVerified: body.gbp_verified === "1" });
       row.reviews = await listReviews(row.id).catch(() => []);
       if (!changes.length) return shell(res, 200, manageTitle(row), form(row, token, `<p class="ok">Nothing changed.</p>`));
       const live = await afterManage(row, changes);

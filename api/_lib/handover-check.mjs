@@ -2,8 +2,10 @@
 // Handover card (✓/✗ list with how-to steps and a ready WhatsApp message for the customer) and the admin
 // Assistant ("what's next?"). After every item is done, only change requests are left.
 //   item = { key, label, done, auto, fix, steps: [what YOU do], tell: "message for the CUSTOMER" }
-import { handoverAuto, balance, naira, COMPANY } from "./docs.mjs";
+import { handoverAuto, balance, naira, COMPANY, GBP_SETUP, GBP_MONTHLY, GBP_NEVER } from "./docs.mjs";
+export { GBP_SETUP, GBP_MONTHLY, GBP_NEVER };
 import { kindFor, emailAllowance } from "./brief-schema.mjs";
+import { googleSearchConfigured } from "./google-search.mjs";
 export { emailAllowance };
 
 // The addresses the customer asked for on the project form ("info@, sales@" → ["info", "sales"]).
@@ -89,15 +91,31 @@ export function handoverChecklist(r, settings = {}) {
 
   if (kind !== "starter") {
     const owner = h.gbp_owner || w.gbp_gmail || "";
+    // The description from their website text, ready to paste (no "I'll send you" second message).
+    const gbpText = String(r.gbp_text || "").replace(/\*\*[^*]+:\*\*\s*/g, "").replace(/\[ADD:[^\]]*\]/g, "").replace(/\s+/g, " ").trim().slice(0, 750);
     add("gbp", "Google Business Profile", h.gbp_done, {
       fix: `Owner: ${owner || "their Gmail"}. Google needs the owner to verify it.`,
       steps: [
-        "Send them the message below (or do it together on their phone).",
-        "Give them the Google Business Profile description from their website text (Project form → View text) to paste.",
-        "When they've added you as a manager, you can fix photos, hours and replies for them.",
+        "Send them the setup message below (or do it together on their phone), then the \"do it yourself\" guide so they keep it strong themselves. Both buttons are below; the guide is in their handover pack too.",
+        "If they get stuck, go through it with them on a call or in person: " + GBP_SETUP.map((t) => t.split(":")[0]).join(", ") + ".",
         "Then tick 'Google profile done' and Save handover details.",
       ],
-      tell: `Hello ${first}, let's put your business on Google Maps and Search (free):\n1. Open business.google.com${owner ? ` and sign in with ${owner}` : " with your Gmail"}.\n2. Tap "Add business" and fill in your business name, category, address (or the areas you serve), phone number and website${r.website_url ? ` (${r.website_url})` : ""}.\n3. For the description, paste the one I'll send you.\n4. Google will verify it's you (code by SMS, phone call, email or a short video). Enter the code when it comes.\n5. Then go to Settings → People and access → Add, and add ${COMPANY.email} as Manager, so we can help keep it up to date.\nSend me a screenshot if you get stuck.`,
+      tell: `Hello ${first}, let's put your business on Google Maps and Search (free):\n1. Open business.google.com${owner ? ` and sign in with ${owner}` : " with your Gmail"}.\n2. Tap "Add business" and fill in your business name, category, address (or the areas you serve), phone number and website${r.website_url ? ` (${r.website_url})` : ""}.${gbpText ? `\n3. For the description, copy and paste this:\n"${gbpText}"` : "\n3. For the description, write 2–3 sentences about what you do, for whom and where (no links or prices)."}\n4. Google will verify it's you (code by SMS, phone call, email or a short video). Enter the code when it comes.\n5. Once it's live, keep it strong with the short guide in your handover pack (Google Business Profile): photos, products, replying to reviews and more.\nSend me a screenshot if you get stuck.`,
+      tell2: `Hello ${first}, here's how to keep your Google Business Profile strong yourself (business.google.com or the Google Maps app, signed in as the owner):\n\nFirst, once:\n${GBP_SETUP.map((t, k) => `${k + 1}. ${t}`).join("\n")}\n\nEvery month:\n${GBP_MONTHLY.map((t) => `• ${t}`).join("\n")}\n\n${GBP_NEVER}\nAny questions, just message me.`,
+      tell2Label: 'Send "do it yourself" guide',
+    });
+  }
+
+  // Submitted to Google Search Console: automatic once the domain works (needs the one-time Google setup).
+  if (host.domain) {
+    const gs = host.google || {};
+    add("google", "Submitted to Google (Search Console)", gs.step === "done", {
+      auto: true,
+      fix: !googleSearchConfigured()
+        ? "One-time setup needed: the GOOGLE_SERVICE_ACCOUNT setting (README → Google Search Console). After that every site is submitted by itself."
+        : gs.error ? `Trying again automatically (${gs.tries || 1} so far). Last answer from Google: ${gs.error}` : "Happens by itself once the domain is working (Go live → Check now to speed it up).",
+      steps: ["Nothing to do: the system verifies their domain with Google, adds it to Search Console, submits the sitemap and adds the owner's Gmail and info@sirraddo.com.ng as owners.",
+        "To look at it: search.google.com/search-console, signed in as info@sirraddo.com.ng."],
     });
   }
 

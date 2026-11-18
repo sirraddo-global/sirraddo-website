@@ -229,7 +229,7 @@ p { margin: 0 0 1em; }
 .form-error:empty { display: none; }
 
 /* ---------- Footer ---------- */
-.site-footer { background: var(--navy-dark); color: #C9D2E3; padding: 48px 0 40px; font-size: .95rem; }
+.site-footer { background: var(--navy-dark); color: #C9D2E3; padding: 48px 0 96px; font-size: .95rem; }
 .footer-inner { display: grid; gap: 24px; }
 .site-footer a { color: var(--white); }
 .site-footer a:hover { color: var(--gold); }
@@ -398,10 +398,18 @@ p { margin: 0 0 1em; }
 /* ---------- Website assistant (chat widget, assets/chat.js) ---------- */
 .chat-launcher {
   position: fixed; right: 16px; bottom: 16px; z-index: 60;
-  display: inline-flex; align-items: center; gap: 8px;
-  min-height: 52px; padding: 0 18px 0 14px; border: 0; border-radius: 999px;
-  background: var(--navy); color: var(--white); font: inherit; font-weight: 700;
-  box-shadow: 0 8px 24px rgba(11,23,51,.28); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 9px;
+  min-height: 54px; padding: 0 20px 0 16px; border: 2px solid var(--gold); border-radius: 999px;
+  background: var(--navy); color: var(--white); font: inherit; font-weight: 600; font-size: 1rem; letter-spacing: .01em;
+  box-shadow: 0 10px 28px rgba(11,23,51,.32); cursor: pointer;
+}
+/* "Ask SIRRADDO" with a small green "online" dot; a gentle nudge once, a few seconds after the page opens. */
+.chat-launcher-text b { color: var(--gold); font-weight: 800; letter-spacing: .02em; }
+.chat-launcher-dot { position: absolute; top: 6px; left: 34px; width: 10px; height: 10px; border-radius: 50%; background: #2FBF71; box-shadow: 0 0 0 2px var(--navy); }
+.chat-launcher { position: fixed; }
+@media (prefers-reduced-motion: no-preference) {
+  .chat-launcher { animation: chat-nudge .7s ease-in-out 4s 2; }
+  @keyframes chat-nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 }
 .chat-launcher { transition: opacity .2s; }
 .chat-launcher.is-scrolling { opacity: .3; }
@@ -464,8 +472,8 @@ p { margin: 0 0 1em; }
 @media (max-width: 520px) {
   .chat-panel { right: 0; bottom: 0; width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; border: 0; }
   html.chat-open, html.chat-open body { overflow: hidden; }
-  .chat-launcher span { display: none; }
-  .chat-launcher { padding: 0; width: 56px; height: 56px; justify-content: center; }
+  .chat-launcher { min-height: 50px; padding: 0 16px 0 13px; font-size: .95rem; right: 12px; bottom: 12px; }
+  .chat-launcher-dot { left: 30px; }
 }
 @media print { .chat-launcher, .chat-panel { display: none !important; } }
 

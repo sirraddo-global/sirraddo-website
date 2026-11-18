@@ -10,7 +10,7 @@ export const cloudflareConfigured = () => Boolean(process.env.CLOUDFLARE_API_TOK
 const acct = () => process.env.CLOUDFLARE_ACCOUNT_ID;
 
 class CfError extends Error {}
-async function cf(path, { method = "GET", body, token, form, ok404 = false } = {}) {
+export async function cf(path, { method = "GET", body, token, form, ok404 = false } = {}) {
   const headers = { Authorization: `Bearer ${token || process.env.CLOUDFLARE_API_TOKEN}` };
   if (body !== undefined) headers["Content-Type"] = "application/json";
   const res = await fetch(API + path, { method, headers, body: form || (body !== undefined ? JSON.stringify(body) : undefined) });

@@ -39,8 +39,26 @@ export async function startHarness() {
     if (url.includes("resend.com")) { if (globalThis.__RESEND_429__) return new Response('{"name":"daily_quota_exceeded","message":"You have reached your daily email quota"}', { status: 429 }); sent.push(JSON.parse(opts.body)); return new Response("{}", { status: 200, headers: { "x-resend-daily-quota": String(sent.length), "x-resend-monthly-quota": String(sent.length) } }); }
     if (url.includes("api.paystack.co")) return paystackFake(url, opts);
     if (url.includes("generativelanguage")) return geminiFake(JSON.parse(opts.body));
+    if (url.includes("oauth2.googleapis.com") || url.includes("www.googleapis.com")) return googleFake(url, opts);
     throw new Error("Test tried to reach the internet: " + url);
   };
+  // Google Search Console / Site Verification (submitting customer sites to Google).
+  const google = { calls: [], verifyFails: 0 };
+  globalThis.__GOOGLE__ = google;
+  function googleFake(url, opts) {
+    const m = opts.method || "GET", body = opts.body && typeof opts.body === "string" && opts.body.startsWith("{") ? JSON.parse(opts.body) : null;
+    google.calls.push(m + " " + url.replace("https://www.googleapis.com", ""));
+    const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json" } });
+    if (url.includes("oauth2.googleapis.com/token")) return json({ access_token: "gtok", expires_in: 3600 });
+    if (url.includes("/siteVerification/v1/token")) return json({ method: "DNS_TXT", token: "google-site-verification=abc123" });
+    if (url.includes("/siteVerification/v1/webResource?")) {
+      if (google.verifyFails > 0) { google.verifyFails--; return json({ error: { message: "Verification failed: TXT record not found" } }, 400); }
+      return json({ id: "dns%3A%2F%2F" + body.site.identifier, site: body.site, owners: ["sa@test.iam.gserviceaccount.com"] });
+    }
+    if (url.includes("/siteVerification/v1/webResource/")) return json({ id: "x", owners: body.owners });
+    if (url.includes("/webmasters/v3/sites/")) return new Response("", { status: 200 });
+    return json({ error: { message: "unknown" } }, 404);
+  }
   function paystackFake(url, opts) {
     const auth = String(opts.headers?.Authorization || "");
     paystackCalls.push({ url, auth });
@@ -56,6 +74,7 @@ export async function startHarness() {
     return paystack[ref] ? json({ status: true, data: paystack[ref] }) : json({ status: false, message: "Transaction reference not found" }, 400);
   }
   function geminiFake(body) {
+    globalThis.__LAST_AI_SYSTEM__ = JSON.stringify(body.systemInstruction || body.system_instruction || '');
     const reply = (parts) => new Response(JSON.stringify({ candidates: [{ content: { role: "model", parts } }] }), { status: 200 });
     if (!body.tools) {
       const p = body.contents[0].parts[0].text;

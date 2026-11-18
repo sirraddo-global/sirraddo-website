@@ -574,7 +574,7 @@ if(!s){m.textContent='Please tap the stars to give a rating.';return}if(n.length
 if(!live){m.textContent='Reviews can be sent once the website is live.';return}
 var b=f.querySelector('button');b.disabled=true;m.textContent='Sending\u2026';
 fetch(${JSON.stringify(SITE_URL + "/api/site?review=1")},{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({k:${JSON.stringify(site.statsKey)},stars:+s.value,name:n,text:f.querySelector('#rv-text').value,website:f.querySelector('.hp').value})})
-.then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(x){if(x.ok){f.innerHTML='<p class="rv-done">Thank you! Your review will appear here once ${esc(site.name).replace(/'/g, "\\'")} has checked it.</p>'}else{b.disabled=false;m.textContent=x.j.error||'Sorry, that didn\'t send.'}})
+.then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(x){if(x.ok){f.innerHTML=${JSON.stringify(`<p class="rv-done">Thank you! Your review will appear here once ${esc(site.name)} has checked it.</p>`).replace(/</g, "\\u003c")}}else{b.disabled=false;m.textContent=x.j.error||'Sorry, that didn’t send.'}})
 .catch(function(){b.disabled=false;m.textContent='No connection. Please try again.'})});})();</script>`;
   return `${summary}${list ? `<div class="cards rv-list">${list}</div>` : ""}${box}`;
 }

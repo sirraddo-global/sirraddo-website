@@ -53,9 +53,9 @@
   launcher.type = 'button';
   launcher.setAttribute('aria-expanded', 'false');
   launcher.setAttribute('aria-controls', 'chat-panel');
-  launcher.setAttribute('aria-label', 'Chat with the SIRRADDO assistant');
+  launcher.setAttribute('aria-label', 'Ask SIRRADDO: chat with our assistant, any time');
   launcher.innerHTML =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span>Ask us</span>';
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span class="chat-launcher-text">Ask <b>SIRRADDO</b></span><i class="chat-launcher-dot" aria-hidden="true"></i>';
 
   var panel = el('div', 'chat-panel');
   panel.id = 'chat-panel';

@@ -3,6 +3,24 @@
 import { esc } from "./store.mjs";
 import { emailAllowance } from "./brief-schema.mjs";
 
+// Looking after a Google Business Profile: a guide the owner follows themselves (WhatsApp from the checklist,
+// and in the handover pack). We guide them; we don't ask to be added as a Manager.
+export const GBP_SETUP = [
+  "Business info: the name exactly as on the signboard (never add keywords like \"Best … in Ibadan\": Google can suspend it), the most specific main category plus 2–3 extra ones, address or service area, phone, opening hours, and the website address.",
+  "Description: the one from the website text (no links or prices).",
+  "Photos: logo, cover photo, the outside of the shop (so people recognise it on Maps), inside, products and team. At least 10 real photos, no stock photos.",
+  "Products or services: the top 5–10, each with a photo, price and a link to its page on the website.",
+  "Attributes: tick what's true (delivery, online payments, wheelchair access, women-owned…).",
+  "Review link: Home → \"Ask for reviews\" → copy the link and share it with happy customers on WhatsApp.",
+];
+export const GBP_MONTHLY = [
+  "Reply to every new Google review, good or bad, politely and within a few days.",
+  "Add one post a month: a new product, an offer or holiday hours.",
+  "Keep opening hours right, especially before public holidays and festive seasons.",
+  "Look at Performance: searches, calls, direction requests and website clicks.",
+];
+export const GBP_NEVER = "Never write reviews yourself or pay for fake ones, and never remove the owner or change the address to one that isn't verified.";
+
 export const COMPANY = {
   name: "SIRRADDO GLOBAL LIMITED",
   rc: "RC 9939920",
@@ -29,7 +47,7 @@ export const balance = (r) => (r.quote_amount == null ? null : Math.max(0, r.quo
 
 export const DOC_TYPES = ["invoice", "receipt", "renewal", "handover"];
 
-export const DEFAULT_HANDOVER_TERMS = "Small fixes to text and photos are free for 30 days after your website goes live. After that, tell us what you'd like changed and we'll quote it before we start. Your yearly renewal keeps your domain, hosting, SSL certificate, business email and backups running.";
+export const DEFAULT_HANDOVER_TERMS = "Small fixes to text and photos are free for 30 days after your website goes live. After that, tell us what you'd like changed and we'll quote it before we start. Your yearly renewal keeps your domain, hosting, SSL certificate, business email and backups running. Everyday details (prices, opening hours, numbers, a notice, reviews) you change yourself with your Manage link. From time to time we improve your website at no cost and email you what changed.";
 
 const letterhead = () => `
   <table role="presentation" style="width:100%;border-collapse:collapse;border-bottom:3px solid #D9A21B;">
@@ -114,7 +132,7 @@ function handoverDoc(r, settings) {
     row("Order alerts go to", esc(r.shop?.notify || r.brief?.order_alerts || r.email || "")),
   ]) : ""}
   ${r.website_url ? section("Found on Google", [
-    row("Google Business Profile", h.gbp_done ? `Set up${h.gbp_owner ? `, owned by ${esc(h.gbp_owner)}` : ""}. Manage it at ${link("https://business.google.com")} or in the Google Maps app with that Gmail: update your hours, add photos and reply to reviews. We're added as a manager so we can help.` : ""),
+    row("Google Business Profile", h.gbp_done || h.gbp_owner ? `${h.gbp_done ? "Set up" : "Being set up"}${h.gbp_owner ? `, owned by ${esc(h.gbp_owner)}` : ""}. Manage it at ${link("https://business.google.com")} or in the Google Maps app with that Gmail. Keep it strong:<br><b>Once:</b><ol style="margin:4px 0 6px 18px;padding:0">${GBP_SETUP.map((t) => `<li>${esc(t)}</li>`).join("")}</ol><b>Every month:</b><ul style="margin:4px 0 6px 18px;padding:0">${GBP_MONTHLY.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>${esc(GBP_NEVER)}` : ""),
     row("Your sitemap", link(r.website_url.replace(/\/$/, "") + "/sitemap.xml")),
     row("Next step", h.gbp_done ? "" : "Add your business to Google Business Profile (free) with your website link, so you show up on Google Maps. Ask us if you'd like help."),
   ]) : ""}

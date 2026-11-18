@@ -339,6 +339,12 @@ test("handover checklist: admin rows and the Assistant say exactly what's left",
   assert.match(byKey.email.label, /2 of 5/);
   assert.equal(byKey.gbp.done, false);
   assert.match(byKey.gbp.fix, /adasalon@gmail\.com/);
+  assert.match(byKey.gbp.tell, /copy and paste this:\n"Ada Salon [^"]+\."/, "the description from their website text is in the message itself");
+  assert.doesNotMatch(byKey.gbp.tell, /I'll send you/);
+  assert.doesNotMatch(byKey.gbp.tell, /Manager/, "we guide them; we don't ask to be added");
+  assert.match(byKey.gbp.tell, /keep it strong with the short guide in your handover pack/);
+  assert.match(byKey.gbp.tell2, /keep your Google Business Profile strong yourself[\s\S]*Every month:[\s\S]*Reply to every new Google review/, "a do-it-yourself guide to send");
+  assert.ok(byKey.gbp.steps.some((t) => /If they get stuck/.test(t)));
   const saved = await h.admin("PATCH", "/api/requests", { id: ada, handover: { ...row.handover, gbp_done: true } });
   assert.equal(saved.json.handover_check.find((i) => i.key === "gbp").done, true, "PATCH replies carry the checklist too");
   const { assistantSystem } = await import("../api/_lib/assistant.mjs");
@@ -397,4 +403,39 @@ test("design uses the websites the customer likes and the designer's notes (insp
   assert.match(sent, /example-salon/);
   assert.match(sent, /rounded gold buttons/);
   assert.match(sent, /never copy/);
+});
+
+test("Google Search Console: a live domain is verified, added, sitemap submitted and owners added by itself", async () => {
+  const { generateKeyPairSync } = await import("node:crypto");
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  process.env.GOOGLE_SERVICE_ACCOUNT = JSON.stringify({ client_email: "sa@test.iam.gserviceaccount.com", private_key: privateKey.export({ type: "pkcs8", format: "pem" }) });
+  try {
+    const id = (await h.action({ action: "create", name: "Kunle Prints", contact: "08031110000", interest: "Business website", email: "kunle@gmail.com" })).json.id;
+    await h.sql(`UPDATE customer_requests SET hosting = $1::jsonb WHERE id = $2`, [JSON.stringify({ zoneId: "zone-kp", domain: "kunleprints.com.ng", zoneStatus: "active", attached: true, project: "kunle-prints" }), id]);
+    const G = globalThis.__GOOGLE__;
+    G.verifyFails = 1; // the TXT record hasn't spread yet on the first try
+    let gs = (await h.action({ action: "host_check", id })).json.row.hosting.google;
+    assert.equal(gs.step, "dns");
+    assert.match(gs.error, /TXT record not found/);
+    assert.ok(h.CF.dns.some((r) => r.zone === "zone-kp" && r.type === "TXT" && r.content === "google-site-verification=abc123"), "TXT record added");
+    gs = (await h.action({ action: "host_check", id })).json.row.hosting.google;
+    assert.equal(gs.step, "done", gs.error || "");
+    assert.ok(gs.owners.includes("kunle@gmail.com") && gs.owners.includes("info@sirraddo.com.ng"), "owner and us added");
+    assert.ok(G.calls.some((c) => /sitemaps\/https%3A%2F%2Fkunleprints\.com\.ng%2Fsitemap\.xml/.test(c)), "sitemap submitted");
+    const n = G.calls.length;
+    await h.action({ action: "host_check", id });
+    assert.equal(G.calls.length, n, "nothing more once done");
+    assert.equal(h.CF.dns.filter((r) => r.zone === "zone-kp" && r.type === "TXT").length, 1, "TXT added once");
+  } finally { delete process.env.GOOGLE_SERVICE_ACCOUNT; }
+});
+
+test("Website chat knows our whole published FAQ (kept in step by the build) and recent features", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const html = await readFile(new URL("../websites.html", import.meta.url), "utf8");
+  const questions = [...html.matchAll(/<summary>([^<]+)<\/summary>/g)].map((m) => m[1].replace(/&amp;/g, "&").trim());
+  assert.ok(questions.length >= 15);
+  await h.call("POST", "/api/chat", { sessionId: "s-test-faq-00001", messages: [{ role: "user", content: "Can I have a .com?" }] });
+  const sys = globalThis.__LAST_AI_SYSTEM__ || "";
+  for (const q of questions) assert.ok(sys.includes(q.replace(/"/g, '\\"')) || sys.includes(q), `chat doesn't know: ${q}`);
+  for (const fact of ["Manage", "Ask me first", "Search Console", ".com.ng", "sirraddodemo.com.ng", "receipt"]) assert.ok(sys.includes(fact), `chat doesn't know: ${fact}`);
 });

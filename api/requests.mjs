@@ -427,7 +427,7 @@ export default async function handler(req, res) {
         for (const o of list) o.email = await emailStatus(o.key);
         return res.status(200).json({ festivals: list, audience: (await audience()).length, per_day: GREETING_EMAILS_PER_DAY, can_email: customerEmailConfigured() });
       }
-      if (["changes", "change_mark", "change_add", "change_ai_plan", "change_ai_apply", "change_ai_undo", "site_stats", "report_send", "report_toggle"].includes(body.action)) {
+      if (["changes", "change_mark", "change_add", "change_ai_plan", "change_ai_apply", "change_ai_undo", "change_ai_send", "change_ai_sent", "site_stats", "report_send", "report_toggle"].includes(body.action)) {
         const id = Number(body.id);
         if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
         const row = await getRequest(id);
@@ -440,12 +440,14 @@ export default async function handler(req, res) {
         }
         // "Do it with AI": plan (nothing changes yet), apply (site updated + customer told), undo.
         if (body.action.startsWith("change_ai_")) {
-          const { planChange, applyChange, undoChange } = await import("./_lib/ai-change.mjs");
+          const { planChange, applyChange, undoChange, sendChangePreview, markPreviewSent } = await import("./_lib/ai-change.mjs");
           const cid = Number(body.change_id);
           try {
             let out = {};
             if (body.action === "change_ai_plan") out.plan = await planChange(id, cid);
             else if (body.action === "change_ai_apply") out = await applyChange(id, cid, { tell: body.tell !== false });
+            else if (body.action === "change_ai_send") out = await sendChangePreview(id, cid);
+            else if (body.action === "change_ai_sent") out = { url: await markPreviewSent(id, cid) };
             else out = await undoChange(id, cid);
             return res.status(200).json({ ...out, changes: await listChanges(id, 20) });
           } catch (e) {

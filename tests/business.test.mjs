@@ -137,8 +137,6 @@ test("Do it with AI: a change request is read and applied to the live site (add,
   assert.equal((await h.action({ action: "host_publish", id, force: true })).status, 200);
   const t = new URL((await h.action({ action: "changes", id })).json.link).searchParams.get("t");
   const up = await h.call("POST", `/api/site?upload=1&t=${t}&name=silk-scarf.jpg&type=image/jpeg`, new Uint8Array([255, 216, 1, 2]), { "content-type": "application/octet-stream" });
-  await h.call("POST", "/api/site", { t, text: "Please add Silk scarf for 9000 (photo attached), remove Gele, Lace blouse is now 15000, we now open Monday to Sunday, and make the colours pink.", files: [up.json] });
-  const c = (await h.action({ action: "changes", id })).json.changes[0];
   globalThis.__AI_CHANGE_REPLY__ = JSON.stringify({ understood: "Add a scarf, remove Gele, new Lace price, open on Sundays.", ops: [
     { op: "add_product", name: "Silk scarf", price: "9000", details: "A light silk scarf.", photo: "A1" },
     { op: "remove_product", product: 3 },
@@ -147,7 +145,11 @@ test("Do it with AI: a change request is read and applied to the live site (add,
     { op: "replace_text", page: "Home", find: "text that is not there", replace: "x" },
     { op: "hack_db", sql: "drop" },
   ], not_done: ["Pink colours: needs a new design"] });
+  await h.call("POST", "/api/site", { t, text: "Please add Silk scarf for 9000 (photo attached), remove Gele, Lace blouse is now 15000, we now open Monday to Sunday, and make the colours pink.", files: [up.json] });
+  const c = (await h.action({ action: "changes", id })).json.changes[0];
+  assert.equal(c.plan?.ops?.length, 5, "the AI got the edits ready as soon as the customer sent the request");
   const plan = (await h.action({ action: "change_ai_plan", id, change_id: c.id })).json;
+  assert.equal(plan.plan.view_token, c.plan.view_token, "asking again keeps the same preview link");
   assert.ok(plan.plan, JSON.stringify(plan));
   assert.equal(plan.plan.ops.length, 5, "unknown edits are dropped");
   assert.ok(plan.plan.lines.includes("Remove product: Gele"));
@@ -159,9 +161,38 @@ test("Do it with AI: a change request is read and applied to the live site (add,
   let b = (await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]))[0].brief;
   assert.equal(b.products.length, 3, "planning changes nothing");
 
+  // Preview: their current site + the edits, same design. You open it and send it; the customer checks it.
+  const vt = plan.plan.view_token;
+  const home = await h.call("GET", `/preview?c=${vt}`);
+  assert.equal(home.status, 200);
+  assert.match(home.text, /Open Monday to Sunday in Bodija/);
+  assert.match(home.text, /Put these changes live/);
+  assert.match(home.text, /Not live yet/);
+  const shopPv = await h.call("GET", `/preview?c=${vt}&p=shop`);
+  assert.match(shopPv.text, /Silk scarf/);
+  assert.doesNotMatch(shopPv.text, />Gele</);
+  assert.equal((await h.call("GET", `/preview?c=${vt}x`)).status, 404);
+  assert.equal((await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]))[0].brief.products.length, 3, "viewing changes nothing");
+  const e0 = h.sent.length;
+  const sentTo = (await h.action({ action: "change_ai_send", id, change_id: c.id })).json;
+  assert.equal(sentTo.to, "kemi@gmail.com");
+  assert.ok(h.newMail(e0).some((m) => m.to.includes("kemi@gmail.com") && m.html.includes(`/preview?c=${vt}`)));
+  // The customer says something's not right: you're told, and "Ask AI again" reads it.
+  assert.equal((await h.call("POST", "/api/preview", { c: vt, action: "changes", text: "" })).status, 400);
+  const said = await h.call("POST", "/api/preview", { c: vt, action: "changes", text: "Scarf should be 9500" });
+  assert.equal(said.status, 200, said.text);
+  assert.match((await h.action({ action: "changes", id })).json.changes[0].plan.customer.text, /9500/);
+  await h.action({ action: "change_ai_plan", id, change_id: c.id });
+  assert.match(globalThis.__LAST_AI_PROMPT__, /THEY LOOKED AT A PREVIEW[\s\S]*Scarf should be 9500/);
+
+  // The customer taps "Put these changes live": applied and published by itself.
   const n = h.sent.length;
-  const ap = (await h.action({ action: "change_ai_apply", id, change_id: c.id })).json;
+  const okd = await h.call("POST", "/api/preview", { c: vt, action: "approved" });
+  assert.equal(okd.status, 200, okd.text);
+  assert.match(okd.json.message, /Your website is updated/);
+  const ap = { ...(await h.action({ action: "changes", id })).json.changes[0].plan, changes: (await h.action({ action: "changes", id })).json.changes };
   assert.equal(ap.live, "updated", JSON.stringify(ap));
+  assert.equal(ap.applied_by, "customer");
   const [row] = await h.sql(`SELECT brief, brief_files, draft_md FROM customer_requests WHERE id = $1`, [id]);
   assert.deepEqual(row.brief.products.map((p) => p.name), ["Ankara gown", "Lace blouse", "Silk scarf"]);
   assert.equal(row.brief.products[0].stock, "4", "stock the owner set is kept");
@@ -175,13 +206,16 @@ test("Do it with AI: a change request is read and applied to the live site (add,
   assert.ok(ap.results.some((r) => !r.ok && /couldn't find/.test(r.text)), "a wrong piece of text is skipped, not guessed");
   const done = ap.changes.find((x) => x.id === c.id);
   assert.equal(done.status, "done");
-  assert.ok(h.newMail(n).some((m) => m.to.includes("kemi@gmail.com") && /live/.test(m.subject)), "the customer is told");
+  assert.ok(h.newMail(n).some((m) => /approved their changes/.test(m.subject)), "you are told");
+  assert.match((await h.call("GET", `/preview?c=${vt}`)).text, /These changes are live/);
+  assert.match((await h.call("POST", "/api/preview", { c: vt, action: "approved" })).json.message, /already live/);
   const { buildSiteModel, renderPage } = await import("../api/_lib/sitegen.mjs");
   const site = buildSiteModel({ ...(await h.row(id)), ...row });
   const shop = renderPage(site, site.pages.find((p) => p.kind === "shop").slug, { mode: "export", link: (x) => x });
   assert.match(shop, /Silk scarf/);
   assert.doesNotMatch(shop, />Gele</);
   assert.match((await h.action({ action: "change_ai_apply", id, change_id: c.id })).json.error, /already applied/);
+  // (You can also apply it yourself without the customer: change_ai_apply, tested via the "already applied" guard.)
 
   const un = (await h.action({ action: "change_ai_undo", id, change_id: c.id })).json;
   assert.equal(un.live, "updated");
@@ -189,6 +223,11 @@ test("Do it with AI: a change request is read and applied to the live site (add,
   assert.deepEqual(b.brief.products.map((p) => p.name), ["Ankara gown", "Lace blouse", "Gele"]);
   assert.equal(b.draft_md, md);
   assert.equal(un.changes.find((x) => x.id === c.id).status, "open");
+  // Or you apply it yourself (no customer check): done + the customer is emailed what changed.
+  const n3 = h.sent.length;
+  const mine = (await h.action({ action: "change_ai_apply", id, change_id: c.id })).json;
+  assert.equal(mine.live, "updated", JSON.stringify(mine));
+  assert.ok(h.newMail(n3).some((m) => m.to.includes("kemi@gmail.com") && /live/.test(m.subject)));
 
   // A request that came on WhatsApp: typed in by you, no emails.
   const m2 = h.sent.length;

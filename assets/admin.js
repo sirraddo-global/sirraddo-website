@@ -1431,7 +1431,7 @@
         }).catch(function (e) { btn.disabled = false; btn.textContent = was; fail(e); });
       }
       if (p && p.applied_at && c.can_undo) {
-        box.appendChild(el('p', { class: 'admin-hint', text: 'Done with AI on ' + when(p.applied_at) + '. Live site: ' + (p.live || '') + '.' }));
+        box.appendChild(el('p', { class: 'admin-hint', text: (p.applied_by === 'customer' ? 'The customer approved the preview on ' : 'Done with AI on ') + when(p.applied_at) + '. Live site: ' + (p.live || '') + '.' }));
         if (p.results) box.appendChild(el('ul', { class: 'admin-ai-list' }, p.results.map(function (x) { return el('li', { class: x.ok ? '' : 'is-skip', text: (x.ok ? '✓ ' : '✗ ') + x.text }); })));
         box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Undo', onclick: function (e) {
           if (!window.confirm('Put the website back as it was before this change? (The request goes back to Open; the customer is not emailed.)')) return;
@@ -1441,6 +1441,7 @@
       }
       if (c.status === 'done') return box;
       if (p && p.ops && !p.applied_at) {
+        var url = location.origin + '/preview?c=' + encodeURIComponent(p.view_token || '');
         if (p.understood) box.appendChild(el('p', { class: 'admin-meta', text: 'AI understood: ' + p.understood }));
         box.appendChild(p.lines.length ? el('ul', { class: 'admin-ai-list' }, p.lines.map(function (t) { return el('li', { text: t }); }))
           : el('p', { class: 'admin-hint', text: 'No edits found that the AI can make.' }));
@@ -1448,14 +1449,34 @@
           box.appendChild(el('p', { class: 'admin-hint', text: 'Not done by AI (do these yourself or ask the customer):' }));
           box.appendChild(el('ul', { class: 'admin-ai-list' }, p.not_done.map(function (t) { return el('li', { class: 'is-skip', text: t }); })));
         }
-        var tell = el('input', { type: 'checkbox' }); tell.checked = true;
+        if (p.customer && p.customer.result === 'changes') box.appendChild(el('p', { class: 'admin-ai-said', text: 'Customer looked at the preview and said: "' + p.customer.text + '". Tap Ask AI again (it reads this), check, then send again.' }));
+        else if (p.sent_at) box.appendChild(el('p', { class: 'admin-hint', text: 'Preview sent to the customer ' + when(p.sent_at) + '. When they tap "Put these changes live", the site updates by itself.' }));
         var acts = el('div', { class: 'admin-actions' });
-        if (p.lines.length) acts.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Apply & update live site', onclick: function (e) {
-          act('change_ai_apply', e.currentTarget, { tell: tell.checked }, function (j) { return 'Website ' + (j.live === 'updated' ? 'updated' : 'saved (' + j.live + ')') + (tell.checked ? '. The customer has been emailed.' : '.'); });
-        } }));
+        if (p.lines.length && p.view_token) {
+          acts.appendChild(el('a', { class: 'admin-btn', href: url, target: '_blank', rel: 'noopener', text: 'Open preview' }));
+          var wnum = waNumber(r.contact);
+          if (wnum) acts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send preview on WhatsApp', onclick: function (e) {
+            var w = window.open('', '_blank');
+            var text = 'Hello ' + String(r.name).split(' ')[0] + ', the changes you asked for are ready. Please have a look:\n' + url + '\nIf it\'s right, tap "Put these changes live" at the bottom and your website updates straight away. If anything isn\'t right, tell us there.';
+            var wurl = 'https://wa.me/' + wnum + '?text=' + encodeURIComponent(text);
+            if (w) w.location = wurl; else window.open(wurl, '_blank');
+            act('change_ai_sent', e.currentTarget, null, 'Marked as sent');
+          } }));
+          acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Email preview', onclick: function (e) {
+            act('change_ai_send', e.currentTarget, null, function (j) { return 'Preview emailed to ' + j.to; });
+          } }));
+        }
         acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Ask AI again', onclick: function (e) { act('change_ai_plan', e.currentTarget); } }));
-        if (p.lines.length) box.appendChild(el('label', { class: 'admin-hint' }, [tell, ' Mark done & email the customer what changed']));
         box.appendChild(acts);
+        if (p.lines.length) {
+          var tell = el('input', { type: 'checkbox' }); tell.checked = true;
+          var own = el('details', { class: 'admin-ai-own' }, [el('summary', { text: 'Or apply it yourself now (without the customer checking)' }),
+            el('label', { class: 'admin-hint' }, [tell, ' Mark done & email the customer what changed']),
+            el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Apply & update live site', onclick: function (e) {
+              act('change_ai_apply', e.currentTarget, { tell: tell.checked }, function (j) { return 'Website ' + (j.live === 'updated' ? 'updated' : 'saved (' + j.live + ')') + (tell.checked ? '. The customer has been emailed.' : '.'); });
+            } })])]);
+          box.appendChild(own);
+        }
         return box;
       }
       box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Do it with AI', onclick: function (e) { act('change_ai_plan', e.currentTarget); } })]));

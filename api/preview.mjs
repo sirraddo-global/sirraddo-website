@@ -7,7 +7,7 @@ import {
   getByPreviewToken, setPreviewResult, saveDesign, ensureDocToken, getSettings, markSent, sendEmail, emailConfigured,
   sendCustomerEmail, customerEmailConfigured, customerEmail, reference, esc,
 } from "./_lib/store.mjs";
-import { buildSiteModel, renderPage } from "./_lib/sitegen.mjs";
+import { buildSiteModel, renderPage, changePanel } from "./_lib/sitegen.mjs";
 import { currentOptions } from "./_lib/design.mjs";
 
 const LETTERS = "ABC";
@@ -46,6 +46,23 @@ export default async function handler(req, res) {
 
   if (req.method === "POST") {
     const body = readBody(req);
+    // A change request preview (?c=TOKEN): "approved" puts the edits live, "changes" sends a note.
+    if (body.c) {
+      const ck = "c:" + String(body.c);
+      const now = Date.now();
+      const recent = (posts.get(ck) || []).filter((t) => now - t < 3600_000);
+      if (recent.length >= 10) return res.status(429).json({ error: "Too many messages. Please message us on WhatsApp" });
+      recent.push(now); posts.set(ck, recent);
+      try {
+        const { answerChangePreview } = await import("./_lib/ai-change.mjs");
+        const out = await answerChangePreview(String(body.c), body.action === "approved" ? "approved" : "changes", body.text);
+        return res.status(200).json({ ok: true, ...out });
+      } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message });
+        console.error("change preview answer failed", e);
+        return res.status(500).json({ error: "Something went wrong" });
+      }
+    }
     const token = String(body.t || "");
     const action = body.action === "approved" ? "approved" : body.action === "changes" ? "changes" : null;
     const text = typeof body.text === "string" ? body.text.trim().slice(0, 3000) : "";
@@ -113,6 +130,21 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
   try {
+    if (query.c) {
+      const { changePreview } = await import("./_lib/ai-change.mjs");
+      const ctoken = String(query.c);
+      const view = await changePreview(ctoken);
+      if (!view) return message(res, 404, "This preview link is not valid");
+      const site = buildSiteModel(view.row);
+      const base = `/preview?c=${encodeURIComponent(ctoken)}`;
+      const link = (slug) => base + (slug === "index" ? "" : "&p=" + encodeURIComponent(slug));
+      const live = Boolean(view.c.plan.applied_at);
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      return res.end(renderPage(site, String(query.p || "index"), { mode: "preview", link, row: view.row,
+        top: live ? `These changes are live on your website. <a href="#review">See what changed</a>` : `Preview of your website with the changes you asked for. Not live yet. <a href="#review">Put them live or tell us what's wrong</a>`,
+        panel: changePanel(view, ctoken) }));
+    }
     const token = String(query.t || "");
     const row = await getByPreviewToken(token);
     if (!row) return message(res, 404, "This preview link is not valid");

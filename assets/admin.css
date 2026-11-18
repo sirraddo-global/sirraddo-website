@@ -301,3 +301,6 @@ body.viewing #print-area { display: block; background: #fff; padding: 16px; min-
 .admin-ai-list li.is-skip{color:#B45309}
 .admin-btn--primary { background: var(--navy); border-color: var(--navy); color: var(--white); }
 :root[data-theme="dark"] .admin-btn--primary { background: var(--gold); border-color: var(--gold); color: #0B1530; }
+.admin-ai-said{color:#B45309;font-weight:600;margin:6px 0}:root[data-theme="dark"] .admin-ai-said,:root[data-theme="dark"] .admin-ai-list li.is-skip{color:#FBBF77}
+.admin-ai-own{margin:6px 0}.admin-ai-own summary{cursor:pointer;font-size:14px;color:var(--muted,#5B6475);padding:6px 0}
+a.admin-btn{text-decoration:none}

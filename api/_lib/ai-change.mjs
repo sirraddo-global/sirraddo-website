@@ -8,7 +8,10 @@
 //      updated, the request is marked done and the customer is told. "Undo" puts everything back.
 // The AI never rewrites the site: it only returns edits, and the code applies them. Text it wants to change must
 // match the current text exactly, otherwise that edit is skipped and listed.
-import { q, ensureSchema } from "./store.mjs";
+import { randomBytes } from "node:crypto";
+import { q, ensureSchema, getPreviewById, sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, reference, esc } from "./store.mjs";
+import { SITE, customerHtml } from "./automation.mjs";
+import { shownReviews } from "./reviews.mjs";
 import { pickProvider, friendlyAiError } from "./providers.mjs";
 import { kindFor } from "./brief-schema.mjs";
 import { FUNCTION_BUDGET_MS, readImageForAi } from "./platform.mjs";
@@ -183,7 +186,7 @@ ${context(row)}
 
 CHANGE REQUEST FROM THE OWNER
 ${c.body}
-
+${c.plan?.customer?.text ? `\nTHEY LOOKED AT A PREVIEW OF YOUR LAST ATTEMPT AND SAID (follow this; it wins over the request above where they differ):\n${c.plan.customer.text}\n` : ""}
 ATTACHED FILES
 ${files.length ? files.map((f, i) => `A${i + 1}. ${f.name}${isImg(f) ? " (photo)" : " (not a photo)"}`).join("\n") : "(none)"}${seen.length ? `\n(Attached for you to look at, in this order: ${seen.join(", ")}.)` : ""}`;
   let out;
@@ -193,6 +196,7 @@ ${files.length ? files.map((f, i) => `A${i + 1}. ${f.name}${isImg(f) ? " (photo)
   const j = parseJson(out.text);
   const ops = (Array.isArray(j.ops) ? j.ops : []).filter((o) => o && OPS.includes(o.op)).slice(0, 80);
   const plan = {
+    view_token: c.plan?.view_token || randomBytes(18).toString("base64url"), // the preview link stays the same
     understood: one(j.understood, 400),
     ops,
     lines: ops.map((o) => describeOp(o, row)),
@@ -342,7 +346,7 @@ export function applyOps(row, ops, attachments) {
 }
 
 // Step 2: apply the saved plan, update the live site, mark the request done and tell the customer.
-export async function applyChange(id, changeId, { tell = true } = {}) {
+export async function applyChange(id, changeId, { tell = true, by = "admin" } = {}) {
   const row = await loadRow(id);
   const c = row && (await loadChange(id, changeId));
   if (!c) throw Object.assign(new Error("Not found"), { status: 404 });
@@ -356,7 +360,7 @@ export async function applyChange(id, changeId, { tell = true } = {}) {
   await q(`UPDATE customer_requests SET brief = $1::jsonb, brief_files = $2::jsonb, draft_md = $3, updated_at = now() WHERE id = $4`,
     [JSON.stringify(brief), JSON.stringify(files), md, id]);
   const live = await republish(id, row);
-  const saved = { ...plan, applied_at: new Date().toISOString(), results, live, before };
+  const saved = { ...plan, applied_at: new Date().toISOString(), applied_by: by, results, live, before };
   await q(`UPDATE change_requests SET plan = $1::jsonb WHERE id = $2`, [JSON.stringify(saved), c.id]);
   let change = c;
   if (tell) {
@@ -392,3 +396,69 @@ async function republish(id, row) {
   }
 }
 
+
+// ---------- Preview of the changes (current website + the edits), for you and the customer ----------
+export const changeViewUrl = (plan) => `${SITE}/preview?c=${encodeURIComponent(plan.view_token)}`;
+
+// The customer's site as it would look with the edits: same design, same everything else.
+export async function changePreview(token) {
+  if (!/^[A-Za-z0-9_-]{20,40}$/.test(String(token || ""))) return null;
+  await ensureSchema();
+  const [c] = await q(`SELECT * FROM change_requests WHERE plan->>'view_token' = $1`, [token]);
+  if (!c?.plan?.ops) return null;
+  const row = await getPreviewById(c.request_id);
+  if (!row?.draft_md) return null;
+  row.reviews = await shownReviews(row.id).catch(() => null);
+  if (c.plan.applied_at) return { c, row, results: c.plan.results || [] }; // already live: show the site as it is now
+  const { brief, files, md, results } = applyOps(row, c.plan.ops, c.files || []);
+  return { c, row: { ...row, brief, brief_files: files, draft_md: md }, results };
+}
+
+// Emails the customer (our direct customer) the preview link. WhatsApp is sent from admin.
+export async function sendChangePreview(id, changeId) {
+  const c = await loadChange(id, changeId);
+  if (!c?.plan?.view_token) throw new Error('Tap "Do it with AI" first.');
+  const row = await getPreviewById(id);
+  const to = customerEmail(row);
+  if (!to) throw new Error("This customer has no email address. Send the preview on WhatsApp instead.");
+  if (!customerEmailConfigured()) throw new Error("Emailing customers isn't set up yet. Send the preview on WhatsApp instead.");
+  await sendCustomerEmail(to, "Your website changes are ready to view", customerHtml(row, [
+    `We've made the changes you asked for: <i>"${esc(c.body.length > 200 ? c.body.slice(0, 200) + "…" : c.body)}"</i>`,
+    "Please look at the preview. If it's right, tap <b>Put these changes live</b> at the bottom of the page and your website updates straight away. If something isn't right, tell us there.",
+  ], { url: changeViewUrl(c.plan), label: "View the changes" }));
+  await savePlan(c.id, { ...c.plan, sent_at: new Date().toISOString() });
+  return { to };
+}
+export async function markPreviewSent(id, changeId) {
+  const c = await loadChange(id, changeId);
+  if (!c?.plan?.view_token) throw new Error('Tap "Do it with AI" first.');
+  await savePlan(c.id, { ...c.plan, sent_at: new Date().toISOString() });
+  return changeViewUrl(c.plan);
+}
+const savePlan = (cid, plan) => q(`UPDATE change_requests SET plan = $1::jsonb WHERE id = $2`, [JSON.stringify(plan), cid]);
+
+// The customer's answer on the preview: "approved" puts the edits live; "changes" sends you what's wrong.
+export async function answerChangePreview(token, action, text) {
+  const v = await changePreview(token);
+  if (!v) throw Object.assign(new Error("This link is not valid."), { status: 404 });
+  const { c } = v;
+  if (c.plan.applied_at) return { message: "These changes are already live on your website. Thank you!" };
+  const who = v.row.brief?.business_name || v.row.business || v.row.name;
+  if (action === "approved") {
+    const out = await applyChange(c.request_id, c.id, { tell: false, by: "customer" });
+    await q(`UPDATE change_requests SET status = 'done', done_at = now(), note = COALESCE(note, $1) WHERE id = $2`, ["Approved by the customer on the preview.", c.id]);
+    if (emailConfigured()) {
+      await sendEmail(`✅ ${who} approved their changes (${reference(c.request_id)})`,
+        `<p><b>${esc(who)}</b> approved the preview of their change request and it was applied.</p><ul>${out.results.map((r) => `<li>${r.ok ? "✓" : "✗"} ${esc(r.text)}</li>`).join("")}</ul><p>Live site: ${esc(out.live)}.</p><p><a href="${SITE}/admin">Open admin</a> (Undo is there if needed).</p>`).catch(() => {});
+    }
+    return { message: out.live === "updated" ? "Done! Your website is updated. You may need to refresh it to see the changes." : "Thank you! We've saved your changes and will put them live shortly." };
+  }
+  const note = String(text || "").trim().slice(0, 3000);
+  if (!note) throw Object.assign(new Error("Please write what isn't right."), { status: 400 });
+  await savePlan(c.id, { ...c.plan, customer: { result: "changes", text: note, at: new Date().toISOString() } });
+  if (emailConfigured()) {
+    await sendEmail(`✏️ ${who} wants something different in their changes (${reference(c.request_id)})`,
+      `<p><b>${esc(who)}</b> looked at the preview of their changes and said:</p><blockquote style="border-left:3px solid #D9A21B;margin:0;padding:4px 12px;white-space:pre-wrap">${esc(note)}</blockquote><p>In admin, tap <b>Ask AI again</b> on the request (it reads this too), check the new preview and send it again.</p><p><a href="${SITE}/admin">Open admin</a></p>`).catch(() => {});
+  }
+  return { message: "Thank you! We've got your note and will send you an updated preview." };
+}

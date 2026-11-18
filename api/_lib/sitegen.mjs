@@ -728,8 +728,34 @@ fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},
 .catch(function(err){m.textContent=err.message+'. Please try again or message us on WhatsApp.';Array.prototype.forEach.call(f.querySelectorAll('button'),function(x){x.disabled=false})});});})();</script>`;
 }
 
+// The panel under a preview of a change request: what changed, and "Put these changes live" / "Something's not right".
+export function changePanel(view, token) {
+  const { c, results } = view;
+  const live = Boolean(c.plan.applied_at);
+  const ok = results.filter((r) => r.ok);
+  return `<div class="pv" id="review"><div class="wrap">
+<h2>${live ? "These changes are live" : "Your changes"}</h2>
+<p>You asked: <i>${esc(c.body.length > 300 ? c.body.slice(0, 300) + "…" : c.body)}</i></p>
+${ok.length ? `<p>What we changed:</p><ul>${ok.map((r) => `<li>${esc(r.text)}</li>`).join("")}</ul>` : ""}
+${live ? `<p class="msg">Already on your website. Thank you!</p>` : `<p>Look through the pages. Everything else stays exactly as it is now. If it's right, tap <strong>Put these changes live</strong>. If something isn't right, write it below and tap <strong>Something's not right</strong>.</p>
+<form id="pv-form"><label for="pv-text">What isn't right? (only if needed)</label>
+<textarea id="pv-text" maxlength="3000" placeholder="e.g. The scarf price should be 9,500"></textarea>
+<div class="row"><button class="btn ok" type="button" data-act="approved">Put these changes live</button><button class="btn chg" type="button" data-act="changes">Something's not right</button></div>
+<p class="msg" id="pv-msg" role="status"></p></form>
+<script>(function(){var f=document.getElementById('pv-form');var m=document.getElementById('pv-msg');
+f.addEventListener('click',function(e){var b=e.target.closest('button[data-act]');if(!b)return;var act=b.getAttribute('data-act');var t=document.getElementById('pv-text').value.trim();
+if(act==='changes'&&!t){m.textContent='Please write what is not right.';return;}
+if(act==='approved'&&!confirm('Put these changes on your live website now?'))return;
+Array.prototype.forEach.call(f.querySelectorAll('button'),function(x){x.disabled=true});m.textContent=act==='approved'?'Updating your website…':'Sending…';
+fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({c:${JSON.stringify(token)},action:act,text:t})})
+.then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Error');return j})})
+.then(function(j){m.textContent=j.message;f.querySelector('textarea').value='';if(act==='approved'){f.querySelector('.row').hidden=true;f.querySelector('textarea').hidden=true;f.querySelector('label').hidden=true}else Array.prototype.forEach.call(f.querySelectorAll('button'),function(x){x.disabled=false})})
+.catch(function(err){m.textContent=err.message+'. Please try again or message us on WhatsApp.';Array.prototype.forEach.call(f.querySelectorAll('button'),function(x){x.disabled=false})});});})();</script>`}
+</div></div>`;
+}
+
 // mode: "preview" (served at /preview, with the approval panel) or "export" (plain files for hosting).
-export function renderPage(site, slug, { mode = "export", link, img = (u) => u, row, token, choice, switcher = "", notFound = false } = {}) {
+export function renderPage(site, slug, { mode = "export", link, img = (u) => u, row, token, choice, switcher = "", notFound = false, top = null, panel = null } = {}) {
   const page = notFound ? NOT_FOUND_PAGE : site.pages.find((p) => p.slug === slug) || site.pages[0];
   const title = page.title || (page.kind === "home" ? site.name : `${page.name} | ${site.name}`);
   const desc = page.meta || site.tagline || "";
@@ -742,10 +768,10 @@ ${preview || notFound ? '<meta name="robots" content="noindex, nofollow">' : ""}
 ${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}
 <style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}
 <style id="guard">${GUARD_CSS}${hasCart(site) ? CART_CSS : ""}</style></head>
-<body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}</div>` : ""}
+<body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">${top ?? `Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}`}</div>` : ""}
 ${site.notice ? `<div class="site-notice" role="status">${esc(site.notice)}</div>` : ""}${header(site, page, link, img)}
 <main>${notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
-${preview ? previewPanel(row, token, choice) : ""}
+${preview ? panel ?? previewPanel(row, token, choice) : ""}
 ${footer(site, link)}
 ${site.products && site.products.length ? PRODUCT_POP : ""}${hasCart(site) ? cartScript(site, mode) : ""}${mode === "export" && !notFound ? statsScript(site) : ""}
 </body></html>`;

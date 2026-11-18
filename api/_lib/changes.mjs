@@ -46,7 +46,7 @@ export async function addChange(r, body, files, { quiet = false } = {}) {
 <blockquote style="border-left:3px solid #D9A21B;margin:0;padding:4px 12px;white-space:pre-wrap">${esc(text)}</blockquote>
 ${clean.length ? `<p>Files: ${clean.map((f) => `<a href="${esc(f.url)}">${esc(f.name)}</a>`).join(" · ")}</p>` : ""}
 <p>${free ? "This is within their free month of changes." : "Their free month has ended, so you can quote for this (or do it as goodwill)."}</p>
-<p><a href="${SITE}/admin">Open admin</a> → Clients → ${esc(who)} → Change requests. Make the edit, tap <b>Update live site</b>, then <b>Mark done</b> (the customer gets an email).</p></div>`).catch((e) => console.error("change email failed", e));
+<p>The AI is preparing these edits and a preview now. <a href="${SITE}/admin">Open admin</a> → Clients → ${esc(who)} → After launch → Show change requests: check the list, open the preview, then send it to the customer (they approve it and it goes live) or tap Apply yourself.</p></div>`).catch((e) => console.error("change email failed", e));
   }
   const to = customerEmail(r);
   if (to && customerEmailConfigured() && !quiet) {

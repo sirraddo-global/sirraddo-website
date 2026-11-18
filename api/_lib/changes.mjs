@@ -52,7 +52,7 @@ ${clean.length ? `<p>Files: ${clean.map((f) => `<a href="${esc(f.url)}">${esc(f.
   if (to && customerEmailConfigured() && !quiet) {
     await sendCustomerEmail(to, "We received your change request", customerHtml(r, [
       `Thanks, we've got your request: <i>"${esc(text.length > 200 ? text.slice(0, 200) + "…" : text)}"</i>`,
-      free ? "It's included in your free month of changes. We'll email you as soon as it's live (usually within 2 working days)."
+      free ? "It's included in your free month of changes. We'll send you a preview of your website with the changes to check first (usually within 2 working days); they go live when you tap \"Put these changes live\"."
         : "Your free month of changes has ended, so we'll reply with a small quote before we start. Most text and photo updates are quick.",
     ])).catch((e) => console.error("change confirmation failed", e));
   }

@@ -186,6 +186,19 @@ Gmail and `info@sirraddo.com.ng` as owners. You never do this per customer. One-
 5. Redeploy (it goes out with the next merge). Admin's handover checklist then shows "Submitted to Google ✓"
    for each live site within a day; Go live → Check now does it straight away.
 
+## Change requests with AI
+When a customer sends a request (their private "Request a change" link), the AI reads it and its photos and prepares exact edits on their current site (add/remove/change products, prices, photos, services, contact details, wording, pages). Nothing changes until approved. Admin → Clients → After launch → Show change requests: check the list, **Open preview**, then **Send preview on WhatsApp** / **Email preview**. The customer taps **Put these changes live** (the site updates by itself) or **Something's not right** (you tap **Ask AI again**). You can also apply it yourself, and **Undo** puts everything back. Code: `api/_lib/ai-change.mjs`.
+
+## Marketing (admin → Marketing)
+Today's post and a 2-week plan, ready ads (pictures, 7 videos, print flyer and QR card), a Video maker (AI writes, the browser records an MP4), Showcase / Review / Festive / Offer pictures drawn in the browser, a special offer (website countdown bar; the chat knows it), referrals (each live client's link is on their Manage page), ad spend (cost per enquiry and per paying customer), AI captions in 5 languages, and the link-in-bio page `/links`. Every QR code and link is tagged (`utm_source`/`utm_campaign`, or `?ref=CODE`), and Dashboard → "Where customers come from" shows what worked. Server code: `api/_lib/marketing.mjs`.
+
+To change the ready-made pictures and videos (prices, wording), edit and run on a computer with Playwright and ffmpeg:
+```
+node scripts/make-marketing.mjs     # pictures and print PDFs (assets/marketing)
+node scripts/make-videos.mjs        # the 7 videos (or: node scripts/make-videos.mjs video-maps)
+```
+Never name other companies in ads or captions.
+
 ## AI design (custom look)
 
 In admin → Website preview, **AI design** asks the AI for a custom look for that customer: CSS only, applied on top of the generated pages, so the checked text, prices and photos never change. It uses Claude when `ANTHROPIC_API_KEY` is set (model `ANTHROPIC_DESIGN_MODEL`, default `claude-haiku-5-5`; try `claude-sonnet-5-5` for richer designs if it finishes within the time limit), otherwise Gemini. The CSS is cleaned (no files, imports or scripts); up to 2 Google Fonts are loaded. **New AI design** tries again; **Use standard design** removes it. The preview and the .zip download both use it.

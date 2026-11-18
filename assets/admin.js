@@ -918,6 +918,9 @@
         .catch(function () { window.prompt('Copy this link:', url); });
     } }));
     if (r.brief_saved_at) actions.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'View answers', onclick: function () { viewBrief(r); } }));
+    // Big changes after launch (new products, photos, pages): open their form yourself, change it, Save; then
+    // Website text → Write missing pages / Edit text if needed, and Go live → Update live site.
+    if (r.brief_submitted_at) actions.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Open form to edit', onclick: function () { window.open(briefUrl(r), '_blank', 'noopener'); } }));
     box.appendChild(actions);
     if (r.brief_submitted_at) box.appendChild(draftRow(r));
     return box;
@@ -1358,7 +1361,7 @@
     } }));
     box.appendChild(acts);
     box.appendChild(list);
-    box.appendChild(el('p', { class: 'admin-hint', text: 'Every product with a plain price (e.g. 4500) gets "Add to cart". Buyers then choose "Pay online" (only when a key is set) or "Order on WhatsApp". Products priced like "from 5k" stay WhatsApp-only. Paid orders are emailed to the store and the buyer. No need to republish after changing these settings.' }));
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Every product with a plain price (e.g. 4500) gets "Add to cart". Buyers then choose "Pay online" (only when a key is set) or "Order on WhatsApp". Products priced like "from 5k" stay WhatsApp-only. Paid orders are emailed to the store owner; buyers save or share their receipt on the thank-you page (we never email buyers). No need to republish after changing these settings.' }));
     return box;
   }
 

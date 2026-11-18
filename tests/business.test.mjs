@@ -239,6 +239,16 @@ test("Online Store: basket checkout into the store's own Paystack, order emails,
   const b2 = (await briefOf()).products[0];
   assert.equal(b2.stock, "10");
   assert.ok(!b2.soldout);
+  // You add a product after launch by saving their project form: stock the owner set stays.
+  const [{ brief_token: bt }] = await h.sql(`SELECT brief_token FROM customer_requests WHERE id = $1`, [id]);
+  if (bt) {
+    const cur = await briefOf();
+    const sv = await h.call("POST", "/api/brief", { t: bt, answers: { ...cur, products: [...cur.products.map(({ stock, soldout, ...p }) => p), { name: "New Gele", price: "8000" }] } }, J);
+    assert.equal(sv.status, 200, sv.text);
+    const after = await briefOf();
+    assert.equal(after.products[0].stock, "10", "Manage stock kept when the form is saved again");
+    assert.ok(after.products.some((p) => p.name === "New Gele"));
+  }
 });
 
 test("daily run completes without errors", async () => {

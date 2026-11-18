@@ -2,7 +2,8 @@
 // Handover card (✓/✗ list with how-to steps and a ready WhatsApp message for the customer) and the admin
 // Assistant ("what's next?"). After every item is done, only change requests are left.
 //   item = { key, label, done, auto, fix, steps: [what YOU do], tell: "message for the CUSTOMER" }
-import { handoverAuto, balance, naira, COMPANY } from "./docs.mjs";
+import { handoverAuto, balance, naira, COMPANY, GBP_SETUP, GBP_MONTHLY, GBP_NEVER } from "./docs.mjs";
+export { GBP_SETUP, GBP_MONTHLY, GBP_NEVER };
 import { kindFor, emailAllowance } from "./brief-schema.mjs";
 export { emailAllowance };
 
@@ -94,12 +95,17 @@ export function handoverChecklist(r, settings = {}) {
     add("gbp", "Google Business Profile", h.gbp_done, {
       fix: `Owner: ${owner || "their Gmail"}. Google needs the owner to verify it.`,
       steps: [
-        "Send them the message below (or do it together on their phone).",
+        "Send them the message below (or do it together on their phone). Prefer they look after it themselves? Also send the \"do it yourself\" guide (button below); it's in their handover pack too.",
         gbpText ? "The description from their website text is already in the message." : "Their website text has no Google Business Profile description yet: write one (Project form → Edit text) or send it separately.",
-        `Their step 5 invites ${COMPANY.email} as Manager. The invitation arrives in your Gmail (forwarded): open it and accept while signed in to the Google account for ${COMPANY.email}. Then you can fix photos, hours and replies for them.`,
+        `Their step 5 invites ${COMPANY.email} as Manager. The invitation arrives in your Gmail (forwarded): open it and accept while signed in to the Google account for ${COMPANY.email}.`,
+        ...GBP_SETUP.map((t) => "First-day setup: " + t),
+        ...GBP_MONTHLY.map((t) => "Every month: " + t),
+        GBP_NEVER,
         "Then tick 'Google profile done' and Save handover details.",
       ],
-      tell: `Hello ${first}, let's put your business on Google Maps and Search (free):\n1. Open business.google.com${owner ? ` and sign in with ${owner}` : " with your Gmail"}.\n2. Tap "Add business" and fill in your business name, category, address (or the areas you serve), phone number and website${r.website_url ? ` (${r.website_url})` : ""}.${gbpText ? `\n3. For the description, copy and paste this:\n"${gbpText}"` : "\n3. For the description, write 2–3 sentences about what you do, for whom and where (no links or prices)."}\n4. Google will verify it's you (code by SMS, phone call, email or a short video). Enter the code when it comes.\n5. Once it's verified, add us as a Manager so we can help keep it up to date: on your Business Profile tap ⋮ (More) → Business Profile settings → People and access → Add → type ${COMPANY.email} → under Access choose Manager → Invite. You stay the owner; you can remove us any time.\nSend me a screenshot if you get stuck.`,
+      tell: `Hello ${first}, let's put your business on Google Maps and Search (free):\n1. Open business.google.com${owner ? ` and sign in with ${owner}` : " with your Gmail"}.\n2. Tap "Add business" and fill in your business name, category, address (or the areas you serve), phone number and website${r.website_url ? ` (${r.website_url})` : ""}.${gbpText ? `\n3. For the description, copy and paste this:\n"${gbpText}"` : "\n3. For the description, write 2–3 sentences about what you do, for whom and where (no links or prices)."}\n4. Google will verify it's you (code by SMS, phone call, email or a short video). Enter the code when it comes.\n5. Want us to look after it for you? Once it's verified, add us as a Manager: on your Business Profile tap ⋮ (More) → Business Profile settings → People and access → Add → type ${COMPANY.email} → under Access choose Manager → Invite. You stay the owner; you can remove us any time. Prefer to look after it yourself? That's fine: follow the "Google Business Profile" guide in your handover pack.\nSend me a screenshot if you get stuck.`,
+      tell2: `Hello ${first}, here's how to keep your Google Business Profile strong yourself (business.google.com or the Google Maps app, signed in as the owner):\n\nFirst, once:\n${GBP_SETUP.map((t, k) => `${k + 1}. ${t}`).join("\n")}\n\nEvery month:\n${GBP_MONTHLY.map((t) => `• ${t}`).join("\n")}\n\n${GBP_NEVER}\nAny questions, just message me.`,
+      tell2Label: 'Send "do it yourself" guide',
     });
   }
 

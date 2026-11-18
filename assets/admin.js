@@ -1483,6 +1483,10 @@
           var row = el('div', { class: 'admin-actions' });
           if (waNumber(r.contact)) row.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send steps to customer', onclick: function () { window.open('https://wa.me/' + waNumber(r.contact) + '?text=' + encodeURIComponent(i.tell), '_blank', 'noopener'); } }));
           row.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy message', onclick: function () { if (navigator.clipboard) navigator.clipboard.writeText(i.tell).then(function () { flash('Message copied'); }); } }));
+          if (i.tell2) {
+            if (waNumber(r.contact)) row.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: i.tell2Label || 'Send guide', onclick: function () { window.open('https://wa.me/' + waNumber(r.contact) + '?text=' + encodeURIComponent(i.tell2), '_blank', 'noopener'); } }));
+            row.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy guide', onclick: function () { if (navigator.clipboard) navigator.clipboard.writeText(i.tell2).then(function () { flash('Guide copied'); }); } }));
+          }
           kids.push(row);
         }
         return el('li', { class: 'is-todo' }, kids);

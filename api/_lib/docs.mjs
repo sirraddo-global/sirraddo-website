@@ -25,6 +25,8 @@ export const COMPANY = {
   name: "SIRRADDO GLOBAL LIMITED",
   rc: "RC 9939920",
   tin: "TIN 2623092457685",
+  // CAMA 2020 s.304: business letters show the directors' names (CAC enforcing from 1 Aug 2026).
+  directors: "Ridwan Olalekan ADEYEMO",
   address: "PLT 106/107 Agbaakin Layout, Iwo Road, Olowotinfiowosanu Area, Ibadan, Oyo State, Nigeria",
   phone: "+234 816 755 0937",
   email: "info@sirraddo.com.ng",
@@ -61,7 +63,7 @@ const letterhead = () => `
       </td>
     </tr>
   </table>`;
-const footNote = `<p style="margin-top:28px;font-size:12px;color:#4A5568;border-top:1px solid #E1E6EF;padding-top:8px;">${COMPANY.name} is a private company limited by shares, registered with the Corporate Affairs Commission of Nigeria (${COMPANY.rc}).</p>`;
+const footNote = `<p style="margin-top:28px;font-size:12px;color:#4A5568;border-top:1px solid #E1E6EF;padding-top:8px;">${COMPANY.name} is a private company limited by shares, registered with the Corporate Affairs Commission of Nigeria (${COMPANY.rc}). Registered office: ${esc(COMPANY.address)}. Director: ${COMPANY.directors}.</p>`;
 
 // Everything the customer needs once their site is live. Passwords are never in here: they go privately on WhatsApp.
 // The handover details: what you typed wins; anything left empty is filled from what the admin already knows
@@ -121,7 +123,7 @@ function handoverDoc(r, settings) {
     row("Emails arrive in", h.inbox && emails.length ? `${esc(h.inbox)}<br><span style="color:#4A5568;font-size:13px">Messages sent to your business address come straight to this inbox, so there's nothing new to log in to.</span>` : ""),
     row("Except", h.email_routes && emails.length ? String(h.email_routes).split("\n").map(esc).join("<br>") : ""),
     row("Read your email at", h.webmail ? link(h.webmail) : ""),
-    row("Replying", h.inbox && emails.length && !h.webmail ? `When you reply, the email goes out from ${esc(h.inbox)}. If you'd like to send from your business address too, ask us about a mailbox.` : ""),
+    row("Replying", h.inbox && emails.length && !h.webmail ? `When you reply, the email goes out from ${esc(h.inbox)}.` : ""),
     row("More addresses", emailAllowance(r.interest) > emails.length && emails.length ? `Your package includes ${emailAllowance(r.interest)}. You can have ${emailAllowance(r.interest) - emails.length} more at no extra cost: just tell us the names (for example sales@).` : ""),
   ])}
   ${r.interest === "Online Store" ? section("Your online store", [
@@ -133,6 +135,7 @@ function handoverDoc(r, settings) {
   ]) : ""}
   ${r.website_url ? section("Found on Google", [
     row("Google Business Profile", h.gbp_done || h.gbp_owner ? `${h.gbp_done ? "Set up" : "Being set up"}${h.gbp_owner ? `, owned by ${esc(h.gbp_owner)}` : ""}. Manage it at ${link("https://business.google.com")} or in the Google Maps app with that Gmail. Keep it strong:<br><b>Once:</b><ol style="margin:4px 0 6px 18px;padding:0">${GBP_SETUP.map((t) => `<li>${esc(t)}</li>`).join("")}</ol><b>Every month:</b><ul style="margin:4px 0 6px 18px;padding:0">${GBP_MONTHLY.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>${esc(GBP_NEVER)}` : ""),
+    row("Google Search", r.hosting?.google?.step === "done" ? `Your website has been submitted to Google (Search Console), so Google can find every page. ${r.hosting?.google?.owners?.some((o) => o === String(h.gbp_owner || r.email || "").toLowerCase()) ? `You can see how people find you at ${link("https://search.google.com/search-console")} with ${esc(h.gbp_owner || r.email)}.` : ""}` : ""),
     row("Your sitemap", link(r.website_url.replace(/\/$/, "") + "/sitemap.xml")),
     row("Next step", h.gbp_done ? "" : "Add your business to Google Business Profile (free) with your website link, so you show up on Google Maps. Ask us if you'd like help."),
   ]) : ""}
@@ -143,20 +146,20 @@ function handoverDoc(r, settings) {
   ${r.quote_amount != null ? section("Payments", [
     row("Paid", `${naira(projectPaid(r))} for your ${esc(r.interest)}: paid in full. A receipt was emailed for each payment; ask us if you need a copy.`),
   ]) : ""}
-  ${h.has_logins ? section("Logins", [row("Passwords", "For your safety, we send passwords privately on WhatsApp, never by email. Please change each password the first time you log in, and don't share it.")]) : section("Changes to your website", [row("How", "We look after your website for you, so there's nothing to log in to. Send us the change on WhatsApp and we'll update it.")])}
+  ${h.has_logins ? section("Logins", [row("Passwords", "For your safety, we send passwords privately on WhatsApp, never by email. Please change each password the first time you log in, and don't share it.")]) : section("Changes to your website", [row("How", `There's no website login to remember. Everyday details (${r.interest === "Online Store" ? "prices, stock, sold-out items, " : ""}hours, numbers, a notice, reviews) you change yourself with your private Manage link below. For new pages, photos or text, use your Request a change link or WhatsApp us, and we update it.`)])}
   ${section("Renewal", [
     row("Yearly renewal", r.renewal_amount ? naira(r.renewal_amount) : ""),
     row("Next renewal due", r.renewal_due ? niceDate(r.renewal_due) : ""),
     row("What it covers", "Domain, hosting, SSL certificate (the padlock), business email and backups. We remind you before it is due."),
   ])}
   ${r.hosting?.statsKey && !r.hosting?.reportsOff ? section("Your monthly report", [row("Visitors", "On the 1st of every month we email you how many people visited your website, which pages they looked at and how many tapped WhatsApp.")]) : ""}
-  ${section("Changes and support", [row("Our policy", esc(settings.handover_terms || DEFAULT_HANDOVER_TERMS)), r.manage_link ? row(r.interest === "Online Store" ? "Manage my store" : "Manage my website", `<a href="${esc(r.manage_link)}">Your private link</a>: ${r.interest === "Online Store" ? "change prices, mark items sold out, " : ""}update your hours and numbers, change your slogan, add a short notice, and choose which customer reviews show on your website. Your website updates within a minute. Keep it private.`) : "", row("Improvements", "From time to time we improve all the websites we build (new features, better looks). Your text, photos, prices and colours stay the same, and we email you what changed. Prefer to approve first? Choose Ask me first under Website improvements in your Manage link. Don't like a change? Tell us and we'll adjust it for free."),
+  ${section("Changes and support", [row("Our policy", esc(settings.handover_terms || DEFAULT_HANDOVER_TERMS)), r.manage_link ? row(r.interest === "Online Store" ? "Manage my store" : "Manage my website", `<a href="${esc(r.manage_link)}">Your private link</a>: ${r.interest === "Online Store" ? "change prices, set how many you have in stock (paid online orders take it down; at 0 it shows Sold out), mark items sold out, " : ""}update your hours and numbers, change your slogan, add a short notice, and choose which customer reviews show on your website. Your website updates within a minute. Keep it private.`) : "", row("Improvements", "From time to time we improve all the websites we build (new features, better looks). Your text, photos, prices and colours stay the same, and we email you what changed. Prefer to approve first? Choose Ask me first under Website improvements in your Manage link. Don't like a change? Tell us and we'll adjust it for free."),
     r.change_link ? row("Request a change", `<a href="${esc(r.change_link)}">Your private change request link</a> (keep it; send text and photos any time)`) : "", row("Contact us", `WhatsApp ${COMPANY.phone} · ${COMPANY.email}`)])}
   <h2 style="font-size:17px;color:#13254F;margin:22px 0 6px">Getting more customers from your website</h2>
   <ul style="margin:0 0 10px;padding-left:20px">
     <li>Put your website link on your WhatsApp profile, status and social media bios.</li>
-    <li>Ask happy customers to leave a review on your Google Business Profile.</li>
-    <li>Tell us when your prices, hours or phone number change, so your site stays correct.</li>
+    <li>Ask happy customers to leave a review on your website and on your Google Business Profile.</li>
+    <li>Keep your prices, stock, hours and phone number up to date with your Manage link, so your site stays correct.</li>
   </ul>
   ${h.notes ? `<p style="background:#FFF8E6;border-left:4px solid #D9A21B;padding:10px 12px">${esc(h.notes).replace(/\n/g, "<br>")}</p>` : ""}
   <h2 style="font-size:17px;color:#13254F;margin:22px 0 6px">Need help?</h2>
@@ -241,7 +244,7 @@ export function buildDoc(r, type, settings = {}) {
     }).join("")}</tfoot>
   </table>
   ${type === "receipt" ? `<p style="margin:12px 0">Thank you for your payment.</p>` : bank + (settings.invoice_note ? `<p style="margin:12px 0">${esc(settings.invoice_note)}</p>` : "")}
-  <p style="margin-top:28px;font-size:12px;color:#4A5568;border-top:1px solid #E1E6EF;padding-top:8px;">${COMPANY.name} is a private company limited by shares, registered with the Corporate Affairs Commission of Nigeria (${COMPANY.rc}).</p>
+  <p style="margin-top:28px;font-size:12px;color:#4A5568;border-top:1px solid #E1E6EF;padding-top:8px;">${COMPANY.name} is a private company limited by shares, registered with the Corporate Affairs Commission of Nigeria (${COMPANY.rc}). Registered office: ${esc(COMPANY.address)}. Director: ${COMPANY.directors}.</p>
 </div>`;
   const subject = `${title === "RECEIPT" ? "Receipt" : "Invoice"} ${number} from ${COMPANY.name}`;
   return { title, number, subject, html };

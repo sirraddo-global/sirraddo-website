@@ -7,14 +7,19 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
 import { kindFor } from "./brief-schema.mjs";
 import { priceAmount } from "./sitegen.mjs";
 import { SITE_URL } from "../../site.config.mjs";
+import { waitUntil } from "./platform.mjs";
 import { q, ensureSchema, getRequest, updateRequestShop, sendCustomerEmail, customerEmailConfigured, sendEmail, emailConfigured, esc, reference } from "./store.mjs";
 
 const PS = "https://api.paystack.co";
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ---------- Products (shared with the site generator so indexes always match) ----------
+// Stock: the owner types how many they have in their Manage link ("" = not counted). Paid online orders take it down;
+// at 0 the product is sold out by itself.
+export const stockOf = (p) => (/^\d{1,6}$/.test(String(p?.stock ?? "").trim()) ? Number(p.stock) : null);
+export const isSoldOut = (p) => Boolean(p?.soldout) || stockOf(p) === 0;
 export function shopProducts(brief) {
-  return (brief?.products || []).map((p, i) => ({ ...p, i, amount: priceAmount(p.price) })).filter((p) => p.name);
+  return (brief?.products || []).map((p, i) => ({ ...p, i, amount: priceAmount(p.price), stockLeft: stockOf(p), soldout: isSoldOut(p) })).filter((p) => p.name);
 }
 
 // ---------- The store owner's Paystack key, encrypted at rest ----------
@@ -134,7 +139,10 @@ const ownerEmail = (r) => r.shop?.notify || (EMAIL.test(String(r.brief?.order_al
 export async function shopConfig(token) {
   const r = await storeByToken(token);
   if (!r) return null;
-  return { online: Boolean(r.shop?.key), mode: r.shop?.keyMode || null, deliveryFee: r.shop?.deliveryFee ?? null, name: storeName(r) };
+  // Live stock counts, so the website is right even between republishes.
+  const stock = {};
+  for (const p of shopProducts(r.brief)) if (p.stockLeft !== null || p.soldout) stock[p.i] = p.soldout ? 0 : p.stockLeft;
+  return { online: Boolean(r.shop?.key), mode: r.shop?.keyMode || null, deliveryFee: r.shop?.deliveryFee ?? null, name: storeName(r), stock };
 }
 
 // Work out the order from the product list (never trust prices from the browser).
@@ -144,7 +152,8 @@ function priceOrder(r, items) {
   for (const it of Array.isArray(items) ? items.slice(0, 50) : []) {
     const p = products.find((x) => x.i === Number(it?.i));
     const qty = Math.min(99, Math.max(1, Math.floor(Number(it?.q) || 0)));
-    if (!p || !p.amount || !qty || p.soldout) continue; // sold out (set by the owner in Manage my store)
+    if (!p || !p.amount || !qty || p.soldout) continue; // sold out (set by the owner in Manage my store, or stock at 0)
+    if (p.stockLeft !== null && qty > p.stockLeft) throw Object.assign(new Error(`Only ${p.stockLeft} ${p.name} left. Please change the quantity in your cart.`), { status: 409 });
     lines.push({ i: p.i, name: p.name, price: p.amount, qty, total: p.amount * qty });
   }
   const subtotal = lines.reduce((s, l) => s + l.total, 0);
@@ -225,7 +234,7 @@ function orderHtml(r, o, forOwner) {
 ${o.delivery ? `<tr><td style="${td}">Delivery</td><td style="${td};text-align:right">${naira(o.delivery)}</td></tr>` : ""}
 <tr><td style="${td}"><b>Paid</b></td><td style="${td};text-align:right"><b>${naira(o.total)}</b></td></tr></table>
 <p>Order: ${esc(o.ref)}${o.delivery ? "" : "<br>Delivery cost, if any, will be confirmed by the store."}</p>
-${forOwner ? `<p><b>Customer:</b> ${esc(b.name)} · ${esc(b.phone)} · ${esc(b.email)}${b.address ? `<br><b>Deliver to:</b> ${esc(b.address)}` : ""}${b.note ? `<br><b>Note:</b> ${esc(b.note)}` : ""}</p><p>The money is in your Paystack account (check Paystack → Transactions). Reply to this email to contact the customer.</p>`
+${forOwner ? `<p><b>Customer:</b> ${esc(b.name)} · ${esc(b.phone)} · ${esc(b.email)}${b.address ? `<br><b>Deliver to:</b> ${esc(b.address)}` : ""}${b.note ? `<br><b>Note:</b> ${esc(b.note)}` : ""}</p><p>The money is in your Paystack account (check Paystack → Transactions). Reply to this email to contact the customer.</p>${o.stockNote?.length ? `<p><b>Stock left:</b> ${o.stockNote.map((x) => `${esc(x.name)}: ${x.left}${x.left === 0 ? " (now SOLD OUT on your website)" : ""}`).join(" · ")}. Restock any time in your Manage link.</p>` : ""}`
     : `<p>${esc(storeName(r))} will contact you about delivery. Questions? Just reply to this email${storeReplyTo(r) ? ` or write to ${esc(storeReplyTo(r))}` : ""}.</p>`}
 </div>`;
 }
@@ -248,6 +257,19 @@ export async function confirmOrder(ref) {
   const upd = await q(`UPDATE store_orders SET status = 'paid', paid_at = now() WHERE ref = $1 AND status <> 'paid' RETURNING *`, [o.ref]);
   if (!upd[0]) return { order: { ...o, status: "paid" }, store: r, already: true };
   const order = upd[0];
+  // Take the sold items off the stock count (one SQL statement per item, so two orders can't both read the old number).
+  const low = [];
+  for (const l of order.items || []) {
+    const rows = await q(`UPDATE customer_requests SET brief = jsonb_set(brief, ARRAY['products', $2::text, 'stock'], to_jsonb(GREATEST(0, (brief->'products'->($2::int)->>'stock')::int - $3::int)::text))
+      WHERE id = $1 AND (brief->'products'->($2::int)->>'stock') ~ '^[0-9]{1,6}$' RETURNING (brief->'products'->($2::int)->>'stock')::int AS left`, [r.id, String(l.i), Number(l.qty) || 0]).catch((e) => { console.error("stock update failed", e); return []; });
+    if (rows[0]) low.push({ name: l.name, left: rows[0].left });
+  }
+  if (low.length) {
+    order.stockNote = low;
+    // The live site shows the new counts (and "Sold out" at 0).
+    const h = r.hosting || {};
+    if (h.project && !h.pausedAt) waitUntil(import("./golive.mjs").then(({ publish }) => publish(r.id, { force: true })));
+  }
   const owner = ownerEmail(r);
   if (customerEmailConfigured()) {
     if (owner) await sendCustomerEmail(owner, `New order ${naira(order.total)} from ${order.buyer.name} (${storeName(r)})`, orderHtml(r, order, true), order.buyer.email, `${storeName(r)} orders`).catch((e) => console.error("order email to store failed", e));

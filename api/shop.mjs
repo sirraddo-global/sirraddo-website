@@ -1,5 +1,5 @@
 // /api/shop — the cart on customers' Online Store websites (they are hosted elsewhere, so CORS is open).
-//   GET ?config=1&s=TOKEN       -> { online, deliveryFee }   (is "Pay online" switched on for this store?)
+//   GET ?config=1&s=TOKEN       -> { online, deliveryFee, stock }  (is "Pay online" switched on for this store?)
 //   POST { s, items:[{i,q}], buyer } -> starts payment into the store owner's own Paystack account, returns { url }
 //   GET ?paid=1&ref=REF         -> Paystack sends the buyer back here: confirm, email the store owner, show the receipt to save
 //   GET ?ref=REF&receipt=1      -> the buyer's receipt to view, print or save as PDF
@@ -52,7 +52,8 @@ export default async function handler(req, res) {
     if (req.method === "GET" && query.config) {
       const c = await shopConfig(query.s);
       if (!c) return res.status(404).json({ error: "Store not found" });
-      return res.status(200).json({ online: c.online, deliveryFee: c.deliveryFee });
+      res.setHeader("Cache-Control", "no-store");
+      return res.status(200).json({ online: c.online, deliveryFee: c.deliveryFee, stock: c.stock });
     }
     if (req.method === "GET" && query.ref) {
       const r = await confirmOrder(query.ref);

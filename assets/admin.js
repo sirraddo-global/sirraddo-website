@@ -474,14 +474,14 @@
   // Tabs: Today (what to post), Ready ads, Showcase, Review cards, Festive, Offer, Referrals, Ad spend.
   // Pictures for Showcase / Review cards / Festive / Offer are drawn here in the browser (canvas), with a tagged QR.
   var MKC = { navy: '#13244F', deep: '#0C1733', gold: '#D9A21B', soft: '#C9D1E6', dim: '#AEB8D3' };
-  var MK_TABS = [['today', 'Today'], ['ads', 'Ready ads'], ['showcase', 'Showcase'], ['reviews', 'Review cards'], ['festive', 'Festive'], ['offer', 'Offer'], ['referrals', 'Referrals'], ['spend', 'Ad spend']];
+  var MK_TABS = [['today', 'Today'], ['ads', 'Ready ads'], ['video', 'Video maker'], ['showcase', 'Showcase'], ['reviews', 'Review cards'], ['festive', 'Festive'], ['offer', 'Offer'], ['referrals', 'Referrals'], ['spend', 'Ad spend']];
   var LINKS_URL = 'https://www.sirraddo.com.ng/links';
   function renderMarketing(view) {
     var tab = state.mkTab || 'today';
     view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Marketing' }, MK_TABS.map(function (t) {
       return el('button', { type: 'button', 'aria-pressed': t[0] === tab ? 'true' : 'false', text: t[1], onclick: function () { state.mkTab = t[0]; render(); } });
     })));
-    ({ today: mkToday, ads: mkReadyAds, showcase: mkShowcase, reviews: mkReviewCards, festive: mkFestive, offer: mkOffer, referrals: mkReferrals, spend: mkSpend })[tab](view);
+    ({ today: mkToday, ads: mkReadyAds, video: mkVideoMaker, showcase: mkShowcase, reviews: mkReviewCards, festive: mkFestive, offer: mkOffer, referrals: mkReferrals, spend: mkSpend })[tab](view);
   }
 
   // ---------- Ready ads (pictures, videos, flyers) ----------
@@ -971,6 +971,167 @@
     view.appendChild(el('h2', { class: 'admin-h2', text: 'Which ads pay off' })); view.appendChild(table);
     view.appendChild(el('h2', { class: 'admin-h2', text: 'Entries' })); view.appendChild(entries);
     api('POST', { action: 'mk_spend' }).then(draw).catch(fail);
+  }
+
+  // ---------- Video maker: AI writes the scenes, this browser animates and records them ----------
+  // Recorded with MediaRecorder from the canvas: MP4 where the browser can (newer Chrome, Safari), otherwise WebM.
+  function vmMime() {
+    if (!window.MediaRecorder) return null;
+    var list = ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    for (var i = 0; i < list.length; i++) if (MediaRecorder.isTypeSupported(list[i])) return list[i];
+    return null;
+  }
+  var vmEase = function (x) { return x <= 0 ? 0 : x >= 1 ? 1 : 1 - Math.pow(1 - x, 3); };
+  function vmTimeline(sc) {
+    var parts = [{ kind: 'hook', d: 3.6, s: sc.hook }];
+    sc.scenes.forEach(function (x) { parts.push({ kind: x.type, d: x.type === 'message' ? 4.2 : 5, s: x }); });
+    parts.push({ kind: 'end', d: 5, s: sc });
+    var t = 0; parts.forEach(function (p) { p.t0 = t; t += p.d; });
+    return { parts: parts, total: t };
+  }
+  function vmTick(c, x, y, s) {
+    c.save(); c.strokeStyle = MKC.gold; c.lineWidth = s * 0.16; c.lineCap = 'round'; c.lineJoin = 'round';
+    c.beginPath(); c.moveTo(x, y - s * 0.35); c.lineTo(x + s * 0.35, y); c.lineTo(x + s, y - s * 0.75); c.stroke(); c.restore();
+  }
+  // Draws frame t (seconds). W×H is 720×1280 (scaled from the 1080 layouts by k).
+  function vmDraw(c, W, H, sc, tl, t, q) {
+    var k = W / 1080;
+    bgFill(c, W, H);
+    var part = tl.parts[tl.parts.length - 1];
+    for (var i = 0; i < tl.parts.length; i++) if (t < tl.parts[i].t0 + tl.parts[i].d) { part = tl.parts[i]; break; }
+    var lt = t - part.t0;
+    var out = part.kind === 'end' ? 1 : 1 - vmEase((lt - (part.d - 0.35)) / 0.35);
+    var at = function (t0) { return vmEase((lt - t0) / 0.5) * out; };
+    var up = function (a) { return (1 - a) * 60 * k; };
+    c.save(); c.scale(k, k);
+    var w = 1080, h = 1920, a;
+    if (part.kind === 'hook') {
+      a = at(0.1); c.globalAlpha = a; mkLogo(c, w / 2, 520 - up(a) / k, 1.6, 'center');
+      a = at(0.5); c.globalAlpha = a; var f = fitBox(c, part.s.title, 800, 140, 70, w - 168, 620, 1.04); font(c, 800, f.size); c.fillStyle = '#fff';
+      var y = wrapText(c, part.s.title, w / 2, 760 + up(a) / k + f.size, w - 168, f.size * 1.04, f.lines, 'center');
+      if (part.s.sub) { a = at(1.1); c.globalAlpha = a; font(c, 700, 56); c.fillStyle = MKC.gold; wrapText(c, part.s.sub, w / 2, y + 60 + up(a) / k, w - 200, 70, 3, 'center'); }
+    } else if (part.kind === 'points' || part.kind === 'price') {
+      // Centre the block vertically: work out its height first.
+      var np = (part.s.points || []).length, blockH;
+      if (part.kind === 'price') { var ps0 = fitBox(c, part.s.price, 800, 190, 90, w - 168, 220, 1).size; blockH = 40 + 30 + ps0 + 120 + np * 130; }
+      else { var ft0 = fitBox(c, part.s.title, 800, 110, 60, w - 168, 360, 1.04); blockH = ft0.lines * ft0.size * 1.04 + 90 + np * 130; }
+      var y0 = Math.max(300, (h - blockH) / 2);
+      if (part.kind === 'price') {
+        a = at(0.1); c.globalAlpha = a; font(c, 700, 40); c.fillStyle = MKC.gold; c.fillText(String(part.s.label || '').toUpperCase().split('').join(' '), 84, y0);
+        a = at(0.35); c.globalAlpha = a; var ps = fitBox(c, part.s.price, 800, 190, 90, w - 168, 220, 1).size; font(c, 800, ps); c.fillStyle = MKC.gold; c.fillText(part.s.price, 84, y0 + 30 + ps + up(a) / k);
+        y0 = y0 + 30 + ps + 120;
+      } else {
+        a = at(0.1); c.globalAlpha = a; var ft = fitBox(c, part.s.title, 800, 110, 60, w - 168, 360, 1.04); font(c, 800, ft.size); c.fillStyle = '#fff';
+        y0 = wrapText(c, part.s.title, 84, y0 + ft.size + up(a) / k, w - 168, ft.size * 1.04, ft.lines) + 90;
+      }
+      (part.s.points || []).forEach(function (p, i) {
+        a = at(0.7 + i * 0.4); c.globalAlpha = a;
+        var dx = (1 - a) * -100;
+        vmTick(c, 84 + dx, y0 + i * 130 - 12, 52);
+        font(c, 700, 58); c.fillStyle = '#fff'; wrapText(c, p, 180 + dx, y0 + i * 130 + 6, w - 264, 64, 1);
+      });
+    } else if (part.kind === 'message') {
+      a = at(0.1); c.globalAlpha = a; var fm = fitBox(c, part.s.title, 800, 120, 60, w - 168, 560, 1.04); font(c, 800, fm.size); c.fillStyle = '#fff';
+      var ym = wrapText(c, part.s.title, 84, 620 + fm.size + up(a) / k, w - 168, fm.size * 1.04, fm.lines);
+      a = at(0.9); c.globalAlpha = a; font(c, 700, 58); c.fillStyle = MKC.gold; wrapText(c, part.s.text, 84, ym + 90 + up(a) / k, w - 168, 72, 4);
+    } else {
+      a = at(0.1); c.globalAlpha = a; mkLogo(c, w / 2, 300, 2, 'center');
+      a = at(0.4); c.globalAlpha = a; var fe = fitBox(c, sc.end, 800, 90, 50, w - 168, 220, 1.05); font(c, 800, fe.size); c.fillStyle = '#fff';
+      wrapText(c, sc.end, w / 2, 470 + fe.size + up(a) / k, w - 168, fe.size * 1.05, fe.lines, 'center');
+      a = at(0.7); c.globalAlpha = a; var qs = 420; qrTile(c, q, (w - qs) / 2, 760 + up(a) / k, qs);
+      a = at(0.9); c.globalAlpha = a; font(c, 700, 36); c.fillStyle = MKC.soft; c.textAlign = 'center'; c.fillText('Scan or visit', w / 2, 1250); c.textAlign = 'left';
+      a = at(1.1); c.globalAlpha = a; pill(c, 'sirraddo.com.ng', w / 2, 1290, 72);
+      a = at(1.4); c.globalAlpha = a; font(c, 700, 44); c.fillStyle = '#fff'; c.textAlign = 'center'; c.fillText('WhatsApp 0816 755 0937', w / 2, 1520);
+      a = at(1.6); c.globalAlpha = a; font(c, 500, 26); c.fillStyle = MKC.dim; c.fillText('SIRRADDO GLOBAL LIMITED · RC 9939920 · Ibadan', w / 2, 1580); c.textAlign = 'left';
+    }
+    c.restore(); c.globalAlpha = 1;
+  }
+  function mkVideoMaker(view) {
+    var mime = vmMime();
+    view.appendChild(el('p', { class: 'admin-intro', text: 'Describe the video you want. The AI writes it (you can change any line), then this phone or laptop animates it in your brand style and records it (about 20 seconds; keep the screen on). Tracked with its own QR tag.' }));
+    if (!mime) view.appendChild(el('p', { class: 'admin-error', text: 'This browser can’t record video. Use Chrome on a laptop or a newer phone.' }));
+    else if (/webm/.test(mime)) view.appendChild(el('p', { class: 'admin-hint', text: 'Note: this browser saves WebM videos. Instagram, TikTok and Facebook accept them; WhatsApp Status on some phones may not. For MP4, use Chrome on a laptop or an iPhone.' }));
+    var idea = el('textarea', { rows: 3, placeholder: 'e.g. Christmas promo for online stores, mention the demo store', value: state.vmIdea || '' });
+    var lang = select(['English', 'Nigerian Pidgin', 'Yoruba', 'Hausa', 'Igbo'], state.mkLang || 'English', { 'aria-label': 'Language' });
+    var editor = el('div'), result = el('div');
+    var card = el('div', { class: 'admin-card' }, [field('Your idea', idea), field('Language', lang)]);
+    var write = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '✨ Write the video', onclick: function () {
+      state.vmIdea = idea.value; state.mkLang = lang.value;
+      write.disabled = true; write.textContent = 'Writing…';
+      api('POST', { action: 'mk_video_script', idea: idea.value, lang: lang.value }).then(function (j) { state.vmScript = j.script; drawEditor(); })
+        .catch(fail).then(function () { write.disabled = false; write.textContent = '✨ Write it again'; });
+    } });
+    card.appendChild(write);
+    view.appendChild(card); view.appendChild(editor); view.appendChild(result);
+    function inp(obj, key, label, max) {
+      var x = el('input', { value: obj[key] || '', maxlength: max || 90 });
+      x.addEventListener('input', function () { obj[key] = x.value; });
+      return field(label, x);
+    }
+    function drawEditor() {
+      var sc = state.vmScript; editor.innerHTML = ''; result.innerHTML = '';
+      if (!sc) return;
+      var box = el('div', { class: 'admin-card' }, [el('h2', { text: 'Your video (change anything)' })]);
+      box.appendChild(el('h3', { text: '1. Opening' })); box.appendChild(inp(sc.hook, 'title', 'Big line')); box.appendChild(inp(sc.hook, 'sub', 'Small line'));
+      sc.scenes.forEach(function (x, i) {
+        box.appendChild(el('h3', { text: (i + 2) + '. ' + (x.type === 'price' ? 'Price' : x.type === 'message' ? 'Message' : 'Points') }));
+        if (x.type === 'price') { box.appendChild(inp(x, 'label', 'Package')); box.appendChild(inp(x, 'price', 'Price')); }
+        else box.appendChild(inp(x, 'title', 'Title'));
+        if (x.type === 'message') box.appendChild(inp(x, 'text', 'Text', 140));
+        (x.points || []).forEach(function (p, n) { var o = { v: p }; var f = inp(o, 'v', 'Point ' + (n + 1), 60); f.querySelector('input').addEventListener('input', function () { x.points[n] = o.v; }); box.appendChild(f); });
+      });
+      box.appendChild(el('h3', { text: (sc.scenes.length + 2) + '. Ending' })); box.appendChild(inp(sc, 'end', 'Call to action', 50));
+      box.appendChild(inp(sc, 'caption', 'Caption for your post', 600));
+      var make = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '🎬 Make the video', disabled: !mime, onclick: function () { record(sc, make); } });
+      box.appendChild(make);
+      editor.appendChild(box);
+    }
+    function record(sc, btn) {
+      var W = 720, H = 1280, tl = vmTimeline(sc);
+      var canvas = el('canvas', { class: 'mk-canvas', width: W, height: H });
+      var status = el('p', { class: 'admin-hint', text: 'Getting ready…' });
+      result.innerHTML = '';
+      result.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Recording' }), canvas, status]));
+      result.scrollIntoView({ behavior: 'smooth' });
+      btn.disabled = true;
+      var c = canvas.getContext('2d');
+      mkFonts().then(function () { return mkQr('video-' + sc.tag); }).then(function (q) {
+        vmDraw(c, W, H, sc, tl, 0, q);
+        var stream = canvas.captureStream(30), chunks = [];
+        var rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5000000 });
+        rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+        var start = performance.now(), wake = null;
+        try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function (w) { wake = w; }).catch(function () {}); } catch (e) {}
+        rec.onstop = function () {
+          if (wake) wake.release().catch(function () {});
+          var type = mime.split(';')[0], ext = /mp4/.test(type) ? 'mp4' : 'webm';
+          var blob = new Blob(chunks, { type: type }), url = URL.createObjectURL(blob), name = 'sirraddo-video-' + sc.tag + '.' + ext;
+          var caption = sc.caption || '';
+          result.innerHTML = '';
+          var acts = el('div', { class: 'admin-actions' });
+          if (navigator.canShare && window.File) acts.appendChild(el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Share', onclick: function () {
+            if (navigator.clipboard && caption) navigator.clipboard.writeText(caption).catch(function () {});
+            shareFile(new File([blob], name, { type: type }), caption).catch(function (err) { if (err && err.name !== 'AbortError') fail(err); });
+          } }));
+          acts.appendChild(el('a', { class: 'admin-btn', href: url, download: name, text: 'Download (' + ext.toUpperCase() + ')' }));
+          if (caption) acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Copy caption', onclick: function (e) { copyText(caption, 'Caption', e.currentTarget); } }));
+          acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Make it again', onclick: function (e) { record(sc, e.currentTarget); } }));
+          result.appendChild(el('div', { class: 'admin-card mk-card' }, [el('h2', { text: 'Your video is ready' }),
+            el('video', { src: url, controls: true, playsinline: true, class: 'mk-img' }),
+            el('p', { class: 'admin-meta', text: Math.round(tl.total) + ' s · ' + ext.toUpperCase() + ' · QR tagged "video-' + sc.tag + '". Add music from the app’s own library when you post.' }),
+            caption ? el('p', { class: 'mk-caption', text: caption }) : null, acts]));
+          btn.disabled = false;
+        };
+        rec.start(250);
+        (function frame() {
+          var t = (performance.now() - start) / 1000;
+          vmDraw(c, W, H, sc, tl, Math.min(t, tl.total), q);
+          status.textContent = 'Recording… ' + Math.min(100, Math.round(100 * t / tl.total)) + '% (keep this screen on)';
+          if (t < tl.total + 0.2) requestAnimationFrame(frame); else rec.stop();
+        })();
+      }).catch(function (e) { fail(e); btn.disabled = false; });
+    }
+    drawEditor();
   }
 
   // ---------- Today: a posting plan ----------

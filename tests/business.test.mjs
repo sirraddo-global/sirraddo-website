@@ -302,6 +302,15 @@ test("Marketing: offer bar + chat, referrals with rewards, ad spend report, QR, 
   assert.match(globalThis.__LAST_AI_PROMPT__, /in Nigerian Pidgin/);
   assert.match(globalThis.__LAST_AI_PROMPT__, /Never name or compare with any other company/);
 
+  // Video maker: the AI writes the scenes (cleaned up); the browser makes the video.
+  const vs = (await h.action({ action: "mk_video_script", idea: "Christmas promo for online stores", lang: "Nigerian Pidgin" })).json.script;
+  assert.equal(vs.hook.title, "Your shop never close");
+  assert.equal(vs.scenes.length, 2, "an empty scene is dropped");
+  assert.equal(vs.scenes[0].points.length, 4, "at most 4 points");
+  assert.equal(vs.scenes[1].price, "from ₦150,000");
+  assert.equal(vs.tag, "shop-never-close");
+  assert.match(globalThis.__LAST_AI_PROMPT__, /in Nigerian Pidgin/);
+
   // Link-in-bio page.
   const lp = await h.call("GET", "/links");
   assert.equal(lp.status, 200);

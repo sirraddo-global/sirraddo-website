@@ -186,3 +186,47 @@ Return ONLY a JSON array of 3 strings.`;
   if (!list.length) throw new Error("The AI didn't write captions. Please try again.");
   return list;
 }
+
+// ---------- Video maker: the AI writes the scenes; the admin's browser animates and records them ----------
+const clip = (v, n) => one(v, n);
+export async function videoScript({ idea, lang }) {
+  const provider = pickProvider();
+  if (!provider) throw new Error("No AI key is set in Netlify (GEMINI_API_KEY or ANTHROPIC_API_KEY).");
+  const L = CAPTION_LANGS.includes(lang) ? lang : "English";
+  const offer = await currentOffer();
+  const prompt = `FACTS (use only these; never invent prices, discounts, awards, numbers of customers or promises)
+${FACTS}
+${offer ? `Current offer: ${offer.title}${offer.text ? ` (${offer.text})` : ""}, until ${offer.until}.` : ""}
+
+Write a short vertical video ad (about 20 seconds) in ${L} for SIRRADDO, from this idea: ${one(idea, 500) || "websites for small businesses"}.
+Return ONLY JSON in exactly this shape:
+{"hook": {"title": "<max 7 words, a question or bold statement>", "sub": "<max 9 words>"},
+ "scenes": [ 2 or 3 of these:
+   {"type": "points", "title": "<max 7 words>", "points": ["<max 6 words>", "<…>", "<…>"]}  (3 or 4 points)
+   {"type": "price", "label": "<package name>", "price": "<a price from the FACTS, e.g. ₦100,000>", "points": ["<max 6 words>", "<…>"]}
+   {"type": "message", "title": "<max 8 words>", "text": "<max 14 words>"} ],
+ "end": "<call to action, max 5 words>",
+ "tag": "<2–3 word slug for tracking, lowercase-with-dashes>",
+ "caption": "<a social caption under 45 words with 1–3 emojis and 3–5 hashtags>"}
+Rules: punchy, friendly, Nigerian audience. Never name or compare with any other company, marketplace or website builder. Keep "website", "online store" and "Paystack" in English if there is no common word.`;
+  const budget = FUNCTION_BUDGET_MS() - 3000;
+  let out;
+  try { out = await provider.call(provider.start([{ role: "user", content: prompt }]), "You write short video ad scripts. Reply with JSON only.", [], budget, { maxTokens: 1500, attemptMs: Math.max(8000, budget - 1500) }); }
+  catch (e) { throw new Error(friendlyAiError(e)); }
+  const s = String(out.text || ""), a = s.indexOf("{"), z = s.lastIndexOf("}");
+  let j;
+  try { j = JSON.parse(s.slice(a, z + 1)); } catch { throw new Error("The AI didn't write a video. Please try again."); }
+  const scenes = (Array.isArray(j.scenes) ? j.scenes : []).slice(0, 3).map((x) => {
+    if (x?.type === "price") return { type: "price", label: clip(x.label, 40), price: clip(x.price, 24), points: (x.points || []).slice(0, 3).map((p) => clip(p, 50)).filter(Boolean) };
+    if (x?.type === "message") return { type: "message", title: clip(x.title, 70), text: clip(x.text, 120) };
+    return { type: "points", title: clip(x?.title, 60), points: (x?.points || []).slice(0, 4).map((p) => clip(p, 50)).filter(Boolean) };
+  }).filter((x) => x.title || x.price);
+  if (!scenes.length) throw new Error("The AI didn't write a video. Please try again.");
+  return {
+    hook: { title: clip(j.hook?.title, 70) || "Is your business online?", sub: clip(j.hook?.sub, 80) },
+    scenes,
+    end: clip(j.end, 40) || "Get your website today",
+    tag: (cleanFrom(j.tag) || "ai-video").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 24) || "ai-video",
+    caption: String(j.caption || "").trim().slice(0, 600),
+  };
+}

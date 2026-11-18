@@ -565,6 +565,7 @@ export default async function handler(req, res) {
             case "mk_showcase": return res.status(200).json(await m.showcaseData(id));
             case "mk_reviews": return res.status(200).json({ reviews: await m.ourReviews() });
             case "mk_captions": return res.status(200).json({ captions: await m.writeCaptions(body) });
+            case "mk_video_script": return res.status(200).json({ script: await m.videoScript(body) });
             default: throw new Bad("Unknown action");
           }
         } catch (e) {

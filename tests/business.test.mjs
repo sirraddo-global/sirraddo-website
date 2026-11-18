@@ -404,3 +404,27 @@ test("design uses the websites the customer likes and the designer's notes (insp
   assert.match(sent, /rounded gold buttons/);
   assert.match(sent, /never copy/);
 });
+
+test("Google Search Console: a live domain is verified, added, sitemap submitted and owners added by itself", async () => {
+  const { generateKeyPairSync } = await import("node:crypto");
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  process.env.GOOGLE_SERVICE_ACCOUNT = JSON.stringify({ client_email: "sa@test.iam.gserviceaccount.com", private_key: privateKey.export({ type: "pkcs8", format: "pem" }) });
+  try {
+    const id = (await h.action({ action: "create", name: "Kunle Prints", contact: "08031110000", interest: "Business website", email: "kunle@gmail.com" })).json.id;
+    await h.sql(`UPDATE customer_requests SET hosting = $1::jsonb WHERE id = $2`, [JSON.stringify({ zoneId: "zone-kp", domain: "kunleprints.com.ng", zoneStatus: "active", attached: true, project: "kunle-prints" }), id]);
+    const G = globalThis.__GOOGLE__;
+    G.verifyFails = 1; // the TXT record hasn't spread yet on the first try
+    let gs = (await h.action({ action: "host_check", id })).json.row.hosting.google;
+    assert.equal(gs.step, "dns");
+    assert.match(gs.error, /TXT record not found/);
+    assert.ok(h.CF.dns.some((r) => r.zone === "zone-kp" && r.type === "TXT" && r.content === "google-site-verification=abc123"), "TXT record added");
+    gs = (await h.action({ action: "host_check", id })).json.row.hosting.google;
+    assert.equal(gs.step, "done", gs.error || "");
+    assert.ok(gs.owners.includes("kunle@gmail.com") && gs.owners.includes("info@sirraddo.com.ng"), "owner and us added");
+    assert.ok(G.calls.some((c) => /sitemaps\/https%3A%2F%2Fkunleprints\.com\.ng%2Fsitemap\.xml/.test(c)), "sitemap submitted");
+    const n = G.calls.length;
+    await h.action({ action: "host_check", id });
+    assert.equal(G.calls.length, n, "nothing more once done");
+    assert.equal(h.CF.dns.filter((r) => r.zone === "zone-kp" && r.type === "TXT").length, 1, "TXT added once");
+  } finally { delete process.env.GOOGLE_SERVICE_ACCOUNT; }
+});

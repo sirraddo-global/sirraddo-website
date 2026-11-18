@@ -5,6 +5,7 @@
 import { handoverAuto, balance, naira, COMPANY, GBP_SETUP, GBP_MONTHLY, GBP_NEVER } from "./docs.mjs";
 export { GBP_SETUP, GBP_MONTHLY, GBP_NEVER };
 import { kindFor, emailAllowance } from "./brief-schema.mjs";
+import { googleSearchConfigured } from "./google-search.mjs";
 export { emailAllowance };
 
 // The addresses the customer asked for on the project form ("info@, sales@" → ["info", "sales"]).
@@ -102,6 +103,19 @@ export function handoverChecklist(r, settings = {}) {
       tell: `Hello ${first}, let's put your business on Google Maps and Search (free):\n1. Open business.google.com${owner ? ` and sign in with ${owner}` : " with your Gmail"}.\n2. Tap "Add business" and fill in your business name, category, address (or the areas you serve), phone number and website${r.website_url ? ` (${r.website_url})` : ""}.${gbpText ? `\n3. For the description, copy and paste this:\n"${gbpText}"` : "\n3. For the description, write 2–3 sentences about what you do, for whom and where (no links or prices)."}\n4. Google will verify it's you (code by SMS, phone call, email or a short video). Enter the code when it comes.\n5. Once it's live, keep it strong with the short guide in your handover pack (Google Business Profile): photos, products, replying to reviews and more.\nSend me a screenshot if you get stuck.`,
       tell2: `Hello ${first}, here's how to keep your Google Business Profile strong yourself (business.google.com or the Google Maps app, signed in as the owner):\n\nFirst, once:\n${GBP_SETUP.map((t, k) => `${k + 1}. ${t}`).join("\n")}\n\nEvery month:\n${GBP_MONTHLY.map((t) => `• ${t}`).join("\n")}\n\n${GBP_NEVER}\nAny questions, just message me.`,
       tell2Label: 'Send "do it yourself" guide',
+    });
+  }
+
+  // Submitted to Google Search Console: automatic once the domain works (needs the one-time Google setup).
+  if (host.domain) {
+    const gs = host.google || {};
+    add("google", "Submitted to Google (Search Console)", gs.step === "done", {
+      auto: true,
+      fix: !googleSearchConfigured()
+        ? "One-time setup needed: the GOOGLE_SERVICE_ACCOUNT setting (README → Google Search Console). After that every site is submitted by itself."
+        : gs.error ? `Trying again automatically (${gs.tries || 1} so far). Last answer from Google: ${gs.error}` : "Happens by itself once the domain is working (Go live → Check now to speed it up).",
+      steps: ["Nothing to do: the system verifies their domain with Google, adds it to Search Console, submits the sitemap and adds the owner's Gmail and info@sirraddo.com.ng as owners.",
+        "To look at it: search.google.com/search-console, signed in as info@sirraddo.com.ng."],
     });
   }
 

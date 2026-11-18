@@ -1,5 +1,6 @@
 // Admin → Setup status: which connections are set in Netlify, without ever showing a key's value.
 import { filesEnabled } from "./platform.mjs";
+import { googleSearchConfigured } from "./google-search.mjs";
 import { dbConfigured, emailConfigured, customerEmailConfigured, getMeta } from "./store.mjs";
 import { pickProvider } from "./providers.mjs";
 import { paystackConfigured } from "./paystack.mjs";
@@ -30,6 +31,8 @@ export async function setupStatus() {
       fix: `Add PAYSTACK_SECRET_KEY (Paystack → Settings → API Keys & Webhooks → Live Secret Key). ${HOST} In Paystack, set the Live Webhook URL to ${SITE}/api/paystack-webhook` },
     { label: "Customer websites (Cloudflare: publish, domains, email forwarding)", ok: cloudflareConfigured(), note: "Go live in one tap from Clients.",
       fix: `In Cloudflare: My Profile → API Tokens → Create Token → Custom token with: Account · Cloudflare Pages · Edit; Account · Email Routing Addresses · Edit; Zone · Zone · Edit; Zone · DNS · Edit; Zone · Zone Settings · Edit; Zone · Email Routing Rules · Edit (Zone resources: All zones from your account). Add it as CLOUDFLARE_API_TOKEN, and your Account ID (Cloudflare home → your account → ⋯ → Copy account ID) as CLOUDFLARE_ACCOUNT_ID. ${HOST}` },
+    { label: "Google Search Console (customer sites submitted to Google by themselves)", ok: googleSearchConfigured(), note: "Every live customer domain is verified, added and its sitemap submitted, with no clicks.",
+      fix: `Add GOOGLE_SERVICE_ACCOUNT (a Google Cloud service account key with the Site Verification API and Search Console API switched on): README → Google Search Console. ${HOST}` },
     { label: "Daily automation (reminders, morning email, site checks)", ok: (env.CRON_SECRET || "").length >= 16, warn: ranHoursAgo !== null && ranHoursAgo > 30,
       note: meta.daily_run ? `Last ran ${meta.daily_run}${ranHoursAgo > 30 ? ". That is over a day ago: check Netlify → Logs → Functions → daily." : "."}` : "Hasn't run yet. It runs every morning at 7am.",
       fix: `Add CRON_SECRET (any long random text, at least 16 characters). ${HOST}` },

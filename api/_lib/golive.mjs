@@ -6,6 +6,7 @@ import { buildSiteModel, exportFiles, slugify, SITE_LOOK, SITE_LOOK_NOTES } from
 import { ensureStoreToken } from "./shop.mjs";
 import { ensureStatsKey } from "./stats.mjs";
 import { shownReviews } from "./reviews.mjs";
+import { submitToGoogle, googleSearchConfigured } from "./google-search.mjs";
 import { balance } from "./docs.mjs";
 import { applyRules, todayLagos, daysBetween } from "./automation.mjs";
 import {
@@ -125,6 +126,13 @@ export async function checkHosting(id) {
     const rules = await createForwardRules(h.zoneId, h.domain, h.email.locals, map);
     patch.email = { ...h.email, status: h.pausedAt ? "paused" : "active", rules };
     if (h.pausedAt) await setRulesEnabled(h.zoneId, rules, false);
+  }
+  // Submit to Google (Search Console) by itself once the domain works; tries again on later checks if Google
+  // isn't ready yet. Stops after 40 tries (about a month of mornings) and shows why in admin.
+  const gs = h.google || {};
+  if (active && (patch.attached || h.attached) && !h.pausedAt && googleSearchConfigured() && gs.step !== "done" && (gs.tries || 0) < 40) {
+    const owners = [row.handover?.gbp_owner, row.brief?.gbp_gmail, row.email].filter((x) => /@(gmail|googlemail)\.com$/i.test(String(x || "").trim()));
+    patch.google = await submitToGoogle({ zoneId: h.zoneId, domain: h.domain, ownerEmails: owners }, gs);
   }
   if (Object.keys(patch).length) await saveHosting(id, patch);
   // Email forwarding just started working: republish so the site shows info@theirdomain instead of their Gmail.

@@ -170,6 +170,22 @@ Set `CLOUDFLARE_API_TOKEN` (custom token: Account · Cloudflare Pages · Edit; A
 
 Automatic: domains that become active get connected; renewals 15+ days overdue are paused (a "temporarily unavailable" page, email forwarding off, customer emailed) and restored as soon as the renewal is paid (Paystack, or "Renewal paid" in admin); the morning email lists active domains, jobs ready to go live, unpublished changes, pauses and restores.
 
+## Google Search Console (automatic, one-time setup)
+
+Every customer website is submitted to Google by itself once its domain works: the system verifies the domain
+(adds Google's TXT record in Cloudflare), adds it to Search Console, submits the sitemap, and adds the owner's
+Gmail and `info@sirraddo.com.ng` as owners. You never do this per customer. One-time setup (about 10 minutes):
+
+1. Go to console.cloud.google.com, signed in as info@sirraddo.com.ng. Create a project, e.g. "SIRRADDO websites".
+2. APIs & Services → Library: switch on **Site Verification API** and **Google Search Console API**.
+3. IAM & Admin → Service Accounts → Create service account (any name, no roles needed) → open it → Keys →
+   Add key → JSON. A file downloads.
+4. Netlify → Site configuration → Environment variables → add `GOOGLE_SERVICE_ACCOUNT` and paste the whole
+   JSON file content as the value. Keep it secret (never paste it in chat). Optional: `SEARCH_CONSOLE_OWNER`
+   if our own Google account isn't info@sirraddo.com.ng.
+5. Redeploy (it goes out with the next merge). Admin's handover checklist then shows "Submitted to Google ✓"
+   for each live site within a day; Go live → Check now does it straight away.
+
 ## AI design (custom look)
 
 In admin → Website preview, **AI design** asks the AI for a custom look for that customer: CSS only, applied on top of the generated pages, so the checked text, prices and photos never change. It uses Claude when `ANTHROPIC_API_KEY` is set (model `ANTHROPIC_DESIGN_MODEL`, default `claude-haiku-5-5`; try `claude-sonnet-5-5` for richer designs if it finishes within the time limit), otherwise Gemini. The CSS is cleaned (no files, imports or scripts); up to 2 Google Fonts are loaded. **New AI design** tries again; **Use standard design** removes it. The preview and the .zip download both use it.

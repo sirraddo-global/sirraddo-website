@@ -577,6 +577,7 @@ export default async function handler(req, res) {
               return res.status(200).json({ configured: nu.neonConfigured(), usage, error, free: { cuh: nu.FREE_CUH, gb: nu.FREE_GB } });
             }
             case "mk_demand": return res.status(200).json({ demand: await m.demand() });
+            case "mk_playbook": { const pb = await import("./_lib/playbook.mjs"); return res.status(200).json({ playbook: pb.PLAYBOOK, policy: pb.POLICY }); }
             case "mk_video_script": return res.status(200).json({ script: await m.videoScript(body) });
             default: throw new Bad("Unknown action");
           }

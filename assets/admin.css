@@ -329,3 +329,5 @@ a.admin-btn{text-decoration:none}
 .usage-bar span { display: block; height: 100%; background: #1F8A4C; }
 .usage-bar.is-warn span { background: #D9A21B; }
 .usage-bar.is-bad span { background: #B42318; }
+.pb-item summary { font-weight: 700; cursor: pointer; padding: 4px 0; }
+.pb-item h3 { margin: 12px 0 4px; font-size: 1rem; }

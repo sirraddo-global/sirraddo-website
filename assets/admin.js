@@ -185,7 +185,7 @@
     var view = $('view');
     view.textContent = '';
     var fn = { dashboard: renderDashboard, requests: renderRequests, clients: renderClients,
-      questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant, marketing: renderMarketing, packages: renderPackages }[state.tab];
+      questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant, marketing: renderMarketing, packages: renderPackages, playbook: renderPlaybook }[state.tab];
     fn(view);
   }
 
@@ -868,6 +868,68 @@
     return box;
   }
   var SERVICE_PRESETS = [['Dedicated database', 'monthly'], ['Custom system hosting and care', 'monthly'], ['Customer accounts (Standard Store)', 'yearly'], ['Website care plan', 'monthly']];
+
+  // ===================== Playbook: what to do when the unexpected happens =====================
+  function renderPlaybook(view) {
+    view.appendChild(el('p', { class: 'admin-intro', text: 'What to do when something unexpected comes up: what to check, the steps, and a ready WhatsApp reply. The admin assistant knows all of these too (ask it, e.g. "a customer says their site is down").' }));
+    var search = el('input', { type: 'search', placeholder: 'Search: refund, domain, down, discount, app…', 'aria-label': 'Search the playbook', value: state.pbQuery || '' });
+    var who = el('input', { placeholder: 'Customer’s first name (for the replies)', 'aria-label': 'Customer first name', value: state.pbName || '' });
+    var list = el('div'), policyBox = el('div');
+    view.appendChild(el('div', { class: 'admin-card' }, [search, who]));
+    view.appendChild(policyBox);
+    view.appendChild(list);
+    var data = null;
+    function fillReply(t) { return String(t || '').replace(/\{name\}/g, (who.value.trim() || 'there')); }
+    function draw() {
+      if (!data) return;
+      var qv = search.value.trim().toLowerCase();
+      // Match by words (any word of 3+ letters, ignoring small words), best matches first.
+      var STOP = ['the', 'and', 'for', 'not', 'isn', 'can', 'you', 'our', 'my', 'is', 'a', 'to', 'of', 'what', 'how', 'customer', 'customers', 'wants', 'want'];
+      var words = qv.split(/[^a-z0-9₦]+/).filter(function (w) { return w.length >= 3 && STOP.indexOf(w) === -1; });
+      var score = function (p) {
+        if (!qv) return 1;
+        var title = p.title.toLowerCase(), hay = (p.title + ' ' + p.group + ' ' + p.check.join(' ') + ' ' + p.steps.join(' ') + ' ' + p.reply).toLowerCase();
+        if (hay.indexOf(qv) !== -1) return 100;
+        return words.reduce(function (n, w) { var stem = w.replace(/(ing|ed|es|s)$/, ''); return n + (title.indexOf(stem) !== -1 ? 3 : hay.indexOf(stem) !== -1 ? 1 : 0); }, 0);
+      };
+      list.innerHTML = '';
+      var groups = [];
+      var shown = data.playbook.map(function (p) { return { p: p, sc: score(p) }; }).filter(function (x) { return x.sc > 0; });
+      shown.sort(function (a, b) { return b.sc - a.sc; });
+      shown.forEach(function (x) { if (groups.indexOf(x.p.group) === -1) groups.push(x.p.group); });
+      if (!groups.length) { list.appendChild(el('p', { class: 'admin-empty', text: 'Nothing found. Ask the admin assistant instead.' })); return; }
+      groups.forEach(function (g) {
+        list.appendChild(el('h2', { class: 'admin-h2', text: g }));
+        shown.filter(function (x) { return x.p.group === g; }).map(function (x) { return x.p; }).forEach(function (p) {
+          var d = el('details', { class: 'admin-card pb-item', open: Boolean(qv) }, [el('summary', { text: p.title })]);
+          if (p.check.length) { d.appendChild(el('h3', { text: 'Check first' })); d.appendChild(el('ul', { class: 'admin-mini' }, p.check.map(function (t) { return el('li', { text: t }); }))); }
+          d.appendChild(el('h3', { text: 'What to do' }));
+          d.appendChild(el('ol', { class: 'admin-mini' }, p.steps.map(function (t) { return el('li', { text: t }); })));
+          if (p.reply) {
+            var rep = el('p', { class: 'mk-caption', text: fillReply(p.reply) });
+            d.appendChild(el('h3', { text: 'Ready reply' }));
+            d.appendChild(rep);
+            d.appendChild(el('div', { class: 'admin-actions' }, [
+              el('button', { class: 'admin-btn', type: 'button', text: 'Copy reply', onclick: function (e) { copyText(fillReply(p.reply), 'Reply', e.currentTarget); } }),
+              el('a', { class: 'admin-btn admin-btn--wa', target: '_blank', rel: 'noopener', text: 'Open in WhatsApp', href: 'https://wa.me/?text=' + encodeURIComponent(fillReply(p.reply)) })
+            ]));
+            if (/\{[a-z_]+\}/.test(fillReply(p.reply))) d.appendChild(el('p', { class: 'admin-hint', text: 'Replace the {…} part before sending (e.g. the link from their client card).' }));
+          }
+          list.appendChild(d);
+        });
+      });
+    }
+    search.addEventListener('input', function () { state.pbQuery = search.value; draw(); });
+    who.addEventListener('input', function () { state.pbName = who.value; draw(); });
+    api('POST', { action: 'mk_playbook' }).then(function (j) {
+      data = j;
+      policyBox.appendChild(el('details', { class: 'admin-card' }, [el('summary', { text: 'Your policies (also on the Terms page and known by both assistants)' }),
+        el('ul', { class: 'admin-mini' }, [['Instalments', j.policy.instalments], ['Discounts', j.policy.discounts], ['Quiet customers', j.policy.quiet], ['What we don’t build', j.policy.wontBuild]].map(function (x) {
+          return el('li', null, [el('b', { text: x[0] + ': ' }), x[1]]);
+        }))]));
+      draw();
+    }).catch(fail);
+  }
 
   // ===================== Marketing =====================
   // Tabs: Today (what to post), Ready ads, Showcase, Review cards, Festive, Offer, Referrals, Ad spend.

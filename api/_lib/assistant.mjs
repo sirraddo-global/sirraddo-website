@@ -139,5 +139,6 @@ export async function assistantSystem(id) {
         return `- ${reference(r.id)} ${r.name}, ${r.interest}, ${r.status}/${r.project_stage || "-"}${r.quote_amount != null ? ", balance " + naira(balance(r)) : ""}${r.hosting?.pausedAt ? ", PAUSED" : ""}${left.length ? "; still to do: " + left.join("; ") : ""}`;
       }).join("\n") + "\n(Pick the job in the About box for its full checklist with fixes.)";
   }
-  return `${SYSTEM}\n\nSETUP STATUS NOW:\n${setupLines}${job}`;
+  const { playbookText } = await import("./playbook.mjs");
+  return `${SYSTEM}\n\n${playbookText()}\nWhen the owner describes one of these situations, give the steps and offer the ready reply (Admin → Playbook has it with a Copy button).\n\nSETUP STATUS NOW:\n${setupLines}${job}`;
 }

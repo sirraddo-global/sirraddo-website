@@ -425,6 +425,25 @@ test("database usage watch: reads Neon, shows in admin, emails once at 70% and o
   } finally { delete process.env.NEON_API_KEY; delete globalThis.__NEON_CU_SECONDS__; }
 });
 
+test("playbook: admin page data, the admin assistant and the chat know the policies; terms and FAQ match", async () => {
+  const j = (await h.action({ action: "mk_playbook" })).json;
+  assert.ok(j.playbook.length >= 25);
+  const ids = new Set(); for (const p of j.playbook) { assert.ok(p.title && p.steps.length && p.group, p.id); assert.ok(!ids.has(p.id), "unique " + p.id); ids.add(p.id); }
+  for (const k of ["instalments", "discounts", "quiet", "wontBuild"]) assert.ok(j.policy[k]);
+  const { assistantSystem } = await import("../api/_lib/assistant.mjs");
+  const sys = await assistantSystem();
+  assert.match(sys, /PLAYBOOK/); assert.match(sys, /My website isn't opening/); assert.match(sys, /50% to start, 30% when they approve/);
+  const { SYSTEM_PROMPT } = await import("../api/_lib/knowledge.mjs");
+  assert.match(SYSTEM_PROMPT, /Instalments:.*50% to start/); assert.match(SYSTEM_PROMPT, /nobody can guarantee first place/);
+  const terms = await h.call("GET", "/terms");
+  assert.match(terms.text, /id="acceptable-use"/); assert.match(terms.text, /After 30 days without content we pause the project/);
+  const web = await h.call("GET", "/websites");
+  assert.match(web.text, /Can I pay in instalments\?/);
+  // Every reply placeholder is one the page tells you to replace, and nothing names another company.
+  for (const p of j.playbook) for (const m of (p.reply.match(/\{[a-z_]+\}/g) || [])) assert.ok(["{name}", "{form_link}", "{code}", "{renewal_link}", "{manage_link}", "{date}"].includes(m), m);
+  assert.doesNotMatch(JSON.stringify(j.playbook), /jumia|konga|jiji|wix|shopify/i);
+});
+
 test("change requests: private page, emails, Mark done; free month then quote first", async () => {
   await h.sql(`UPDATE customer_requests SET live_on = CURRENT_DATE - 5 WHERE id = $1`, [ada]);
   const info = (await h.action({ action: "changes", id: ada })).json;

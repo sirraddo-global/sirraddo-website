@@ -202,7 +202,7 @@ export default async function handler(req, res) {
   const checkSettings = req.method === "GET" ? {} : await getSettings().catch(() => ({}));
   const sendJson = res.json.bind(res);
   const hideMoney = me.role === "staff" && !can(me, "money");
-  const strip = (r) => (hideMoney && r && typeof r === "object" && "payments" in r ? { ...r, payments: [], quote_amount: null, renewal_amount: null } : r);
+  const strip = (r) => (hideMoney && r && typeof r === "object" && "payments" in r ? { ...r, payments: [], quote_amount: null, renewal_amount: null, services: [] } : r);
   res.json = (o) => {
     if (o && typeof o === "object" && !Array.isArray(o) && o.id && "payments" in o && "hosting" in o) o = { ...o, handover_check: handoverChecklist(o, checkSettings) };
     if (hideMoney && o && typeof o === "object") { o = strip(o); if (o.row) o = { ...o, row: strip(o.row) }; }
@@ -211,7 +211,7 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       if (query.view === "chats") return res.status(200).json({ chats: await listChats() });
-      if ((query.view === "backup" && !can(me, "owner")) || ((query.view === "export" || query.view === "draft") && !can(me, "build"))) return res.status(403).json({ error: NOT_ALLOWED });
+      if ((query.view === "backup" && !can(me, "owner")) || (query.view === "export" && !can(me, "owner")) || (query.view === "draft" && !can(me, "build"))) return res.status(403).json({ error: NOT_ALLOWED });
       if (query.view === "backup") {
         const b = await buildBackup();
         res.setHeader("Content-Type", "application/gzip");
@@ -249,8 +249,8 @@ export default async function handler(req, res) {
       const meOut = { role: me.role, name: me.name, perms: me.perms };
       if (me.role === "staff") {
         // Staff see customers and jobs, not the money totals, setup details or email usage unless they have Money.
-        return res.status(200).json({ me: meOut, requests: can(me, "money") ? requests : requests.map((r) => ({ ...r, payments: [], quote_amount: null, renewal_amount: null })),
-          unanswered, settings, setup: [], totals: can(me, "money") ? totals : null, email_usage: null, statuses: STATUSES, stages: STAGES,
+        return res.status(200).json({ me: meOut, requests: can(me, "money") ? requests : requests.map((r) => ({ ...r, payments: [], quote_amount: null, renewal_amount: null, services: [] })),
+          unanswered, settings: Object.fromEntries(Object.entries(settings).filter(([k]) => !/^(pkg_|custom_|neon_plan|vercel_pro_at)/.test(k) && (can(me, "money") || !/^(bank_name|account_name|account_number)$/.test(k)))), setup: [], totals: can(me, "money") ? totals : null, email_usage: null, statuses: STATUSES, stages: STAGES,
           can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
       }
       return res.status(200).json({ me: meOut, requests, unanswered, settings, setup, totals, email_usage, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });

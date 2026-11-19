@@ -833,6 +833,12 @@ test("staff accounts: limited access, no money, owner-only actions blocked, acti
   assert.equal((await staff("POST", "/api/requests", { action: "mk_offer_save", offer: {} })).status, 403);
   assert.equal((await staff("GET", "/api/requests?view=backup")).status, 403);
   assert.equal((await staff("POST", "/api/requests", { action: "unknown_new_thing" })).status, 403, "unknown actions are owner only");
+  // Staff without Money don't get bank details, prices or services; they can still read a customer's site reviews.
+  assert.equal(all.json.settings.pkg_build, undefined);
+  assert.equal(all.json.settings.account_number, undefined);
+  assert.deepEqual(row.services, []);
+  assert.notEqual((await staff("POST", "/api/requests", { action: "site_reviews", id })).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "shop_settings", id })).status, 403, "store payment keys are owner only");
   // Keep me logged in gives a staff token that works, and an owner token can't be minted from it.
   const tok = (await staff("POST", "/api/requests", { action: "session" })).json;
   const t = tok.token || tok.session;

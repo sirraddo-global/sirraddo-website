@@ -1090,9 +1090,12 @@
   var MKC = { navy: '#13244F', deep: '#0C1733', gold: '#D9A21B', soft: '#C9D1E6', dim: '#AEB8D3' };
   var MK_TABS = [['today', 'Today'], ['ads', 'Ready ads'], ['video', 'Video maker'], ['showcase', 'Showcase'], ['reviews', 'Review cards'], ['festive', 'Festive'], ['offer', 'Offer'], ['referrals', 'Referrals'], ['spend', 'Ad spend']];
   var LINKS_URL = 'https://www.sirraddo.com.ng/links';
+  var MK_PERM = { festive: 'owner', offer: 'owner', spend: 'money' };
   function renderMarketing(view) {
+    var tabs = MK_TABS.filter(function (t) { return !MK_PERM[t[0]] || (MK_PERM[t[0]] === 'owner' ? isOwner() : canDo(MK_PERM[t[0]])); });
     var tab = state.mkTab || 'today';
-    view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Marketing' }, MK_TABS.map(function (t) {
+    if (!tabs.some(function (t) { return t[0] === tab; })) tab = 'today';
+    view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Marketing' }, tabs.map(function (t) {
       return el('button', { type: 'button', 'aria-pressed': t[0] === tab ? 'true' : 'false', text: t[1], onclick: function () { state.mkTab = t[0]; render(); } });
     })));
     ({ today: mkToday, ads: mkReadyAds, video: mkVideoMaker, showcase: mkShowcase, reviews: mkReviewCards, festive: mkFestive, offer: mkOffer, referrals: mkReferrals, spend: mkSpend })[tab](view);
@@ -1515,7 +1518,8 @@
       el('p', { class: 'admin-hint', text: 'Every live customer gets their own link (in their Manage page, and under their client card → Referrals). When a business comes from it and pays, the customer earns the reward below. You give it on their next renewal and tap "Reward given".' })]);
     var reward = el('input', { value: (state.settings && state.settings.referral_reward) || '₦5,000 off your next renewal', maxlength: 120 });
     card.appendChild(field('Reward for each business that pays', reward));
-    card.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Save reward', onclick: function () {
+    if (!isOwner()) reward.disabled = true;
+    if (isOwner()) card.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Save reward', onclick: function () {
       api('POST', { action: 'settings', settings: { referral_reward: reward.value } }).then(function (j) { state.settings = j.settings; flash('Saved'); }).catch(fail);
     } }));
     view.appendChild(card);
@@ -1863,6 +1867,7 @@
   // Hosting is on Netlify's free plan while sales start. From the 2nd paid website project, suggest moving to a
   // paid home (Nigerian VPS yearly in naira, or Netlify Personal) until "Done" is tapped. TEST records don't count.
   function paidHomeNudge(rs) {
+    if (!isOwner()) return null;
     if ((state.settings || {}).vercel_pro_at) return null;
     var paidProjects = rs.filter(function (r) { return r.status === 'won' && paid(r) > 0 && !/test/i.test((r.name || '') + ' ' + (r.business || '')); }).length;
     if (paidProjects < 2) return null;
@@ -1945,7 +1950,7 @@
     view.appendChild(el('p', { class: 'admin-hint', text: 'Ads: add ?utm_source=facebook&utm_campaign=ibadan-test to the website link in your ad (any names you like) and it shows here. WhatsApp-only ads: set "Came from" on the customer.' }));
     var dbLine = el('p', { class: 'admin-hint' });
     view.appendChild(dbLine);
-    api('POST', { action: 'mk_neon' }).then(function (j) {
+    if (isOwner()) api('POST', { action: 'mk_neon' }).then(function (j) {
       if (!j.configured || !j.usage) return;
       var u = j.usage, free = ((state.settings && state.settings.neon_plan) || 'free') === 'free', pct = Math.round(100 * u.cuh / j.free.cuh);
       dbLine.textContent = 'Database this month: ' + u.cuh + (free ? ' of ' + j.free.cuh + ' free hours (' + pct + '%)' + (pct >= 70 ? '. Upgrade soon: Packages → Database.' : '.') : ' hours (Launch plan).');
@@ -2007,8 +2012,8 @@
     view.appendChild(el('div', { class: 'admin-toolbar' }, [
       search, status, interest,
       el('label', { class: 'admin-check', for: 'f-due' }, [due, ' Follow-ups due']),
-      el('button', { class: 'btn btn--navy', type: 'button', text: '+ Add customer', onclick: function () { addForm.hidden = !addForm.hidden; } }),
-      el('button', { class: 'admin-btn', type: 'button', text: 'Export CSV', onclick: exportCsv })
+      !canDo('customers') ? null : el('button', { class: 'btn btn--navy', type: 'button', text: '+ Add customer', onclick: function () { addForm.hidden = !addForm.hidden; } }),
+      isOwner() ? el('button', { class: 'admin-btn', type: 'button', text: 'Export CSV', onclick: exportCsv }) : null
     ]));
     var addForm = renderAddForm();
     view.appendChild(addForm);
@@ -2149,14 +2154,16 @@
     var num = waNumber(r.contact);
     var email = /@/.test(r.contact) ? r.contact : null;
     if (!num && !email) return el('span');
-    var sel = select(Object.keys(TEMPLATES).map(function (k) { return [k, TEMPLATES[k].label]; }), suggestedTemplate(r), { 'aria-label': 'Message for ' + r.name });
+    var keys = Object.keys(TEMPLATES).filter(function (k) { var t = TEMPLATES[k].text + (state.settings[k] || ''); return (canDo('money') || !/\{(amount|deposit|balance|renewal_amount|renewal_due|paid|pay_link|doc_link|last_payment)\}/.test(t)) && (canDo('build') || !/\{preview_link\}/.test(t)); });
+    var pick = suggestedTemplate(r); if (keys.indexOf(pick) === -1) pick = keys[0];
+    var sel = select(keys.map(function (k) { return [k, TEMPLATES[k].label]; }), pick, { 'aria-label': 'Message for ' + r.name });
     var go = el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: num ? 'WhatsApp' : 'Email' });
     go.addEventListener('click', function () {
       var text = fill(state.settings[sel.value] || TEMPLATES[sel.value].text, r);
       var url = num ? 'https://wa.me/' + num + '?text=' + encodeURIComponent(text)
         : 'mailto:' + email + '?subject=' + encodeURIComponent('SIRRADDO: ' + r.interest) + '&body=' + encodeURIComponent(text);
       window.open(url, '_blank', 'noopener');
-      if (r.status === 'new') update(r, { status: 'contacted' }, 'Marked as contacted');
+      if (r.status === 'new' && canDo('customers')) update(r, { status: 'contacted' }, 'Marked as contacted');
     });
     return el('div', { class: 'admin-wa' }, [sel, go]);
   }
@@ -2235,6 +2242,12 @@
         flash('Deleted'); render();
       }).catch(fail);
     } }));
+    // Without Customers: the details are read-only (the server refuses changes anyway).
+    if (!canDo('customers')) {
+      Array.prototype.forEach.call(wrap.querySelectorAll('input, select, textarea'), function (x) { x.disabled = true; });
+      Array.prototype.forEach.call(wrap.querySelectorAll('.admin-quick button, .admin-sub button'), function (x) { x.disabled = true; });
+      wrap.insertBefore(el('p', { class: 'admin-hint', text: 'View only: your account can\u2019t change customer details. Message the owner if something needs updating.' }), wrap.firstChild);
+    }
     return wrap;
   }
 
@@ -2273,6 +2286,7 @@
 
   // AI-written website text from the project form.
   function draftRow(r) {
+    if (!canDo('build')) return el('p', { class: 'admin-hint', text: r.has_draft ? 'Website text: ready (the owner handles the text, design and preview).' : 'Website text: not written yet (the owner handles this).' });
     var row = el('div', { class: 'admin-draft' }, [el('span', { class: 'admin-label', text: 'Website text (AI draft)' })]);
     var status = r.has_draft ? 'Ready ' + when(r.draft_at) : r.draft_error ? 'Not written: ' + r.draft_error : 'Being written…';
     row.appendChild(el('p', { class: 'admin-meta' }, [badge(r.has_draft ? 'Ready' : r.draft_error ? 'Failed' : 'Writing', r.has_draft ? 'is-won' : r.draft_error ? 'is-due' : 'is-new'), ' ' + status]));
@@ -2711,7 +2725,7 @@
   }
 
   // A tap-to-open section of a client card. The block's own heading moves into the bar, beside its status.
-  var FOLD_PERM = { golive: 'build', handover: 'build', store: 'money', services: 'money', referral: 'marketing', after: 'changes', manage: 'changes', brief: 'customers' };
+  var FOLD_PERM = { golive: 'build', handover: 'build', store: 'owner', services: 'money', referral: 'marketing', after: 'changes', manage: 'changes', brief: 'customers' };
   function fold(r, key, title, block, status, attention) {
     if (FOLD_PERM[key] && !canDo(FOLD_PERM[key])) return document.createTextNode('');
     state.folds = state.folds || {};
@@ -3210,7 +3224,8 @@
     rdue.addEventListener('change', function () { update(r, { renewal_due: rdue.value }, 'Renewal date saved'); });
     var site = el('input', { type: 'url', inputmode: 'url', value: r.website_url || '', placeholder: 'https://theirbusiness.com.ng' });
     site.addEventListener('change', function () { update(r, { website_url: site.value }, 'Website saved. It will be checked every morning.'); });
-    card.appendChild(el('div', { class: 'admin-grid' }, [field('Project stage', stage), field('Went live on', live), field('Renewal (₦/year)', ramount), field('Renewal due', rdue)]));
+    if (!canDo('build')) { stage.disabled = true; live.disabled = true; site.disabled = true; }
+    card.appendChild(el('div', { class: 'admin-grid' }, [field('Project stage', stage), field('Went live on', live)].concat(canDo('money') ? [field('Renewal (₦/year)', ramount), field('Renewal due', rdue)] : [])));
     card.appendChild(field('Their website (checked daily)', site, r.site_checked_at
       ? 'Last check ' + when(r.site_checked_at) + ': ' + (r.site_status || '-') + (r.ssl_expires ? ' · SSL until ' + niceDate(r.ssl_expires) : '')
       : 'Add the address once the site is live.'));
@@ -3222,7 +3237,7 @@
         renewal_due: addYears(r.renewal_due, 1)
       }, 'Renewal recorded');
     } });
-    card.appendChild(el('div', { class: 'admin-actions' }, [
+    if (canDo('money')) card.appendChild(el('div', { class: 'admin-actions' }, [
       renewed,
       el('button', { class: 'admin-btn', type: 'button', text: 'Renewal invoice', disabled: !r.renewal_amount, onclick: function () { docAction(r, 'renewal', 'view'); } }),
       el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send renewal invoice', disabled: !r.renewal_amount || !waNumber(r.contact), onclick: function () { docAction(r, 'renewal', 'whatsapp'); } }),
@@ -3230,6 +3245,9 @@
         state.filters = { q: r.contact, status: '', interest: '', due: false }; state.open[r.id] = true; setTab('requests');
       } })
     ]));
+    if (!canDo('money')) card.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Open in Requests', onclick: function () {
+      state.filters = { q: r.contact, status: '', interest: '', due: false }; state.open[r.id] = true; setTab('requests');
+    } })]));
     // Each part of the job folds away, with its status on the closed bar; parts that need you open by themselves.
     var h = r.hosting || {};
     card.appendChild(fold(r, 'brief', 'Project form', briefBlock(r), r.brief_submitted_at ? ['Received', 'is-won'] : r.brief_saved_at ? ['In progress', 'is-new'] : ['Waiting', ''], false));
@@ -3269,13 +3287,14 @@
     view.appendChild(el('div', { class: 'admin-list' }, qs.map(function (q) {
       var box = el('input', { type: 'checkbox', id: 'q' + q.id });
       box.checked = q.resolved;
+      if (!canDo('customers')) box.disabled = true;
       box.addEventListener('change', function () {
         api('POST', { action: 'question', id: q.id, resolved: box.checked }).then(function () { q.resolved = box.checked; flash('Saved'); render(); }).catch(fail);
       });
       return el('div', { class: 'admin-card admin-q' + (q.resolved ? ' is-done' : '') }, [
         el('label', { for: 'q' + q.id, class: 'admin-check' }, [box, ' ' + q.question]),
         el('small', { text: when(q.created_at) }),
-        el('button', { class: 'admin-x', type: 'button', 'aria-label': 'Delete question', text: '×', onclick: function () {
+        !canDo('customers') ? null : el('button', { class: 'admin-x', type: 'button', 'aria-label': 'Delete question', text: '×', onclick: function () {
           api('POST', { action: 'question', id: q.id, remove: true }).then(function () {
             state.unanswered = state.unanswered.filter(function (x) { return x.id !== q.id; }); render();
           }).catch(fail);

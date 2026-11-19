@@ -230,3 +230,23 @@ Rules: punchy, friendly, Nigerian audience. Never name or compare with any other
     caption: String(j.caption || "").trim().slice(0, 600),
   };
 }
+
+// Public: live client websites the customer agreed to show ("Customer agreed" in Admin → Marketing → Showcase),
+// for "Websites we have built" on sirraddo.com.ng/websites.
+export async function publicWork() {
+  await ensureSchema();
+  const rows = await q(`SELECT id, name, business, interest, website_url, brief, brief_files, draft_md, hosting FROM customer_requests
+    WHERE status = 'won' AND website_url IS NOT NULL AND website_url <> '' AND (handover->>'showcase_ok')::boolean IS TRUE
+    ORDER BY live_on DESC NULLS LAST, id DESC LIMIT 9`, []);
+  const out = [];
+  for (const r of rows) {
+    const site = buildSiteModel(r);
+    const t = themeFor(r.brief || {});
+    const rv = await shownReviews(r.id).catch(() => ({ count: 0, average: 0 }));
+    const hero = site.photos[0] || site.productPhotos[0] || null;
+    out.push({ name: site.name, tagline: site.tagline || "", interest: r.interest, url: /^https:\/\//.test(r.website_url) ? r.website_url : "",
+      host: r.website_url.replace(/^https?:\/\//, "").replace(/\/$/, ""), photo: pathOf(hero?.url), logo: pathOf(site.logo?.url), primary: t.primary,
+      rating: rv.count ? { average: rv.average, count: rv.count } : null });
+  }
+  return out;
+}

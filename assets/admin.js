@@ -746,7 +746,7 @@
     };
   }
   function mkShowcase(view) {
-    view.appendChild(el('p', { class: 'admin-intro', text: 'Show off websites you built. Only post a customer’s site after they say yes (tick "Customer agreed"). Their photos, colours, products and star rating are used.' }));
+    view.appendChild(el('p', { class: 'admin-intro', text: 'Show off websites you built. Only after the customer says yes, tick "Customer agreed": their website then also appears under "Websites we have built" on sirraddo.com.ng/websites (untick to remove it). Their photos, colours, products and star rating are used.' }));
     var list = el('div'), out = el('div', { class: 'mk-grid' });
     view.appendChild(list); view.appendChild(out);
     function draw(sites) {

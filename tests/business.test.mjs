@@ -16,7 +16,7 @@ const signed = (obj) => {
 };
 
 test("public pages are served and admin needs the password", async () => {
-  for (const p of ["/", "/websites", "/terms", "/privacy", "/brief", "/admin"]) assert.equal((await h.call("GET", p)).status, 200, p);
+  for (const p of ["/", "/websites", "/terms", "/privacy", "/brief", "/admin", "/staff"]) assert.equal((await h.call("GET", p)).status, 200, p);
   assert.equal((await h.call("GET", "/api/requests?view=all", undefined, { authorization: "Bearer wrong" })).status, 401);
   assert.equal((await h.admin("GET", "/api/requests?view=all")).status, 200);
 });
@@ -332,6 +332,116 @@ test("Marketing: offer bar + chat, referrals with rewards, ad spend report, QR, 
   const lp = await h.call("GET", "/links");
   assert.equal(lp.status, 200);
   assert.match(lp.text, /sirraddodemo\.com\.ng/);
+});
+
+test("monthly/yearly services: invoice, pay online, next due moves on, reminders, receipt; project balance untouched", async () => {
+  const id = (await h.action({ action: "create", name: "Musa Bello", contact: "08036660000", interest: "Custom app", email: "musa@gmail.com" })).json.id;
+  await h.admin("PATCH", "/api/requests", { id, quote_amount: 300000, status: "won" });
+  const t = (await h.action({ action: "doc_link", id })).json.doc_token;
+  const today = new Date(Date.now() + 3600000).toISOString().slice(0, 10);
+  const in5 = new Date(Date.now() + 3600000 + 5 * 86400000).toISOString().slice(0, 10);
+  assert.equal((await h.admin("PATCH", "/api/requests", { id, services: [{ name: "", amount: 1, next_due: today }] })).status, 400);
+  let row = (await h.admin("PATCH", "/api/requests", { id, services: [{ name: "Custom system hosting and care", amount: "₦30,000", period: "monthly", next_due: in5 }] })).json;
+  const sid = row.services[0].id;
+  assert.match(sid, /^[a-z0-9]{6,16}$/);
+  // Invoice + pay button
+  const inv = await h.call("GET", `/doc?t=${t}&type=service&s=${sid}`);
+  assert.equal(inv.status, 200);
+  assert.match(inv.text, /Custom system hosting and care — monthly fee/);
+  assert.match(inv.text, /for=service-/);
+  assert.equal((await h.call("GET", `/doc?t=${t}&type=service&s=nope00`)).status, 404);
+  // Pay online: the project deposit is due too, so ask for the service explicitly
+  const pg = await h.call("GET", `/pay?t=${t}&for=service-${sid}`);
+  assert.match(pg.text, /₦30,000/);
+  const start = await h.call("POST", "/api/pay", { t, email: "musa@gmail.com", for: "service-" + sid });
+  const ref = refFrom(start.json.url);
+  const [body, headers] = signed({ event: "charge.success", data: { reference: ref } });
+  await h.call("POST", "/api/paystack-webhook", body, headers);
+  await h.call("POST", "/api/paystack-webhook", body, headers);
+  row = await h.row(id);
+  assert.equal(row.payments.length, 1, "recorded once");
+  assert.equal(row.payments[0].kind, "service");
+  const next = new Date(in5 + "T12:00:00Z"); next.setUTCMonth(next.getUTCMonth() + 1);
+  assert.equal(row.services[0].next_due, next.toISOString().slice(0, 10), "next due moved on a month");
+  const rc = await h.call("GET", `/doc?t=${t}&type=receipt`);
+  assert.match(rc.text, /Custom system hosting and care payment/);
+  assert.match((await h.call("GET", `/pay?t=${t}`)).text, /70% deposit|₦210,000/, "the project deposit is still fully due (service payment doesn't count)");
+  // Recorded by hand (transfer)
+  row = (await h.action({ action: "mk_svc_paid", id, service_id: sid, payment: { amount: "30000" } })).json;
+  assert.equal(row.payments.length, 2);
+  const next2 = new Date(next.toISOString().slice(0, 10) + "T12:00:00Z"); next2.setUTCMonth(next2.getUTCMonth() + 1);
+  assert.equal(row.services[0].next_due, next2.toISOString().slice(0, 10));
+  // Reminder: due in 5 days → email with a pay link; daily summary lists it
+  await h.admin("PATCH", "/api/requests", { id, services: [{ ...row.services[0], next_due: in5 }] });
+  const { runDaily } = await import("../api/_lib/automation.mjs");
+  const n = h.sent.length;
+  await runDaily(new Date(), { once: false });
+  const mails = h.newMail(n);
+  assert.ok(mails.some((m) => m.to.includes("musa@gmail.com") && /Custom system hosting and care: payment due/.test(m.subject) && /for=service-/.test(m.html)), "client reminded with a pay link");
+  assert.ok(mails.some((m) => /Monthly \/ yearly service fees due/.test(m.html)), "you see it in the daily summary");
+  // Stop: no more reminders
+  await h.admin("PATCH", "/api/requests", { id, services: [{ ...row.services[0], next_due: in5, active: false }] });
+  assert.match((await h.call("GET", `/pay?t=${t}&for=service-${sid}`)).text, /₦210,000|Nothing to pay/);
+});
+
+test("demand: the chat and forms tag people who want customer accounts or a custom system", async () => {
+  const { detectWants } = await import("../api/_lib/store.mjs");
+  assert.equal(detectWants("I want my customers to login and see order history"), "customer_accounts");
+  assert.equal(detectWants("need saved delivery addresses for buyers"), "customer_accounts");
+  assert.equal(detectWants("a school portal where students check results"), "custom_system");
+  assert.equal(detectWants("a nice bakery website"), null);
+  await h.call("POST", "/api/lead", { name: "Ife Store", contact: "08031234321", interest: "Online Store", details: "Customers should have accounts with order history" });
+  const all = (await h.admin("GET", "/api/requests?view=all")).json.requests;
+  assert.equal(all.find((r) => r.name === "Ife Store").wants, "customer_accounts");
+  const d = (await h.action({ action: "mk_demand" })).json.demand;
+  assert.ok(d.some((x) => x.name === "Ife Store" && x.wants === "customer_accounts"));
+  const { SAVE_TOOL } = await import("../api/_lib/knowledge.mjs");
+  assert.deepEqual(SAVE_TOOL.input_schema.properties.needs.enum, ["customer_accounts", "custom_system"]);
+});
+
+test("database usage watch: reads Neon, shows in admin, emails once at 70% and once at 90%", async () => {
+  assert.equal((await h.action({ action: "mk_neon" })).json.configured, false);
+  process.env.NEON_API_KEY = "napi_test";
+  try {
+    const nu = await import("../api/_lib/neon-usage.mjs");
+    globalThis.__NEON_CU_SECONDS__ = 3600 * 20;
+    const j = (await h.action({ action: "mk_neon", refresh: true })).json;
+    assert.equal(j.usage.cuh, 20); assert.equal(j.usage.storageGB, 0.12); assert.equal(j.usage.project, "proj-test");
+    let n = h.sent.length;
+    await nu.checkNeonUsage({ plan: "free" });
+    assert.equal(h.newMail(n).length, 0, "no warning at 20%");
+    globalThis.__NEON_CU_SECONDS__ = 3600 * 75;
+    n = h.sent.length;
+    await nu.checkNeonUsage({ plan: "free" }); await nu.checkNeonUsage({ plan: "free" });
+    assert.equal(h.newMail(n).filter((m) => /Database at 75%/.test(m.subject)).length, 1, "70% warning once");
+    globalThis.__NEON_CU_SECONDS__ = 3600 * 93;
+    n = h.sent.length;
+    await nu.checkNeonUsage({ plan: "free" });
+    assert.ok(h.newMail(n).some((m) => /Database at 93%/.test(m.subject) && /Upgrade today/.test(m.html)), "90% warning");
+    n = h.sent.length;
+    await nu.checkNeonUsage({ plan: "launch" });
+    assert.equal(h.newMail(n).length, 0, "no warnings on Launch");
+    assert.equal((await h.action({ action: "mk_neon" })).json.usage.cuh, 93);
+  } finally { delete process.env.NEON_API_KEY; delete globalThis.__NEON_CU_SECONDS__; }
+});
+
+test("playbook: admin page data, the admin assistant and the chat know the policies; terms and FAQ match", async () => {
+  const j = (await h.action({ action: "mk_playbook" })).json;
+  assert.ok(j.playbook.length >= 25);
+  const ids = new Set(); for (const p of j.playbook) { assert.ok(p.title && p.steps.length && p.group, p.id); assert.ok(!ids.has(p.id), "unique " + p.id); ids.add(p.id); }
+  for (const k of ["instalments", "discounts", "quiet", "wontBuild"]) assert.ok(j.policy[k]);
+  const { assistantSystem } = await import("../api/_lib/assistant.mjs");
+  const sys = await assistantSystem();
+  assert.match(sys, /PLAYBOOK/); assert.match(sys, /My website isn't opening/); assert.match(sys, /50% to start, 30% when they approve/);
+  const { SYSTEM_PROMPT } = await import("../api/_lib/knowledge.mjs");
+  assert.match(SYSTEM_PROMPT, /Instalments:.*50% to start/); assert.match(SYSTEM_PROMPT, /nobody can guarantee first place/);
+  const terms = await h.call("GET", "/terms");
+  assert.match(terms.text, /id="acceptable-use"/); assert.match(terms.text, /After 30 days without content we pause the project/);
+  const web = await h.call("GET", "/websites");
+  assert.match(web.text, /Can I pay in instalments\?/);
+  // Every reply placeholder is one the page tells you to replace, and nothing names another company.
+  for (const p of j.playbook) for (const m of (p.reply.match(/\{[a-z_]+\}/g) || [])) assert.ok(["{name}", "{form_link}", "{code}", "{renewal_link}", "{manage_link}", "{date}"].includes(m), m);
+  assert.doesNotMatch(JSON.stringify(j.playbook), /jumia|konga|jiji|wix|shopify/i);
 });
 
 test("change requests: private page, emails, Mark done; free month then quote first", async () => {
@@ -692,4 +802,126 @@ test("Website chat knows our whole published FAQ (kept in step by the build) and
   const sys = globalThis.__LAST_AI_SYSTEM__ || "";
   for (const q of questions) assert.ok(sys.includes(q.replace(/"/g, '\\"')) || sys.includes(q), `chat doesn't know: ${q}`);
   for (const fact of ["Manage", "Ask me first", "Search Console", ".com.ng", "sirraddodemo.com.ng", "receipt"]) assert.ok(sys.includes(fact), `chat doesn't know: ${fact}`);
+});
+
+test("staff accounts: username login, temporary password that must be changed, limited access, no money, activity logged", async () => {
+  const { loginCredential } = await import("../api/_lib/staff.mjs");
+  const as = (cred) => async (method, path, body) => h.call(method, path, body, { authorization: "Bearer " + cred });
+  const id = (await h.action({ action: "create", name: "Staff Test Customer", contact: "08037770001", interest: "Starter website" })).json.id;
+  await h.admin("PATCH", "/api/requests", { id, quote_amount: 80000 });
+  // Only the owner manages staff; usernames are unique and the owner's names are kept.
+  const add = await h.action({ action: "staff_add", staff: { name: "Tunde Staff", username: "Tunde", phone: "08031112222", perms: ["customers", "changes"] } });
+  assert.equal(add.status, 200, add.text);
+  assert.equal(add.json.staff.username, "tunde");
+  assert.equal(add.json.staff.must_change, true);
+  assert.equal((await h.action({ action: "staff_add", staff: { name: "Other", username: "tunde", perms: ["customers"] } })).status, 400, "username taken");
+  assert.equal((await h.action({ action: "staff_add", staff: { name: "Other", username: "admin", perms: ["customers"] } })).status, 400, "owner name kept");
+  const temp = add.json.password;
+  // The password alone (no username) is not a login; a wrong username fails.
+  assert.equal((await as(temp)("GET", "/api/requests?view=all")).status, 401);
+  assert.equal((await as(loginCredential("someone", temp))("GET", "/api/requests?view=all")).status, 401);
+  const tempLogin = as(loginCredential("Tunde ", temp));
+  // With the temporary password: only "choose your password" works.
+  const first = await tempLogin("GET", "/api/requests?view=all");
+  assert.equal(first.status, 200);
+  assert.equal(first.json.me.must_change, true);
+  assert.deepEqual(first.json.requests, []);
+  assert.equal((await tempLogin("PATCH", "/api/requests", { id, notes: "x" })).status, 403);
+  assert.equal((await tempLogin("POST", "/api/requests", { action: "assistant", messages: [] })).status, 403);
+  assert.equal((await tempLogin("POST", "/api/requests", { action: "my_password", current: temp, password: "short" })).status, 400);
+  assert.equal((await tempLogin("POST", "/api/requests", { action: "my_password", current: "wrong", password: "Tunde2026ok" })).status, 400);
+  const changed = await tempLogin("POST", "/api/requests", { action: "my_password", current: temp, password: "Tunde2026ok", remember: true });
+  assert.equal(changed.status, 200, changed.text);
+  assert.match(changed.json.token, /^s2\./);
+  assert.equal((await tempLogin("GET", "/api/requests?view=all")).status, 401, "the temporary password stops working");
+  const staff = as(loginCredential("tunde", "Tunde2026ok"));
+  const all = await staff("GET", "/api/requests?view=all");
+  assert.equal(all.status, 200, all.text);
+  assert.equal(all.json.me.role, "staff");
+  assert.equal(all.json.me.must_change, undefined);
+  assert.equal((await as(changed.json.token)("GET", "/api/requests?view=all")).json.me.username, "tunde");
+  assert.deepEqual(all.json.me.perms.sort(), ["changes", "customers"]);
+  const row = all.json.requests.find((r) => r.id === id);
+  assert.equal(row.quote_amount, null, "money hidden");
+  assert.deepEqual(row.payments, []);
+  assert.deepEqual(row.services, []);
+  assert.equal(all.json.settings.pkg_build, undefined);
+  assert.equal(all.json.settings.account_number, undefined);
+  // Allowed: customer fields. Blocked: money fields, Won, delete, settings, staff, backup, export, store keys.
+  assert.equal((await staff("PATCH", "/api/requests", { id, notes: "called back" })).status, 200);
+  assert.equal((await staff("PATCH", "/api/requests", { id, quote_amount: 1 })).status, 403);
+  assert.equal((await staff("PATCH", "/api/requests", { id, status: "won" })).status, 403);
+  assert.equal((await staff("DELETE", "/api/requests", { id })).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "settings", settings: { owner_whatsapp: "1" } })).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "staff_list" })).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "doc_link", id })).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "mk_offer_save", offer: {} })).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "shop_settings", id })).status, 403);
+  assert.equal((await staff("GET", "/api/requests?view=backup")).status, 403);
+  assert.equal((await staff("GET", `/api/requests?view=export&id=${id}`)).status, 403, "website download needs Build");
+  assert.equal((await staff("POST", "/api/requests", { action: "unknown_new_thing" })).status, 403, "unknown actions are owner only");
+  assert.notEqual((await staff("POST", "/api/requests", { action: "site_reviews", id })).status, 403);
+  // Keep me logged in: a staff token works; a token can't make another token.
+  const t = (await staff("POST", "/api/requests", { action: "session" })).json.token;
+  assert.match(t, /^s2\./);
+  assert.equal((await as(t)("POST", "/api/requests", { action: "session" })).status, 400);
+  // The owner sees what they did (admin and the 7am email).
+  const list = (await h.action({ action: "staff_list" })).json;
+  assert.ok(list.log.some((l) => /Edited/.test(l.what) && l.staff_name === "Tunde Staff"));
+  assert.ok(list.log.some((l) => /Changed their password/.test(l.what)));
+  // The owner can change a username (taken names refused); they then log in with the new one.
+  const other = (await h.action({ action: "staff_add", staff: { name: "Bola", username: "bola", perms: ["marketing"] } })).json.staff;
+  assert.equal((await h.action({ action: "staff_update", staff_id: other.id, staff: { username: "tunde" } })).status, 400);
+  await h.action({ action: "staff_update", staff_id: other.id, staff: { username: "bola.ade" } });
+  assert.ok((await h.action({ action: "staff_list" })).json.staff.some((x) => x.username === "bola.ade"));
+  await h.action({ action: "staff_delete", staff_id: other.id });
+  // Switch off: password and token stop working.
+  const sid = add.json.staff.id;
+  await h.action({ action: "staff_update", staff_id: sid, staff: { active: false } });
+  assert.equal((await staff("GET", "/api/requests?view=all")).status, 401);
+  assert.equal((await as(t)("GET", "/api/requests?view=all")).status, 401);
+  // Reset: a new temporary password, logged out everywhere, must change again.
+  await h.action({ action: "staff_update", staff_id: sid, staff: { active: true } });
+  const reset = (await h.action({ action: "staff_reset", staff_id: sid })).json;
+  assert.equal(reset.staff.must_change, true);
+  assert.equal((await staff("GET", "/api/requests?view=all")).status, 401);
+  const again = as(loginCredential("tunde", reset.password));
+  assert.equal((await again("GET", "/api/requests?view=all")).json.me.must_change, true);
+  // A temporary password expires after 3 days.
+  await h.sql(`UPDATE staff SET temp_expires = now() - interval '1 minute' WHERE id = $1`, [sid]);
+  const expired = await again("GET", "/api/requests?view=all");
+  assert.equal(expired.status, 401);
+  assert.match(expired.json.error, /3 days/);
+  const r2 = (await h.action({ action: "staff_reset", staff_id: sid })).json.password;
+  await as(loginCredential("tunde", r2))("POST", "/api/requests", { action: "my_password", current: r2, password: "NewPass2027" });
+  // With Money, they can see the quote.
+  await h.action({ action: "staff_update", staff_id: sid, staff: { perms: ["customers", "money"] } });
+  assert.equal((await as(loginCredential("tunde", "NewPass2027"))("GET", "/api/requests?view=all")).json.requests.find((r) => r.id === id).quote_amount, 80000);
+  assert.equal((await h.action({ action: "staff_delete", staff_id: sid })).status, 200);
+  assert.equal((await as(loginCredential("tunde", "NewPass2027"))("GET", "/api/requests?view=all")).status, 401);
+});
+
+test("away mode: website notice and chat say replies may be slower (never that the owner is away); it ends by itself", async () => {
+  const day = (n) => new Date(Date.now() + 3600000 + n * 864e5).toISOString().slice(0, 10);
+  await h.action({ action: "settings", settings: { away_until: day(3), away_web: "1" } });
+  let site = (await h.call("GET", "/api/site?greeting=1")).json;
+  const n = (site.notices || []).find((x) => /^away:/.test(x.id));
+  assert.ok(n, "notice shown");
+  assert.doesNotMatch(n.message, /away|travel/i);
+  await h.action({ action: "settings", settings: { away_web: "0" } });
+  assert.ok(!((await h.call("GET", "/api/site?greeting=1")).json.notices || []).some((x) => /^away:/.test(x.id)), "website notice can be off");
+  await h.action({ action: "settings", settings: { away_until: day(-1), away_web: "1" } });
+  assert.ok(!((await h.call("GET", "/api/site?greeting=1")).json.notices || []).some((x) => /^away:/.test(x.id)), "ends after the last day");
+  await h.action({ action: "settings", settings: { away_until: "" } });
+});
+
+test("the 7am email lists what staff did in the last 24 hours", async () => {
+  await h.sql(`INSERT INTO staff_log (staff_id, staff_name, what) VALUES (999, 'Ada Helper', 'Edited notes')`);
+  await h.sql(`DELETE FROM settings WHERE key LIKE '\\_daily%'`).catch(() => {});
+  const n = h.sent.length;
+  const orig = console.error; console.error = () => {};
+  try { await h.daily(); } finally { console.error = orig; }
+  const mail = h.newMail(n).find((m) => /What staff did/.test(m.html || ""));
+  assert.ok(mail, "staff section in the daily email");
+  assert.match(mail.html, /Ada Helper/);
 });

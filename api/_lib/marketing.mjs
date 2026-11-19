@@ -250,3 +250,10 @@ export async function publicWork() {
   }
   return out;
 }
+
+// Who asked for things we don't sell yet (last 90 days), for admin → Packages.
+export async function demand() {
+  await ensureSchema();
+  return q(`SELECT id, name, business, contact, interest, wants, status, created_at FROM customer_requests
+    WHERE wants IS NOT NULL AND created_at > now() - interval '90 days' ORDER BY created_at DESC LIMIT 100`, []);
+}

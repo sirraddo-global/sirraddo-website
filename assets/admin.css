@@ -317,3 +317,22 @@ a.admin-btn{text-decoration:none}
 .admin-table { border-collapse: collapse; width: 100%; font-size: .9rem; }
 .admin-table th, .admin-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line, #E3E7F0); white-space: nowrap; }
 .admin-table td.is-good { color: #1F8A4C; font-weight: 700; }
+.admin-steps { padding-left: 22px; margin: 8px 0 16px; }
+.admin-steps li { margin: 10px 0; }
+.admin-steps li p { margin: 2px 0 0; }
+.pkg-costs { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.pkg-cost h3 { margin: 0 0 2px; }
+.pkg-cost p { margin: 4px 0; }
+.usage-row { margin: 10px 0; }
+.usage-top { display: flex; justify-content: space-between; gap: 10px; font-size: .95rem; }
+.usage-bar { height: 10px; background: var(--bg-soft); border-radius: 6px; overflow: hidden; margin-top: 4px; }
+.usage-bar span { display: block; height: 100%; background: #1F8A4C; }
+.usage-bar.is-warn span { background: #D9A21B; }
+.usage-bar.is-bad span { background: #B42318; }
+.pb-item summary { font-weight: 700; cursor: pointer; padding: 4px 0; }
+.pb-item h3 { margin: 12px 0 4px; font-size: 1rem; }
+.admin-who { font-size: .8rem; opacity: .85; margin-left: auto; margin-right: 10px; }
+.staff-pass { font-family: ui-monospace, Menlo, monospace; font-size: 1.2rem; font-weight: 700; letter-spacing: .04em; background: var(--bg-soft); padding: 10px 12px; border-radius: 10px; display: inline-block; }
+.perm-list label { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; }
+.perm-list input[type="checkbox"] { width: 20px; height: 20px; min-height: 0; flex: none; margin: 2px 0 0; padding: 0; accent-color: var(--navy, #14213D); }
+a.admin-btn--wa, a.admin-btn--wa:visited, a.admin-btn--wa:hover { color: #fff; text-decoration: none; }

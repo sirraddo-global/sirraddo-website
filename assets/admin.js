@@ -2,7 +2,9 @@
 // invoices and receipts, settings. Talks to /api/requests (password in the Authorization header).
 (function () {
   'use strict';
-  var KEY = 'sirraddo-admin';
+  // Two doors to the same app: /admin for the owner (password only), /staff for staff (username + password).
+  var STAFF_PAGE = document.body.getAttribute('data-mode') === 'staff';
+  var KEY = STAFF_PAGE ? 'sirraddo-staff' : 'sirraddo-admin';
   var $ = function (id) { return document.getElementById(id); };
 
   var COMPANY = {
@@ -39,10 +41,12 @@
   };
 
   var password = null;
-  var LONG = 'sirraddo-admin-session'; // "keep me logged in": a 30-day token (never the password) in this device's storage
+  var typedPw = null; // a staff member's password, kept in memory only for the "choose your new password" screen
+  function b64url(t) { return btoa(unescape(encodeURIComponent(t))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  var LONG = STAFF_PAGE ? 'sirraddo-staff-session' : 'sirraddo-admin-session'; // "keep me logged in": a 30-day token (never the password) in this device's storage
   try { password = localStorage.getItem(LONG) || sessionStorage.getItem(KEY); } catch (e) { /* storage blocked */ }
   // The installable Admin app (Add to Home screen / Install app).
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator && !STAFF_PAGE) {
     window.addEventListener('load', function () { navigator.serviceWorker.register('/admin-sw.js', { scope: '/admin' }).catch(function () {}); });
   }
   var state = {
@@ -144,6 +148,15 @@
       state.requests = j.requests || [];
       state.unanswered = j.unanswered || [];
       state.settings = j.settings || {};
+      state.me = j.me || { role: 'owner', perms: [] };
+      if (STAFF_PAGE !== (state.me.role === 'staff')) {
+        logout();
+        $('login-error').textContent = STAFF_PAGE ? 'This is the staff login. Owner: log in at sirraddo.com.ng/admin.' : 'This is the owner login. Staff: log in at sirraddo.com.ng/staff.';
+        return;
+      }
+      applyRole();
+      var tabsBar = document.querySelector('.admin-tabs:not(.admin-subtabs)');
+      if (tabsBar) tabsBar.style.display = state.me.must_change ? 'none' : '';
       state.totals = j.totals || null;
       state.statuses = j.statuses || [];
       state.stages = j.stages || [];
@@ -163,11 +176,29 @@
     $('login').hidden = on; $('app').hidden = !on; $('logout').hidden = !on;
   }
   function logout() {
-    password = null;
+    password = null; typedPw = null;
     try { sessionStorage.removeItem(KEY); localStorage.removeItem(LONG); } catch (e) { /* ignore */ }
     showApp(false);
   }
+  // Staff accounts see only the tabs and parts their permissions allow (the server checks everything too).
+  function canDo(perm) { var m = state.me || { role: 'owner' }; return m.role === 'owner' || (perm === 'view') || ((m.perms || []).indexOf(perm) !== -1); }
+  function isOwner() { return !state.me || state.me.role === 'owner'; }
+  var TAB_PERM = { settings: 'owner', packages: 'owner', marketing: 'marketing', access: 'staff' };
+  function tabAllowed(t) {
+    var need = TAB_PERM[t];
+    if (!need) return true;
+    if (need === 'staff') return !isOwner();
+    if (need === 'owner') return isOwner();
+    return canDo(need);
+  }
+  function applyRole() {
+    Array.prototype.forEach.call(document.querySelectorAll('.admin-tabs button[data-tab]'), function (b) { b.hidden = !tabAllowed(b.getAttribute('data-tab')); });
+    if (!tabAllowed(state.tab)) state.tab = 'dashboard';
+    var who = $('who');
+    if (who) { who.hidden = isOwner(); who.textContent = isOwner() ? '' : 'Signed in as ' + state.me.name; }
+  }
   function setTab(tab) {
+    if (!tabAllowed(tab)) tab = 'dashboard';
     state.tab = tab;
     Array.prototype.forEach.call(document.querySelectorAll('.admin-tabs button'), function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-tab') === tab ? 'true' : 'false');
@@ -184,8 +215,9 @@
   function render() {
     var view = $('view');
     view.textContent = '';
+    if (state.me && state.me.must_change) { renderMustChange(view); return; }
     var fn = { dashboard: renderDashboard, requests: renderRequests, clients: renderClients,
-      questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant, marketing: renderMarketing }[state.tab];
+      questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant, marketing: renderMarketing, packages: renderPackages, playbook: renderPlaybook, access: renderAccess }[state.tab];
     fn(view);
   }
 
@@ -470,15 +502,688 @@
     { file: 'qr-card.jpg', pdf: 'qr-card.pdf', title: 'QR counter card (A6, print)', size: 'A6 · 105 × 148 mm', group: 'print',
       caption: 'Print, laminate and stand it on the counter of every customer whose website you built (with their permission).' }
   ];
+  // ===================== Packages: Standard Store guide (not built yet) =====================
+  // A planning page: what the Standard Store (Online Store + customer accounts) includes, every subscription it
+  // needs and what each costs, a cost calculator, and the full process from first chat to handover.
+  // Prices checked 19 Nov 2026 (Netlify, Neon, Render, Whogohost); change PKG below if they move.
+  var PKG_DEFAULTS = { pkg_build: 200000, pkg_addon: 50000, pkg_renewal_addon: 25000, pkg_rate: 1400, custom_build_from: 300000, custom_monthly: 30000, neon_plan: 'free' };
+  var PKG = {
+    rate: 1400, // ₦ per $1 (official ~₦1,330–1,380 + card charges); from Settings (Packages → Prices)
+    netlify: { freeCredits: 300, personal: { usd: 9, credits: 1000 }, pro: { usd: 20, credits: 5000 }, deploy: 15, perCall: 0.0012 },
+    neon: { freeCuH: 100, cuh: 0.106, gbMonth: 0.35, size: 0.25 },
+    domainYear: 6450,
+    price: { build: 200000, addon: 50000, renewalAddon: 25000 },
+    custom: { build: 300000, monthly: 30000 }
+  };
+  function pkgSetting(k) { var v = state.settings && state.settings[k]; return v != null && v !== '' ? v : PKG_DEFAULTS[k]; }
+  function loadPkg() {
+    PKG.rate = Number(pkgSetting('pkg_rate')) || 1400;
+    PKG.price = { build: Number(pkgSetting('pkg_build')), addon: Number(pkgSetting('pkg_addon')), renewalAddon: Number(pkgSetting('pkg_renewal_addon')) };
+    PKG.custom = { build: Number(pkgSetting('custom_build_from')), monthly: Number(pkgSetting('custom_monthly')) };
+  }
+  function nN(n) { return '₦' + Math.round(n).toLocaleString('en-NG'); }
+  var PKG_TABS = [['standard', 'Standard Store'], ['custom', 'Custom system'], ['database', 'Database'], ['demand', 'Who\u2019s asking'], ['prices', 'Prices']];
+  function renderPackages(view) {
+    loadPkg();
+    var tab = state.pkgTab || 'standard';
+    view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Packages' }, PKG_TABS.map(function (t) {
+      return el('button', { type: 'button', 'aria-pressed': t[0] === tab ? 'true' : 'false', text: t[1], onclick: function () { state.pkgTab = t[0]; render(); } });
+    })));
+    ({ standard: pkgStandard, custom: pkgCustom, database: pkgDatabase, demand: pkgDemand, prices: pkgPrices })[tab](view);
+  }
+  function pkgStandard(view) {
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('span', { class: 'admin-badge is-due', text: 'Planned package · not built yet' }),
+      el('h2', { text: 'Standard Store (Online Store + customer accounts)' }),
+      el('p', { class: 'admin-hint', text: 'A full shopping experience like the big online marketplaces: buyers create an account, sign in, keep their order records and save delivery addresses. Use this page to quote it, see what it costs you to run, and follow the steps when you are ready to build it with Claude. (In ads and on the website, never name other companies.)' })
+    ]));
+
+    // 1. What the buyer and the store owner get
+    view.appendChild(el('h2', { class: 'admin-h2', text: '1. What it includes' }));
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('h3', { text: 'For buyers (the store’s customers)' }),
+      el('ul', { class: 'admin-mini' }, [
+        'Create an account and sign in: "Sign in with Google" (one tap) or phone number + password',
+        'My orders: every order with status, items, amounts and the receipt (save as picture/PDF, share)',
+        'Saved delivery addresses: several addresses (home, office…), one as default, filled in at checkout',
+        'Reorder in one tap, wishlist / saved items, edit profile',
+        'Checkout faster: name, phone and address already filled in',
+        'No emails to buyers (our rule): Google sign-in needs none; a forgotten password is reset by the store owner'
+      ].map(function (t) { return el('li', { text: t }); })),
+      el('h3', { text: 'For the store owner (in their Manage link)' }),
+      el('ul', { class: 'admin-mini' }, [
+        'Customers list: name, phone, number of orders, total spent, last order',
+        'Each customer’s orders and saved addresses (for delivery)',
+        'Reset a buyer’s password (gives a one-time code to send on WhatsApp)',
+        'Download customers and orders as a spreadsheet (CSV)',
+        'Turn accounts off/on; buyers can still check out as guests'
+      ].map(function (t) { return el('li', { text: t }); }))
+    ]));
+
+    // 2. Price to the customer
+    view.appendChild(el('h2', { class: 'admin-h2', text: '2. Suggested price (you decide)' }));
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('ul', { class: 'admin-mini' }, [
+        el('li', null, [el('b', { text: 'Build: ' + nN(PKG.price.build) }), ' (Online Store ₦150,000 + customer accounts ' + nN(PKG.price.addon) + ')']),
+        el('li', null, [el('b', { text: 'Yearly: their normal renewal + ' + nN(PKG.price.renewalAddon) }), ' (covers your share of the database and hosting upgrades below)']),
+        el('li', null, [el('b', { text: 'Existing Online Store customers: ' + nN(PKG.price.addon) }), ' to add accounts to their store'])
+      ])
+    ]));
+
+    // 3. Subscriptions and costs
+    view.appendChild(el('h2', { class: 'admin-h2', text: '3. What it costs you to run' }));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'All Standard Stores share the same hosting and database, so these are not per store: you pay only when total use outgrows the free plans. ₦ at ' + nN(PKG.rate) + ' per $1.' }));
+    var costs = [
+      ['Netlify', 'Your site and the store logins, orders and addresses', 'Free: 300 credits a month (sites pause if you pass it)',
+        ['Personal: $9/month (1,000 credits) = ' + nN(9 * PKG.rate) + '/month · ' + nN(9 * PKG.rate * 12) + '/year', 'Pro: from $20/month = ' + nN(20 * PKG.rate) + '/month · ' + nN(20 * PKG.rate * 12) + '/year (only if you pass 1,000 credits)']],
+      ['Neon', 'The database: accounts, orders, saved addresses', 'Free: 100 CU-hours and 1 GB a month (pauses at the limit)',
+        ['Launch, pay as you go: $0.106 per CU-hour + $0.35 per GB-month, no minimum', 'Light use: ~' + nN(5.65 * PKG.rate) + '/month · ~' + nN(5.65 * PKG.rate * 12) + '/year', 'Busy all day: ~' + nN(19.7 * PKG.rate) + '/month · ~' + nN(19.7 * PKG.rate * 12) + '/year']],
+      ['Cloudflare', 'Store websites, DNS, email forwarding', 'Free', ['Not needed: ₦0']],
+      ['Google sign-in', 'Google Cloud (project sirraddo-websites)', 'Free', ['Not needed: ₦0']],
+      ['Phone + password login', 'No SMS', 'Free', ['Not needed: ₦0']],
+      ['.com.ng domain', 'Per store; the customer pays it in their renewal', '', ['~' + nN(PKG.domainYear) + '/year (Whogohost list price)']],
+      ['Paystack', 'The store pays Paystack\u2019s fee on each sale, not you', '', ['₦0 to you']]
+    ];
+    view.appendChild(el('div', { class: 'pkg-costs' }, costs.map(function (c) {
+      return el('div', { class: 'admin-card pkg-cost' }, [
+        el('h3', { text: c[0] }), el('p', { class: 'admin-meta', text: c[1] }),
+        c[2] ? el('p', null, [el('b', { text: 'Now: ' }), c[2]]) : null,
+        el('ul', { class: 'admin-mini' }, c[3].map(function (t) { return el('li', { text: t }); }))
+      ]);
+    })));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Worst case with everything upgraded: about ' + nN((9 + 19.7) * PKG.rate) + ' a month (' + nN((9 + 19.7) * PKG.rate * 12) + ' a year), shared by all your stores. Likely ₦0 for a good while. Note: the database cost is mostly fixed (about ' + nN(19.7 * PKG.rate) + ' a month once it is busy all day), so the more Standard Stores you have, the cheaper each one is. Your normal Online Stores may push the database onto the paid plan too as they grow.' }));
+
+    // 4. Calculator
+    view.appendChild(el('h2', { class: 'admin-h2', text: '4. Cost calculator' }));
+    var calc = el('div', { class: 'admin-card' });
+    var stores = el('input', { type: 'number', min: 0, value: 5, inputmode: 'numeric' });
+    var buyers = el('input', { type: 'number', min: 0, value: 200, inputmode: 'numeric' });
+    var deploys = el('input', { type: 'number', min: 0, value: 8, inputmode: 'numeric' });
+    var rate = el('input', { type: 'number', min: 1, value: PKG.rate, inputmode: 'numeric' });
+    var out = el('div');
+    function calcNow() {
+      var s = Math.max(0, +stores.value || 0), b = Math.max(0, +buyers.value || 0), d = Math.max(0, +deploys.value || 0), fx = Math.max(1, +rate.value || PKG.rate);
+      // Each active buyer ≈ 20 account calls a month (sign-in, orders, addresses, checkout); your own site and admin ≈ 60 credits.
+      var calls = s * b * 20;
+      var credits = Math.round(d * PKG.netlify.deploy + calls * PKG.netlify.perCall + 60);
+      var plan = credits <= PKG.netlify.freeCredits * 0.85 ? ['Free', 0] : credits <= PKG.netlify.personal.credits * 0.9 ? ['Personal', 9] : ['Pro', 20];
+      // Database: awake ~5 minutes after each use. 80% of use in 16 daytime hours, 20% at night.
+      var dayRate = calls * 0.8 / 30 / 16, nightRate = calls * 0.2 / 30 / 8;
+      var awake = 16 * (1 - Math.exp(-dayRate * 5 / 60)) + 8 * (1 - Math.exp(-nightRate * 5 / 60)) + 1;
+      var cuh = Math.round(awake * 30 * PKG.neon.size + 15); // + your own admin, site and chat
+      var neonUsd = cuh <= PKG.neon.freeCuH ? 0 : cuh * PKG.neon.cuh + 0.35;
+      var month = (plan[1] + neonUsd) * fx;
+      var revenue = s * PKG.price.renewalAddon;
+      out.innerHTML = '';
+      out.appendChild(el('ul', { class: 'admin-mini' }, [
+        el('li', null, ['Account calls: ', el('b', { text: calls.toLocaleString('en-NG') + ' a month' })]),
+        el('li', null, ['Netlify: ', el('b', { text: '~' + credits + ' credits a month → ' + plan[0] + (plan[1] ? ' ($' + plan[1] + ' = ' + nN(plan[1] * fx) + '/month)' : ' (₦0)') })]),
+        el('li', null, ['Neon: ', el('b', { text: '~' + cuh + ' CU-hours a month → ' + (neonUsd ? 'Launch (~$' + neonUsd.toFixed(2) + ' = ' + nN(neonUsd * fx) + '/month)' : 'Free (₦0)') })]),
+        el('li', null, ['Total running cost: ', el('b', { text: nN(month) + ' a month · ' + nN(month * 12) + ' a year' })]),
+        el('li', null, ['Your yearly add-on income from ' + s + ' store' + (s === 1 ? '' : 's') + ': ', el('b', { text: nN(revenue) + (revenue >= month * 12 ? ' ✓ covers it' : ' ✗ not enough yet') })]),
+        month > 0 ? el('li', null, ['Break-even: ', el('b', { text: Math.ceil(month * 12 / PKG.price.renewalAddon) + ' Standard Stores at ' + nN(PKG.price.renewalAddon) + ' a year' }), ' (or charge more per store)']) : null
+      ]));
+      out.appendChild(el('p', { class: 'admin-hint', text: 'An estimate: real use shows in Netlify → Usage and Neon → Billing. Check monthly.' }));
+    }
+    [stores, buyers, deploys, rate].forEach(function (x) { x.addEventListener('input', calcNow); });
+    [field('Standard Stores', stores), field('Active buyers per store per month', buyers), field('Website updates (deploys) per month', deploys), field('₦ per $1', rate)].forEach(function (x) { calc.appendChild(x); });
+    calc.appendChild(out);
+    view.appendChild(calc);
+    calcNow();
+
+    // 5. Process
+    view.appendChild(el('h2', { class: 'admin-h2', text: '5. From first chat to handover' }));
+    var steps = [
+      ['A customer asks', 'From the website chat, WhatsApp or an ad. Until this package is built, the chat says it is coming soon, offers the normal Online Store, and tags them "Wants customer accounts" (Packages → Who\u2019s asking). Reply with this package and price when you are ready.'],
+      ['Quote and invoice', 'Requests → their request → Package "Online Store", Quote ' + nN(PKG.price.build) + ', and write "Standard Store (customer accounts)" in the summary. Send the invoice.'],
+      ['70% deposit', 'They pay online (Paystack link on the invoice) or by transfer; it is recorded and the receipt goes out by itself.'],
+      ['Project form', 'They fill the Online Store form: products, photos, delivery areas, and connect their own Paystack (Connect link).'],
+      ['Build the accounts part (once, then reuse)', 'The first time, ask Claude: "Build the Standard Store customer accounts from the Packages page". It adds buyer accounts, orders history, saved addresses and the owner’s customer list to the platform. After that, every Standard Store just switches it on.'],
+      ['Google sign-in (one time + 1 minute per store)', 'One time: Google Cloud (project sirraddo-websites) → APIs & Services → OAuth consent screen (External, app name SIRRADDO) → Credentials → Create OAuth client ID (Web). Per store: add https://theirdomain.com.ng to "Authorised JavaScript origins". Free.'],
+      ['Preview and approval', 'They choose a design and test: sign up, add an address, place a test order, see it under My orders.'],
+      ['Balance and go live', 'They pay the 30% balance; Go live puts the store on their domain. Test once more on the real domain.'],
+      ['Handover', 'The handover pack and their Manage link: customers list, resetting a buyer’s password, downloading customers and orders.'],
+      ['Every month', 'Packages → Database shows the database use (and emails you at 70% and 90%). Check Netlify → Usage too. Upgrade only when the free limits are close.'],
+      ['Their yearly add-on', 'Client card → Monthly / yearly services → "Customer accounts (Standard Store)" (yearly). Invoices, reminders and receipts then run by themselves.']
+    ];
+    view.appendChild(el('ol', { class: 'admin-steps' }, steps.map(function (s) { return el('li', null, [el('b', { text: s[0] }), el('p', { class: 'admin-hint', text: s[1] })]); })));
+
+    // 6. Upgrades
+    view.appendChild(el('h2', { class: 'admin-h2', text: '6. How to upgrade (only when needed)' }));
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('h3', { text: 'Neon (database) → Launch' }),
+      el('ol', { class: 'admin-mini' }, [
+        'When: Neon → Billing shows close to 100 CU-hours or 1 GB in a month (the database pauses at the limit until next month).',
+        'console.neon.tech → your organisation → Billing → Upgrade → Launch. Add a dollar card.',
+        'Nothing to move: the same database and connection string keep working (no change in Netlify).',
+        'Keep "scale to zero" on, and set a spending limit (e.g. $25/month) so a busy month can’t surprise you.',
+        'Cost: pay only for use, $0.106 per CU-hour and $0.35 per GB-month, no monthly minimum (about ' + nN(5.65 * PKG.rate) + '–' + nN(19.7 * PKG.rate) + ' a month).'
+      ].map(function (t) { return el('li', { text: t }); })),
+      el('h3', { text: 'Netlify (hosting) → Personal' }),
+      el('ol', { class: 'admin-mini' }, [
+        'When: Netlify → Usage shows over ~250 of 300 credits in a month (on Free, sites pause at 300).',
+        'app.netlify.com → team SIRRADDO GLOBAL LIMITED → Team settings → Billing → Change plan → Personal ($9/month, 1,000 credits). Add a dollar card.',
+        'Leave "auto recharge" off unless you want it to buy extra credits by itself.',
+        'Cost: ' + nN(9 * PKG.rate) + ' a month (' + nN(9 * PKG.rate * 12) + ' a year). Pro (from $20/month) only if you outgrow 1,000 credits.'
+      ].map(function (t) { return el('li', { text: t }); })),
+      el('h3', { text: 'Paying in dollars' }),
+      el('p', { class: 'admin-hint', text: 'Both bill in US dollars. Use a dollar (domiciliary) card or a virtual dollar card, and keep a little extra for exchange-rate changes.' })
+    ]));
+
+    // 7. Before launch
+    view.appendChild(el('h2', { class: 'admin-h2', text: '7. Before you sell it' }));
+    view.appendChild(el('ul', { class: 'admin-mini' }, [
+      'Privacy page: add buyer accounts (what is stored, that it belongs to the store owner, how to delete an account).',
+      'Terms: the store owner is responsible for their customers’ data on their store.',
+      'Website and chat: add the package and price (Claude can do this when building it).',
+      'Never email buyers from SIRRADDO’s email (our rule): Google sign-in or owner password resets only.'
+    ].map(function (t) { return el('li', { text: t }); })));
+
+  }
+
+  // ---------- Packages → Database: live usage + how to run it ----------
+  function neonCard() {
+    var card = el('div', { class: 'admin-card' }, [el('h2', { text: 'Database usage this month (Neon)' }), el('p', { class: 'admin-hint', text: 'Loading…' })]);
+    function draw(j) {
+      while (card.children.length > 1) card.lastChild.remove();
+      if (!j.configured) {
+        card.appendChild(el('p', { class: 'admin-hint', text: 'Not connected yet. To see usage here and get an email at 70% and 90% of the free plan:' }));
+        card.appendChild(el('ol', { class: 'admin-mini' }, [
+          'Neon → your account (top right) → Account settings → API keys → Create new API key (name it "sirraddo-usage"). Copy it.',
+          'Netlify → project sirraddo → Site configuration → Environment variables → Add: NEON_API_KEY = the key. Never paste it in a chat or email.',
+          'If you have more than one Neon project, also add NEON_PROJECT_ID (Neon → your project → Settings → Project ID).',
+          'It starts working after the next deploy. Reading usage never wakes the database.'
+        ].map(function (t) { return el('li', { text: t }); })));
+        return;
+      }
+      var u = j.usage, free = (pkgSetting('neon_plan') || 'free') === 'free';
+      if (!u) { card.appendChild(el('p', { class: 'admin-hint', text: j.error || 'No reading yet. Tap Check now.' })); }
+      else {
+        var pctH = Math.min(100, Math.round(100 * u.cuh / j.free.cuh)), pctS = Math.min(100, Math.round(100 * u.storageGB / j.free.gb));
+        var bar = function (label, pct, text) {
+          return el('div', { class: 'usage-row' }, [el('div', { class: 'usage-top' }, [el('span', { text: label }), el('b', { text: text })]),
+            el('div', { class: 'usage-bar' + (pct >= 90 ? ' is-bad' : pct >= 70 ? ' is-warn' : '') }, [el('span', { style: 'width:' + pct + '%' })])]);
+        };
+        card.appendChild(bar('Compute hours', free ? pctH : 0, u.cuh + (free ? ' of ' + j.free.cuh + ' (' + pctH + '%)' : ' hours · about $' + (u.cuh * PKG.neon.cuh).toFixed(2) + ' = ' + nN(u.cuh * PKG.neon.cuh * PKG.rate))));
+        card.appendChild(bar('Storage', free ? pctS : 0, u.storageGB + ' GB' + (free ? ' of ' + j.free.gb + ' GB (' + pctS + '%)' : '')));
+        card.appendChild(el('p', { class: 'admin-hint', text: (free ? (pctH >= 90 ? 'Upgrade to Launch today (steps below).' : pctH >= 70 ? 'Plan to upgrade this week (steps below).' : 'Fine for now.') : 'On Launch: you pay for the hours used.') + ' Checked ' + when(u.at) + (u.periodStart ? ' · month started ' + niceDay(u.periodStart.slice(0, 10)) : '') + '.' }));
+        if (j.error) card.appendChild(el('p', { class: 'admin-error', text: j.error }));
+      }
+      card.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Check now', onclick: function (e) {
+        var b = e.currentTarget; b.disabled = true; b.textContent = 'Checking…';
+        api('POST', { action: 'mk_neon', refresh: true }).then(draw).catch(fail);
+      } }));
+    }
+    api('POST', { action: 'mk_neon' }).then(draw).catch(fail);
+    return card;
+  }
+  function pkgDatabase(view) {
+    view.appendChild(neonCard());
+
+    // 8. Running the database: checks, upgrades, moving one store
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Running the database (all stores share one)' }));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Every store uses the one Neon database behind this website (each record is labelled with its store). The store pages live on Cloudflare and keep showing even if the database pauses; only checkout, sign-in, reviews, admin and Manage need it. On Free it can be awake 100 hours a month; past that it pauses for every store until next month.' }));
+    function stepCard(title, intro, list, foot) {
+      return el('div', { class: 'admin-card' }, [el('h3', { text: title }), intro ? el('p', { class: 'admin-hint', text: intro }) : null,
+        el('ol', { class: 'admin-mini' }, list.map(function (t) { return el('li', { text: t }); })), foot ? el('p', { class: 'admin-hint', text: foot }) : null]);
+    }
+    view.appendChild(stepCard('A. Monthly check (5 minutes, first week of the month)', null, [
+      'Neon: console.neon.tech → your project → Billing / Usage. Under 70 compute hours and 0.7 GB: nothing to do. 70–100 hours: upgrade this month (B).',
+      'Netlify: app.netlify.com → team → Usage. Under ~250 credits is fine; above, see C.',
+      'Neon → Monitoring: if one store causes most of the activity, read D.'
+    ]));
+    view.appendChild(stepCard('B. Upgrade Neon to Launch (10 minutes, no downtime)', null, [
+      'console.neon.tech → your organisation → Billing → Upgrade → Launch.',
+      'Add a dollar card (domiciliary or virtual).',
+      'Set a spending limit (e.g. $25 a month) so a surprise month can’t run up a big bill.',
+      'Leave "scale to zero" on: quiet hours cost nothing.',
+      'Nothing else changes: same database and connection string, no Netlify change, no deploy.'
+    ], 'Cost: about ' + nN(5.65 * PKG.rate) + ' a month light, up to about ' + nN(19.7 * PKG.rate) + ' busy.'));
+    view.appendChild(stepCard('C. Upgrade Netlify to Personal (5 minutes)', null, [
+      'app.netlify.com → team SIRRADDO GLOBAL LIMITED → Team settings → Billing → Change plan → Personal ($9/month, 1,000 credits).',
+      'Add the dollar card. Leave "auto recharge" off.'
+    ], 'Cost: ' + nN(9 * PKG.rate) + ' a month.'));
+    view.appendChild(stepCard('D. When a store needs its own database', 'Move a store only if one of these is true:', [
+      'That one store keeps the database awake almost all day, or uses most of the storage.',
+      'It gets thousands of orders or sign-ins a day and other stores feel slower.',
+      'The customer asks for their data to be kept separate (and pays for it).'
+    ]));
+    view.appendChild(stepCard('E. Move one store to its own database', 'Not built yet. The first time, ask Claude: "Build per-store database moving". It adds the switch plus "Pause checkout", "Move to own database", "Move back" and "Remove old copy" buttons to the client card (one deploy, 15 credits). Then each move takes about 30 minutes, best at night:', [
+      'Agree the price: their database costs ' + nN(5.65 * PKG.rate) + '–' + nN(19.7 * PKG.rate) + ' a month; charge e.g. ₦15,000–₦35,000 a month (or yearly).',
+      'Create their database: console.neon.tech → New project → "store-theirname", same region and Postgres version as your main project → copy the pooled connection string.',
+      'Save it as a secret: Netlify → project sirraddo → Environment variables → add STORE_DB_<client ID> = the connection string. Never paste it in a chat or email. Saving it needs one redeploy (15 credits).',
+      'Client card → Pause checkout (buyers see "Back in a few minutes"; pages stay up).',
+      'Client card → Move to own database: it copies their products, orders, buyers, addresses and reviews and shows the counts (e.g. Orders 1,240 = 1,240 ✓).',
+      'Test on their live site: a test order, sign in, save an address, a review, their Manage page.',
+      'Client card → Resume checkout.',
+      'Keep the old copy 7 days as a backup, then Remove old copy.',
+      'Bill their database monthly or yearly with their normal invoices.'
+    ], 'Undo within 7 days: Move back (orders made since the move are copied back, and checkout uses the main database again).'));
+    view.appendChild(stepCard('F. Backups', null, [
+      'Before any upgrade or move: Settings → Backup → download a backup and keep it safe (never forward it).',
+      'Neon can restore the database to an earlier time: Neon → your project → Restore. Paid plans keep a longer history, one more reason to upgrade once real stores depend on it.'
+    ]));
+
+  }
+
+  // ---------- Packages → Custom system ----------
+  function pkgCustom(view) {
+    var c = PKG.custom;
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('h2', { text: 'Custom systems (built as separate projects)' }),
+      el('p', { class: 'admin-hint', text: 'For anything bigger than a website with a store: school portals and result checkers, clinic or hospital records, booking systems with staff, property sites where agents log in, marketplaces with many sellers, savings/ajo apps, internal dashboards. Each one gets its own server and database; their website links to it (e.g. portal.theirbusiness.com.ng).' })
+    ]));
+    view.appendChild(el('h2', { class: 'admin-h2', text: '1. Price (you decide)' }));
+    view.appendChild(el('div', { class: 'admin-card' }, [el('ul', { class: 'admin-mini' }, [
+      el('li', null, [el('b', { text: 'Build: from ' + nN(c.build) }), ', depending on size (screens, user types, payments, reports).']),
+      el('li', null, [el('b', { text: 'Hosting and care: ' + nN(c.monthly) + ' a month' }), ' (or ' + nN(c.monthly * 10) + ' a year, 2 months free), added as a monthly/yearly service on their client card so invoices and reminders go out by themselves.']),
+      el('li', { text: 'Changes after launch: quoted each time (or a care plan with a few hours a month).' })
+    ])]));
+    view.appendChild(el('h2', { class: 'admin-h2', text: '2. What each one costs you to run (per project)' }));
+    view.appendChild(el('div', { class: 'pkg-costs' }, [
+      ['Server (Render)', 'Starter web service, always on', ['$7/month = ' + nN(7 * PKG.rate) + '/month · ' + nN(7 * PKG.rate * 12) + '/year']],
+      ['Database', 'A new Neon project (free plan: 100 hours, 1 GB) or Render Postgres', ['Neon Free: ₦0 to start', 'Neon Launch when busy: ~' + nN(5.65 * PKG.rate) + '–' + nN(19.7 * PKG.rate) + '/month', 'Render Postgres Basic: $6/month = ' + nN(6 * PKG.rate) + '/month']],
+      ['Address', 'portal.theirdomain.com.ng on their existing domain (Cloudflare)', ['₦0']],
+      ['Emails to their users', 'Password resets, notices: from THEIR own email account on their domain (never SIRRADDO’s)', ['They pay their email provider (many have a free plan)']],
+      ['Code', 'A private repo under the sirraddo-global GitHub organisation', ['₦0']]
+    ].map(function (x) {
+      return el('div', { class: 'admin-card pkg-cost' }, [el('h3', { text: x[0] }), el('p', { class: 'admin-meta', text: x[1] }), el('ul', { class: 'admin-mini' }, x[2].map(function (t) { return el('li', { text: t }); }))]);
+    })));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Typical running cost: ' + nN(7 * PKG.rate) + '–' + nN(13 * PKG.rate) + ' a month per project. At ' + nN(c.monthly) + ' a month you keep ' + nN(c.monthly - 13 * PKG.rate) + ' or more for care and exchange-rate changes.' }));
+    view.appendChild(el('h2', { class: 'admin-h2', text: '3. From first chat to handover' }));
+    var steps = [
+      ['A customer asks', 'The chat saves it as "Custom app" and tags it "custom system" (see Who’s asking). Call or WhatsApp them the same day.'],
+      ['Understand the job (30 minutes)', 'Who logs in (types of users), what each can do, payments, reports, how many users, deadlines. Write it down as a one-page scope.'],
+      ['Quote', 'Requests → their request → Package "Custom app", Quote (build price), summary = the scope. Send the invoice; say the monthly hosting and care fee too.'],
+      ['70% deposit', 'Paid online or by transfer; recorded with a receipt.'],
+      ['Build with Claude', 'New private repo under sirraddo-global. Ask Claude to build it from the scope, with tests. Weekly progress on WhatsApp.'],
+      ['Server and database', 'Render: new Web Service from the repo (Starter). Neon: new project for this client (or Render Postgres). Their secrets only in Render’s environment settings.'],
+      ['Test link', 'They try it on the Render address with test accounts and say what to change.'],
+      ['Balance and go live', 'They pay the 30% balance. Cloudflare: add portal.theirdomain (CNAME to the Render address), and add the custom domain in Render. Add a "Login" button on their website.'],
+      ['Handover', 'Admin logins privately on WhatsApp, a short how-to, and who to call. On their client card → Monthly / yearly services → add "Custom system hosting and care" so the monthly invoices and reminders run by themselves.'],
+      ['Every month', 'Render and Neon usage for that project; the service fee comes in; backups.']
+    ];
+    view.appendChild(el('ol', { class: 'admin-steps' }, steps.map(function (x) { return el('li', null, [el('b', { text: x[0] }), el('p', { class: 'admin-hint', text: x[1] })]); })));
+  }
+
+  // ---------- Packages → Who's asking ----------
+  function pkgDemand(view) {
+    var box = el('div');
+    view.appendChild(el('p', { class: 'admin-intro', text: 'People who asked for things you don’t sell yet (last 90 days): the chat tags them, and website forms are tagged from what they wrote. When enough ask, build it.' }));
+    view.appendChild(box);
+    api('POST', { action: 'mk_demand' }).then(function (j) {
+      var acc = j.demand.filter(function (d) { return d.wants === 'customer_accounts'; }), cus = j.demand.filter(function (d) { return d.wants === 'custom_system'; });
+      box.appendChild(el('div', { class: 'admin-tiles' }, [tile('Customer accounts', acc.length, 'Standard Store'), tile('Custom systems', cus.length, 'portals, bookings…')]));
+      [['Standard Store (customer accounts)', acc], ['Custom systems', cus]].forEach(function (g) {
+        box.appendChild(el('h2', { class: 'admin-h2', text: g[0] }));
+        box.appendChild(g[1].length ? el('ul', { class: 'admin-mini' }, g[1].map(function (d) {
+          return el('li', null, [el('b', { text: d.business || d.name }), ' · ' + d.contact + ' · ' + d.interest + ' · ' + d.status + ' · ' + niceDay(String(d.created_at).slice(0, 10))]);
+        })) : el('p', { class: 'admin-empty', text: 'Nobody yet.' }));
+      });
+    }).catch(fail);
+  }
+
+  // ---------- Packages → Prices ----------
+  function pkgPrices(view) {
+    var card = el('div', { class: 'admin-card' }, [el('h2', { text: 'Prices used on these pages' }), el('p', { class: 'admin-hint', text: 'Change them here; the guides and calculator update. (The public website doesn’t show these packages yet.)' })]);
+    var inputs = {};
+    [['pkg_build', 'Standard Store: build (₦)'], ['pkg_addon', 'Add accounts to an existing store (₦)'], ['pkg_renewal_addon', 'Standard Store: extra per year (₦)'],
+      ['custom_build_from', 'Custom system: build from (₦)'], ['custom_monthly', 'Custom system: hosting and care per month (₦)'], ['pkg_rate', '₦ per $1 (for costs)']].forEach(function (f) {
+      inputs[f[0]] = el('input', { type: 'number', min: 0, inputmode: 'numeric', value: pkgSetting(f[0]) });
+      card.appendChild(field(f[1], inputs[f[0]]));
+    });
+    var plan = select([['free', 'Free (warn me at 70% and 90%)'], ['launch', 'Launch (paid, no warnings)']], pkgSetting('neon_plan') || 'free', { 'aria-label': 'Neon plan' });
+    card.appendChild(field('Neon plan', plan, 'Set to Launch after you upgrade.'));
+    card.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Save prices', onclick: function () {
+      var out = { neon_plan: plan.value };
+      Object.keys(inputs).forEach(function (k) { out[k] = String(Math.max(0, Math.round(Number(inputs[k].value) || 0)) || ''); });
+      api('POST', { action: 'settings', settings: out }).then(function (j) { state.settings = j.settings; flash('Saved'); render(); }).catch(fail);
+    } }));
+    view.appendChild(card);
+  }
+
+  // ---------- Client card → Monthly / yearly services ----------
+  function servicesBlock(r) {
+    var box = el('div', { class: 'admin-golive' });
+    var list = el('div');
+    function save(services, msg) {
+      return api('PATCH', { id: r.id, services: services }).then(function (row) { Object.assign(r, row); flash(msg || 'Saved'); draw(); }).catch(fail);
+    }
+    function draw() {
+      list.innerHTML = '';
+      var svcs = r.services || [];
+      if (!svcs.length) list.appendChild(el('p', { class: 'admin-hint', text: 'None. Add a monthly or yearly fee (dedicated database, custom system hosting and care, customer accounts…). Invoices, reminders, online payment and receipts then run by themselves.' }));
+      svcs.forEach(function (s, i) {
+        var d = Math.round((new Date(s.next_due + 'T00:00:00Z') - new Date(new Date(Date.now() + 3600000).toISOString().slice(0, 10) + 'T00:00:00Z')) / 86400000);
+        var status = !s.active ? 'Stopped' : d < 0 ? (-d) + ' day(s) overdue' : d === 0 ? 'Due today' : 'Next due ' + niceDay(s.next_due) + (d <= 14 ? ' (in ' + d + ' days)' : '');
+        var link = r.doc_token ? location.origin + '/doc?t=' + r.doc_token + '&type=service&s=' + s.id : '';
+        var num = waNumber(r.contact);
+        list.appendChild(el('div', { class: 'admin-card mk-row' }, [
+          el('div', null, [el('b', { text: s.name }), el('div', { class: 'admin-meta', text: naira(s.amount) + ' ' + s.period + ' · ' + status })]),
+          el('div', { class: 'admin-actions' }, [
+            link ? el('a', { class: 'admin-btn', href: link, target: '_blank', rel: 'noopener', text: 'Invoice' }) : null,
+            link && num ? el('a', { class: 'admin-btn admin-btn--wa', target: '_blank', rel: 'noopener', text: 'Send on WhatsApp',
+              href: 'https://wa.me/' + num + '?text=' + encodeURIComponent('Hello ' + String(r.name).split(' ')[0] + ', your ' + s.period + ' ' + s.name + ' fee of ' + naira(s.amount) + ' is due ' + niceDay(s.next_due) + '. Invoice and online payment: ' + link) }) : null,
+            el('button', { class: 'admin-btn', type: 'button', text: 'Record payment', onclick: function () {
+              var amt = window.prompt('Amount received (₦) for ' + s.name + ' due ' + niceDay(s.next_due) + ':', String(s.amount));
+              if (!amt) return;
+              api('POST', { action: 'mk_svc_paid', id: r.id, service_id: s.id, payment: { amount: amt } }).then(function (row) { Object.assign(r, row); flash('Payment recorded; next due date moved on'); draw(); }).catch(fail);
+            } }),
+            el('button', { class: 'admin-btn', type: 'button', text: s.active ? 'Stop' : 'Start again', onclick: function () {
+              var copy = svcs.map(function (x) { return Object.assign({}, x); }); copy[i].active = !s.active; save(copy, s.active ? 'Stopped (no more reminders)' : 'Started again');
+            } })
+          ])
+        ]));
+      });
+    }
+    var name = select(SERVICE_PRESETS.map(function (p) { return p[0]; }).concat(['Other']), SERVICE_PRESETS[0][0], { 'aria-label': 'Service' });
+    var other = el('input', { placeholder: 'Name of the service', hidden: true, maxlength: 80 });
+    var amount = el('input', { type: 'number', min: 1, inputmode: 'numeric', placeholder: 'Amount ₦', value: '' });
+    var period = select([['monthly', 'Monthly'], ['yearly', 'Yearly']], 'monthly', { 'aria-label': 'How often' });
+    var due = el('input', { type: 'date', value: new Date(Date.now() + 3600000).toISOString().slice(0, 10) });
+    name.addEventListener('change', function () {
+      other.hidden = name.value !== 'Other';
+      var p = SERVICE_PRESETS.filter(function (x) { return x[0] === name.value; })[0];
+      if (p) period.value = p[1];
+      if (name.value === 'Custom system hosting and care' && !amount.value) amount.value = PKG.custom.monthly;
+      if (name.value === 'Customer accounts (Standard Store)' && !amount.value) amount.value = PKG.price.renewalAddon;
+    });
+    var add = el('details', { class: 'admin-ai-own' }, [el('summary', { text: '+ Add a monthly or yearly fee' }),
+      field('Service', name), other, field('Amount (₦)', amount), field('How often', period), field('First due date', due, 'The first invoice and reminders go out from 7 days before.'),
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Add', onclick: function () {
+        var n = name.value === 'Other' ? other.value.trim() : name.value;
+        if (!n || !(Number(amount.value) > 0)) return fail(new Error('Choose the service and the amount'));
+        save((r.services || []).concat([{ name: n, amount: Number(amount.value), period: period.value, next_due: due.value, active: true }]), 'Added. Reminders and invoices are automatic.').then(function () { amount.value = ''; add.open = false; });
+      } })]);
+    box.appendChild(list); box.appendChild(add);
+    draw();
+    return box;
+  }
+  var SERVICE_PRESETS = [['Dedicated database', 'monthly'], ['Custom system hosting and care', 'monthly'], ['Customer accounts (Standard Store)', 'yearly'], ['Website care plan', 'monthly']];
+
+  // ===================== Playbook: what to do when the unexpected happens =====================
+  function renderPlaybook(view) {
+    view.appendChild(el('p', { class: 'admin-intro', text: 'What to do when something unexpected comes up: what to check, the steps, and a ready WhatsApp reply. The admin assistant knows all of these too (ask it, e.g. "a customer says their site is down").' }));
+    var search = el('input', { type: 'search', placeholder: 'Search: refund, domain, down, discount, app…', 'aria-label': 'Search the playbook', value: state.pbQuery || '' });
+    var who = el('input', { placeholder: 'Customer’s first name (for the replies)', 'aria-label': 'Customer first name', value: state.pbName || '' });
+    var list = el('div'), policyBox = el('div');
+    view.appendChild(el('div', { class: 'admin-card' }, [search, who]));
+    if (!isOwner()) view.appendChild(el('p', { class: 'admin-hint admin-callout', text: 'Some steps need the owner (refunds, discounts, prices, invoices, going live, settings, anything about passwords or keys). Do what your account allows, tell the customer the team will get back to them, then tap "Message the owner" in My access.' }));
+    view.appendChild(policyBox);
+    view.appendChild(list);
+    var data = null;
+    function fillReply(t) { return String(t || '').replace(/\{name\}/g, (who.value.trim() || 'there')); }
+    function draw() {
+      if (!data) return;
+      var qv = search.value.trim().toLowerCase();
+      // Match by words (any word of 3+ letters, ignoring small words), best matches first.
+      var STOP = ['the', 'and', 'for', 'not', 'isn', 'can', 'you', 'our', 'my', 'is', 'a', 'to', 'of', 'what', 'how', 'customer', 'customers', 'wants', 'want'];
+      var words = qv.split(/[^a-z0-9₦]+/).filter(function (w) { return w.length >= 3 && STOP.indexOf(w) === -1; });
+      var score = function (p) {
+        if (!qv) return 1;
+        var title = p.title.toLowerCase(), hay = (p.title + ' ' + p.group + ' ' + p.check.join(' ') + ' ' + p.steps.join(' ') + ' ' + p.reply).toLowerCase();
+        if (hay.indexOf(qv) !== -1) return 100;
+        return words.reduce(function (n, w) { var stem = w.replace(/(ing|ed|es|s)$/, ''); return n + (title.indexOf(stem) !== -1 ? 3 : hay.indexOf(stem) !== -1 ? 1 : 0); }, 0);
+      };
+      list.innerHTML = '';
+      var groups = [];
+      var shown = data.playbook.map(function (p) { return { p: p, sc: score(p) }; }).filter(function (x) { return x.sc > 0; });
+      shown.sort(function (a, b) { return b.sc - a.sc; });
+      shown.forEach(function (x) { if (groups.indexOf(x.p.group) === -1) groups.push(x.p.group); });
+      if (!groups.length) { list.appendChild(el('p', { class: 'admin-empty', text: 'Nothing found. Ask the admin assistant instead.' })); return; }
+      groups.forEach(function (g) {
+        list.appendChild(el('h2', { class: 'admin-h2', text: g }));
+        shown.filter(function (x) { return x.p.group === g; }).map(function (x) { return x.p; }).forEach(function (p) {
+          var d = el('details', { class: 'admin-card pb-item', open: Boolean(qv) }, [el('summary', { text: p.title })]);
+          if (p.check.length) { d.appendChild(el('h3', { text: 'Check first' })); d.appendChild(el('ul', { class: 'admin-mini' }, p.check.map(function (t) { return el('li', { text: t }); }))); }
+          d.appendChild(el('h3', { text: 'What to do' }));
+          d.appendChild(el('ol', { class: 'admin-mini' }, p.steps.map(function (t) { return el('li', { text: t }); })));
+          if (p.reply) {
+            var rep = el('p', { class: 'mk-caption', text: fillReply(p.reply) });
+            d.appendChild(el('h3', { text: 'Ready reply' }));
+            d.appendChild(rep);
+            d.appendChild(el('div', { class: 'admin-actions' }, [
+              el('button', { class: 'admin-btn', type: 'button', text: 'Copy reply', onclick: function (e) { copyText(fillReply(p.reply), 'Reply', e.currentTarget); } }),
+              el('a', { class: 'admin-btn admin-btn--wa', target: '_blank', rel: 'noopener', text: 'Open in WhatsApp', href: 'https://wa.me/?text=' + encodeURIComponent(fillReply(p.reply)) })
+            ]));
+            if (/\{[a-z_]+\}/.test(fillReply(p.reply))) d.appendChild(el('p', { class: 'admin-hint', text: 'Replace the {…} part before sending (e.g. the link from their client card).' }));
+          }
+          list.appendChild(d);
+        });
+      });
+    }
+    search.addEventListener('input', function () { state.pbQuery = search.value; draw(); });
+    who.addEventListener('input', function () { state.pbName = who.value; draw(); });
+    api('POST', { action: 'mk_playbook' }).then(function (j) {
+      data = j;
+      policyBox.appendChild(el('details', { class: 'admin-card' }, [el('summary', { text: 'Your policies (also on the Terms page and known by both assistants)' }),
+        el('ul', { class: 'admin-mini' }, [['Instalments', j.policy.instalments], ['Discounts', j.policy.discounts], ['Quiet customers', j.policy.quiet], ['What we don’t build', j.policy.wontBuild]].map(function (x) {
+          return el('li', null, [el('b', { text: x[0] + ': ' }), x[1]]);
+        }))]));
+      draw();
+    }).catch(fail);
+  }
+
+  // ===================== Staff: Settings → Staff (owner) and My access (staff) =====================
+  var PERM_INFO = {
+    customers: ['Customers', 'Add customers, update details, status (not Won), follow-up dates and notes; answer website questions; reviews'],
+    changes: ['Change requests', 'Change requests (incl. Do it with AI and previews), send customers their Manage link, visitor reports'],
+    marketing: ['Marketing', 'Ready ads, picture and video maker, AI captions, showcase, referrals'],
+    money: ['Money', 'Quotes, invoices, receipts, payments, Won status, renewals, monthly/yearly services, ad spend'],
+    build: ['Build and publish', 'Website text, AI design, previews, project stage, go live, publish, pause, restore']
+  };
+  var PERM_PRESETS = [['support', 'Customer support', ['customers', 'changes', 'marketing']], ['manager', 'Manager (everything except settings)', ['customers', 'changes', 'marketing', 'money', 'build']], ['marketing', 'Marketing only', ['marketing']]];
+  function ownerWa() { return String((state.settings && state.settings.owner_whatsapp) || '2348112999073').replace(/\D/g, ''); }
+  function staffSettings(view) {
+    var card = el('div', { class: 'admin-card admin-settings' }, [el('h2', { text: 'Staff accounts' }),
+      el('p', { class: 'admin-hint', text: 'Give someone their own login with limited access (for example while you’re away). They log in at sirraddo.com.ng/staff (their own login page, not yours) with their username and a temporary password, then choose their own. Settings, offers, emails, backups, staff and deleting stay yours only. Everything they change is listed below.' })]);
+    var name = el('input', { placeholder: 'Their name', maxlength: 80 });
+    var uname = el('input', { placeholder: 'e.g. tunde', autocapitalize: 'none', spellcheck: 'false', maxlength: 60 });
+    var unameTouched = false;
+    uname.addEventListener('input', function () { unameTouched = true; });
+    name.addEventListener('input', function () { if (!unameTouched) uname.value = String(name.value.trim().split(/\s+/)[0] || '').toLowerCase().replace(/[^a-z0-9._-]/g, ''); });
+    var phone = el('input', { placeholder: 'Their WhatsApp number', inputmode: 'tel' });
+    var preset = select(PERM_PRESETS.map(function (p) { return [p[0], p[1]]; }), 'support', { 'aria-label': 'Role' });
+    var boxes = {};
+    var perms = el('div', { class: 'perm-list' }, Object.keys(PERM_INFO).map(function (k) {
+      boxes[k] = el('input', { type: 'checkbox' });
+      return el('label', null, [boxes[k], el('span', null, [el('b', { text: PERM_INFO[k][0] }), ' · ' + PERM_INFO[k][1]])]);
+    }));
+    function setPreset() { var p = PERM_PRESETS.filter(function (x) { return x[0] === preset.value; })[0]; Object.keys(boxes).forEach(function (k) { boxes[k].checked = p[2].indexOf(k) !== -1; }); }
+    preset.addEventListener('change', setPreset); setPreset();
+    var shown = el('div');
+    var owa = el('input', { value: (state.settings && state.settings.owner_whatsapp) || '2348112999073', inputmode: 'tel' });
+    [field('Name', name), field('Username', uname, 'What they type to log in (letters and numbers; an email address works too). Must be different for each person.'), field('WhatsApp', phone), field('Role', preset, 'Start from a role, then tick or untick'), perms].forEach(function (x) { card.appendChild(x); });
+    function showPassword(st, password, days) {
+      shown.innerHTML = '';
+      var url = location.origin + '/staff';
+      var msg = 'Hello ' + st.name.split(' ')[0] + ', here is your SIRRADDO admin login.\nPage: ' + url + '\nUsername: ' + st.username + '\nTemporary password: ' + password + '\nIt works for ' + (days || 3) + ' days. When you log in, you\u2019ll choose your own password. Keep it private. Then open "My access" to see what you can do.';
+      var num = String(st.phone || '').replace(/\D/g, '').replace(/^0/, '234');
+      shown.appendChild(el('div', { class: 'admin-card' }, [el('h3', { text: 'Login for ' + st.name }), el('p', { class: 'admin-meta', text: 'Username: ' + st.username }),
+        el('p', { class: 'admin-label', text: 'Temporary password (shown once)' }), el('p', { class: 'staff-pass', text: password }),
+        el('p', { class: 'admin-hint', text: 'Send it privately on WhatsApp. It works for ' + (days || 3) + ' days; they must choose their own password when they first log in. You can\u2019t see it again: use "Reset password" if it\u2019s lost.' }),
+        el('div', { class: 'admin-actions' }, [
+          el('button', { class: 'admin-btn', type: 'button', text: 'Copy password', onclick: function (e) { copyText(password, 'Password', e.currentTarget); } }),
+          num ? el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + num + '?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Send login on WhatsApp' }) : null])]));
+      shown.scrollIntoView({ behavior: 'smooth' });
+    }
+    card.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Add staff', onclick: function () {
+      api('POST', { action: 'staff_add', staff: { name: name.value, username: uname.value, phone: phone.value, perms: Object.keys(boxes).filter(function (k) { return boxes[k].checked; }) } })
+        .then(function (j) { name.value = phone.value = uname.value = ''; unameTouched = false; flash('Staff added'); showPassword(j.staff, j.password, j.temp_days); drawList(j.staff_list); }).catch(fail);
+    } }));
+    card.appendChild(shown);
+    card.appendChild(field('Your WhatsApp (staff tap "Message the owner")', owa));
+    card.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Save number', onclick: function () {
+      api('POST', { action: 'settings', settings: { owner_whatsapp: owa.value.replace(/\D/g, '').replace(/^0/, '234') } }).then(function (j) { state.settings = j.settings; flash('Saved'); }).catch(fail);
+    } }));
+    view.appendChild(card);
+    view.appendChild(awayCard());
+    var listBox = el('div'), logBox = el('div');
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Staff' })); view.appendChild(listBox);
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'What staff did (latest first)' })); view.appendChild(logBox);
+    function drawList(list) {
+      listBox.innerHTML = '';
+      if (!list.length) { listBox.appendChild(el('p', { class: 'admin-empty', text: 'No staff yet.' })); return; }
+      list.forEach(function (st) {
+        var cb = {};
+        var c = el('div', { class: 'admin-card' }, [el('h3', { text: st.name + (st.active ? '' : ' (switched off)') }),
+          el('p', { class: 'admin-meta', text: 'Username: ' + st.username + ' · ' + (st.phone || 'no number') + ' · last seen ' + (st.last_seen_at ? when(st.last_seen_at) : 'never') }),
+          st.must_change ? el('p', { class: 'admin-meta' }, [badge(st.temp_expires && Date.parse(st.temp_expires) < Date.now() ? 'Temporary password expired' : 'Waiting to choose their password', st.temp_expires && Date.parse(st.temp_expires) < Date.now() ? 'is-due' : 'is-new'),
+            st.temp_expires && Date.parse(st.temp_expires) >= Date.now() ? ' Temporary password works until ' + when(st.temp_expires) : ' Tap "Reset password" to send a new one.']) : null]);
+        c.appendChild(el('div', { class: 'perm-list' }, Object.keys(PERM_INFO).map(function (k) {
+          cb[k] = el('input', { type: 'checkbox' }); cb[k].checked = st.perms.indexOf(k) !== -1;
+          cb[k].addEventListener('change', function () {
+            api('POST', { action: 'staff_update', staff_id: st.id, staff: { perms: Object.keys(cb).filter(function (x) { return cb[x].checked; }) } }).then(function (j) { flash('Access updated'); drawList(j.staff); }).catch(fail);
+          });
+          return el('label', null, [cb[k], el('span', { text: PERM_INFO[k][0] })]);
+        })));
+        c.appendChild(el('div', { class: 'admin-actions' }, [
+          el('button', { class: 'admin-btn', type: 'button', text: st.active ? 'Switch off' : 'Switch on', onclick: function () {
+            api('POST', { action: 'staff_update', staff_id: st.id, staff: { active: !st.active } }).then(function (j) { flash(st.active ? 'Switched off: they are logged out' : 'Switched on'); drawList(j.staff); }).catch(fail);
+          } }),
+          el('button', { class: 'admin-btn', type: 'button', text: 'Change username', onclick: function () {
+            var u = window.prompt('New username for ' + st.name + ' (they log in with it at /staff):', st.username);
+            if (!u || u === st.username) return;
+            api('POST', { action: 'staff_update', staff_id: st.id, staff: { username: u } }).then(function (j) { flash('Username changed. Tell them on WhatsApp.'); drawList(j.staff); }).catch(fail);
+          } }),
+          el('button', { class: 'admin-btn', type: 'button', text: 'Reset password', onclick: function () {
+            if (!window.confirm('Reset ' + st.name + '\u2019s password? They get a temporary one (send it on WhatsApp), are logged out everywhere, and must choose a new password when they log in.')) return;
+            api('POST', { action: 'staff_reset', staff_id: st.id }).then(function (j) { showPassword(j.staff, j.password, j.temp_days); drawList(j.staff_list); }).catch(fail);
+          } }),
+          el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Remove', onclick: function () {
+            if (!window.confirm('Remove ' + st.name + '? Their login stops working. (What they did stays in the list below.)')) return;
+            api('POST', { action: 'staff_delete', staff_id: st.id }).then(function (j) { flash('Removed'); drawList(j.staff); }).catch(fail);
+          } })
+        ]));
+        listBox.appendChild(c);
+      });
+    }
+    api('POST', { action: 'staff_list' }).then(function (j) {
+      drawList(j.staff);
+      logBox.appendChild(j.log.length ? el('ul', { class: 'admin-mini' }, j.log.map(function (l) {
+        return el('li', null, [el('b', { text: l.staff_name }), ' · ' + l.what + (l.customer ? ' · ' + l.customer : '') + ' · ' + when(l.at)]);
+      })) : el('p', { class: 'admin-empty', text: 'Nothing yet.' }));
+    }).catch(fail);
+  }
+
+  // Staff: choose a new password (compulsory after a temporary one; also from My access at any time).
+  function passwordForm(forced, done) {
+    var cur = el('input', { type: 'password', autocomplete: 'current-password' });
+    var p1 = el('input', { type: 'password', autocomplete: 'new-password' });
+    var p2 = el('input', { type: 'password', autocomplete: 'new-password' });
+    var err = el('p', { class: 'admin-error', role: 'alert' });
+    if (forced && typedPw) cur.value = typedPw;
+    var show = el('input', { type: 'checkbox' });
+    show.addEventListener('change', function () { [cur, p1, p2].forEach(function (x) { x.type = show.checked ? 'text' : 'password'; }); });
+    var btn = el('button', { class: 'btn btn--navy', type: 'submit', text: 'Save my new password' });
+    var form = el('form', { class: 'admin-card admin-settings' }, [
+      (forced && typedPw) ? null : field(forced ? 'Temporary password (from the owner)' : 'Current password', cur),
+      field('New password', p1, 'At least 8 characters, with letters and a number. Don’t reuse a password from another site.'),
+      field('Type it again', p2),
+      el('label', { class: 'admin-check' }, [show, ' Show passwords']),
+      btn, err]);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault(); err.textContent = '';
+      if (p1.value !== p2.value) { err.textContent = 'The two new passwords are not the same.'; return; }
+      btn.disabled = true;
+      api('POST', { action: 'my_password', current: cur.value, password: p1.value, remember: Boolean(state.remember || (function () { try { return localStorage.getItem(LONG); } catch (x) { return null; } })()) }).then(function (j) {
+        password = j.token; typedPw = null;
+        try { if (localStorage.getItem(LONG)) localStorage.setItem(LONG, j.token); else sessionStorage.setItem(KEY, j.token); } catch (x) { /* ignore */ }
+        flash('Password changed'); done();
+      }).catch(function (e2) { btn.disabled = false; err.textContent = e2.message; });
+    });
+    return form;
+  }
+  function renderMustChange(view) {
+    var me = state.me || {};
+    view.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Welcome, ' + String(me.name || '').split(' ')[0] + '. Choose your own password' }),
+      el('p', { class: 'admin-hint', text: 'You logged in with a temporary password from the owner. Before you start, choose a password only you know. Your username stays: ' + (me.username || '') + '.' })]));
+    view.appendChild(passwordForm(true, function () { load().then(function () { setTab('access'); }); }));
+  }
+
+  // Away mode: staff become the first contact; the website says replies may be slower (never that you're away).
+  function awayInfo() {
+    var u = state.settings && state.settings.away_until;
+    return u && u >= today() ? { until: u, web: state.settings.away_web !== '0' } : null;
+  }
+  function awayCard() {
+    var a = awayInfo();
+    var until = el('input', { type: 'date', min: today(), value: a ? a.until : '' });
+    var web = el('input', { type: 'checkbox' }); web.checked = !a || a.web;
+    function save(v) {
+      api('POST', { action: 'settings', settings: { away_until: v, away_web: web.checked ? '1' : '0' } }).then(function (j) { state.settings = j.settings; flash(v ? 'Away mode on until ' + niceDay(v) : 'Away mode off'); render(); }).catch(fail);
+    }
+    return el('div', { class: 'admin-card admin-settings' + (a ? ' admin-callout' : '') }, [el('h2', { text: a ? 'Away mode is ON until ' + niceDay(a.until) : 'Away mode' }),
+      el('p', { class: 'admin-hint', text: 'Going away? Staff see a banner saying they are the first contact, and their assistant tells them what to handle and what to send you. The website chat says the team is answering and replies may take a little longer (it never says you are away). It switches off by itself after the last day.' }),
+      field('Away until (last day)', until),
+      el('label', { class: 'admin-check' }, [web, ' Also show "Replies may take a little longer" on the website']),
+      el('div', { class: 'admin-actions' }, [
+        el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: a ? 'Save' : 'Turn on away mode', onclick: function () { if (!until.value) { fail(new Error('Choose your last day away')); return; } save(until.value); } }),
+        a ? el('button', { class: 'admin-btn', type: 'button', text: 'I\u2019m back: turn off', onclick: function () { save(''); } }) : null])]);
+  }
+
+  // Staff → My access: what this account can do, step-by-step guides, and when to hand over to the owner.
+  var ACCESS_GUIDES = {
+    view: [['See today’s work', ['Dashboard shows follow-ups due, new requests and website questions.', 'Tap a name to open the customer.']],
+      ['Find the right reply for a situation', ['Open Playbook and search (e.g. "refund", "not opening", "domain").', 'Type the customer’s first name, tap Copy reply or Open in WhatsApp.', 'If the steps need something your account can’t do, message the owner (button below).']],
+      ['Ask for help', ['Open Assistant and describe the situation in your own words, e.g. "a customer says their website isn’t opening".', 'Pick the customer in the About box for advice about that job.']]],
+    customers: [['Reply to a new request', ['Requests → open the newest one and read what they need.', 'Tap the WhatsApp message buttons (ready messages) and send.', 'Set Status to Contacted and a Follow up on date (Tomorrow / In 3 days).']],
+      ['Follow up', ['Dashboard → Follow up today → open each one.', 'Send the follow-up message, then move the follow-up date on, or set Lost with a note if they said no.']],
+      ['Add a customer who messaged on WhatsApp', ['Requests → Add a customer: name, phone, package, How did they find us?, what they need.', 'Then reply and set a follow-up date.']],
+      ['Answer a website question', ['Questions → read the question → type the answer (the chat learns it).']]],
+    changes: [['Handle a change request', ['Clients → the customer → After launch → Show change requests.', 'Tap Do it with AI (or wait: it is often ready already). Check the list of edits.', 'Open preview to check, then Send preview on WhatsApp. The customer taps "Put these changes live".', 'If the AI couldn’t do something (e.g. new colours), message the owner.']],
+      ['A request that came on WhatsApp', ['Show change requests → Add a request from WhatsApp → paste what they asked → Do it with AI.']],
+      ['Customer lost their Manage link', ['Client → Manage my website → copy their link and send it privately on WhatsApp.', 'If it may have leaked, ask the owner to make a new one.']]],
+    marketing: [['Post today’s ad', ['Marketing → Today → Share (phone) or Download, then paste the caption.', 'Tick "I posted today".']],
+      ['Captions in Pidgin or Yoruba', ['Any ad → Write captions with AI → choose the language → Copy.']],
+      ['Make a video', ['Marketing → Video maker → type the idea → Write the video → check the lines → Make the video (keep the screen on) → Share.']]],
+    money: [['Send an invoice', ['Client card → Documents → Invoice → send on WhatsApp.']], ['Record a transfer', ['Client card → Payments → add the amount and date.']]],
+    build: [['Update a live website', ['Client → Go live → Update live site after a change.', 'Something broke? Restore previous version.']]]
+  };
+  function renderAccess(view) {
+    var me = state.me || {};
+    var aw = awayInfo();
+    if (aw) view.appendChild(el('div', { class: 'admin-card admin-callout' }, [el('strong', { text: 'The owner is away until ' + niceDay(aw.until) + '. You are the first contact for customers.' }),
+      el('p', { class: 'admin-hint', text: 'Reply quickly and kindly. Do what your account allows; for everything else tell the customer the team will get back to them. Message the owner only for urgent things: money, an angry customer, or a website that is down. Never tell customers the owner is away.' })]));
+    view.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Welcome, ' + String(me.name || '').split(' ')[0] }),
+      el('p', { class: 'admin-hint', text: 'This is what your account can do, with step-by-step guides. If something isn’t here, your account can’t do it: message the owner.' }),
+      el('div', { class: 'admin-actions' }, [
+        el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + ownerWa() + '?text=' + encodeURIComponent('Hello Ridwan, it’s ' + me.name + ' from admin. I need your help with: '), target: '_blank', rel: 'noopener', text: 'Message the owner' }),
+        el('button', { class: 'admin-btn', type: 'button', text: 'Ask the assistant', onclick: function () { setTab('assistant'); } }),
+        el('button', { class: 'admin-btn', type: 'button', text: 'Open the Playbook', onclick: function () { setTab('playbook'); } })])]));
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Your account can' }));
+    view.appendChild(el('ul', { class: 'admin-mini' }, [el('li', { text: 'See requests, clients, website questions, chats, the Playbook and the assistant' })].concat(Object.keys(PERM_INFO).filter(function (k) { return canDo(k); }).map(function (k) {
+      return el('li', null, [el('b', { text: PERM_INFO[k][0] + ': ' }), PERM_INFO[k][1]]);
+    }))));
+    var not = Object.keys(PERM_INFO).filter(function (k) { return !canDo(k); });
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Ask the owner for' }));
+    view.appendChild(el('ul', { class: 'admin-mini' }, not.map(function (k) { return el('li', null, [el('b', { text: PERM_INFO[k][0] + ': ' }), PERM_INFO[k][1]]); }).concat([
+      el('li', { text: 'Refunds, discounts or price changes; angry or legal complaints; copyright or data-deletion requests; anything about passwords or keys; settings, offers, emails and backups; deleting anything.' })])));
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Step by step' }));
+    ['view'].concat(Object.keys(PERM_INFO).filter(function (k) { return canDo(k); })).forEach(function (k) {
+      (ACCESS_GUIDES[k] || []).forEach(function (g) {
+        view.appendChild(el('details', { class: 'admin-card pb-item' }, [el('summary', { text: g[0] }), el('ol', { class: 'admin-mini' }, g[1].map(function (t) { return el('li', { text: t }); }))]));
+      });
+    });
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Your login' }));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Username: ' + (me.username || '') + '. Forgot your password? Ask the owner to reset it: you get a temporary one and choose a new one when you log in.' }));
+    view.appendChild(el('details', { class: 'admin-card pb-item' }, [el('summary', { text: 'Change my password' }), passwordForm(false, function () { render(); })]));
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Golden rules' }));
+    view.appendChild(el('ul', { class: 'admin-mini' }, ['Reply to customers within an hour during the day, politely, in their language.', 'Never ask customers for passwords, card numbers or Paystack keys.', 'Never share one customer’s details with another.', 'Never promise prices, discounts or dates that aren’t in the Playbook policies.', 'Not sure? Ask the assistant, then the owner.'].map(function (t) { return el('li', { text: t }); })));
+  }
+
   // ===================== Marketing =====================
   // Tabs: Today (what to post), Ready ads, Showcase, Review cards, Festive, Offer, Referrals, Ad spend.
   // Pictures for Showcase / Review cards / Festive / Offer are drawn here in the browser (canvas), with a tagged QR.
   var MKC = { navy: '#13244F', deep: '#0C1733', gold: '#D9A21B', soft: '#C9D1E6', dim: '#AEB8D3' };
   var MK_TABS = [['today', 'Today'], ['ads', 'Ready ads'], ['video', 'Video maker'], ['showcase', 'Showcase'], ['reviews', 'Review cards'], ['festive', 'Festive'], ['offer', 'Offer'], ['referrals', 'Referrals'], ['spend', 'Ad spend']];
   var LINKS_URL = 'https://www.sirraddo.com.ng/links';
+  var MK_PERM = { festive: 'owner', offer: 'owner', spend: 'money' };
   function renderMarketing(view) {
+    var tabs = MK_TABS.filter(function (t) { return !MK_PERM[t[0]] || (MK_PERM[t[0]] === 'owner' ? isOwner() : canDo(MK_PERM[t[0]])); });
     var tab = state.mkTab || 'today';
-    view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Marketing' }, MK_TABS.map(function (t) {
+    if (!tabs.some(function (t) { return t[0] === tab; })) tab = 'today';
+    view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Marketing' }, tabs.map(function (t) {
       return el('button', { type: 'button', 'aria-pressed': t[0] === tab ? 'true' : 'false', text: t[1], onclick: function () { state.mkTab = t[0]; render(); } });
     })));
     ({ today: mkToday, ads: mkReadyAds, video: mkVideoMaker, showcase: mkShowcase, reviews: mkReviewCards, festive: mkFestive, offer: mkOffer, referrals: mkReferrals, spend: mkSpend })[tab](view);
@@ -901,7 +1606,8 @@
       el('p', { class: 'admin-hint', text: 'Every live customer gets their own link (in their Manage page, and under their client card → Referrals). When a business comes from it and pays, the customer earns the reward below. You give it on their next renewal and tap "Reward given".' })]);
     var reward = el('input', { value: (state.settings && state.settings.referral_reward) || '₦5,000 off your next renewal', maxlength: 120 });
     card.appendChild(field('Reward for each business that pays', reward));
-    card.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Save reward', onclick: function () {
+    if (!isOwner()) reward.disabled = true;
+    if (isOwner()) card.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Save reward', onclick: function () {
       api('POST', { action: 'settings', settings: { referral_reward: reward.value } }).then(function (j) { state.settings = j.settings; flash('Saved'); }).catch(fail);
     } }));
     view.appendChild(card);
@@ -1249,6 +1955,7 @@
   // Hosting is on Netlify's free plan while sales start. From the 2nd paid website project, suggest moving to a
   // paid home (Nigerian VPS yearly in naira, or Netlify Personal) until "Done" is tapped. TEST records don't count.
   function paidHomeNudge(rs) {
+    if (!isOwner()) return null;
     if ((state.settings || {}).vercel_pro_at) return null;
     var paidProjects = rs.filter(function (r) { return r.status === 'won' && paid(r) > 0 && !/test/i.test((r.name || '') + ' ' + (r.business || '')); }).length;
     if (paidProjects < 2) return null;
@@ -1266,6 +1973,11 @@
 
   function renderDashboard(view) {
     var rs = state.requests;
+    var aw = awayInfo();
+    if (aw) view.appendChild(el('div', { class: 'admin-card admin-callout' }, [el('strong', { text: isOwner() ? 'Away mode is on until ' + niceDay(aw.until) + '.' : 'The owner is away until ' + niceDay(aw.until) + ': you are the first contact.' }),
+      el('div', { class: 'admin-actions' }, [isOwner()
+        ? el('button', { class: 'admin-btn', type: 'button', text: 'Change or turn off', onclick: function () { state.settingsTab = 'staff'; setTab('settings'); } })
+        : el('button', { class: 'admin-btn', type: 'button', text: 'What to do', onclick: function () { setTab('access'); } })])]));
     var sc = setupCard();
     if (sc) view.appendChild(sc);
     var vn = paidHomeNudge(rs);
@@ -1329,6 +2041,14 @@
       return el('li', null, [el('b', { text: k }), ' · ' + o.n + ' request' + (o.n === 1 ? '' : 's') + ' · ' + o.won + ' paid' + (o.won ? ' (' + naira(o.value) + ')' : '')]);
     })) : el('p', { class: 'admin-empty', text: 'No requests in the last 90 days.' }));
     view.appendChild(el('p', { class: 'admin-hint', text: 'Ads: add ?utm_source=facebook&utm_campaign=ibadan-test to the website link in your ad (any names you like) and it shows here. WhatsApp-only ads: set "Came from" on the customer.' }));
+    var dbLine = el('p', { class: 'admin-hint' });
+    view.appendChild(dbLine);
+    if (isOwner()) api('POST', { action: 'mk_neon' }).then(function (j) {
+      if (!j.configured || !j.usage) return;
+      var u = j.usage, free = ((state.settings && state.settings.neon_plan) || 'free') === 'free', pct = Math.round(100 * u.cuh / j.free.cuh);
+      dbLine.textContent = 'Database this month: ' + u.cuh + (free ? ' of ' + j.free.cuh + ' free hours (' + pct + '%)' + (pct >= 70 ? '. Upgrade soon: Packages → Database.' : '.') : ' hours (Launch plan).');
+      if (free && pct >= 70) dbLine.className = 'admin-error';
+    }).catch(function () {});
 
     if (due.length) {
       view.appendChild(el('h2', { class: 'admin-h2', text: 'Follow up now' }));
@@ -1385,8 +2105,8 @@
     view.appendChild(el('div', { class: 'admin-toolbar' }, [
       search, status, interest,
       el('label', { class: 'admin-check', for: 'f-due' }, [due, ' Follow-ups due']),
-      el('button', { class: 'btn btn--navy', type: 'button', text: '+ Add customer', onclick: function () { addForm.hidden = !addForm.hidden; } }),
-      el('button', { class: 'admin-btn', type: 'button', text: 'Export CSV', onclick: exportCsv })
+      !canDo('customers') ? null : el('button', { class: 'btn btn--navy', type: 'button', text: '+ Add customer', onclick: function () { addForm.hidden = !addForm.hidden; } }),
+      isOwner() ? el('button', { class: 'admin-btn', type: 'button', text: 'Export CSV', onclick: exportCsv }) : null
     ]));
     var addForm = renderAddForm();
     view.appendChild(addForm);
@@ -1452,6 +2172,7 @@
     var SOURCE = { manual: 'Added by hand', form: 'Package form', contact: 'Contact form', 'chat-form': 'Chat (no AI reply)' };
     if (SOURCE[r.source]) badges.appendChild(badge(SOURCE[r.source]));
     if (r.came_from && r.came_from !== 'direct') badges.appendChild(badge('From: ' + r.came_from, 'is-from'));
+    if (r.wants) badges.appendChild(badge(r.wants === 'customer_accounts' ? 'Wants customer accounts' : 'Wants a custom system', 'is-due'));
     if (r.follow_up_on && isOpen(r)) {
       var d = daysUntil(r.follow_up_on);
       badges.appendChild(badge(d < 0 ? 'Follow-up ' + (-d) + 'd overdue' : d === 0 ? 'Follow up today' : 'Follow up ' + niceDate(r.follow_up_on), d <= 0 ? 'is-due' : ''));
@@ -1526,14 +2247,16 @@
     var num = waNumber(r.contact);
     var email = /@/.test(r.contact) ? r.contact : null;
     if (!num && !email) return el('span');
-    var sel = select(Object.keys(TEMPLATES).map(function (k) { return [k, TEMPLATES[k].label]; }), suggestedTemplate(r), { 'aria-label': 'Message for ' + r.name });
+    var keys = Object.keys(TEMPLATES).filter(function (k) { var t = TEMPLATES[k].text + (state.settings[k] || ''); return (canDo('money') || !/\{(amount|deposit|balance|renewal_amount|renewal_due|paid|pay_link|doc_link|last_payment)\}/.test(t)) && (canDo('build') || !/\{preview_link\}/.test(t)); });
+    var pick = suggestedTemplate(r); if (keys.indexOf(pick) === -1) pick = keys[0];
+    var sel = select(keys.map(function (k) { return [k, TEMPLATES[k].label]; }), pick, { 'aria-label': 'Message for ' + r.name });
     var go = el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: num ? 'WhatsApp' : 'Email' });
     go.addEventListener('click', function () {
       var text = fill(state.settings[sel.value] || TEMPLATES[sel.value].text, r);
       var url = num ? 'https://wa.me/' + num + '?text=' + encodeURIComponent(text)
         : 'mailto:' + email + '?subject=' + encodeURIComponent('SIRRADDO: ' + r.interest) + '&body=' + encodeURIComponent(text);
       window.open(url, '_blank', 'noopener');
-      if (r.status === 'new') update(r, { status: 'contacted' }, 'Marked as contacted');
+      if (r.status === 'new' && canDo('customers')) update(r, { status: 'contacted' }, 'Marked as contacted');
     });
     return el('div', { class: 'admin-wa' }, [sel, go]);
   }
@@ -1543,6 +2266,7 @@
 
     // Status and follow-up
     var status = select(state.statuses, r.status, null);
+    if (!canDo('money') && r.status !== 'won') Array.prototype.forEach.call(status.options, function (o) { if (o.value === 'won') o.disabled = true; });
     status.addEventListener('change', function () {
       var f = { status: status.value };
       if (status.value === 'won') {
@@ -1565,7 +2289,8 @@
     wrap.appendChild(el('div', { class: 'admin-grid' }, [field('Status', status), field('Follow up on', follow)]));
     wrap.appendChild(quick);
 
-    // Quote and payments
+    // Quote and payments (staff without Money don't see them)
+    if (canDo('money')) {
     var quote = el('input', { type: 'number', min: 0, step: 1000, inputmode: 'numeric', value: r.quote_amount == null ? '' : r.quote_amount, placeholder: DEFAULT_QUOTE[r.interest] || '' });
     quote.addEventListener('change', function () { update(r, { quote_amount: quote.value }, 'Quote saved'); });
     var bal = balance(r);
@@ -1577,6 +2302,7 @@
 
     // Documents
     wrap.appendChild(docsBlock(r));
+    }
 
     wrap.appendChild(briefBlock(r));
 
@@ -1602,13 +2328,19 @@
     if (r.transcript && r.transcript.length) wrap.appendChild(transcript(r.transcript, 'Conversation (' + r.transcript.length + ' messages)'));
 
     // Delete
-    wrap.appendChild(el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Delete request', onclick: function () {
+    if (isOwner()) wrap.appendChild(el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Delete request', onclick: function () {
       if (!window.confirm('Delete ' + r.name + '? This cannot be undone.')) return;
       api('DELETE', null, '?id=' + r.id).then(function () {
         state.requests = state.requests.filter(function (x) { return x.id !== r.id; });
         flash('Deleted'); render();
       }).catch(fail);
     } }));
+    // Without Customers: the details are read-only (the server refuses changes anyway).
+    if (!canDo('customers')) {
+      Array.prototype.forEach.call(wrap.querySelectorAll('input, select, textarea'), function (x) { x.disabled = true; });
+      Array.prototype.forEach.call(wrap.querySelectorAll('.admin-quick button, .admin-sub button'), function (x) { x.disabled = true; });
+      wrap.insertBefore(el('p', { class: 'admin-hint', text: 'View only: your account can\u2019t change customer details. Message the owner if something needs updating.' }), wrap.firstChild);
+    }
     return wrap;
   }
 
@@ -1647,6 +2379,7 @@
 
   // AI-written website text from the project form.
   function draftRow(r) {
+    if (!canDo('build')) return el('p', { class: 'admin-hint', text: r.has_draft ? 'Website text: ready (the owner handles the text, design and preview).' : 'Website text: not written yet (the owner handles this).' });
     var row = el('div', { class: 'admin-draft' }, [el('span', { class: 'admin-label', text: 'Website text (AI draft)' })]);
     var status = r.has_draft ? 'Ready ' + when(r.draft_at) : r.draft_error ? 'Not written: ' + r.draft_error : 'Being written…';
     row.appendChild(el('p', { class: 'admin-meta' }, [badge(r.has_draft ? 'Ready' : r.draft_error ? 'Failed' : 'Writing', r.has_draft ? 'is-won' : r.draft_error ? 'is-due' : 'is-new'), ' ' + status]));
@@ -2085,7 +2818,9 @@
   }
 
   // A tap-to-open section of a client card. The block's own heading moves into the bar, beside its status.
+  var FOLD_PERM = { golive: 'build', handover: 'build', store: 'owner', services: 'money', referral: 'marketing', after: 'changes', manage: 'changes', brief: 'customers' };
   function fold(r, key, title, block, status, attention) {
+    if (FOLD_PERM[key] && !canDo(FOLD_PERM[key])) return document.createTextNode('');
     state.folds = state.folds || {};
     var id = r.id + ':' + key;
     var d = el('details', { class: 'admin-fold' });
@@ -2582,7 +3317,8 @@
     rdue.addEventListener('change', function () { update(r, { renewal_due: rdue.value }, 'Renewal date saved'); });
     var site = el('input', { type: 'url', inputmode: 'url', value: r.website_url || '', placeholder: 'https://theirbusiness.com.ng' });
     site.addEventListener('change', function () { update(r, { website_url: site.value }, 'Website saved. It will be checked every morning.'); });
-    card.appendChild(el('div', { class: 'admin-grid' }, [field('Project stage', stage), field('Went live on', live), field('Renewal (₦/year)', ramount), field('Renewal due', rdue)]));
+    if (!canDo('build')) { stage.disabled = true; live.disabled = true; site.disabled = true; }
+    card.appendChild(el('div', { class: 'admin-grid' }, [field('Project stage', stage), field('Went live on', live)].concat(canDo('money') ? [field('Renewal (₦/year)', ramount), field('Renewal due', rdue)] : [])));
     card.appendChild(field('Their website (checked daily)', site, r.site_checked_at
       ? 'Last check ' + when(r.site_checked_at) + ': ' + (r.site_status || '-') + (r.ssl_expires ? ' · SSL until ' + niceDate(r.ssl_expires) : '')
       : 'Add the address once the site is live.'));
@@ -2594,7 +3330,7 @@
         renewal_due: addYears(r.renewal_due, 1)
       }, 'Renewal recorded');
     } });
-    card.appendChild(el('div', { class: 'admin-actions' }, [
+    if (canDo('money')) card.appendChild(el('div', { class: 'admin-actions' }, [
       renewed,
       el('button', { class: 'admin-btn', type: 'button', text: 'Renewal invoice', disabled: !r.renewal_amount, onclick: function () { docAction(r, 'renewal', 'view'); } }),
       el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send renewal invoice', disabled: !r.renewal_amount || !waNumber(r.contact), onclick: function () { docAction(r, 'renewal', 'whatsapp'); } }),
@@ -2602,6 +3338,9 @@
         state.filters = { q: r.contact, status: '', interest: '', due: false }; state.open[r.id] = true; setTab('requests');
       } })
     ]));
+    if (!canDo('money')) card.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Open in Requests', onclick: function () {
+      state.filters = { q: r.contact, status: '', interest: '', due: false }; state.open[r.id] = true; setTab('requests');
+    } })]));
     // Each part of the job folds away, with its status on the closed bar; parts that need you open by themselves.
     var h = r.hosting || {};
     card.appendChild(fold(r, 'brief', 'Project form', briefBlock(r), r.brief_submitted_at ? ['Received', 'is-won'] : r.brief_saved_at ? ['In progress', 'is-new'] : ['Waiting', ''], false));
@@ -2624,6 +3363,10 @@
       card.appendChild(fold(r, 'after', 'After launch', aftercareBlock(r), oc ? [oc + ' change' + (oc === 1 ? '' : 's') + ' waiting', 'is-due'] : ['Up to date', 'is-won'], oc > 0));
     }
     if (r.status === 'won' && (r.website_url || r.live_on)) card.appendChild(fold(r, 'referral', 'Referrals', referralBlock(r), r.ref_code ? ['Code ' + r.ref_code, ''] : null, false));
+    if (r.status === 'won') {
+      var svcN = (r.services || []).filter(function (x) { return x.active; }).length;
+      card.appendChild(fold(r, 'services', 'Monthly / yearly services', servicesBlock(r), svcN ? [svcN + ' active', 'is-won'] : null, false));
+    }
     var hsent = (r.auto_sent || {}).handover, hbal = balance(r), hlocked = r.quote_amount == null || hbal > 0;
     card.appendChild(fold(r, 'handover', 'Handover pack', handoverBlock(r), hsent ? ['Sent', 'is-won'] : hlocked ? ['Locked', ''] : ['Ready to send', 'is-new'], !hsent && !hlocked));
     return card;
@@ -2637,13 +3380,14 @@
     view.appendChild(el('div', { class: 'admin-list' }, qs.map(function (q) {
       var box = el('input', { type: 'checkbox', id: 'q' + q.id });
       box.checked = q.resolved;
+      if (!canDo('customers')) box.disabled = true;
       box.addEventListener('change', function () {
         api('POST', { action: 'question', id: q.id, resolved: box.checked }).then(function () { q.resolved = box.checked; flash('Saved'); render(); }).catch(fail);
       });
       return el('div', { class: 'admin-card admin-q' + (q.resolved ? ' is-done' : '') }, [
         el('label', { for: 'q' + q.id, class: 'admin-check' }, [box, ' ' + q.question]),
         el('small', { text: when(q.created_at) }),
-        el('button', { class: 'admin-x', type: 'button', 'aria-label': 'Delete question', text: '×', onclick: function () {
+        !canDo('customers') ? null : el('button', { class: 'admin-x', type: 'button', 'aria-label': 'Delete question', text: '×', onclick: function () {
           api('POST', { action: 'question', id: q.id, remove: true }).then(function () {
             state.unanswered = state.unanswered.filter(function (x) { return x.id !== q.id; }); render();
           }).catch(fail);
@@ -2692,7 +3436,7 @@
   // Settings are split into small sections (chips at the top) so there's no long scrolling.
   var SETTINGS_SECTIONS = [
     ['business', 'Bank & invoices'], ['messages', 'WhatsApp messages'], ['handover', 'Handover'],
-    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['greetings', 'Festive greetings'], ['backup', 'Backup']
+    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['backup', 'Backup']
   ];
   function renderSettings(view) {
     var s = state.settings;
@@ -2746,6 +3490,7 @@
     if (pick === 'reviews') view.appendChild(reviewsCard());
     if (pick === 'email') view.appendChild(emailUsageCard());
     if (pick === 'greetings') view.appendChild(greetingsCard());
+    if (pick === 'staff') staffSettings(view);
     if (pick === 'backup') view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
       el('h2', { text: 'Backup' }),
       el('p', { class: 'admin-intro', text: 'Every Monday a backup of all your business data (customers, quotes, payments, website text, orders, change requests) is emailed to you as a file. Keep those emails. You can also download one now. It contains customer details, so keep it private.' }),
@@ -2846,8 +3591,26 @@
   $('login').addEventListener('submit', function (e) {
     e.preventDefault();
     $('login-error').textContent = '';
-    password = $('password').value;
+    var user = ($('username') && $('username').value || '').trim().toLowerCase();
     var remember = $('remember') && $('remember').checked;
+    if (STAFF_PAGE) {
+      if (!user) { $('login-error').textContent = 'Type your username.'; return; }
+      // Staff: swap username + password for a session token straight away; the password is never stored.
+      typedPw = $('password').value;
+      password = 'su.' + b64url(user) + '.' + b64url(typedPw);
+      $('password').value = '';
+      api('POST', { action: 'session' }).then(function (j) {
+        password = j.token;
+        try {
+          if (remember) { localStorage.setItem(LONG, j.token); sessionStorage.removeItem(KEY); }
+          else { sessionStorage.setItem(KEY, j.token); localStorage.removeItem(LONG); }
+        } catch (err) { /* ignore */ }
+        state.remember = remember;
+        load();
+      }).catch(function (err) { logout(); $('login-error').textContent = err.message; });
+      return;
+    }
+    password = $('password').value;
     $('password').value = '';
     if (!remember) {
       try { sessionStorage.setItem(KEY, password); localStorage.removeItem(LONG); } catch (err) { /* ignore */ }

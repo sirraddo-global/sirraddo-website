@@ -22,19 +22,21 @@
   <header class="admin-bar">
     <div class="container admin-bar-inner">
       <strong>SIRRADDO · Admin</strong>
+      <span class="admin-who" id="who" hidden></span>
       <button class="admin-link" id="logout" type="button" hidden>Log out</button>
     </div>
   </header>
 
   <main class="container admin-main">
     <form id="login" class="admin-login">
-      <h1>Log in</h1>
+      <h1>Owner log in</h1>
       <label for="password">Admin password</label>
       <input id="password" type="password" autocomplete="current-password" required>
       <label class="admin-check"><input id="remember" type="checkbox"> Keep me logged in on this device (30 days)</label>
       <button class="btn btn--navy" type="submit">Log in</button>
       <p id="login-error" class="admin-error" role="alert"></p>
       <p class="admin-hint">Only tick "keep me logged in" on your own phone or laptop. Log out to remove it.</p>
+      <p class="admin-hint">Staff? Log in at <a href="/staff">sirraddo.com.ng/staff</a>.</p>
     </form>
 
     <div id="app" hidden>
@@ -46,6 +48,9 @@
         <button type="button" data-tab="chats" aria-pressed="false">Chats</button>
         <button type="button" data-tab="assistant" aria-pressed="false">Assistant</button>
         <button type="button" data-tab="marketing" aria-pressed="false">Marketing</button>
+        <button type="button" data-tab="packages" aria-pressed="false">Packages</button>
+        <button type="button" data-tab="playbook" aria-pressed="false">Playbook</button>
+        <button type="button" data-tab="access" aria-pressed="false" hidden>My access</button>
         <button type="button" data-tab="settings" aria-pressed="false">Settings</button>
       </nav>
       <p id="app-error" class="admin-error" role="alert"></p>

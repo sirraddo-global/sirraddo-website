@@ -7,6 +7,7 @@ import {
   customerEmailConfigured, sendCustomerEmail, sendEmail, emailConfigured, reference, esc,
 } from "./store.mjs";
 import { applyRules, emailBriefLink, todayLagos, addYear, daysBetween, SITE } from "./automation.mjs";
+import { serviceDue, dueServices, findService, advanceService } from "./services.mjs";
 import { buildDoc, balance, naira } from "./docs.mjs";
 
 const API = "https://api.paystack.co";
@@ -23,7 +24,7 @@ async function call(path, body) {
   return j.data;
 }
 
-const projectPaid = (r) => (r.payments || []).filter((p) => p.kind !== "renewal").reduce((s, p) => s + Number(p.amount || 0), 0);
+const projectPaid = (r) => (r.payments || []).filter((p) => !p.kind || p.kind === "project").reduce((s, p) => s + Number(p.amount || 0), 0);
 
 // What the customer can pay now, worked out on the server (never trusted from the browser).
 // for: "deposit" | "balance" | "renewal" | "" (auto)
@@ -37,9 +38,12 @@ export function amountDue(r, want = "") {
     balance: bal > 0 ? { kind: "project", amount: bal, label: `Balance for your ${r.interest}` } : null,
     renewal: renewalOpen ? { kind: "renewal", amount: r.renewal_amount, label: `Yearly website renewal (due ${r.renewal_due})`, renewal_due: r.renewal_due } : null,
   };
+  // Monthly / yearly services: for = "service-<id>".
+  if (/^service-[a-z0-9]{6,16}$/.test(want)) { const s = serviceDue(r, want.slice(8)); return s ? { for: want, ...s } : null; }
   if (want) return options[want] ? { for: want, ...options[want] } : null;
   for (const k of ["deposit", "balance", "renewal"]) if (options[k]) return { for: k, ...options[k] };
-  return null;
+  const svc = dueServices(r)[0];
+  return svc ? { for: "service-" + svc.id, ...serviceDue(r, svc.id) } : null;
 }
 
 export const payLink = (r, want = "") => (r.doc_token ? `${SITE}/pay?t=${r.doc_token}${want ? "&for=" + want : ""}` : "");
@@ -54,7 +58,7 @@ export async function startPayment(r, due, email) {
     reference: ref,
     callback_url: `${SITE}/pay?t=${r.doc_token}`,
     metadata: {
-      request_id: r.id, for: due.for, kind: due.kind, renewal_due: due.renewal_due || null,
+      request_id: r.id, for: due.for, kind: due.kind, renewal_due: due.renewal_due || null, service_id: due.service_id || null, service_due: due.service_due || null,
       custom_fields: [
         { display_name: "Reference", variable_name: "sgl_ref", value: reference(r.id) },
         { display_name: "For", variable_name: "for", value: due.label },
@@ -85,16 +89,19 @@ export async function recordPayment(tx) {
   if (!Number.isInteger(id) || !/^SGL\d+-/.test(tx.reference || "")) return null;
   const amount = Math.round(Number(tx.amount) / 100);
   if (!(amount > 0)) return null;
-  const kind = meta.kind === "renewal" ? "renewal" : "project";
+  const kind = meta.kind === "renewal" ? "renewal" : meta.kind === "service" ? "service" : "project";
   const date = String(tx.paid_at || tx.paidAt || "").slice(0, 10) || todayLagos();
-  const note = kind === "renewal" ? `Paystack · renewal${meta.renewal_due ? " due " + meta.renewal_due : ""}` : `Paystack · ${meta.for === "deposit" ? "deposit" : "balance"}`;
-  let row = await addPaymentOnce(id, { date, amount, kind, note, ref: tx.reference });
+  const svc = kind === "service" ? findService(await getRequest(id), meta.service_id) : null;
+  if (kind === "service" && !svc) return null;
+  const note = kind === "service" ? `Paystack · ${svc.name} due ${meta.service_due}` : kind === "renewal" ? `Paystack · renewal${meta.renewal_due ? " due " + meta.renewal_due : ""}` : `Paystack · ${meta.for === "deposit" ? "deposit" : "balance"}`;
+  let row = await addPaymentOnce(id, { date, amount, kind, note, ref: tx.reference, ...(svc ? { service_id: svc.id } : {}) });
   if (!row) return { row: await getRequest(id), added: false }; // already recorded
   const changed = { payments: row.payments };
   // A renewal paid online moves the next renewal date on a year (only once, for the due date it was paid for).
   if (kind === "renewal" && meta.renewal_due && row.renewal_due === meta.renewal_due) {
     row = (await updateRequest(id, { renewal_due: addYear(meta.renewal_due) })) || row;
   }
+  if (kind === "service" && meta.service_due) row = (await advanceService(id, svc.id, meta.service_due)) || row;
   row = await applyRules(row, changed); // deposit -> won, renewal defaults, stage
   if (kind === "renewal" && row.hosting?.pausedAt && (row.hosting.pauseReason || "renewal") === "renewal") {
     // Paid: switch their website (and email forwarding) back on straight away.
@@ -111,12 +118,12 @@ export async function recordPayment(tx) {
     row = (await ensureBriefToken(id)) || row;
     await emailBriefLink(row);
   }
-  await notifyPayment(row, amount, kind, meta.for, tx.reference).catch((e) => console.error("payment emails failed", e));
+  await notifyPayment(row, amount, kind, svc ? svc.name : meta.for, tx.reference).catch((e) => console.error("payment emails failed", e));
   return { row, added: true };
 }
 
 async function notifyPayment(row, amount, kind, forWhat, ref) {
-  const what = kind === "renewal" ? "renewal" : forWhat === "deposit" ? "deposit" : "balance";
+  const what = kind === "renewal" ? "renewal" : kind === "service" ? forWhat : forWhat === "deposit" ? "deposit" : "balance";
   if (emailConfigured()) {
     await sendEmail(`💳 ${naira(amount)} paid online by ${row.name} (${what}, ${reference(row.id)})`,
       `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5"><p><b>${esc(row.name)}</b> paid <b>${naira(amount)}</b> on Paystack for their ${what} (${esc(row.interest)}, ${reference(row.id)}).</p>

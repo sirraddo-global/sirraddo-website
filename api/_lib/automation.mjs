@@ -3,7 +3,7 @@
 import tls from "node:tls";
 import {
   listRequests, updateRequest, ensureDocToken, getSettings, markSent, setSiteCheck, listUnansweredSince,
-  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta , emailUsage, countRefused, cleanupRefused } from "./store.mjs";
+  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta , emailUsage, countRefused, cleanupRefused, q } from "./store.mjs";
 import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
 import { dailyHosting, hostingRef } from "./golive.mjs";
 import { reconcileOrders } from "./shop.mjs";
@@ -50,7 +50,7 @@ export const TEMPLATES = {
   tpl_preview: "Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.",
   tpl_renewal: "Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.\nPay online: {pay_link}",
 };
-const projectPaid = (r) => (r.payments || []).filter((p) => p.kind !== "renewal").reduce((s, p) => s + Number(p.amount || 0), 0);
+const projectPaid = (r) => (r.payments || []).filter((p) => !p.kind || p.kind === "project").reduce((s, p) => s + Number(p.amount || 0), 0);
 
 export function fill(text, r, extra = {}) {
   const q = r.quote_amount;
@@ -65,7 +65,7 @@ export function fill(text, r, extra = {}) {
   };
   return text.replace(/\{(\w+)\}/g, (m, k) => (k in vals ? vals[k] : m));
 }
-const docLink = (r, type) => `${SITE}/doc?t=${r.doc_token}&type=${type}`;
+const docLink = (r, type, sid) => `${SITE}/doc?t=${r.doc_token}&type=${type}${sid ? "&s=" + sid : ""}`;
 function waUrl(r, text) {
   const base = waLink(r.contact);
   return base ? `${base}?text=${encodeURIComponent(text)}` : null;
@@ -259,11 +259,30 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
                 (paystackConfigured() ? `<p style="font-family:Arial,sans-serif;font-size:13px"><a href="${docLink(r, "renewal")}">View the renewal invoice</a></p>` : ""))) report.customerEmails++;
           }
         }
+        // monthly / yearly services: 7 days before, due day, 3 days late
+        for (const s of (r.status === "won" && Array.isArray(r.services) ? r.services : [])) {
+          if (!s.active || !r.doc_token) continue;
+          const d = daysBetween(today, s.next_due);
+          const stage = d <= 7 && d > 0 ? "7" : d === 0 || (d < 0 && d > -3) ? "0" : d <= -3 && d > -30 ? "late" : null;
+          if (!stage) continue;
+          const lead = stage === "late"
+            ? `Your ${esc(s.name)} fee of <b>${naira(s.amount)}</b> was due on ${niceDate(s.next_due)}. Please pay soon to keep it running.`
+            : `Your ${s.period === "yearly" ? "yearly" : "monthly"} ${esc(s.name)} fee of <b>${naira(s.amount)}</b> is due ${d === 0 ? "today" : `on ${niceDate(s.next_due)}`}.`;
+          if (await sendOnce(r, `svc-${s.id}-${s.next_due}-${stage}`, stage === "late" ? `${s.name}: payment overdue` : `${s.name}: payment due ${d === 0 ? "today" : niceDate(s.next_due)}`,
+            customerHtml(r, [lead], paystackConfigured() && amountDue(r, "service-" + s.id)
+              ? { url: payLink(r, "service-" + s.id), label: `Pay ${naira(s.amount)} online` }
+              : { url: docLink(r, "service", s.id), label: "View invoice" }))) report.customerEmails++;
+        }
       } catch (err) {
         console.error("customer reminder failed", r.id, err);
       }
     }
   }
+
+  // Database usage (Neon): saved for admin, and an email at 70% / 90% of the free plan.
+  const neon = await import("./neon-usage.mjs").then((m) => m.checkNeonUsage({ plan: settings.neon_plan || "free", site: SITE })).catch((e) => { console.error("neon usage failed", e.message); return null; });
+  const svcDue = all.flatMap((r) => (r.status === "won" && Array.isArray(r.services) ? r.services : []).filter((s) => s.active && daysBetween(today, s.next_due) <= 7).map((s) => ({ r, s, d: daysBetween(today, s.next_due) })));
+  for (const x of svcDue) if (!x.r.doc_token) Object.assign(x.r, (await ensureDocToken(x.r.id)) || {});
 
   // Client website checks
   const sites = all.filter((r) => r.status === "won" && r.website_url);
@@ -332,6 +351,13 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
   const yday = eu?.days?.[1];
   const emailWarn = eu && ((yday && yday.sent >= eu.limits.day * 0.7) || eu.month.sent >= eu.limits.month * 0.7 || (eu.blocked && Date.now() - Date.parse(eu.blocked.at) < 2 * 86400000));
 
+  // What staff did since yesterday morning (Settings → Staff), grouped by person.
+  const staffDid = await q(`SELECT l.staff_name, l.what, l.at, r.name AS customer FROM staff_log l LEFT JOIN customer_requests r ON r.id = l.request_id
+    WHERE l.at > now() - interval '24 hours' ORDER BY l.staff_name, l.at`).catch(() => []);
+  const staffBy = {};
+  for (const l of staffDid) (staffBy[l.staff_name] ||= []).push(l);
+  const staffItems = Object.entries(staffBy).map(([who, list]) => `<li><b>${esc(who)}</b> (${list.length}): ${list.slice(0, 12).map((l) => esc(l.what + (l.customer ? " · " + l.customer : ""))).join("; ")}${list.length > 12 ? "; …" : ""}</li>`);
+  report.staffActions = staffDid.length;
   // The morning email
   const sections = [
     refusedWaiting ? `<h3 style="margin:18px 0 6px;color:#B45309">${refusedWaiting} email${refusedWaiting === 1 ? "" : "s"} refused by Resend, waiting to be sent again</h3><p style="margin:0">The daily limit has reset: Admin → Settings → Email usage → <b>Send all again</b>.</p>` : "",
@@ -357,6 +383,9 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
     section("Project forms not sent back yet", formsWaiting.map((r) => item(r, r.brief_saved_at ? "started but not sent" : "not opened yet", fill(tpl("tpl_brief"), r)))),
     section("Balances still owed on live sites", owing.map((r) => item(r, `balance ${naira(balance(r))}`,
       (r.doc_token ? fill(tpl("tpl_invoice"), r, { doc_link: docLink(r, "invoice") }) : fill(tpl("tpl_invoice"), r))))),
+    section("Monthly / yearly service fees due", svcDue.map(({ r, s, d }) => item(r, `${esc(s.name)} · ${naira(s.amount)} · ${d < 0 ? `<b style="color:#B42318">${-d} day(s) overdue</b>` : d === 0 ? "<b>due today</b>" : `due in ${d} day(s)`}`,
+      `Hello ${String(r.name).split(" ")[0]}, your ${s.period === "yearly" ? "yearly" : "monthly"} ${s.name} fee of ${naira(s.amount)} is due ${d === 0 ? "today" : "on " + niceDate(s.next_due)}. Invoice and payment: ${docLink(r, "service", s.id)}`))),
+    ...(neon && (settings.neon_plan || "free") === "free" && neon.cuh >= 70 ? [section("Database (Neon)", [`<li><b>${neon.cuh} of 100 compute hours</b> used this month. Upgrade to Launch before 100 (admin → Packages → Database).</li>`])] : []),
     section("Renewals", renewals.map((r) => {
       const d = daysBetween(today, r.renewal_due);
       const when = d < 0 ? `<b style="color:#B42318">${-d} day(s) overdue</b>` : d === 0 ? "<b>due today</b>" : `due in ${d} day(s)`;
@@ -377,6 +406,7 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
     section("Project forms received", briefs.map((r) => item(r, r.has_draft ? "ready to build. The AI draft of the website text is in admin (Project form → View text)." : "ready to build. Open View answers in admin.", null))),
     section("Client websites needing attention", siteProblems.map((x) => item(x.r,
       `${esc(x.r.website_url)} · ${esc(x.status)}${x.ssl ? ` · SSL ends ${niceDate(x.ssl)}` : ""}`, null))),
+    section("What staff did (last 24 hours)", staffItems),
     section("Questions the assistant couldn't answer", questions.map((q) => `<li>${esc(q.question)}</li>`)),
     section("Gone quiet (no update for 2+ weeks)", stale.slice(0, 15).map((r) => item(r, `still ${esc(r.status)}. Follow up once more, or mark lost.`, fill(tpl("tpl_new"), r)))),
   ].filter(Boolean);

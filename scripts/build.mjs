@@ -41,6 +41,35 @@ for (const page of pages) {
   const left = html.match(/\{\{[A-Z_]+\}\}/);
   if (left) throw new Error(`${page}: unknown placeholder ${left[0]}`);
   writeFileSync(join(out, page), html);
+  if (page === "admin.html") writeFileSync(join(out, "staff.html"), staffPage(html));
+}
+
+// The staff login page (/staff): the same admin app, with a username + password form and no install-app bits.
+function staffPage(html) {
+  const form = `    <form id="login" class="admin-login">
+      <h1>Staff log in</h1>
+      <label for="username">Username</label>
+      <input id="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <label class="admin-check"><input id="remember" type="checkbox"> Keep me logged in on this device (30 days)</label>
+      <button class="btn btn--navy" type="submit">Log in</button>
+      <p id="login-error" class="admin-error" role="alert"></p>
+      <p class="admin-hint">Use the username and password the owner sent you on WhatsApp. The first time, you’ll choose your own password. Forgot it? Ask the owner to reset it.</p>
+      <p class="admin-hint">Only tick "keep me logged in" on your own phone. Log out to remove it.</p>
+    </form>`;
+  const swaps = [
+    [/    <form id="login" class="admin-login">[\s\S]*?<\/form>/, form],
+    [/<title>Admin – /, "<title>Staff – "],
+    [/<link rel="manifest" href="\/assets\/admin.webmanifest">/, '<link rel="manifest" href="/assets/staff.webmanifest">'],
+    [/<strong>SIRRADDO · Admin<\/strong>/, "<strong>SIRRADDO · Staff</strong>"],
+    [/<body class="admin">/, '<body class="admin" data-mode="staff">'],
+  ];
+  for (const [re, to] of swaps) {
+    if (!re.test(html)) throw new Error(`staff page: can't find ${re}`);
+    html = html.replace(re, to);
+  }
+  return html;
 }
 
 const urls = SITEMAP_PAGES.map((p) => `  <url><loc>${SITE_URL}${p}</loc></url>`).join("\n");
@@ -48,7 +77,7 @@ writeFileSync(
   join(out, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`
 );
-writeFileSync(join(out, "robots.txt"), `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /brief\nDisallow: /api/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+writeFileSync(join(out, "robots.txt"), `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /staff\nDisallow: /brief\nDisallow: /api/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
 
 console.log(`Built ${pages.length} pages into public/ for ${SITE_URL} (demo cards ${SHOW_DEMO_CARDS ? "on" : "off"})`);
 

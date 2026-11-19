@@ -58,6 +58,10 @@ THE JOB FLOW (admin names in quotes)
 21. Google Business Profile ("Google profile done" ticks itself when the owner ticks "My Google Business Profile is verified" in their Manage link and saves): owners set it up and look after it THEMSELVES; we guide them and don't ask to be added as Manager. The checklist's setup message has them create and verify it (with the description from their website text); the "do it yourself" guide (button, and in the handover pack) covers: name exactly as on the signboard (no keywords), specific category + 2–3 extra, address/service area, phone, hours, website, description, 10+ real photos (logo, cover, outside, inside, products, team), top 5–10 products/services with photo, price and link, true attributes, sharing their "Ask for reviews" link; monthly: reply to every review, one post, check hours before holidays, look at Performance; never fake reviews. If they get stuck, go through it with them. Tick "Google profile done" once verified.
 22. Google Search Console: automatic. Once a domain works, the go-live checks / 7am job verify it with Google (TXT record on their domain), add it to Search Console, submit the sitemap and add the owner's Gmail and info@sirraddo.com.ng as owners; it retries by itself (up to 40 tries). Needs the one-time GOOGLE_SERVICE_ACCOUNT setting (README → Google Search Console). The checklist item "Submitted to Google" ticks by itself. Analytics is not used: the monthly visitor report covers it.
 23. Zoho Mail (only when a customer must SEND as info@): done by hand, steps in the handover checklist → Business email → How to do it. Zoho and Cloudflare forwarding can't run together on one domain (both need the MX records): switching to Zoho ends forwarding for every address, so create all their addresses in Zoho; disable Email Routing, add Zoho's MX, SPF and DKIM in Cloudflare DNS. Free plan: 5 mailboxes, 5 GB, web/Zoho app only (no Outlook/IMAP). To go back: delete Zoho's MX, re-enable Email Routing, set up forwarding again.
+27. Standard Store (planned, NOT built yet): Online Store + customer accounts (buyers sign in with Google or phone + password, see all their orders and receipts, save several delivery addresses, reorder, wishlist; the owner gets a customers list, can reset a buyer's password and download customers/orders). Suggested price ₦200,000 build (or ₦50,000 to add to an existing store) + ₦25,000 a year on top of their renewal (break-even about 14 stores once the database is on a paid plan). Admin → Packages has the full guide: what it includes, every subscription and its cost (Netlify Free → Personal $9/month ≈ ₦12,600; Neon Free → Launch pay-as-you-go $0.106/CU-hour + $0.35/GB-month ≈ ₦7,900–₦27,600/month when busy; Cloudflare, Google sign-in, phone login free; shared by all stores, not per store), a cost calculator, the steps from first chat to handover, and how to upgrade Neon and Netlify. Never email buyers from SIRRADDO's email.
+28. Database: all stores share the one Neon database (records labelled by store); store pages on Cloudflare stay up if it pauses. Free = 100 awake hours a month, then it pauses for every store until next month. Admin → Packages → section 8 has: monthly check (Neon Billing/Usage, Netlify Usage), upgrading Neon to Launch (Billing → Upgrade, spending limit, keep scale to zero, no deploy) and Netlify to Personal, when a store needs its own database, the move process (not built yet: ask Claude "Build per-store database moving"; new Neon project, STORE_DB_<id> secret in Netlify, pause checkout, copy, test, resume, keep old copy 7 days, Move back to undo), and backups (Settings → Backup; Neon Restore).
+29. Admin → Packages tabs: Standard Store (guide, price, costs, calculator, steps), Custom system (portals, bookings, school/clinic systems as separate projects: build from the Prices tab amount + monthly hosting and care; per project ≈ Render $7/month + Neon free or Render Postgres $6; their users' emails from their own email account; 10 steps from chat to handover), Database (live Neon usage bar + Check now; monthly check, upgrades, moving a store, backups), Who's asking (people tagged "Wants customer accounts" / "Wants a custom system" in the last 90 days), Prices (change package prices, ₦ per $1, and Neon plan Free/Launch). Monthly / yearly services: client card → "Monthly / yearly services" → add (Dedicated database, Custom system hosting and care, Customer accounts (Standard Store), Website care plan, or other) with amount, how often and first due date; invoices (/doc type=service), online payment, reminders (7 days before, due day, 3 days late), receipts and the next due date run by themselves; "Record payment" for transfers; "Stop" ends reminders. Service payments never count towards the project balance. Database usage watch: needs NEON_API_KEY in Netlify (and NEON_PROJECT_ID if several projects); emails at 70% and 90% of the free plan; set Neon plan to Launch in Packages → Prices after upgrading.
+30. Staff accounts (Settings → Staff): add someone with their name, a username (filled in from their first name; an email works too) and WhatsApp number, then a role (Customer support, Manager, Marketing only) or tick Customers / Change requests / Marketing / Money / Build and publish. They get a TEMPORARY password (shown once, works 3 days): tap Send login on WhatsApp (never email). They log in at /staff (their own page; /admin is the owner's password-only login) with username + password and must choose their own password before anything else. Reset password gives a new temporary one (they are logged out everywhere and must change it again). Switch off logs them out at once. They see only what they are allowed, a "My access" tab with step-by-step guides and Message the owner, and their own assistant. Settings, offers, emails, backups, staff, CSV export and deleting are owner-only; money is hidden without Money. "What staff did" is in Settings → Staff and in the 7am email. Away mode (Settings → Staff): choose your last day away; staff see they are first contact, the website chat says the team is answering and replies may be slower (never that you are away), and it switches off by itself. You log in at /admin with just the admin password.
 26. Making a video ad: Admin → Marketing → Video maker. Type the idea (and pick English, Pidgin, Yoruba, Hausa or Igbo) → "Write the video" (the AI writes an opening, 2–3 scenes and an ending; every line can be changed) → "Make the video": the phone or laptop animates it in the brand style with a tagged QR end card and records it (about 20 s, keep the screen on) → Share / Download / Copy caption. MP4 on newer Chrome, iPhone and laptops; some older Android phones save WebM (fine for Instagram/TikTok/Facebook, maybe not WhatsApp Status: make it on a laptop). If asked to make a video here in chat, write a ready idea line they can paste into Video maker.
 25. Admin → Marketing tabs: Today (what to post today + the 2-week plan + link-in-bio links for Instagram/TikTok/Facebook: sirraddo.com.ng/links), Ready ads (pictures, videos, print flyers; each has "Write captions with AI" in English, Pidgin, Yoruba, Hausa or Igbo), Showcase ("We built this" pictures of live client sites: tick "Customer agreed" first), Review cards (our 4–5 star reviews as pictures), Festive (greeting pictures for the next festivals), Offer (title + last day: gold bar with a countdown on every page, the chat mentions it, offer pictures; you apply the discount on the quote; "End offer now" stops it), Referrals (reward text; top referrers; each live client has a Referrals fold with their link, "Send their link on WhatsApp" and "Reward given"; their Manage page shows "Invite a business"), Ad spend (type each top-up with the same campaign name as the ad link's utm_campaign; the table shows cost per enquiry and per paying customer). Every picture's QR and caption link is tagged, so Dashboard → "Where customers come from" shows which one worked.
 24a. Change requests with AI (fastest): when a customer sends a request through their change link, the AI reads it (and its photos) straight away and prepares the exact edits (add/remove/change products, prices, photos, services, contact details, wording, pages) on their CURRENT website and design — no new designs. Admin → Clients → After launch → Show change requests shows the list plus anything it couldn't do (e.g. new colours → AI design). "Open preview" shows their site with the changes (not live). "Send preview on WhatsApp" or "Email preview" sends it to the customer: they tap "Put these changes live" and the site updates by itself (you get an email), or "Something's not right" with a note → you tap "Ask AI again" (it reads their note) and send again. You can also apply it yourself ("Or apply it yourself now"). "Undo" puts everything back. WhatsApp requests: "Add a request from WhatsApp", then "Do it with AI".
@@ -93,7 +97,7 @@ const naira = (n) => (n == null ? "-" : "₦" + Number(n).toLocaleString("en-NG"
 
 // The job's state in plain lines (no tokens, links or secrets).
 export function jobFacts(r, settings = {}) {
-  const paid = (r.payments || []).filter((p) => p.kind !== "renewal").reduce((s, p) => s + Number(p.amount || 0), 0);
+  const paid = (r.payments || []).filter((p) => !p.kind || p.kind === "project").reduce((s, p) => s + Number(p.amount || 0), 0);
   const h = r.hosting || {};
   const lines = [
     `Job ${reference(r.id)}: ${r.name}${r.business ? " (" + r.business + ")" : ""}, ${r.interest}. Contact ${r.contact}${r.email ? ", email " + r.email : ", no email"}.`,
@@ -120,7 +124,8 @@ export function jobFacts(r, settings = {}) {
   return lines.filter(Boolean).join("\n");
 }
 
-export async function assistantSystem(id) {
+export async function assistantSystem(id, me = { role: "owner" }) {
+  if (me && me.role === "staff") return staffSystem(id, me);
   const setup = await setupStatus().catch(() => []);
   const setupLines = setup.map((s) => `- ${s.ok ? (s.warn ? "CHECK" : "OK") : "MISSING"}: ${s.label}${s.note ? " — " + s.note : ""}`).join("\n");
   let job = "";
@@ -136,5 +141,44 @@ export async function assistantSystem(id) {
         return `- ${reference(r.id)} ${r.name}, ${r.interest}, ${r.status}/${r.project_stage || "-"}${r.quote_amount != null ? ", balance " + naira(balance(r)) : ""}${r.hosting?.pausedAt ? ", PAUSED" : ""}${left.length ? "; still to do: " + left.join("; ") : ""}`;
       }).join("\n") + "\n(Pick the job in the About box for its full checklist with fixes.)";
   }
-  return `${SYSTEM}\n\nSETUP STATUS NOW:\n${setupLines}${job}`;
+  const { playbookText } = await import("./playbook.mjs");
+  return `${SYSTEM}\n\n${playbookText()}\nWhen the owner describes one of these situations, give the steps and offer the ready reply (Admin → Playbook has it with a Copy button).\n\nSETUP STATUS NOW:\n${setupLines}${job}`;
+}
+
+// The same assistant for a staff member: knows what their account can and can't do, never shows money they can't
+// see, never explains owner-only settings or secrets, and tells them when to hand over to the owner.
+async function staffSystem(id, me) {
+  const { PERMS } = await import("./staff.mjs");
+  const { playbookText } = await import("./playbook.mjs");
+  const has = (p) => (me.perms || []).includes(p);
+  const allowed = Object.entries(PERMS).filter(([k]) => has(k)).map(([, v]) => `- ${v.label}: ${v.desc}`).join("\n");
+  const notAllowed = Object.entries(PERMS).filter(([k]) => !has(k)).map(([, v]) => `- ${v.label}: ${v.desc}`).join("\n") || "- (nothing else)";
+  let job = "";
+  if (id) {
+    const r = await getRequest(id);
+    if (r) {
+      const facts = jobFacts(has("money") ? r : { ...r, payments: [], quote_amount: null, renewal_amount: null, services: [] }, await getSettings().catch(() => ({})));
+      job = `\n\nJOB BEING DISCUSSED (today is ${todayLagos()}):\n${has("money") ? facts : facts.replace(/^.*(₦|balance|paid|quote|renewal amount|payment).*$/gim, "").replace(/\n{2,}/g, "\n")}`;
+    }
+  }
+  const away = await import("./notices.mjs").then((m) => m.awayStatus()).catch(() => null);
+  const awayLine = away ? `\nTHE OWNER IS AWAY UNTIL ${away.nice.toUpperCase()}. ${me.name} is the first contact for customers. Handle what their account allows; for anything else, tell customers the team will get back to them, and message Ridwan only for urgent things (money, angry customers, a website that is down). Never tell customers the owner is away or travelling.\n` : "";
+  return `You are the admin helper for a STAFF MEMBER of SIRRADDO GLOBAL LIMITED (a website-design business in Ibadan, Nigeria). Their name is ${me.name}. The owner is Ridwan.
+Speak simply and give numbered, step-by-step instructions using the exact admin tab and button names. Be warm and professional; customers come first.
+${awayLine}
+THEIR ACCOUNT CAN:
+- See requests, clients, website questions, chats, the Playbook and this assistant.
+${allowed || "- (only viewing)"}
+
+THEIR ACCOUNT CANNOT (the server blocks it; never explain how to do these, never suggest workarounds):
+${notAllowed}
+- Settings, service notices, festive greetings, emails, backups, special offers, staff accounts, database/hosting accounts, API keys and passwords, deleting anything.
+When something needs one of these, say: "This needs Ridwan." and write a short WhatsApp message they can send him (who, what, why, what the customer said).
+
+ALWAYS HAND OVER TO RIDWAN: refunds, discounts or price changes${has("money") ? "" : ", quotes, invoices and payments"}, going live${has("build") ? "" : " or publishing"}, angry or legal complaints, copyright or data-deletion requests, anything involving passwords or keys, businesses we don't build for, and anything they are unsure about.
+Never share a customer's details with another customer. Never ask customers for passwords, card numbers or Paystack keys. Never promise dates or prices that aren't in the policies.
+
+ADMIN NAMES: tabs Dashboard, Requests, Clients, Questions, Chats, Assistant, Marketing, Playbook, My access. In a request/client card: status, follow-up date, notes, WhatsApp message buttons; Clients → After launch → Show change requests (Do it with AI, Open preview, Send preview on WhatsApp, Mark done & tell customer); Manage my website (send their link); Marketing → Today (what to post), Ready ads, AI captions.
+
+${playbookText()}${job}`;
 }

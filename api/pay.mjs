@@ -46,7 +46,7 @@ export default async function handler(req, res) {
       if (!paystackConfigured()) return res.status(503).json({ error: "Online payment isn't available yet. Please pay by bank transfer." });
       const r = await getByDocToken(String(body.t || ""));
       if (!r) return res.status(404).json({ error: "This link is not valid" });
-      const due = amountDue(r, ["deposit", "balance", "renewal"].includes(body.for) ? body.for : "");
+      const due = amountDue(r, ["deposit", "balance", "renewal"].includes(body.for) || /^service-[a-z0-9]{6,16}$/.test(String(body.for || "")) ? body.for : "");
       if (!due) return res.status(409).json({ error: "There is nothing to pay on this link right now" });
       const email = String(body.email || "").trim().toLowerCase().slice(0, 200);
       if (!EMAIL.test(email)) return res.status(400).json({ error: "Please enter a valid email address for your receipt" });
@@ -84,7 +84,7 @@ export default async function handler(req, res) {
     }
 
     if (!paystackConfigured()) return page(res, 503, "Pay by transfer", `<h1>Online payment is coming soon</h1><p>For now, please pay by bank transfer using the details on your invoice.</p><a class="btn" href="/doc?t=${encodeURIComponent(token)}&type=invoice">View my invoice</a>`);
-    const want = ["deposit", "balance", "renewal"].includes(query.for) ? query.for : "";
+    const want = ["deposit", "balance", "renewal"].includes(query.for) || /^service-[a-z0-9]{6,16}$/.test(String(query.for || "")) ? query.for : "";
     const due = amountDue(r, want) || (want ? amountDue(r) : null);
     if (!due) return page(res, 200, "Nothing to pay", `<h1>Nothing to pay right now</h1><p>Thank you, ${esc(String(r.name).split(" ")[0])}. There is no payment due on this link.</p><a class="btn" href="/doc?t=${encodeURIComponent(token)}&type=receipt">View my receipts</a>`);
     return page(res, 200, "Pay online", `<h1>Pay ${COMPANY.name}</h1>

@@ -44,10 +44,10 @@ const niceDate = (d) => {
 };
 const payments = (r) => (Array.isArray(r.payments) ? r.payments : []);
 const paid = (r, kind) => payments(r).filter((p) => !kind || p.kind === kind).reduce((s, p) => s + Number(p.amount || 0), 0);
-const projectPaid = (r) => payments(r).filter((p) => p.kind !== "renewal").reduce((s, p) => s + Number(p.amount || 0), 0);
+const projectPaid = (r) => payments(r).filter((p) => !p.kind || p.kind === "project").reduce((s, p) => s + Number(p.amount || 0), 0);
 export const balance = (r) => (r.quote_amount == null ? null : Math.max(0, r.quote_amount - projectPaid(r)));
 
-export const DOC_TYPES = ["invoice", "receipt", "renewal", "handover"];
+export const DOC_TYPES = ["invoice", "receipt", "renewal", "handover", "service"];
 
 export const DEFAULT_HANDOVER_TERMS = "Small fixes to text and photos are free for 30 days after your website goes live. After that, tell us what you'd like changed and we'll quote it before we start. Your yearly renewal keeps your domain, hosting, SSL certificate, business email and backups running. Everyday details (prices, opening hours, numbers, a notice, reviews) you change yourself with your Manage link. From time to time we improve your website at no cost and email you what changed.";
 
@@ -198,12 +198,21 @@ export function buildDoc(r, type, settings = {}) {
     number = `SGL-REN-${year}-${num}`;
     rows.push([`Yearly renewal — domain, hosting, SSL, business email and backups${r.renewal_due ? ` (due ${niceDate(r.renewal_due)})` : ""}`, r.renewal_amount]);
     totals.push(["Amount due", r.renewal_amount]);
+  } else if (type === "service") {
+    // Monthly / yearly service fee (dedicated database, custom system hosting…): settings.sid picks which one.
+    const s = (Array.isArray(r.services) ? r.services : []).find((x) => x.id === settings.sid);
+    if (!s) return { error: "Not found" };
+    title = "INVOICE";
+    number = `SGL-SVC-${year}-${num}-${String(s.next_due).replace(/-/g, "")}`;
+    rows.push([`${s.name} — ${s.period === "yearly" ? "yearly" : "monthly"} fee (due ${niceDate(s.next_due)})`, s.amount]);
+    totals.push(["Amount due", s.amount]);
   } else if (type === "receipt") {
     if (!payments(r).length) return { error: "Record a payment first" };
     title = "RECEIPT";
     number = `SGL-RCT-${year}-${num}-${payments(r).length}`;
     for (const p of payments(r)) {
-      rows.push([`${niceDate(p.date)} — ${p.kind === "renewal" ? "Renewal payment" : `Payment for ${r.interest}`}${p.note ? ` (${p.note})` : ""}`, p.amount]);
+      const svcName = p.kind === "service" ? ((Array.isArray(r.services) ? r.services : []).find((x) => x.id === p.service_id)?.name || "Service") : "";
+      rows.push([`${niceDate(p.date)} — ${p.kind === "renewal" ? "Renewal payment" : p.kind === "service" ? `${svcName} payment` : `Payment for ${r.interest}`}${p.note ? ` (${p.note})` : ""}`, p.amount]);
     }
     totals.push(["Total received", paid(r)]);
     if (r.quote_amount != null) totals.push(["Project balance", balance(r)]);

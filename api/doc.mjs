@@ -23,15 +23,16 @@ export default async function handler(req, res) {
     const r = await getByDocToken(String(query.t || ""));
     if (!r) return message(res, 404, "This link is not valid");
     if (type === "handover") await addHandoverExtras(r);
-    const doc = buildDoc(r, type, await getSettings());
+    const sid = String(query.s || "");
+    const doc = buildDoc(r, type, { ...(await getSettings()), sid });
     if (doc.error) return message(res, 404, "This document is not ready yet");
     res.statusCode = 200;
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     // Invoices get a "Pay online" button when Paystack is set up and something is due.
     let opts = {};
-    if (paystackConfigured() && (type === "invoice" || type === "renewal")) {
-      const due = amountDue(r, type === "renewal" ? "renewal" : "");
-      if (due && (type === "renewal" || due.for !== "renewal")) opts = { payUrl: `/pay?t=${encodeURIComponent(String(query.t))}&for=${due.for}`, payAmount: naira(due.amount) };
+    if (paystackConfigured() && (type === "invoice" || type === "renewal" || type === "service")) {
+      const due = amountDue(r, type === "renewal" ? "renewal" : type === "service" ? "service-" + sid : "");
+      if (due && (type !== "invoice" || due.for === "deposit" || due.for === "balance")) opts = { payUrl: `/pay?t=${encodeURIComponent(String(query.t))}&for=${due.for}`, payAmount: naira(due.amount) };
     }
     res.end(docPage(doc, r, opts));
   } catch (err) {

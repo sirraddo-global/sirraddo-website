@@ -1,0 +1,189 @@
+// Staff accounts: other people who can log in to admin with limited access (e.g. while you're away).
+// - Each staff member has their own password (random, shown once; only its SHA-256 is stored).
+// - Permissions are checked on the server for every action and every field (see permFor / fieldPerm).
+// - Everything a staff member changes is written to staff_log, which only the owner sees.
+// - The owner (ADMIN_PASSWORD) can always do everything, and is the only one who can manage staff.
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { q, ensureSchema } from "./store.mjs";
+
+// What a staff member can be allowed to do. "view" is always on.
+export const PERMS = {
+  customers: { label: "Customers", desc: "Add customers, update details, status (not Won), follow-up dates and notes; answer website questions; moderate reviews" },
+  changes: { label: "Change requests", desc: "Handle change requests (incl. Do it with AI, previews), send customers their Manage link, visitor reports" },
+  marketing: { label: "Marketing", desc: "Ready ads, picture and video maker, AI captions, showcase, referrals (view)" },
+  money: { label: "Money", desc: "Quotes, invoices, receipts, payments, Won status, renewals, monthly/yearly services, ad spend" },
+  build: { label: "Build and publish", desc: "Website text, AI design, previews, project stage, go live, publish, pause, restore" },
+};
+export const PRESETS = {
+  support: { label: "Customer support", perms: ["customers", "changes", "marketing"] },
+  manager: { label: "Manager (everything except settings)", perms: ["customers", "changes", "marketing", "money", "build"] },
+  marketing: { label: "Marketing only", perms: ["marketing"] },
+};
+const OWNER_ONLY = "owner";
+
+// Which permission an action needs ("view" = any logged-in person, "owner" = only you).
+const ACTIONS = {
+  session: "view", assistant: "view", mk_playbook: "view", my_password: "view",
+  create: "customers", question: "customers", review_set: "customers", site_review_set: "customers", site_reviews: "customers", mk_demand: "customers", brief_link: "customers",
+  changes: "changes", change_mark: "changes", change_add: "changes", change_ai_plan: "changes", change_ai_apply: "changes", change_ai_undo: "changes",
+  change_ai_send: "changes", change_ai_sent: "changes", manage_link: "changes", site_stats: "changes", report_toggle: "changes", report_send: "changes",
+  mk_qr: "marketing", mk_captions: "marketing", mk_video_script: "marketing", mk_showcase_list: "marketing", mk_showcase: "marketing",
+  mk_showcase_ok: "marketing", mk_reviews: "marketing", mk_ref: "marketing", mk_ref_top: "marketing", mk_offer_get: "marketing",
+  doc_link: "money", send_doc: "money", paystack_link: "money", mk_svc_paid: "money", mk_spend: "money", mk_spend_add: "money", mk_spend_del: "money", shop_orders: "money", mk_ref_use: "money",
+  design: "build", design_ref_add: "build", design_clear: "build", design_option: "build", design_ref_remove: "build", write_draft: "build", send_preview: "build", preview_link: "build",
+  host_check: "build", host_domain: "build", host_email: "build", host_pause: "build", host_publish: "build", host_restore: "build", host_rollback: "build",
+};
+// Anything not listed (settings, notices, greetings, email, backups, offers, staff, Neon, report on/off, delete…) is owner only.
+export function permFor(action) { return ACTIONS[action] || OWNER_ONLY; }
+
+const CUSTOMER_FIELDS = new Set(["id", "name", "contact", "business", "interest", "details", "notes", "email", "came_from", "wants", "follow_up_on", "status"]);
+const MONEY_FIELDS = new Set(["quote_amount", "payments", "renewal_amount", "renewal_due", "services"]);
+const BUILD_FIELDS = new Set(["project_stage", "draft_md", "website_url", "live_on", "handover", "brief", "hosting"]);
+// The permissions a PATCH needs, from the fields it changes.
+export function fieldPerms(body) {
+  const need = new Set();
+  for (const k of Object.keys(body || {})) {
+    if (CUSTOMER_FIELDS.has(k)) need.add("customers");
+    else if (MONEY_FIELDS.has(k)) need.add("money");
+    else if (BUILD_FIELDS.has(k)) need.add("build");
+    else need.add(OWNER_ONLY);
+  }
+  if (body && body.status === "won") need.add("money"); // Won means paid: only with Money
+  need.delete("view");
+  return [...need];
+}
+export const can = (me, perm) => me?.role === "owner" || (perm === "view" ? Boolean(me) : perm !== OWNER_ONLY && Boolean(me?.perms?.includes(perm)));
+
+// ---------- Accounts ----------
+// Staff log in with a username and a password. The owner gives a temporary password (valid 3 days); they must
+// choose their own on first login, and again after every reset. Passwords are stored salted with scrypt.
+const TEMP_DAYS = 3;
+export function hashPass(p, salt = randomBytes(16).toString("hex")) {
+  return `scrypt$${salt}$${scryptSync(String(p), salt, 32).toString("hex")}`;
+}
+function passOk(p, stored) {
+  const [kind, salt, hex] = String(stored || "").split("$");
+  if (kind !== "scrypt" || !salt || !hex) return false;
+  const got = scryptSync(String(p), salt, 32), want = Buffer.from(hex, "hex");
+  return got.length === want.length && timingSafeEqual(got, want);
+}
+export const newPassword = () => "sgl-" + randomBytes(9).toString("base64url").replace(/[-_]/g, "x").slice(0, 12).replace(/(.{4})(?=.)/g, "$1-");
+const cleanPerms = (list) => [...new Set((Array.isArray(list) ? list : []).filter((p) => PERMS[p]))];
+export const cleanUsername = (u) => String(u || "").trim().toLowerCase().replace(/\s+/g, ".").replace(/[^a-z0-9._@-]/g, "").slice(0, 60);
+const OWNER_NAMES = new Set(["owner", "admin", "ridwan", "sirraddo"]);
+const pub = (s) => s && { id: s.id, name: s.name, username: s.username, phone: s.phone, perms: s.perms || [], active: s.active, must_change: s.must_change,
+  temp_expires: s.temp_expires, created_at: s.created_at, last_seen_at: s.last_seen_at, password_changed_at: s.password_changed_at };
+// New password rules for staff: 8+ characters with a letter and a number, not the temporary one.
+export function passwordProblem(p) {
+  p = String(p || "");
+  if (p.length < 8) return "Use at least 8 characters";
+  if (p.length > 72) return "Too long (72 characters at most)";
+  if (!/[a-z]/i.test(p) || !/\d/.test(p)) return "Use letters and at least one number";
+  if (/^sgl-/i.test(p)) return "Choose your own password, not the temporary one";
+  return null;
+}
+
+export async function listStaff() {
+  await ensureSchema();
+  return (await q(`SELECT * FROM staff ORDER BY active DESC, name`, [])).map(pub);
+}
+async function freeUsername(want, exceptId = 0) {
+  const u = cleanUsername(want);
+  if (u.length < 3) throw new Error("Username: at least 3 letters or numbers");
+  if (OWNER_NAMES.has(u)) throw new Error(`"${u}" is kept for the owner. Choose another username`);
+  const [taken] = await q(`SELECT id FROM staff WHERE username = $1 AND id <> $2`, [u, Number(exceptId) || 0]);
+  if (taken) throw new Error(`The username "${u}" is already used. Choose another`);
+  return u;
+}
+export async function addStaff({ name, username, phone, perms }) {
+  const n = String(name || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  if (!n) throw new Error("Type their name");
+  const p = cleanPerms(perms);
+  if (!p.length) throw new Error("Tick at least one thing they can do");
+  await ensureSchema();
+  const u = await freeUsername(username || n.split(" ")[0]);
+  const password = newPassword();
+  const [row] = await q(`INSERT INTO staff (name, username, phone, pass_hash, perms, must_change, temp_expires)
+    VALUES ($1, $2, $3, $4, $5::jsonb, true, now() + interval '${TEMP_DAYS} days') RETURNING *`,
+    [n, u, String(phone || "").replace(/[^\d+]/g, "").slice(0, 20) || null, hashPass(password), JSON.stringify(p)]);
+  return { staff: pub(row), password, temp_days: TEMP_DAYS };
+}
+export async function updateStaff(id, { perms, active, name, phone, username }) {
+  await ensureSchema();
+  const sets = [], vals = [];
+  if (perms !== undefined) { const p = cleanPerms(perms); if (!p.length) throw new Error("Tick at least one thing they can do"); vals.push(JSON.stringify(p)); sets.push(`perms = $${vals.length}::jsonb`); }
+  if (active !== undefined) { vals.push(Boolean(active)); sets.push(`active = $${vals.length}`); }
+  if (name !== undefined) { vals.push(String(name).trim().slice(0, 80)); sets.push(`name = $${vals.length}`); }
+  if (phone !== undefined) { vals.push(String(phone).replace(/[^\d+]/g, "").slice(0, 20) || null); sets.push(`phone = $${vals.length}`); }
+  if (username !== undefined) { vals.push(await freeUsername(username, id)); sets.push(`username = $${vals.length}`); }
+  if (!sets.length) return listStaff();
+  vals.push(Number(id));
+  await q(`UPDATE staff SET ${sets.join(", ")} WHERE id = $${vals.length}`, vals);
+  return listStaff();
+}
+// Reset to a new temporary password: the old one (and every logged-in device) stops working; they must change it.
+export async function resetStaffPassword(id) {
+  const password = newPassword();
+  await ensureSchema();
+  const rows = await q(`UPDATE staff SET pass_hash = $1, must_change = true, temp_expires = now() + interval '${TEMP_DAYS} days' WHERE id = $2 RETURNING *`, [hashPass(password), Number(id)]);
+  if (!rows[0]) throw new Error("Not found");
+  return { staff: pub(rows[0]), password, temp_days: TEMP_DAYS };
+}
+export async function deleteStaff(id) {
+  await ensureSchema();
+  await q(`DELETE FROM staff WHERE id = $1`, [Number(id)]);
+  return listStaff();
+}
+// The staff member chooses their own password (compulsory after a temporary one). Needs the current password.
+export async function setOwnPassword(staffId, current, next) {
+  await ensureSchema();
+  const [s] = await q(`SELECT * FROM staff WHERE id = $1 AND active`, [Number(staffId)]);
+  if (!s || !passOk(current, s.pass_hash)) throw new Error("Your current password is not right");
+  const bad = passwordProblem(next);
+  if (bad) throw new Error(bad);
+  if (String(next) === String(current)) throw new Error("Choose a different password from the current one");
+  const [row] = await q(`UPDATE staff SET pass_hash = $1, must_change = false, temp_expires = NULL, password_changed_at = now() WHERE id = $2 RETURNING *`, [hashPass(next), s.id]);
+  return row;
+}
+
+// ---------- Sign in ----------
+// Login: "su.<username>.<password>" (each base64url) from the login form. Session: "s2.<id>.<exp>.<sig>", signed
+// with a key that includes their password hash, so a new password or switching them off logs every device out.
+const sessionKey = (s) => createHash("sha256").update("sirraddo-staff-session:" + s.pass_hash + ":" + (process.env.ADMIN_PASSWORD || "")).digest();
+export function staffSessionToken(s, days = 30) {
+  const exp = Date.now() + (s.must_change ? 1 : days) * 86400000;
+  return `s2.${s.id}.${exp}.${createHmac("sha256", sessionKey(s)).update(`${s.id}.${exp}`).digest("base64url")}`;
+}
+export const loginCredential = (username, password) => `su.${Buffer.from(String(username)).toString("base64url")}.${Buffer.from(String(password)).toString("base64url")}`;
+export async function staffFromCredential(given) {
+  if (!given) return null;
+  await ensureSchema();
+  const m = /^s2\.(\d{1,9})\.(\d{10,16})\.([\w-]{43})$/.exec(given);
+  const l = /^su\.([\w-]{1,100})\.([\w-]{1,120})$/.exec(given);
+  let s = null, pw = null;
+  if (m) {
+    if (Number(m[2]) < Date.now()) return null;
+    [s] = await q(`SELECT * FROM staff WHERE id = $1 AND active`, [Number(m[1])]);
+    if (!s) return null;
+    const want = createHmac("sha256", sessionKey(s)).update(`${m[1]}.${m[2]}`).digest("base64url");
+    if (want.length !== m[3].length || !timingSafeEqual(Buffer.from(want), Buffer.from(m[3]))) return null;
+  } else if (l) {
+    const u = cleanUsername(Buffer.from(l[1], "base64url").toString());
+    pw = Buffer.from(l[2], "base64url").toString();
+    [s] = await q(`SELECT * FROM staff WHERE username = $1 AND active`, [u]);
+    if (!s || !passOk(pw, s.pass_hash)) return null;
+  } else return null;
+  if (s.must_change && s.temp_expires && new Date(s.temp_expires) < new Date()) return null; // temporary password expired
+  await q(`UPDATE staff SET last_seen_at = now() WHERE id = $1 AND (last_seen_at IS NULL OR last_seen_at < now() - interval '5 minutes')`, [s.id]).catch(() => {});
+  return { role: "staff", id: s.id, name: s.name, username: s.username, perms: s.perms || [], mustChange: Boolean(s.must_change), row: s, password: pw };
+}
+
+// ---------- Activity log ----------
+export async function logStaff(me, what, requestId = null) {
+  if (me?.role !== "staff") return;
+  await q(`INSERT INTO staff_log (staff_id, staff_name, what, request_id) VALUES ($1, $2, $3, $4)`, [me.id, me.name, String(what).slice(0, 300), Number.isInteger(requestId) ? requestId : null]).catch((e) => console.error("staff log failed", e));
+}
+export async function staffLog(limit = 100) {
+  await ensureSchema();
+  return q(`SELECT l.*, r.name AS customer FROM staff_log l LEFT JOIN customer_requests r ON r.id = l.request_id ORDER BY l.at DESC LIMIT $1`, [limit]);
+}

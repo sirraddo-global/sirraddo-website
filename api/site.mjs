@@ -139,6 +139,13 @@ export default async function handler(req, res) {
     }
   }
 
+  // Public list for "Websites we have built" (only sites whose owners agreed). Cached for 10 minutes.
+  if (query.work) {
+    res.setHeader("Cache-Control", "public, max-age=600");
+    if (!dbConfigured()) return res.status(200).json({ work: [] });
+    const { publicWork } = await import("./_lib/marketing.mjs");
+    return res.status(200).json({ work: await publicWork().catch(() => []) });
+  }
   if (query.greeting) {
     // The festive banner on sirraddo.com.ng asks this.
     // Service notices ride along, so planned upgrades show on every page that has the banner script.

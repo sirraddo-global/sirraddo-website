@@ -298,6 +298,19 @@ test("Marketing: offer bar + chat, referrals with rewards, ad spend report, QR, 
   assert.ok(sites.some((x) => x.id === id && !x.ok));
   sites = (await h.action({ action: "mk_showcase_ok", id, ok: true })).json.sites;
   assert.ok(sites.find((x) => x.id === id).ok);
+  // Agreed sites appear on the public "Websites we have built" list; others don't.
+  const work = (await h.call("GET", "/api/site?work=1")).json.work;
+  assert.deepEqual(work.map((w) => w.name), ["Tunde Prints"]);
+  assert.equal(work[0].url, "https://tundeprints.com.ng");
+  await h.action({ action: "mk_showcase_ok", id, ok: false });
+  assert.equal((await h.call("GET", "/api/site?work=1")).json.work.length, 0, "untick removes it");
+  await h.action({ action: "mk_showcase_ok", id, ok: true });
+  // Customer sites: "Get a website like this" in the footer, tagged with the site.
+  const { buildSiteModel: bsm, renderPage: rp } = await import("../api/_lib/sitegen.mjs");
+  const tsite = bsm({ id, interest: "Business website", website_url: "https://tundeprints.com.ng", brief: { business_name: "Tunde Prints" }, draft_md: "# Website text\n## Page: Home\n### Hero\n**Headline:** Hi" });
+  const thtml = rp(tsite, "index", { mode: "export", link: (x) => x });
+  assert.match(thtml, /Get a website like this/);
+  assert.match(thtml, /utm_source=client-site&amp;utm_campaign=tundeprints"/);
   const sc = (await h.action({ action: "mk_showcase", id })).json;
   assert.equal(sc.name, "Tunde Prints"); assert.equal(sc.url, "tundeprints.com.ng"); assert.ok(sc.primary);
   assert.ok(Array.isArray((await h.action({ action: "mk_reviews" })).json.reviews));

@@ -804,25 +804,50 @@ test("Website chat knows our whole published FAQ (kept in step by the build) and
   for (const fact of ["Manage", "Ask me first", "Search Console", ".com.ng", "sirraddodemo.com.ng", "receipt"]) assert.ok(sys.includes(fact), `chat doesn't know: ${fact}`);
 });
 
-test("staff accounts: limited access, no money, owner-only actions blocked, activity logged", async () => {
-  const as = (pw) => async (method, path, body) => h.call(method, path, body, { authorization: "Bearer " + pw });
+test("staff accounts: username login, temporary password that must be changed, limited access, no money, activity logged", async () => {
+  const { loginCredential } = await import("../api/_lib/staff.mjs");
+  const as = (cred) => async (method, path, body) => h.call(method, path, body, { authorization: "Bearer " + cred });
   const id = (await h.action({ action: "create", name: "Staff Test Customer", contact: "08037770001", interest: "Starter website" })).json.id;
   await h.admin("PATCH", "/api/requests", { id, quote_amount: 80000 });
-  // Only the owner manages staff.
-  const add = await h.action({ action: "staff_add", staff: { name: "Tunde Staff", phone: "08031112222", perms: ["customers", "changes"] } });
+  // Only the owner manages staff; usernames are unique and the owner's names are kept.
+  const add = await h.action({ action: "staff_add", staff: { name: "Tunde Staff", username: "Tunde", phone: "08031112222", perms: ["customers", "changes"] } });
   assert.equal(add.status, 200, add.text);
-  const pw = add.json.password;
-  assert.match(pw, /^sgl-/);
-  const staff = as(pw);
-  // The staff password logs in; "me" says who they are.
+  assert.equal(add.json.staff.username, "tunde");
+  assert.equal(add.json.staff.must_change, true);
+  assert.equal((await h.action({ action: "staff_add", staff: { name: "Other", username: "tunde", perms: ["customers"] } })).status, 400, "username taken");
+  assert.equal((await h.action({ action: "staff_add", staff: { name: "Other", username: "admin", perms: ["customers"] } })).status, 400, "owner name kept");
+  const temp = add.json.password;
+  // The password alone (no username) is not a login; a wrong username fails.
+  assert.equal((await as(temp)("GET", "/api/requests?view=all")).status, 401);
+  assert.equal((await as(loginCredential("someone", temp))("GET", "/api/requests?view=all")).status, 401);
+  const tempLogin = as(loginCredential("Tunde ", temp));
+  // With the temporary password: only "choose your password" works.
+  const first = await tempLogin("GET", "/api/requests?view=all");
+  assert.equal(first.status, 200);
+  assert.equal(first.json.me.must_change, true);
+  assert.deepEqual(first.json.requests, []);
+  assert.equal((await tempLogin("PATCH", "/api/requests", { id, notes: "x" })).status, 403);
+  assert.equal((await tempLogin("POST", "/api/requests", { action: "assistant", messages: [] })).status, 403);
+  assert.equal((await tempLogin("POST", "/api/requests", { action: "my_password", current: temp, password: "short" })).status, 400);
+  assert.equal((await tempLogin("POST", "/api/requests", { action: "my_password", current: "wrong", password: "Tunde2026ok" })).status, 400);
+  const changed = await tempLogin("POST", "/api/requests", { action: "my_password", current: temp, password: "Tunde2026ok", remember: true });
+  assert.equal(changed.status, 200, changed.text);
+  assert.match(changed.json.token, /^s2\./);
+  assert.equal((await tempLogin("GET", "/api/requests?view=all")).status, 401, "the temporary password stops working");
+  const staff = as(loginCredential("tunde", "Tunde2026ok"));
   const all = await staff("GET", "/api/requests?view=all");
   assert.equal(all.status, 200, all.text);
   assert.equal(all.json.me.role, "staff");
+  assert.equal(all.json.me.must_change, undefined);
+  assert.equal((await as(changed.json.token)("GET", "/api/requests?view=all")).json.me.username, "tunde");
   assert.deepEqual(all.json.me.perms.sort(), ["changes", "customers"]);
   const row = all.json.requests.find((r) => r.id === id);
   assert.equal(row.quote_amount, null, "money hidden");
   assert.deepEqual(row.payments, []);
-  // Allowed: customer fields. Blocked: money fields, Won, delete, settings, staff, backup.
+  assert.deepEqual(row.services, []);
+  assert.equal(all.json.settings.pkg_build, undefined);
+  assert.equal(all.json.settings.account_number, undefined);
+  // Allowed: customer fields. Blocked: money fields, Won, delete, settings, staff, backup, export, store keys.
   assert.equal((await staff("PATCH", "/api/requests", { id, notes: "called back" })).status, 200);
   assert.equal((await staff("PATCH", "/api/requests", { id, quote_amount: 1 })).status, 403);
   assert.equal((await staff("PATCH", "/api/requests", { id, status: "won" })).status, 403);
@@ -831,34 +856,66 @@ test("staff accounts: limited access, no money, owner-only actions blocked, acti
   assert.equal((await staff("POST", "/api/requests", { action: "staff_list" })).status, 403);
   assert.equal((await staff("POST", "/api/requests", { action: "doc_link", id })).status, 403);
   assert.equal((await staff("POST", "/api/requests", { action: "mk_offer_save", offer: {} })).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "shop_settings", id })).status, 403);
   assert.equal((await staff("GET", "/api/requests?view=backup")).status, 403);
+  assert.equal((await staff("GET", "/api/requests?view=export")).status, 403);
   assert.equal((await staff("POST", "/api/requests", { action: "unknown_new_thing" })).status, 403, "unknown actions are owner only");
-  // Staff without Money don't get bank details, prices or services; they can still read a customer's site reviews.
-  assert.equal(all.json.settings.pkg_build, undefined);
-  assert.equal(all.json.settings.account_number, undefined);
-  assert.deepEqual(row.services, []);
   assert.notEqual((await staff("POST", "/api/requests", { action: "site_reviews", id })).status, 403);
-  assert.equal((await staff("POST", "/api/requests", { action: "shop_settings", id })).status, 403, "store payment keys are owner only");
-  // Keep me logged in gives a staff token that works, and an owner token can't be minted from it.
-  const tok = (await staff("POST", "/api/requests", { action: "session" })).json;
-  const t = tok.token || tok.session;
+  // Keep me logged in: a staff token works; a token can't make another token.
+  const t = (await staff("POST", "/api/requests", { action: "session" })).json.token;
   assert.match(t, /^s2\./);
-  assert.equal((await as(t)("GET", "/api/requests?view=all")).json.me.name, "Tunde Staff");
-  // The owner sees what they did, and can switch them off (password and token stop working).
+  assert.equal((await as(t)("POST", "/api/requests", { action: "session" })).status, 400);
+  // The owner sees what they did (admin and the 7am email).
   const list = (await h.action({ action: "staff_list" })).json;
   assert.ok(list.log.some((l) => /Edited/.test(l.what) && l.staff_name === "Tunde Staff"));
+  assert.ok(list.log.some((l) => /Changed their password/.test(l.what)));
+  // Switch off: password and token stop working.
   const sid = add.json.staff.id;
   await h.action({ action: "staff_update", staff_id: sid, staff: { active: false } });
   assert.equal((await staff("GET", "/api/requests?view=all")).status, 401);
   assert.equal((await as(t)("GET", "/api/requests?view=all")).status, 401);
-  // A new password replaces the old one.
+  // Reset: a new temporary password, logged out everywhere, must change again.
   await h.action({ action: "staff_update", staff_id: sid, staff: { active: true } });
-  const np = (await h.action({ action: "staff_reset", staff_id: sid })).json.password;
+  const reset = (await h.action({ action: "staff_reset", staff_id: sid })).json;
+  assert.equal(reset.staff.must_change, true);
   assert.equal((await staff("GET", "/api/requests?view=all")).status, 401);
-  assert.equal((await as(np)("GET", "/api/requests?view=all")).status, 200);
+  const again = as(loginCredential("tunde", reset.password));
+  assert.equal((await again("GET", "/api/requests?view=all")).json.me.must_change, true);
+  // A temporary password expires after 3 days.
+  await h.sql(`UPDATE staff SET temp_expires = now() - interval '1 minute' WHERE id = $1`, [sid]);
+  const expired = await again("GET", "/api/requests?view=all");
+  assert.equal(expired.status, 401);
+  assert.match(expired.json.error, /3 days/);
+  const r2 = (await h.action({ action: "staff_reset", staff_id: sid })).json.password;
+  await as(loginCredential("tunde", r2))("POST", "/api/requests", { action: "my_password", current: r2, password: "NewPass2027" });
   // With Money, they can see the quote.
   await h.action({ action: "staff_update", staff_id: sid, staff: { perms: ["customers", "money"] } });
-  assert.equal((await as(np)("GET", "/api/requests?view=all")).json.requests.find((r) => r.id === id).quote_amount, 80000);
+  assert.equal((await as(loginCredential("tunde", "NewPass2027"))("GET", "/api/requests?view=all")).json.requests.find((r) => r.id === id).quote_amount, 80000);
   assert.equal((await h.action({ action: "staff_delete", staff_id: sid })).status, 200);
-  assert.equal((await as(np)("GET", "/api/requests?view=all")).status, 401);
+  assert.equal((await as(loginCredential("tunde", "NewPass2027"))("GET", "/api/requests?view=all")).status, 401);
+});
+
+test("away mode: website notice and chat say replies may be slower (never that the owner is away); it ends by itself", async () => {
+  const day = (n) => new Date(Date.now() + 3600000 + n * 864e5).toISOString().slice(0, 10);
+  await h.action({ action: "settings", settings: { away_until: day(3), away_web: "1" } });
+  let site = (await h.call("GET", "/api/site?greeting=1")).json;
+  const n = (site.notices || []).find((x) => /^away:/.test(x.id));
+  assert.ok(n, "notice shown");
+  assert.doesNotMatch(n.message, /away|travel/i);
+  await h.action({ action: "settings", settings: { away_web: "0" } });
+  assert.ok(!((await h.call("GET", "/api/site?greeting=1")).json.notices || []).some((x) => /^away:/.test(x.id)), "website notice can be off");
+  await h.action({ action: "settings", settings: { away_until: day(-1), away_web: "1" } });
+  assert.ok(!((await h.call("GET", "/api/site?greeting=1")).json.notices || []).some((x) => /^away:/.test(x.id)), "ends after the last day");
+  await h.action({ action: "settings", settings: { away_until: "" } });
+});
+
+test("the 7am email lists what staff did in the last 24 hours", async () => {
+  await h.sql(`INSERT INTO staff_log (staff_id, staff_name, what) VALUES (999, 'Ada Helper', 'Edited notes')`);
+  await h.sql(`DELETE FROM settings WHERE key LIKE '\\_daily%'`).catch(() => {});
+  const n = h.sent.length;
+  const orig = console.error; console.error = () => {};
+  try { await h.daily(); } finally { console.error = orig; }
+  const mail = h.newMail(n).find((m) => /What staff did/.test(m.html || ""));
+  assert.ok(mail, "staff section in the daily email");
+  assert.match(mail.html, /Ada Helper/);
 });

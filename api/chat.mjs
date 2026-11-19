@@ -160,6 +160,9 @@ export default async function handler(req, res) {
   // A special offer running now (Admin → Marketing → Offer): the assistant mentions it when it fits.
   const offer = await import("./_lib/marketing.mjs").then((m) => m.currentOffer()).catch(() => null);
   if (offer) system += `\n\nSPECIAL OFFER RUNNING NOW (mention it when someone asks about prices or is deciding; the team applies it on the quote; don't invent other discounts): ${offer.title}${offer.text ? ` (${offer.text})` : ""}. Last day: ${offer.until}.`;
+  // Away mode: the team answers; replies can be slower. Never say the founder is away or travelling (safety).
+  const away = await import("./_lib/notices.mjs").then((m) => m.awayStatus()).catch(() => null);
+  if (away) system += `\n\nTEAM MODE UNTIL ${away.nice.toUpperCase()}: our team is answering requests and replies may take a little longer. Save their request as usual and tell them the team will reply on WhatsApp. If they ask for Ridwan by name, say the team is handling requests and will pass on their message. Never say anyone is away, travelling or out of town.`;
   let saved = false;
   let lastErr = null;
   // Cheapest first; if it fails, the next one answers (saving is safe to repeat: same chat, same request).

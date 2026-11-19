@@ -3,7 +3,7 @@
 // - Permissions are checked on the server for every action and every field (see permFor / fieldPerm).
 // - Everything a staff member changes is written to staff_log, which only the owner sees.
 // - The owner (ADMIN_PASSWORD) can always do everything, and is the only one who can manage staff.
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { q, ensureSchema } from "./store.mjs";
 
 // What a staff member can be allowed to do. "view" is always on.
@@ -23,7 +23,7 @@ const OWNER_ONLY = "owner";
 
 // Which permission an action needs ("view" = any logged-in person, "owner" = only you).
 const ACTIONS = {
-  session: "view", assistant: "view", mk_playbook: "view",
+  session: "view", assistant: "view", mk_playbook: "view", my_password: "view",
   create: "customers", question: "customers", review_set: "customers", site_review_set: "customers", site_reviews: "customers", mk_demand: "customers", brief_link: "customers",
   changes: "changes", change_mark: "changes", change_add: "changes", change_ai_plan: "changes", change_ai_apply: "changes", change_ai_undo: "changes",
   change_ai_send: "changes", change_ai_sent: "changes", manage_link: "changes", site_stats: "changes", report_toggle: "changes", report_send: "changes",
@@ -55,78 +55,127 @@ export function fieldPerms(body) {
 export const can = (me, perm) => me?.role === "owner" || (perm === "view" ? Boolean(me) : perm !== OWNER_ONLY && Boolean(me?.perms?.includes(perm)));
 
 // ---------- Accounts ----------
-const hashPass = (p) => createHash("sha256").update("sirraddo-staff:" + p).digest("hex");
+// Staff log in with a username and a password. The owner gives a temporary password (valid 3 days); they must
+// choose their own on first login, and again after every reset. Passwords are stored salted with scrypt.
+const TEMP_DAYS = 3;
+export function hashPass(p, salt = randomBytes(16).toString("hex")) {
+  return `scrypt$${salt}$${scryptSync(String(p), salt, 32).toString("hex")}`;
+}
+function passOk(p, stored) {
+  const [kind, salt, hex] = String(stored || "").split("$");
+  if (kind !== "scrypt" || !salt || !hex) return false;
+  const got = scryptSync(String(p), salt, 32), want = Buffer.from(hex, "hex");
+  return got.length === want.length && timingSafeEqual(got, want);
+}
 export const newPassword = () => "sgl-" + randomBytes(9).toString("base64url").replace(/[-_]/g, "x").slice(0, 12).replace(/(.{4})(?=.)/g, "$1-");
 const cleanPerms = (list) => [...new Set((Array.isArray(list) ? list : []).filter((p) => PERMS[p]))];
-const pub = (s) => s && { id: s.id, name: s.name, phone: s.phone, perms: s.perms || [], active: s.active, created_at: s.created_at, last_seen_at: s.last_seen_at };
+export const cleanUsername = (u) => String(u || "").trim().toLowerCase().replace(/\s+/g, ".").replace(/[^a-z0-9._@-]/g, "").slice(0, 60);
+const OWNER_NAMES = new Set(["owner", "admin", "ridwan", "sirraddo"]);
+const pub = (s) => s && { id: s.id, name: s.name, username: s.username, phone: s.phone, perms: s.perms || [], active: s.active, must_change: s.must_change,
+  temp_expires: s.temp_expires, created_at: s.created_at, last_seen_at: s.last_seen_at, password_changed_at: s.password_changed_at };
+// New password rules for staff: 8+ characters with a letter and a number, not the temporary one.
+export function passwordProblem(p) {
+  p = String(p || "");
+  if (p.length < 8) return "Use at least 8 characters";
+  if (p.length > 72) return "Too long (72 characters at most)";
+  if (!/[a-z]/i.test(p) || !/\d/.test(p)) return "Use letters and at least one number";
+  if (/^sgl-/i.test(p)) return "Choose your own password, not the temporary one";
+  return null;
+}
 
 export async function listStaff() {
   await ensureSchema();
   return (await q(`SELECT * FROM staff ORDER BY active DESC, name`, [])).map(pub);
 }
-export async function addStaff({ name, phone, perms }) {
+async function freeUsername(want, exceptId = 0) {
+  const u = cleanUsername(want);
+  if (u.length < 3) throw new Error("Username: at least 3 letters or numbers");
+  if (OWNER_NAMES.has(u)) throw new Error(`"${u}" is kept for the owner. Choose another username`);
+  const [taken] = await q(`SELECT id FROM staff WHERE username = $1 AND id <> $2`, [u, Number(exceptId) || 0]);
+  if (taken) throw new Error(`The username "${u}" is already used. Choose another`);
+  return u;
+}
+export async function addStaff({ name, username, phone, perms }) {
   const n = String(name || "").replace(/\s+/g, " ").trim().slice(0, 80);
   if (!n) throw new Error("Type their name");
   const p = cleanPerms(perms);
   if (!p.length) throw new Error("Tick at least one thing they can do");
-  const password = newPassword();
   await ensureSchema();
-  const [row] = await q(`INSERT INTO staff (name, phone, pass_hash, perms) VALUES ($1, $2, $3, $4::jsonb) RETURNING *`,
-    [n, String(phone || "").replace(/[^\d+]/g, "").slice(0, 20) || null, hashPass(password), JSON.stringify(p)]);
-  return { staff: pub(row), password };
+  const u = await freeUsername(username || n.split(" ")[0]);
+  const password = newPassword();
+  const [row] = await q(`INSERT INTO staff (name, username, phone, pass_hash, perms, must_change, temp_expires)
+    VALUES ($1, $2, $3, $4, $5::jsonb, true, now() + interval '${TEMP_DAYS} days') RETURNING *`,
+    [n, u, String(phone || "").replace(/[^\d+]/g, "").slice(0, 20) || null, hashPass(password), JSON.stringify(p)]);
+  return { staff: pub(row), password, temp_days: TEMP_DAYS };
 }
-export async function updateStaff(id, { perms, active, name, phone }) {
+export async function updateStaff(id, { perms, active, name, phone, username }) {
   await ensureSchema();
   const sets = [], vals = [];
   if (perms !== undefined) { const p = cleanPerms(perms); if (!p.length) throw new Error("Tick at least one thing they can do"); vals.push(JSON.stringify(p)); sets.push(`perms = $${vals.length}::jsonb`); }
   if (active !== undefined) { vals.push(Boolean(active)); sets.push(`active = $${vals.length}`); }
   if (name !== undefined) { vals.push(String(name).trim().slice(0, 80)); sets.push(`name = $${vals.length}`); }
   if (phone !== undefined) { vals.push(String(phone).replace(/[^\d+]/g, "").slice(0, 20) || null); sets.push(`phone = $${vals.length}`); }
+  if (username !== undefined) { vals.push(await freeUsername(username, id)); sets.push(`username = $${vals.length}`); }
   if (!sets.length) return listStaff();
   vals.push(Number(id));
   await q(`UPDATE staff SET ${sets.join(", ")} WHERE id = $${vals.length}`, vals);
   return listStaff();
 }
-// A new password: the old one (and every "keep me logged in" device) stops working.
+// Reset to a new temporary password: the old one (and every logged-in device) stops working; they must change it.
 export async function resetStaffPassword(id) {
   const password = newPassword();
   await ensureSchema();
-  const rows = await q(`UPDATE staff SET pass_hash = $1 WHERE id = $2 RETURNING *`, [hashPass(password), Number(id)]);
+  const rows = await q(`UPDATE staff SET pass_hash = $1, must_change = true, temp_expires = now() + interval '${TEMP_DAYS} days' WHERE id = $2 RETURNING *`, [hashPass(password), Number(id)]);
   if (!rows[0]) throw new Error("Not found");
-  return { staff: pub(rows[0]), password };
+  return { staff: pub(rows[0]), password, temp_days: TEMP_DAYS };
 }
 export async function deleteStaff(id) {
   await ensureSchema();
   await q(`DELETE FROM staff WHERE id = $1`, [Number(id)]);
   return listStaff();
 }
+// The staff member chooses their own password (compulsory after a temporary one). Needs the current password.
+export async function setOwnPassword(staffId, current, next) {
+  await ensureSchema();
+  const [s] = await q(`SELECT * FROM staff WHERE id = $1 AND active`, [Number(staffId)]);
+  if (!s || !passOk(current, s.pass_hash)) throw new Error("Your current password is not right");
+  const bad = passwordProblem(next);
+  if (bad) throw new Error(bad);
+  if (String(next) === String(current)) throw new Error("Choose a different password from the current one");
+  const [row] = await q(`UPDATE staff SET pass_hash = $1, must_change = false, temp_expires = NULL, password_changed_at = now() WHERE id = $2 RETURNING *`, [hashPass(next), s.id]);
+  return row;
+}
 
 // ---------- Sign in ----------
-// Password: active staff whose hash matches. Session: "s2.<id>.<exp>.<sig>", signed with a key that includes
-// their password hash, so a new password or deactivating them logs every device out.
+// Login: "su.<username>.<password>" (each base64url) from the login form. Session: "s2.<id>.<exp>.<sig>", signed
+// with a key that includes their password hash, so a new password or switching them off logs every device out.
 const sessionKey = (s) => createHash("sha256").update("sirraddo-staff-session:" + s.pass_hash + ":" + (process.env.ADMIN_PASSWORD || "")).digest();
 export function staffSessionToken(s, days = 30) {
-  const exp = Date.now() + days * 86400000;
+  const exp = Date.now() + (s.must_change ? 1 : days) * 86400000;
   return `s2.${s.id}.${exp}.${createHmac("sha256", sessionKey(s)).update(`${s.id}.${exp}`).digest("base64url")}`;
 }
+export const loginCredential = (username, password) => `su.${Buffer.from(String(username)).toString("base64url")}.${Buffer.from(String(password)).toString("base64url")}`;
 export async function staffFromCredential(given) {
   if (!given) return null;
   await ensureSchema();
   const m = /^s2\.(\d{1,9})\.(\d{10,16})\.([\w-]{43})$/.exec(given);
-  let s = null;
+  const l = /^su\.([\w-]{1,100})\.([\w-]{1,120})$/.exec(given);
+  let s = null, pw = null;
   if (m) {
     if (Number(m[2]) < Date.now()) return null;
     [s] = await q(`SELECT * FROM staff WHERE id = $1 AND active`, [Number(m[1])]);
     if (!s) return null;
     const want = createHmac("sha256", sessionKey(s)).update(`${m[1]}.${m[2]}`).digest("base64url");
-    if (!timingSafeEqual(Buffer.from(want), Buffer.from(m[3]))) return null;
-  } else {
-    if (given.length < 12 || given.length > 64) return null;
-    [s] = await q(`SELECT * FROM staff WHERE pass_hash = $1 AND active`, [hashPass(given)]);
-    if (!s) return null;
-  }
+    if (want.length !== m[3].length || !timingSafeEqual(Buffer.from(want), Buffer.from(m[3]))) return null;
+  } else if (l) {
+    const u = cleanUsername(Buffer.from(l[1], "base64url").toString());
+    pw = Buffer.from(l[2], "base64url").toString();
+    [s] = await q(`SELECT * FROM staff WHERE username = $1 AND active`, [u]);
+    if (!s || !passOk(pw, s.pass_hash)) return null;
+  } else return null;
+  if (s.must_change && s.temp_expires && new Date(s.temp_expires) < new Date()) return null; // temporary password expired
   await q(`UPDATE staff SET last_seen_at = now() WHERE id = $1 AND (last_seen_at IS NULL OR last_seen_at < now() - interval '5 minutes')`, [s.id]).catch(() => {});
-  return { role: "staff", id: s.id, name: s.name, perms: s.perms || [], row: s };
+  return { role: "staff", id: s.id, name: s.name, username: s.username, perms: s.perms || [], mustChange: Boolean(s.must_change), row: s, password: pw };
 }
 
 // ---------- Activity log ----------

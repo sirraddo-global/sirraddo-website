@@ -30,7 +30,9 @@
   <main class="container admin-main">
     <form id="login" class="admin-login">
       <h1>Log in</h1>
-      <label for="password">Admin password</label>
+      <label for="username">Username <small>(staff: the one the owner gave you; owner: leave empty)</small></label>
+      <input id="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false">
+      <label for="password">Password</label>
       <input id="password" type="password" autocomplete="current-password" required>
       <label class="admin-check"><input id="remember" type="checkbox"> Keep me logged in on this device (30 days)</label>
       <button class="btn btn--navy" type="submit">Log in</button>

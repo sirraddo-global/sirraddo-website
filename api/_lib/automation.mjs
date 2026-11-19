@@ -3,7 +3,7 @@
 import tls from "node:tls";
 import {
   listRequests, updateRequest, ensureDocToken, getSettings, markSent, setSiteCheck, listUnansweredSince,
-  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta , emailUsage, countRefused, cleanupRefused } from "./store.mjs";
+  sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta , emailUsage, countRefused, cleanupRefused, q } from "./store.mjs";
 import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
 import { dailyHosting, hostingRef } from "./golive.mjs";
 import { reconcileOrders } from "./shop.mjs";
@@ -351,6 +351,13 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
   const yday = eu?.days?.[1];
   const emailWarn = eu && ((yday && yday.sent >= eu.limits.day * 0.7) || eu.month.sent >= eu.limits.month * 0.7 || (eu.blocked && Date.now() - Date.parse(eu.blocked.at) < 2 * 86400000));
 
+  // What staff did since yesterday morning (Settings → Staff), grouped by person.
+  const staffDid = await q(`SELECT l.staff_name, l.what, l.at, r.name AS customer FROM staff_log l LEFT JOIN customer_requests r ON r.id = l.request_id
+    WHERE l.at > now() - interval '24 hours' ORDER BY l.staff_name, l.at`).catch(() => []);
+  const staffBy = {};
+  for (const l of staffDid) (staffBy[l.staff_name] ||= []).push(l);
+  const staffItems = Object.entries(staffBy).map(([who, list]) => `<li><b>${esc(who)}</b> (${list.length}): ${list.slice(0, 12).map((l) => esc(l.what + (l.customer ? " · " + l.customer : ""))).join("; ")}${list.length > 12 ? "; …" : ""}</li>`);
+  report.staffActions = staffDid.length;
   // The morning email
   const sections = [
     refusedWaiting ? `<h3 style="margin:18px 0 6px;color:#B45309">${refusedWaiting} email${refusedWaiting === 1 ? "" : "s"} refused by Resend, waiting to be sent again</h3><p style="margin:0">The daily limit has reset: Admin → Settings → Email usage → <b>Send all again</b>.</p>` : "",
@@ -399,6 +406,7 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
     section("Project forms received", briefs.map((r) => item(r, r.has_draft ? "ready to build. The AI draft of the website text is in admin (Project form → View text)." : "ready to build. Open View answers in admin.", null))),
     section("Client websites needing attention", siteProblems.map((x) => item(x.r,
       `${esc(x.r.website_url)} · ${esc(x.status)}${x.ssl ? ` · SSL ends ${niceDate(x.ssl)}` : ""}`, null))),
+    section("What staff did (last 24 hours)", staffItems),
     section("Questions the assistant couldn't answer", questions.map((q) => `<li>${esc(q.question)}</li>`)),
     section("Gone quiet (no update for 2+ weeks)", stale.slice(0, 15).map((r) => item(r, `still ${esc(r.status)}. Follow up once more, or mark lost.`, fill(tpl("tpl_new"), r)))),
   ].filter(Boolean);

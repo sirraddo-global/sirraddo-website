@@ -83,9 +83,10 @@ async function whoIs(req) {
   if (authorised(req)) return { role: "owner", name: "Owner", perms: Object.keys(PERMS) };
   if ((process.env.ADMIN_PASSWORD || "").length < 12) return null;
   const given = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  if (!given || given.startsWith("s1.") || !dbConfigured()) return null;
+  if (!/^(su|s2)\./.test(given) || !dbConfigured()) return null;
   return staffFromCredential(given).catch(() => null);
 }
+const CHANGE_FIRST = "Choose your new password first.";
 const NOT_ALLOWED = "Your account can't do this. Ask the owner (Ridwan) to do it, or to give your account access.";
 
 class Bad extends Error {}
@@ -193,11 +194,30 @@ export default async function handler(req, res) {
     recent.push(now);
     failed.set(ip, recent);
     const configured = (process.env.ADMIN_PASSWORD || "").length >= 12;
-    return res.status(401).json({ error: configured ? "Wrong password" : "ADMIN_PASSWORD is not set (min 12 characters)" });
+    const given = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+    return res.status(401).json({ error: !configured ? "ADMIN_PASSWORD is not set (min 12 characters)"
+      : given.startsWith("su.") ? "Wrong username or password. A temporary password stops working after 3 days: ask the owner for a new one."
+      : given.startsWith("s2.") ? "You were logged out. Log in again." : "Wrong password" });
   }
   if (!dbConfigured()) return res.status(503).json({ error: "DATABASE_URL is not set" });
 
   const query = req.query || Object.fromEntries(new URL(req.url, "http://x").searchParams);
+  // A temporary password must be changed before anything else.
+  if (me.role === "staff" && (me.mustChange || req.method === "POST")) {
+    const body0 = req.method === "POST" ? readBody(req) : {};
+    if (req.method === "POST" && body0.action === "my_password") {
+      const st = await import("./_lib/staff.mjs");
+      try {
+        const row = await st.setOwnPassword(me.id, body0.current, body0.password);
+        await logStaff(me, "Changed their password");
+        return res.status(200).json({ ok: true, token: st.staffSessionToken(row, body0.remember ? SESSION_DAYS : 1) });
+      } catch (e) { return res.status(400).json({ error: e.message }); }
+    }
+    if (me.mustChange) {
+      if (req.method === "GET" && query.view === "all") return res.status(200).json({ me: { role: "staff", name: me.name, username: me.username, perms: me.perms, must_change: true }, requests: [], unanswered: [], settings: {}, setup: [], statuses: [], stages: [] });
+      if (!(req.method === "POST" && body0.action === "session")) return res.status(403).json({ error: CHANGE_FIRST, must_change: true });
+    }
+  }
   // Every customer row sent back carries its handover checklist (what's left before the job is finished).
   const checkSettings = req.method === "GET" ? {} : await getSettings().catch(() => ({}));
   const sendJson = res.json.bind(res);
@@ -246,7 +266,7 @@ export default async function handler(req, res) {
       const [requests, unanswered, settings, setup, totals] = await Promise.all([listRequests(), listUnanswered(), getSettings(), setupStatus(), dashboardTotals().catch(() => null)]);
       for (const r of requests) r.handover_check = handoverChecklist(r, settings);
       const email_usage = await emailUsage(14).catch(() => null);
-      const meOut = { role: me.role, name: me.name, perms: me.perms };
+      const meOut = { role: me.role, name: me.name, username: me.username, perms: me.perms };
       if (me.role === "staff") {
         // Staff see customers and jobs, not the money totals, setup details or email usage unless they have Money.
         return res.status(200).json({ me: meOut, requests: can(me, "money") ? requests : requests.map((r) => ({ ...r, payments: [], quote_amount: null, renewal_amount: null, services: [] })),

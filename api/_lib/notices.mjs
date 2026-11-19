@@ -45,9 +45,23 @@ export async function listNotices() {
   try { return JSON.parse((await getMeta(["notices"])).notices || "[]"); } catch { return []; }
 }
 export async function currentNotices(now = new Date()) {
-  return (await listNotices()).filter((n) => noticeStatus(n, now) === "showing").map((n) => ({
+  const list = (await listNotices()).filter((n) => noticeStatus(n, now) === "showing").map((n) => ({
     id: n.id + ":" + (n.updated || ""), kind: n.kind, emoji: (NOTICE_KINDS[n.kind] || NOTICE_KINDS.custom).emoji, title: n.title, message: noticeText(n),
   }));
+  const away = await awayStatus(now).catch(() => null);
+  if (away && away.web) list.push({ id: "away:" + away.until, kind: "custom", emoji: "🕒", title: "Replies may take a little longer",
+    message: `Our team is attending to every request, but replies may take a little longer than usual until ${away.nice}. Thank you for your patience.` });
+  return list;
+}
+// Away mode (Admin → Settings → Staff): on until the end of the chosen day (Lagos time).
+export async function awayStatus(now = new Date()) {
+  const { getSettings } = await import("./store.mjs");
+  const s = await getSettings();
+  const until = /^\d{4}-\d{2}-\d{2}$/.test(s.away_until || "") ? s.away_until : null;
+  const today = new Date(now.getTime() + 3600000).toISOString().slice(0, 10);
+  if (!until || until < today) return null;
+  const nice = new Date(until + "T12:00:00Z").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+  return { until, nice, web: s.away_web !== "0" };
 }
 
 const clean = (s, max) => String(s ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max);

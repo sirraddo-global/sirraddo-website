@@ -39,6 +39,8 @@
   };
 
   var password = null;
+  var typedPw = null; // a staff member's password, kept in memory only for the "choose your new password" screen
+  function b64url(t) { return btoa(unescape(encodeURIComponent(t))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
   var LONG = 'sirraddo-admin-session'; // "keep me logged in": a 30-day token (never the password) in this device's storage
   try { password = localStorage.getItem(LONG) || sessionStorage.getItem(KEY); } catch (e) { /* storage blocked */ }
   // The installable Admin app (Add to Home screen / Install app).
@@ -146,6 +148,8 @@
       state.settings = j.settings || {};
       state.me = j.me || { role: 'owner', perms: [] };
       applyRole();
+      var tabsBar = document.querySelector('.admin-tabs:not(.admin-subtabs)');
+      if (tabsBar) tabsBar.style.display = state.me.must_change ? 'none' : '';
       state.totals = j.totals || null;
       state.statuses = j.statuses || [];
       state.stages = j.stages || [];
@@ -165,7 +169,7 @@
     $('login').hidden = on; $('app').hidden = !on; $('logout').hidden = !on;
   }
   function logout() {
-    password = null;
+    password = null; typedPw = null;
     try { sessionStorage.removeItem(KEY); localStorage.removeItem(LONG); } catch (e) { /* ignore */ }
     showApp(false);
   }
@@ -204,6 +208,7 @@
   function render() {
     var view = $('view');
     view.textContent = '';
+    if (state.me && state.me.must_change) { renderMustChange(view); return; }
     var fn = { dashboard: renderDashboard, requests: renderRequests, clients: renderClients,
       questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant, marketing: renderMarketing, packages: renderPackages, playbook: renderPlaybook, access: renderAccess }[state.tab];
     fn(view);
@@ -963,8 +968,12 @@
   function ownerWa() { return String((state.settings && state.settings.owner_whatsapp) || '2348112999073').replace(/\D/g, ''); }
   function staffSettings(view) {
     var card = el('div', { class: 'admin-card admin-settings' }, [el('h2', { text: 'Staff accounts' }),
-      el('p', { class: 'admin-hint', text: 'Give someone their own login with limited access (for example while you’re away). They use the same admin page with their own password. Settings, offers, emails, backups, staff and deleting stay yours only. Everything they change is listed below.' })]);
+      el('p', { class: 'admin-hint', text: 'Give someone their own login with limited access (for example while you’re away). They log in on the same admin page with their username and a temporary password, then choose their own. Settings, offers, emails, backups, staff and deleting stay yours only. Everything they change is listed below.' })]);
     var name = el('input', { placeholder: 'Their name', maxlength: 80 });
+    var uname = el('input', { placeholder: 'e.g. tunde', autocapitalize: 'none', spellcheck: 'false', maxlength: 60 });
+    var unameTouched = false;
+    uname.addEventListener('input', function () { unameTouched = true; });
+    name.addEventListener('input', function () { if (!unameTouched) uname.value = String(name.value.trim().split(/\s+/)[0] || '').toLowerCase().replace(/[^a-z0-9._-]/g, ''); });
     var phone = el('input', { placeholder: 'Their WhatsApp number', inputmode: 'tel' });
     var preset = select(PERM_PRESETS.map(function (p) { return [p[0], p[1]]; }), 'support', { 'aria-label': 'Role' });
     var boxes = {};
@@ -976,22 +985,23 @@
     preset.addEventListener('change', setPreset); setPreset();
     var shown = el('div');
     var owa = el('input', { value: (state.settings && state.settings.owner_whatsapp) || '2348112999073', inputmode: 'tel' });
-    [field('Name', name), field('WhatsApp', phone), field('Role', preset, 'Start from a role, then tick or untick'), perms].forEach(function (x) { card.appendChild(x); });
-    function showPassword(st, password) {
+    [field('Name', name), field('Username', uname, 'What they type to log in (letters and numbers; an email address works too). Must be different for each person.'), field('WhatsApp', phone), field('Role', preset, 'Start from a role, then tick or untick'), perms].forEach(function (x) { card.appendChild(x); });
+    function showPassword(st, password, days) {
       shown.innerHTML = '';
       var url = location.origin + '/admin';
-      var msg = 'Hello ' + st.name.split(' ')[0] + ', here is your SIRRADDO admin login.\nPage: ' + url + '\nYour password: ' + password + '\nKeep it private and don’t share it. Open "My access" after logging in to see what you can do.';
+      var msg = 'Hello ' + st.name.split(' ')[0] + ', here is your SIRRADDO admin login.\nPage: ' + url + '\nUsername: ' + st.username + '\nTemporary password: ' + password + '\nIt works for ' + (days || 3) + ' days. When you log in, you\u2019ll choose your own password. Keep it private. Then open "My access" to see what you can do.';
       var num = String(st.phone || '').replace(/\D/g, '').replace(/^0/, '234');
-      shown.appendChild(el('div', { class: 'admin-card' }, [el('h3', { text: 'Password for ' + st.name + ' (shown once)' }), el('p', { class: 'staff-pass', text: password }),
-        el('p', { class: 'admin-hint', text: 'Send it privately on WhatsApp. You can’t see it again; use "New password" if it’s lost.' }),
+      shown.appendChild(el('div', { class: 'admin-card' }, [el('h3', { text: 'Login for ' + st.name }), el('p', { class: 'admin-meta', text: 'Username: ' + st.username }),
+        el('p', { class: 'admin-label', text: 'Temporary password (shown once)' }), el('p', { class: 'staff-pass', text: password }),
+        el('p', { class: 'admin-hint', text: 'Send it privately on WhatsApp. It works for ' + (days || 3) + ' days; they must choose their own password when they first log in. You can\u2019t see it again: use "Reset password" if it\u2019s lost.' }),
         el('div', { class: 'admin-actions' }, [
           el('button', { class: 'admin-btn', type: 'button', text: 'Copy password', onclick: function (e) { copyText(password, 'Password', e.currentTarget); } }),
           num ? el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + num + '?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Send login on WhatsApp' }) : null])]));
       shown.scrollIntoView({ behavior: 'smooth' });
     }
     card.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Add staff', onclick: function () {
-      api('POST', { action: 'staff_add', staff: { name: name.value, phone: phone.value, perms: Object.keys(boxes).filter(function (k) { return boxes[k].checked; }) } })
-        .then(function (j) { name.value = phone.value = ''; flash('Staff added'); showPassword(j.staff, j.password); drawList(j.staff_list); }).catch(fail);
+      api('POST', { action: 'staff_add', staff: { name: name.value, username: uname.value, phone: phone.value, perms: Object.keys(boxes).filter(function (k) { return boxes[k].checked; }) } })
+        .then(function (j) { name.value = phone.value = uname.value = ''; unameTouched = false; flash('Staff added'); showPassword(j.staff, j.password, j.temp_days); drawList(j.staff_list); }).catch(fail);
     } }));
     card.appendChild(shown);
     card.appendChild(field('Your WhatsApp (staff tap "Message the owner")', owa));
@@ -999,6 +1009,7 @@
       api('POST', { action: 'settings', settings: { owner_whatsapp: owa.value.replace(/\D/g, '').replace(/^0/, '234') } }).then(function (j) { state.settings = j.settings; flash('Saved'); }).catch(fail);
     } }));
     view.appendChild(card);
+    view.appendChild(awayCard());
     var listBox = el('div'), logBox = el('div');
     view.appendChild(el('h2', { class: 'admin-h2', text: 'Staff' })); view.appendChild(listBox);
     view.appendChild(el('h2', { class: 'admin-h2', text: 'What staff did (latest first)' })); view.appendChild(logBox);
@@ -1008,7 +1019,9 @@
       list.forEach(function (st) {
         var cb = {};
         var c = el('div', { class: 'admin-card' }, [el('h3', { text: st.name + (st.active ? '' : ' (switched off)') }),
-          el('p', { class: 'admin-meta', text: (st.phone || 'no number') + ' · last seen ' + (st.last_seen_at ? when(st.last_seen_at) : 'never') })]);
+          el('p', { class: 'admin-meta', text: 'Username: ' + st.username + ' · ' + (st.phone || 'no number') + ' · last seen ' + (st.last_seen_at ? when(st.last_seen_at) : 'never') }),
+          st.must_change ? el('p', { class: 'admin-meta' }, [badge(st.temp_expires && Date.parse(st.temp_expires) < Date.now() ? 'Temporary password expired' : 'Waiting to choose their password', st.temp_expires && Date.parse(st.temp_expires) < Date.now() ? 'is-due' : 'is-new'),
+            st.temp_expires && Date.parse(st.temp_expires) >= Date.now() ? ' Temporary password works until ' + when(st.temp_expires) : ' Tap "Reset password" to send a new one.']) : null]);
         c.appendChild(el('div', { class: 'perm-list' }, Object.keys(PERM_INFO).map(function (k) {
           cb[k] = el('input', { type: 'checkbox' }); cb[k].checked = st.perms.indexOf(k) !== -1;
           cb[k].addEventListener('change', function () {
@@ -1020,9 +1033,9 @@
           el('button', { class: 'admin-btn', type: 'button', text: st.active ? 'Switch off' : 'Switch on', onclick: function () {
             api('POST', { action: 'staff_update', staff_id: st.id, staff: { active: !st.active } }).then(function (j) { flash(st.active ? 'Switched off: they are logged out' : 'Switched on'); drawList(j.staff); }).catch(fail);
           } }),
-          el('button', { class: 'admin-btn', type: 'button', text: 'New password', onclick: function () {
-            if (!window.confirm('Make a new password for ' + st.name + '? The old one stops working and they are logged out.')) return;
-            api('POST', { action: 'staff_reset', staff_id: st.id }).then(function (j) { showPassword(j.staff, j.password); drawList(j.staff_list); }).catch(fail);
+          el('button', { class: 'admin-btn', type: 'button', text: 'Reset password', onclick: function () {
+            if (!window.confirm('Reset ' + st.name + '\u2019s password? They get a temporary one (send it on WhatsApp), are logged out everywhere, and must choose a new password when they log in.')) return;
+            api('POST', { action: 'staff_reset', staff_id: st.id }).then(function (j) { showPassword(j.staff, j.password, j.temp_days); drawList(j.staff_list); }).catch(fail);
           } }),
           el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Remove', onclick: function () {
             if (!window.confirm('Remove ' + st.name + '? Their login stops working. (What they did stays in the list below.)')) return;
@@ -1038,6 +1051,62 @@
         return el('li', null, [el('b', { text: l.staff_name }), ' · ' + l.what + (l.customer ? ' · ' + l.customer : '') + ' · ' + when(l.at)]);
       })) : el('p', { class: 'admin-empty', text: 'Nothing yet.' }));
     }).catch(fail);
+  }
+
+  // Staff: choose a new password (compulsory after a temporary one; also from My access at any time).
+  function passwordForm(forced, done) {
+    var cur = el('input', { type: 'password', autocomplete: 'current-password' });
+    var p1 = el('input', { type: 'password', autocomplete: 'new-password' });
+    var p2 = el('input', { type: 'password', autocomplete: 'new-password' });
+    var err = el('p', { class: 'admin-error', role: 'alert' });
+    if (forced && typedPw) cur.value = typedPw;
+    var show = el('input', { type: 'checkbox' });
+    show.addEventListener('change', function () { [cur, p1, p2].forEach(function (x) { x.type = show.checked ? 'text' : 'password'; }); });
+    var btn = el('button', { class: 'btn btn--navy', type: 'submit', text: 'Save my new password' });
+    var form = el('form', { class: 'admin-card admin-settings' }, [
+      (forced && typedPw) ? null : field(forced ? 'Temporary password (from the owner)' : 'Current password', cur),
+      field('New password', p1, 'At least 8 characters, with letters and a number. Don’t reuse a password from another site.'),
+      field('Type it again', p2),
+      el('label', { class: 'admin-check' }, [show, ' Show passwords']),
+      btn, err]);
+    form.addEventListener('submit', function (e) {
+      e.preventDefault(); err.textContent = '';
+      if (p1.value !== p2.value) { err.textContent = 'The two new passwords are not the same.'; return; }
+      btn.disabled = true;
+      api('POST', { action: 'my_password', current: cur.value, password: p1.value, remember: Boolean(state.remember || (function () { try { return localStorage.getItem(LONG); } catch (x) { return null; } })()) }).then(function (j) {
+        password = j.token; typedPw = null;
+        try { if (localStorage.getItem(LONG)) localStorage.setItem(LONG, j.token); else sessionStorage.setItem(KEY, j.token); } catch (x) { /* ignore */ }
+        flash('Password changed'); done();
+      }).catch(function (e2) { btn.disabled = false; err.textContent = e2.message; });
+    });
+    return form;
+  }
+  function renderMustChange(view) {
+    var me = state.me || {};
+    view.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Welcome, ' + String(me.name || '').split(' ')[0] + '. Choose your own password' }),
+      el('p', { class: 'admin-hint', text: 'You logged in with a temporary password from the owner. Before you start, choose a password only you know. Your username stays: ' + (me.username || '') + '.' })]));
+    view.appendChild(passwordForm(true, function () { load().then(function () { setTab('access'); }); }));
+  }
+
+  // Away mode: staff become the first contact; the website says replies may be slower (never that you're away).
+  function awayInfo() {
+    var u = state.settings && state.settings.away_until;
+    return u && u >= today() ? { until: u, web: state.settings.away_web !== '0' } : null;
+  }
+  function awayCard() {
+    var a = awayInfo();
+    var until = el('input', { type: 'date', min: today(), value: a ? a.until : '' });
+    var web = el('input', { type: 'checkbox' }); web.checked = !a || a.web;
+    function save(v) {
+      api('POST', { action: 'settings', settings: { away_until: v, away_web: web.checked ? '1' : '0' } }).then(function (j) { state.settings = j.settings; flash(v ? 'Away mode on until ' + niceDay(v) : 'Away mode off'); render(); }).catch(fail);
+    }
+    return el('div', { class: 'admin-card admin-settings' + (a ? ' admin-callout' : '') }, [el('h2', { text: a ? 'Away mode is ON until ' + niceDay(a.until) : 'Away mode' }),
+      el('p', { class: 'admin-hint', text: 'Going away? Staff see a banner saying they are the first contact, and their assistant tells them what to handle and what to send you. The website chat says the team is answering and replies may take a little longer (it never says you are away). It switches off by itself after the last day.' }),
+      field('Away until (last day)', until),
+      el('label', { class: 'admin-check' }, [web, ' Also show "Replies may take a little longer" on the website']),
+      el('div', { class: 'admin-actions' }, [
+        el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: a ? 'Save' : 'Turn on away mode', onclick: function () { if (!until.value) { fail(new Error('Choose your last day away')); return; } save(until.value); } }),
+        a ? el('button', { class: 'admin-btn', type: 'button', text: 'I\u2019m back: turn off', onclick: function () { save(''); } }) : null])]);
   }
 
   // Staff → My access: what this account can do, step-by-step guides, and when to hand over to the owner.
@@ -1060,6 +1129,9 @@
   };
   function renderAccess(view) {
     var me = state.me || {};
+    var aw = awayInfo();
+    if (aw) view.appendChild(el('div', { class: 'admin-card admin-callout' }, [el('strong', { text: 'The owner is away until ' + niceDay(aw.until) + '. You are the first contact for customers.' }),
+      el('p', { class: 'admin-hint', text: 'Reply quickly and kindly. Do what your account allows; for everything else tell the customer the team will get back to them. Message the owner only for urgent things: money, an angry customer, or a website that is down. Never tell customers the owner is away.' })]));
     view.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Welcome, ' + String(me.name || '').split(' ')[0] }),
       el('p', { class: 'admin-hint', text: 'This is what your account can do, with step-by-step guides. If something isn’t here, your account can’t do it: message the owner.' }),
       el('div', { class: 'admin-actions' }, [
@@ -1080,6 +1152,9 @@
         view.appendChild(el('details', { class: 'admin-card pb-item' }, [el('summary', { text: g[0] }), el('ol', { class: 'admin-mini' }, g[1].map(function (t) { return el('li', { text: t }); }))]));
       });
     });
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Your login' }));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Username: ' + (me.username || '') + '. Forgot your password? Ask the owner to reset it: you get a temporary one and choose a new one when you log in.' }));
+    view.appendChild(el('details', { class: 'admin-card pb-item' }, [el('summary', { text: 'Change my password' }), passwordForm(false, function () { render(); })]));
     view.appendChild(el('h2', { class: 'admin-h2', text: 'Golden rules' }));
     view.appendChild(el('ul', { class: 'admin-mini' }, ['Reply to customers within an hour during the day, politely, in their language.', 'Never ask customers for passwords, card numbers or Paystack keys.', 'Never share one customer’s details with another.', 'Never promise prices, discounts or dates that aren’t in the Playbook policies.', 'Not sure? Ask the assistant, then the owner.'].map(function (t) { return el('li', { text: t }); })));
   }
@@ -1885,6 +1960,11 @@
 
   function renderDashboard(view) {
     var rs = state.requests;
+    var aw = awayInfo();
+    if (aw) view.appendChild(el('div', { class: 'admin-card admin-callout' }, [el('strong', { text: isOwner() ? 'Away mode is on until ' + niceDay(aw.until) + '.' : 'The owner is away until ' + niceDay(aw.until) + ': you are the first contact.' }),
+      el('div', { class: 'admin-actions' }, [isOwner()
+        ? el('button', { class: 'admin-btn', type: 'button', text: 'Change or turn off', onclick: function () { state.settingsTab = 'staff'; setTab('settings'); } })
+        : el('button', { class: 'admin-btn', type: 'button', text: 'What to do', onclick: function () { setTab('access'); } })])]));
     var sc = setupCard();
     if (sc) view.appendChild(sc);
     var vn = paidHomeNudge(rs);
@@ -3498,8 +3578,25 @@
   $('login').addEventListener('submit', function (e) {
     e.preventDefault();
     $('login-error').textContent = '';
-    password = $('password').value;
+    var user = ($('username') && $('username').value || '').trim().toLowerCase();
     var remember = $('remember') && $('remember').checked;
+    if (user && ['owner', 'admin'].indexOf(user) === -1) {
+      // Staff: swap username + password for a session token straight away; the password is never stored.
+      typedPw = $('password').value;
+      password = 'su.' + b64url(user) + '.' + b64url(typedPw);
+      $('password').value = '';
+      api('POST', { action: 'session' }).then(function (j) {
+        password = j.token;
+        try {
+          if (remember) { localStorage.setItem(LONG, j.token); sessionStorage.removeItem(KEY); }
+          else { sessionStorage.setItem(KEY, j.token); localStorage.removeItem(LONG); }
+        } catch (err) { /* ignore */ }
+        state.remember = remember;
+        load();
+      }).catch(function (err) { logout(); $('login-error').textContent = err.message; });
+      return;
+    }
+    password = $('password').value;
     $('password').value = '';
     if (!remember) {
       try { sessionStorage.setItem(KEY, password); localStorage.removeItem(LONG); } catch (err) { /* ignore */ }

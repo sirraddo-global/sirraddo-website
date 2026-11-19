@@ -869,6 +869,12 @@ test("staff accounts: username login, temporary password that must be changed, l
   const list = (await h.action({ action: "staff_list" })).json;
   assert.ok(list.log.some((l) => /Edited/.test(l.what) && l.staff_name === "Tunde Staff"));
   assert.ok(list.log.some((l) => /Changed their password/.test(l.what)));
+  // The owner can change a username (taken names refused); they then log in with the new one.
+  const other = (await h.action({ action: "staff_add", staff: { name: "Bola", username: "bola", perms: ["marketing"] } })).json.staff;
+  assert.equal((await h.action({ action: "staff_update", staff_id: other.id, staff: { username: "tunde" } })).status, 400);
+  await h.action({ action: "staff_update", staff_id: other.id, staff: { username: "bola.ade" } });
+  assert.ok((await h.action({ action: "staff_list" })).json.staff.some((x) => x.username === "bola.ade"));
+  await h.action({ action: "staff_delete", staff_id: other.id });
   // Switch off: password and token stop working.
   const sid = add.json.staff.id;
   await h.action({ action: "staff_update", staff_id: sid, staff: { active: false } });

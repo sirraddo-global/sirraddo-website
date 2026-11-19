@@ -121,6 +121,10 @@ Open `/admin` and log in with `ADMIN_PASSWORD`. Tabs:
 
 **Project form.** When a payment brings a job to 70% of its quote (or any payment if there is no quote), the request gets a private form link. In **Manage** (and on the client card) tap **Send form on WhatsApp**. The customer sees questions for their package, saves as they go, uploads logo and photos, and taps **Send my details**. You get an email with all the answers, the project moves to **Building**, and **View answers** shows everything (printable). The questions live in `api/_lib/brief-schema.mjs`. Photo uploads are stored on Netlify (Netlify Blobs) with nothing to set up.
 
+### Staff accounts (`api/_lib/staff.mjs`)
+
+Settings → Staff (owner only) adds a staff member with a name, a username and what they may do (Customers, Change requests, Marketing, Money, Build and publish). They get a temporary password (works 3 days, sent on WhatsApp) and log in at **`/staff`** (the owner logs in at `/admin` with `ADMIN_PASSWORD` only; each page refuses the other). They must choose their own password first, and again after every reset. The server checks every action and field (`permFor`, `fieldPerms`); anything not listed is owner-only. Money is hidden without Money. Their changes are listed in Settings → Staff and in the 7am email. Away mode (same tab) makes staff the first contact and tells website visitors replies may be slower, until the chosen day. `/staff` is built from `admin.html` by `scripts/build.mjs`.
+
 ### What runs automatically (`api/_lib/automation.mjs`)
 
 On every change in admin:

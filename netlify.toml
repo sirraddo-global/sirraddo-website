@@ -69,6 +69,11 @@
     Service-Worker-Allowed = "/admin"
 
 [[headers]]
+  for = "/assets/staff.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+
+[[headers]]
   for = "/assets/admin.webmanifest"
   [headers.values]
     Content-Type = "application/manifest+json"

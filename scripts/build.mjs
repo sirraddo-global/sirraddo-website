@@ -61,7 +61,7 @@ function staffPage(html) {
   const swaps = [
     [/    <form id="login" class="admin-login">[\s\S]*?<\/form>/, form],
     [/<title>Admin – /, "<title>Staff – "],
-    [/  <link rel="manifest"[^>]*>\n/, ""],
+    [/<link rel="manifest" href="\/assets\/admin.webmanifest">/, '<link rel="manifest" href="/assets/staff.webmanifest">'],
     [/<strong>SIRRADDO · Admin<\/strong>/, "<strong>SIRRADDO · Staff</strong>"],
     [/<body class="admin">/, '<body class="admin" data-mode="staff">'],
   ];
@@ -77,7 +77,7 @@ writeFileSync(
   join(out, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`
 );
-writeFileSync(join(out, "robots.txt"), `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /brief\nDisallow: /api/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
+writeFileSync(join(out, "robots.txt"), `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /staff\nDisallow: /brief\nDisallow: /api/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`);
 
 console.log(`Built ${pages.length} pages into public/ for ${SITE_URL} (demo cards ${SHOW_DEMO_CARDS ? "on" : "off"})`);
 

@@ -908,6 +908,7 @@
     var who = el('input', { placeholder: 'Customer’s first name (for the replies)', 'aria-label': 'Customer first name', value: state.pbName || '' });
     var list = el('div'), policyBox = el('div');
     view.appendChild(el('div', { class: 'admin-card' }, [search, who]));
+    if (!isOwner()) view.appendChild(el('p', { class: 'admin-hint admin-callout', text: 'Some steps need the owner (refunds, discounts, prices, invoices, going live, settings, anything about passwords or keys). Do what your account allows, tell the customer the team will get back to them, then tap "Message the owner" in My access.' }));
     view.appendChild(policyBox);
     view.appendChild(list);
     var data = null;
@@ -1039,6 +1040,11 @@
         c.appendChild(el('div', { class: 'admin-actions' }, [
           el('button', { class: 'admin-btn', type: 'button', text: st.active ? 'Switch off' : 'Switch on', onclick: function () {
             api('POST', { action: 'staff_update', staff_id: st.id, staff: { active: !st.active } }).then(function (j) { flash(st.active ? 'Switched off: they are logged out' : 'Switched on'); drawList(j.staff); }).catch(fail);
+          } }),
+          el('button', { class: 'admin-btn', type: 'button', text: 'Change username', onclick: function () {
+            var u = window.prompt('New username for ' + st.name + ' (they log in with it at /staff):', st.username);
+            if (!u || u === st.username) return;
+            api('POST', { action: 'staff_update', staff_id: st.id, staff: { username: u } }).then(function (j) { flash('Username changed. Tell them on WhatsApp.'); drawList(j.staff); }).catch(fail);
           } }),
           el('button', { class: 'admin-btn', type: 'button', text: 'Reset password', onclick: function () {
             if (!window.confirm('Reset ' + st.name + '\u2019s password? They get a temporary one (send it on WhatsApp), are logged out everywhere, and must choose a new password when they log in.')) return;

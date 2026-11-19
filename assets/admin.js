@@ -2,7 +2,9 @@
 // invoices and receipts, settings. Talks to /api/requests (password in the Authorization header).
 (function () {
   'use strict';
-  var KEY = 'sirraddo-admin';
+  // Two doors to the same app: /admin for the owner (password only), /staff for staff (username + password).
+  var STAFF_PAGE = document.body.getAttribute('data-mode') === 'staff';
+  var KEY = STAFF_PAGE ? 'sirraddo-staff' : 'sirraddo-admin';
   var $ = function (id) { return document.getElementById(id); };
 
   var COMPANY = {
@@ -41,10 +43,10 @@
   var password = null;
   var typedPw = null; // a staff member's password, kept in memory only for the "choose your new password" screen
   function b64url(t) { return btoa(unescape(encodeURIComponent(t))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
-  var LONG = 'sirraddo-admin-session'; // "keep me logged in": a 30-day token (never the password) in this device's storage
+  var LONG = STAFF_PAGE ? 'sirraddo-staff-session' : 'sirraddo-admin-session'; // "keep me logged in": a 30-day token (never the password) in this device's storage
   try { password = localStorage.getItem(LONG) || sessionStorage.getItem(KEY); } catch (e) { /* storage blocked */ }
   // The installable Admin app (Add to Home screen / Install app).
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator && !STAFF_PAGE) {
     window.addEventListener('load', function () { navigator.serviceWorker.register('/admin-sw.js', { scope: '/admin' }).catch(function () {}); });
   }
   var state = {
@@ -147,6 +149,11 @@
       state.unanswered = j.unanswered || [];
       state.settings = j.settings || {};
       state.me = j.me || { role: 'owner', perms: [] };
+      if (STAFF_PAGE !== (state.me.role === 'staff')) {
+        logout();
+        $('login-error').textContent = STAFF_PAGE ? 'This is the staff login. Owner: log in at sirraddo.com.ng/admin.' : 'This is the owner login. Staff: log in at sirraddo.com.ng/staff.';
+        return;
+      }
       applyRole();
       var tabsBar = document.querySelector('.admin-tabs:not(.admin-subtabs)');
       if (tabsBar) tabsBar.style.display = state.me.must_change ? 'none' : '';
@@ -968,7 +975,7 @@
   function ownerWa() { return String((state.settings && state.settings.owner_whatsapp) || '2348112999073').replace(/\D/g, ''); }
   function staffSettings(view) {
     var card = el('div', { class: 'admin-card admin-settings' }, [el('h2', { text: 'Staff accounts' }),
-      el('p', { class: 'admin-hint', text: 'Give someone their own login with limited access (for example while you’re away). They log in on the same admin page with their username and a temporary password, then choose their own. Settings, offers, emails, backups, staff and deleting stay yours only. Everything they change is listed below.' })]);
+      el('p', { class: 'admin-hint', text: 'Give someone their own login with limited access (for example while you’re away). They log in at sirraddo.com.ng/staff (their own login page, not yours) with their username and a temporary password, then choose their own. Settings, offers, emails, backups, staff and deleting stay yours only. Everything they change is listed below.' })]);
     var name = el('input', { placeholder: 'Their name', maxlength: 80 });
     var uname = el('input', { placeholder: 'e.g. tunde', autocapitalize: 'none', spellcheck: 'false', maxlength: 60 });
     var unameTouched = false;
@@ -988,7 +995,7 @@
     [field('Name', name), field('Username', uname, 'What they type to log in (letters and numbers; an email address works too). Must be different for each person.'), field('WhatsApp', phone), field('Role', preset, 'Start from a role, then tick or untick'), perms].forEach(function (x) { card.appendChild(x); });
     function showPassword(st, password, days) {
       shown.innerHTML = '';
-      var url = location.origin + '/admin';
+      var url = location.origin + '/staff';
       var msg = 'Hello ' + st.name.split(' ')[0] + ', here is your SIRRADDO admin login.\nPage: ' + url + '\nUsername: ' + st.username + '\nTemporary password: ' + password + '\nIt works for ' + (days || 3) + ' days. When you log in, you\u2019ll choose your own password. Keep it private. Then open "My access" to see what you can do.';
       var num = String(st.phone || '').replace(/\D/g, '').replace(/^0/, '234');
       shown.appendChild(el('div', { class: 'admin-card' }, [el('h3', { text: 'Login for ' + st.name }), el('p', { class: 'admin-meta', text: 'Username: ' + st.username }),
@@ -3580,7 +3587,8 @@
     $('login-error').textContent = '';
     var user = ($('username') && $('username').value || '').trim().toLowerCase();
     var remember = $('remember') && $('remember').checked;
-    if (user && ['owner', 'admin'].indexOf(user) === -1) {
+    if (STAFF_PAGE) {
+      if (!user) { $('login-error').textContent = 'Type your username.'; return; }
       // Staff: swap username + password for a session token straight away; the password is never stored.
       typedPw = $('password').value;
       password = 'su.' + b64url(user) + '.' + b64url(typedPw);

@@ -231,7 +231,7 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       if (query.view === "chats") return res.status(200).json({ chats: await listChats() });
-      if ((query.view === "backup" && !can(me, "owner")) || (query.view === "export" && !can(me, "owner")) || (query.view === "draft" && !can(me, "build"))) return res.status(403).json({ error: NOT_ALLOWED });
+      if ((query.view === "backup" && !can(me, "owner")) || ((query.view === "export" || query.view === "draft") && !can(me, "build"))) return res.status(403).json({ error: NOT_ALLOWED });
       if (query.view === "backup") {
         const b = await buildBackup();
         res.setHeader("Content-Type", "application/gzip");

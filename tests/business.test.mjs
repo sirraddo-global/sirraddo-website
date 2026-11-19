@@ -16,7 +16,7 @@ const signed = (obj) => {
 };
 
 test("public pages are served and admin needs the password", async () => {
-  for (const p of ["/", "/websites", "/terms", "/privacy", "/brief", "/admin"]) assert.equal((await h.call("GET", p)).status, 200, p);
+  for (const p of ["/", "/websites", "/terms", "/privacy", "/brief", "/admin", "/staff"]) assert.equal((await h.call("GET", p)).status, 200, p);
   assert.equal((await h.call("GET", "/api/requests?view=all", undefined, { authorization: "Bearer wrong" })).status, 401);
   assert.equal((await h.admin("GET", "/api/requests?view=all")).status, 200);
 });
@@ -858,7 +858,7 @@ test("staff accounts: username login, temporary password that must be changed, l
   assert.equal((await staff("POST", "/api/requests", { action: "mk_offer_save", offer: {} })).status, 403);
   assert.equal((await staff("POST", "/api/requests", { action: "shop_settings", id })).status, 403);
   assert.equal((await staff("GET", "/api/requests?view=backup")).status, 403);
-  assert.equal((await staff("GET", "/api/requests?view=export")).status, 403);
+  assert.equal((await staff("GET", `/api/requests?view=export&id=${id}`)).status, 403, "website download needs Build");
   assert.equal((await staff("POST", "/api/requests", { action: "unknown_new_thing" })).status, 403, "unknown actions are owner only");
   assert.notEqual((await staff("POST", "/api/requests", { action: "site_reviews", id })).status, 403);
   // Keep me logged in: a staff token works; a token can't make another token.

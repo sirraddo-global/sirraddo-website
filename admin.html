@@ -29,15 +29,14 @@
 
   <main class="container admin-main">
     <form id="login" class="admin-login">
-      <h1>Log in</h1>
-      <label for="username">Username <small>(staff: the one the owner gave you; owner: leave empty)</small></label>
-      <input id="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false">
-      <label for="password">Password</label>
+      <h1>Owner log in</h1>
+      <label for="password">Admin password</label>
       <input id="password" type="password" autocomplete="current-password" required>
       <label class="admin-check"><input id="remember" type="checkbox"> Keep me logged in on this device (30 days)</label>
       <button class="btn btn--navy" type="submit">Log in</button>
       <p id="login-error" class="admin-error" role="alert"></p>
       <p class="admin-hint">Only tick "keep me logged in" on your own phone or laptop. Log out to remove it.</p>
+      <p class="admin-hint">Staff? Log in at <a href="/staff">sirraddo.com.ng/staff</a>.</p>
     </form>
 
     <div id="app" hidden>

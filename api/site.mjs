@@ -7,7 +7,7 @@
 //   GET  ?reviews=sirraddo           approved reviews of SIRRADDO for our own website
 //   GET  ?greeting=1                 the festive greeting showing on sirraddo.com.ng now (or null)
 //   GET  ?nogreet=ID.SIG             stop festive greeting emails for that customer
-import { putFile } from "./_lib/platform.mjs";
+import { putFile, waitUntil } from "./_lib/platform.mjs";
 import { dbConfigured, getByPreviewToken, esc } from "./_lib/store.mjs";
 import { recordHit } from "./_lib/stats.mjs";
 import { addReview, shownReviews, OUR_ID } from "./_lib/reviews.mjs";
@@ -143,9 +143,10 @@ export default async function handler(req, res) {
     // The festive banner on sirraddo.com.ng asks this.
     // Service notices ride along, so planned upgrades show on every page that has the banner script.
     res.setHeader("Cache-Control", "public, s-maxage=120, max-age=60");
-    if (!dbConfigured()) return res.status(200).json({ greeting: null, notices: [] });
-    const [greeting, notices] = await Promise.all([currentGreeting().catch(() => null), currentNotices().catch(() => [])]);
-    return res.status(200).json({ greeting, notices });
+    if (!dbConfigured()) return res.status(200).json({ greeting: null, notices: [], offer: null });
+    const { currentOffer } = await import("./_lib/marketing.mjs");
+    const [greeting, notices, offer] = await Promise.all([currentGreeting().catch(() => null), currentNotices().catch(() => []), currentOffer().catch(() => null)]);
+    return res.status(200).json({ greeting, notices, offer });
   }
 
   res.setHeader("X-Robots-Tag", "noindex, nofollow");
@@ -179,6 +180,8 @@ export default async function handler(req, res) {
     const r = await getByPreviewToken(String(b.t || ""));
     if (!r) return res.status(404).json({ error: "This link is not valid." });
     const c = await addChange(r, b.text, b.files);
+    // The AI reads it straight away and gets the edits + a preview ready for you in admin (nothing goes live).
+    waitUntil(import("./_lib/ai-change.mjs").then((m) => m.planChange(r.id, c.id)).catch((e) => console.error("auto AI plan failed", r.id, e.message)));
     return res.status(200).json({ ok: true, message: c.free ? "Sent! We'll email you when it's done." : "Sent! We'll reply with a quote shortly." });
   } catch (e) {
     if (e.tooBig) return res.status(413).json({ error: "That file is too big (max 4 MB). Please send it on WhatsApp." });

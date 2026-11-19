@@ -32,6 +32,11 @@ const SCHEMA = [
      status TEXT NOT NULL DEFAULT 'new',
      notes TEXT)`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'chat'`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS came_from TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ref_code TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ref_used INTEGER NOT NULL DEFAULT 0`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS customer_requests_ref_code ON customer_requests (ref_code)`,
+  `CREATE TABLE IF NOT EXISTS ad_spend (id SERIAL PRIMARY KEY, day DATE NOT NULL, platform TEXT NOT NULL, tag TEXT NOT NULL, amount INTEGER NOT NULL, note TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS follow_up_on DATE`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS quote_amount INTEGER`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS payments JSONB NOT NULL DEFAULT '[]'::jsonb`,
@@ -86,6 +91,7 @@ const SCHEMA = [
      note TEXT,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      done_at TIMESTAMPTZ)`,
+  `ALTER TABLE change_requests ADD COLUMN IF NOT EXISTS plan JSONB`,
   `CREATE TABLE IF NOT EXISTS site_stats (
      request_id INTEGER NOT NULL,
      day DATE NOT NULL,
@@ -174,7 +180,7 @@ export async function ensureSchema() {
 export const STATUSES = ["new", "contacted", "quoted", "won", "lost"];
 export const STAGES = ["content", "building", "review", "live"];
 
-const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, business, interest, details, page,
+const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, ref_code, ref_used, name, contact, business, interest, details, page,
   transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, payments, project_stage,
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
   brief_token, brief_saved_at, brief_submitted_at, email, doc_token,
@@ -198,19 +204,22 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, name, contact, busi
 export async function saveRequest(r) {
   if (!(await ensureSchema())) return null;
   const rows = await q(
-    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript, email, chat_ideas, follow_up_on)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, (now() AT TIME ZONE 'Africa/Lagos')::date + 1)
-     ON CONFLICT (session_id) DO UPDATE SET
+    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript, email, chat_ideas, came_from, follow_up_on)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, (now() AT TIME ZONE 'Africa/Lagos')::date + 1)
+     ON CONFLICT (session_id) DO UPDATE SET came_from = COALESCE(customer_requests.came_from, EXCLUDED.came_from),
        name = EXCLUDED.name, contact = EXCLUDED.contact, business = EXCLUDED.business,
        email = COALESCE(EXCLUDED.email, customer_requests.email),
        interest = EXCLUDED.interest, details = EXCLUDED.details, page = EXCLUDED.page,
        transcript = EXCLUDED.transcript, chat_ideas = customer_requests.chat_ideas || EXCLUDED.chat_ideas, updated_at = now()
      RETURNING id, (xmax = 0) AS inserted`,
     [r.sessionId, r.source || "chat", r.name, r.contact, r.business || null, r.interest, r.details || "", r.page || null,
-      JSON.stringify(r.transcript || []), r.email || null, JSON.stringify(r.ideas || {})]
+      JSON.stringify(r.transcript || []), r.email || null, JSON.stringify(r.ideas || {}), cleanFrom(r.cameFrom)]
   );
   return rows[0] ? { id: rows[0].id, inserted: rows[0].inserted === true } : null;
 }
+
+// Where a customer came from: "facebook / ibadan-test", "google (search)", "referral"… (short, lower case).
+export const cleanFrom = (v) => String(v ?? "").replace(/[^\w ./()&+:-]/g, "").trim().toLowerCase().slice(0, 80) || null;
 
 export const reference = (id) => "SGL-" + String(id).padStart(4, "0");
 
@@ -219,9 +228,9 @@ export async function createRequest(f) {
   await ensureSchema();
   const sessionId = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const rows = await q(
-    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, email, follow_up_on)
-     VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7, (now() AT TIME ZONE 'Africa/Lagos')::date + 1) RETURNING ${REQUEST_COLUMNS}`,
-    [sessionId, f.name, f.contact, f.business || null, f.interest, f.details || "", f.email || null]
+    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, email, came_from, follow_up_on)
+     VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7, $8, (now() AT TIME ZONE 'Africa/Lagos')::date + 1) RETURNING ${REQUEST_COLUMNS}`,
+    [sessionId, f.name, f.contact, f.business || null, f.interest, f.details || "", f.email || null, cleanFrom(f.came_from)]
   );
   return rows[0];
 }
@@ -236,7 +245,7 @@ const EDITABLE = {
   name: "text", contact: "text", email: "text", business: "text", interest: "text", details: "text", notes: "text",
   status: "text", follow_up_on: "date", quote_amount: "int", payments: "jsonb", project_stage: "text",
   live_on: "date", renewal_amount: "int", renewal_due: "date", website_url: "text",
-  handover: "jsonb", draft_md: "text",
+  handover: "jsonb", draft_md: "text", came_from: "text",
 };
 export async function updateRequest(id, fields) {
   await ensureSchema();
@@ -245,7 +254,8 @@ export async function updateRequest(id, fields) {
   for (const [key, type] of Object.entries(EDITABLE)) {
     if (!(key in fields)) continue;
     let v = fields[key];
-    if (v === "" || v === undefined) v = null;
+    // Empty means "not set" (null), except the summary, which the database keeps as text (it can't be null).
+    if (v === "" || v === undefined) v = key === "details" ? "" : null;
     params.push(type === "jsonb" ? JSON.stringify(v ?? (key === "handover" ? {} : [])) : v);
     sets.push(`${key} = $${params.length}${type === "jsonb" ? "::jsonb" : type === "date" ? "::date" : ""}`);
   }
@@ -307,7 +317,8 @@ export async function getBrief(token) {
   if (!token || token.length < 20) return null;
   await ensureSchema();
   const rows = await q(
-    `SELECT id, name, business, contact, interest, status, project_stage, brief, brief_files, brief_saved_at, brief_submitted_at, chat_ideas
+    `SELECT id, name, business, contact, interest, status, project_stage, brief, brief_files, brief_saved_at, brief_submitted_at, chat_ideas,
+       (draft_md IS NOT NULL AND draft_md <> '') AS has_draft
      FROM customer_requests WHERE brief_token = $1`,
     [token]
   );
@@ -559,7 +570,7 @@ export async function deleteUnanswered(id) {
 export const SETTING_KEYS = [
   "bank_name", "account_name", "account_number", "invoice_note",
   "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief", "tpl_receipt", "tpl_invoice",
-  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at",
+  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward",
 ];
 export async function getSettings() {
   await ensureSchema();

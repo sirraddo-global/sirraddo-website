@@ -20,7 +20,7 @@ export async function changeLink(id) {
 
 export async function listChanges(id, limit = 20) {
   await ensureSchema();
-  return q(`SELECT id, body, files, free, status, note, created_at, done_at FROM change_requests WHERE request_id = $1 ORDER BY created_at DESC LIMIT $2`, [id, limit]);
+  return q(`SELECT id, body, files, free, status, note, created_at, done_at, (plan - 'before') AS plan, (plan ? 'before') AS can_undo FROM change_requests WHERE request_id = $1 ORDER BY created_at DESC LIMIT $2`, [id, limit]);
 }
 export async function openChangeCounts() {
   await ensureSchema();
@@ -29,7 +29,7 @@ export async function openChangeCounts() {
   return rows;
 }
 
-export async function addChange(r, body, files) {
+export async function addChange(r, body, files, { quiet = false } = {}) {
   const text = String(body || "").trim().slice(0, 4000);
   if (text.length < 3) throw Object.assign(new Error("Please describe the change you'd like."), { status: 400 });
   const clean = (Array.isArray(files) ? files : []).filter((f) => f && (/^https:\/\/[\w.-]+\/files\//.test(f.url || "") && [SITE, process.env.URL].filter(Boolean).some((s) => String(f.url).startsWith(`${s.replace(/\/$/, "")}/files/`)) || (globalThis.__TEST_BLOB__ && /^http:\/\/localhost/.test(f.url || "")))).slice(0, MAX_CHANGE_FILES)
@@ -40,19 +40,19 @@ export async function addChange(r, body, files) {
   const rows = await q(`INSERT INTO change_requests (request_id, body, files, free) VALUES ($1, $2, $3::jsonb, $4) RETURNING *`, [r.id, text, JSON.stringify(clean), free]);
   const c = rows[0];
   const who = r.brief?.business_name || r.business || r.name;
-  if (emailConfigured()) {
+  if (emailConfigured() && !quiet) {
     await sendEmail(`✏️ Change request from ${who} (${reference(r.id)})${free ? "" : " · outside free month"}`,
       `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5"><p><b>${esc(who)}</b> asked for a change to their website${r.website_url ? ` (<a href="${esc(r.website_url)}">${esc(r.website_url)}</a>)` : ""}:</p>
 <blockquote style="border-left:3px solid #D9A21B;margin:0;padding:4px 12px;white-space:pre-wrap">${esc(text)}</blockquote>
 ${clean.length ? `<p>Files: ${clean.map((f) => `<a href="${esc(f.url)}">${esc(f.name)}</a>`).join(" · ")}</p>` : ""}
 <p>${free ? "This is within their free month of changes." : "Their free month has ended, so you can quote for this (or do it as goodwill)."}</p>
-<p><a href="${SITE}/admin">Open admin</a> → Clients → ${esc(who)} → Change requests. Make the edit, tap <b>Update live site</b>, then <b>Mark done</b> (the customer gets an email).</p></div>`).catch((e) => console.error("change email failed", e));
+<p>The AI is preparing these edits and a preview now. <a href="${SITE}/admin">Open admin</a> → Clients → ${esc(who)} → After launch → Show change requests: check the list, open the preview, then send it to the customer (they approve it and it goes live) or tap Apply yourself.</p></div>`).catch((e) => console.error("change email failed", e));
   }
   const to = customerEmail(r);
-  if (to && customerEmailConfigured()) {
+  if (to && customerEmailConfigured() && !quiet) {
     await sendCustomerEmail(to, "We received your change request", customerHtml(r, [
       `Thanks, we've got your request: <i>"${esc(text.length > 200 ? text.slice(0, 200) + "…" : text)}"</i>`,
-      free ? "It's included in your free month of changes. We'll email you as soon as it's live (usually within 2 working days)."
+      free ? "It's included in your free month of changes. We'll send you a preview of your website with the changes to check first (usually within 2 working days); they go live when you tap \"Put these changes live\"."
         : "Your free month of changes has ended, so we'll reply with a small quote before we start. Most text and photo updates are quick.",
     ])).catch((e) => console.error("change confirmation failed", e));
   }

@@ -87,6 +87,19 @@ export default async function handler(req, res) {
       }
 
       const answers = cleanAnswers(kind, body.answers);
+      // Keep what the owner set in their Manage link (stock counts, sold out) when the form is saved again
+      // (e.g. you add products after launch). Matched by product name.
+      if (Array.isArray(answers.products) && Array.isArray(row.brief?.products)) {
+        const prev = new Map(row.brief.products.map((p) => [String(p.name || "").trim().toLowerCase(), p]));
+        answers.products = answers.products.map((p) => {
+          const old = prev.get(String(p.name || "").trim().toLowerCase());
+          if (!old) return p;
+          const keep = {};
+          if (old.stock !== undefined) keep.stock = old.stock;
+          if (old.soldout) keep.soldout = true;
+          return { ...p, ...keep };
+        });
+      }
       if (JSON.stringify(answers).length > 150_000) return res.status(413).json({ error: "That's too much text. Please shorten it or send it on WhatsApp." });
       if (body.submit) {
         const missing = missingRequired(kind, answers, row.brief_files);
@@ -95,8 +108,9 @@ export default async function handler(req, res) {
       const saved = await saveBrief(token, answers, Boolean(body.submit));
       if (body.submit && saved) {
         try { await notify(saved, kind); } catch (err) { console.error("brief email failed", err); }
-        // Write the website text in the background; the customer doesn't wait for it.
-        waitUntil(generateDraft(saved.id).catch((err) => console.error("draft failed", err)));
+        // Write the website text in the background; the customer doesn't wait for it. Sent again after the text
+        // exists (e.g. changes after launch): only pages that are new get written, so edited text is never replaced.
+        waitUntil(generateDraft(saved.id, undefined, { missingOnly: Boolean(row.has_draft) }).catch((err) => console.error("draft failed", err)));
       }
       return res.status(200).json({ ok: true, saved_at: new Date().toISOString(), submitted_at: saved?.brief_submitted_at || null });
     }

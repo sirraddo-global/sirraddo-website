@@ -23,10 +23,19 @@ test("public pages are served and admin needs the password", async () => {
 
 test("a website lead is saved and emailed; bots and bad numbers are not", async () => {
   const n = h.sent.length;
-  const ok = await h.call("POST", "/api/lead", { name: "Ada Obi", contact: "0803 111 2222", business: "Ada Salon", interest: "Starter website" });
+  const ok = await h.call("POST", "/api/lead", { name: "Ada Obi", contact: "0803 111 2222", business: "Ada Salon", interest: "Starter website", from: "Facebook / Ibadan-Test<script>" });
   assert.equal(ok.status, 200);
   const rows = (await h.admin("GET", "/api/requests?view=all")).json.requests;
   assert.ok(rows.some((r) => r.name === "Ada Obi" && r.interest === "Starter website"));
+  assert.equal(rows.find((r) => r.name === "Ada Obi").came_from, "facebook / ibadan-testscript", "where they came from is kept (cleaned)");
+  // Added by you (a WhatsApp ad customer), and changed later.
+  const man = (await h.action({ action: "create", name: "Wale", contact: "08030001111", interest: "Other", came_from: "whatsapp ad" })).json;
+  assert.equal(man.came_from, "whatsapp ad");
+  assert.equal((await h.admin("PATCH", "/api/requests", { id: man.id, came_from: "referral" })).json.came_from, "referral");
+  // Saving the card with an empty summary works (it used to fail).
+  const saved = await h.admin("PATCH", "/api/requests", { id: man.id, name: "Wale", contact: "08030001111", details: "", came_from: "flyer" });
+  assert.equal(saved.status, 200, saved.text);
+  assert.equal(saved.json.details, "");
   assert.ok(h.newMail(n).some((m) => /Ada/.test(m.subject)));
   assert.equal((await h.call("POST", "/api/lead", { name: "Bot", contact: "08011112222", website: "http://spam" })).status, 200);
   assert.ok(!(await h.admin("GET", "/api/requests?view=all")).json.requests.some((r) => r.name === "Bot"));
@@ -34,10 +43,11 @@ test("a website lead is saved and emailed; bots and bad numbers are not", async 
 });
 
 test("the chat assistant saves the customer's request with their ideas and suggested package", async () => {
-  const r = await h.call("POST", "/api/chat", { sessionId: "s-test-chat-0001", messages: [{ role: "user", content: "please save my details" }] });
+  const r = await h.call("POST", "/api/chat", { sessionId: "s-test-chat-0001", from: "google (search)", messages: [{ role: "user", content: "please save my details" }] });
   assert.equal(r.status, 200, r.text);
   const row = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((x) => x.name === "Bola Ade");
   assert.ok(row, "chat request saved");
+  assert.equal(row.came_from, "google (search)");
   assert.equal(row.chat_ideas.business_name, "Bola Bakery");
   assert.ok(!("junk" in row.chat_ideas), "unknown idea fields are dropped");
   assert.match(row.chat_ideas.recommended || "", /Business/);
@@ -127,6 +137,188 @@ test("go-live: publish to Cloudflare; domain only attached once the balance is p
   r = (await h.action({ action: "host_check", id: ada })).json.row;
   assert.ok(r.hosting.attached, "attached after the balance");
   assert.equal(r.website_url, "https://adasalon.com.ng");
+});
+
+test("Do it with AI: a change request is read and applied to the live site (add, remove, change); Undo puts it back", async () => {
+  const brief = { business_name: "Kemi Wears", phone: "08035550000", products: [{ name: "Ankara gown", price: "20000", stock: "4" }, { name: "Lace blouse", price: "12000" }, { name: "Gele", price: "5000" }] };
+  const md = "# Website text\n## Page: Home\n### Hero\n**Headline:** Kemi Wears\n### Visit\n**Text:** Open Monday to Saturday in Bodija.\n## Page: About us\n### Story\n**Text:** We sew in Ibadan.\n## Product descriptions\n### Lace blouse\nSoft lace.\n### Gele\nBright gele.\n\n---\n*Draft written by AI from the project form on 2026-11-01. Check it.*";
+  const id = (await h.action({ action: "create", name: "Kemi Ola", contact: "08035550000", interest: "Online Store", email: "kemi@gmail.com" })).json.id;
+  await h.sql(`UPDATE customer_requests SET brief = $1::jsonb, draft_md = $2, live_on = CURRENT_DATE - 3 WHERE id = $3`, [JSON.stringify(brief), md, id]);
+  assert.equal((await h.action({ action: "host_publish", id, force: true })).status, 200);
+  const t = new URL((await h.action({ action: "changes", id })).json.link).searchParams.get("t");
+  const up = await h.call("POST", `/api/site?upload=1&t=${t}&name=silk-scarf.jpg&type=image/jpeg`, new Uint8Array([255, 216, 1, 2]), { "content-type": "application/octet-stream" });
+  globalThis.__AI_CHANGE_REPLY__ = JSON.stringify({ understood: "Add a scarf, remove Gele, new Lace price, open on Sundays.", ops: [
+    { op: "add_product", name: "Silk scarf", price: "9000", details: "A light silk scarf.", photo: "A1" },
+    { op: "remove_product", product: 3 },
+    { op: "update_product", product: 2, price: "15000" },
+    { op: "replace_text", page: "Home", find: "Monday to Saturday", replace: "Monday to Sunday" },
+    { op: "replace_text", page: "Home", find: "text that is not there", replace: "x" },
+    { op: "hack_db", sql: "drop" },
+  ], not_done: ["Pink colours: needs a new design"] });
+  await h.call("POST", "/api/site", { t, text: "Please add Silk scarf for 9000 (photo attached), remove Gele, Lace blouse is now 15000, we now open Monday to Sunday, and make the colours pink.", files: [up.json] });
+  const c = (await h.action({ action: "changes", id })).json.changes[0];
+  assert.equal(c.plan?.ops?.length, 5, "the AI got the edits ready as soon as the customer sent the request");
+  const plan = (await h.action({ action: "change_ai_plan", id, change_id: c.id })).json;
+  assert.equal(plan.plan.view_token, c.plan.view_token, "asking again keeps the same preview link");
+  assert.ok(plan.plan, JSON.stringify(plan));
+  assert.equal(plan.plan.ops.length, 5, "unknown edits are dropped");
+  assert.ok(plan.plan.lines.includes("Remove product: Gele"));
+  assert.deepEqual(plan.plan.not_done, ["Pink colours: needs a new design"]);
+  assert.match(globalThis.__LAST_AI_PROMPT__, /3\. Gele \| 5000/, "the AI sees the current products");
+  assert.match(globalThis.__LAST_AI_PROMPT__, /Open Monday to Saturday/, "and the current text");
+  assert.match(globalThis.__LAST_AI_PROMPT__, /A1\. silk-scarf\.jpg \(photo\)/);
+  assert.ok(globalThis.__LAST_AI_PARTS__.some((p) => p.inline_data), "the photo is shown to the AI");
+  let b = (await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]))[0].brief;
+  assert.equal(b.products.length, 3, "planning changes nothing");
+
+  // Preview: their current site + the edits, same design. You open it and send it; the customer checks it.
+  const vt = plan.plan.view_token;
+  const home = await h.call("GET", `/preview?c=${vt}`);
+  assert.equal(home.status, 200);
+  assert.match(home.text, /Open Monday to Sunday in Bodija/);
+  assert.match(home.text, /Put these changes live/);
+  assert.match(home.text, /Not live yet/);
+  const shopPv = await h.call("GET", `/preview?c=${vt}&p=shop`);
+  assert.match(shopPv.text, /Silk scarf/);
+  assert.doesNotMatch(shopPv.text, />Gele</);
+  assert.equal((await h.call("GET", `/preview?c=${vt}x`)).status, 404);
+  assert.equal((await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]))[0].brief.products.length, 3, "viewing changes nothing");
+  const e0 = h.sent.length;
+  const sentTo = (await h.action({ action: "change_ai_send", id, change_id: c.id })).json;
+  assert.equal(sentTo.to, "kemi@gmail.com");
+  assert.ok(h.newMail(e0).some((m) => m.to.includes("kemi@gmail.com") && m.html.includes(`/preview?c=${vt}`)));
+  // The customer says something's not right: you're told, and "Ask AI again" reads it.
+  assert.equal((await h.call("POST", "/api/preview", { c: vt, action: "changes", text: "" })).status, 400);
+  const said = await h.call("POST", "/api/preview", { c: vt, action: "changes", text: "Scarf should be 9500" });
+  assert.equal(said.status, 200, said.text);
+  assert.match((await h.action({ action: "changes", id })).json.changes[0].plan.customer.text, /9500/);
+  await h.action({ action: "change_ai_plan", id, change_id: c.id });
+  assert.match(globalThis.__LAST_AI_PROMPT__, /THEY LOOKED AT A PREVIEW[\s\S]*Scarf should be 9500/);
+
+  // The customer taps "Put these changes live": applied and published by itself.
+  const n = h.sent.length;
+  const okd = await h.call("POST", "/api/preview", { c: vt, action: "approved" });
+  assert.equal(okd.status, 200, okd.text);
+  assert.match(okd.json.message, /Your website is updated/);
+  const ap = { ...(await h.action({ action: "changes", id })).json.changes[0].plan, changes: (await h.action({ action: "changes", id })).json.changes };
+  assert.equal(ap.live, "updated", JSON.stringify(ap));
+  assert.equal(ap.applied_by, "customer");
+  const [row] = await h.sql(`SELECT brief, brief_files, draft_md FROM customer_requests WHERE id = $1`, [id]);
+  assert.deepEqual(row.brief.products.map((p) => p.name), ["Ankara gown", "Lace blouse", "Silk scarf"]);
+  assert.equal(row.brief.products[0].stock, "4", "stock the owner set is kept");
+  assert.equal(row.brief.products[1].price, "15000");
+  assert.equal(row.brief.products[2].photo, up.json.url);
+  assert.ok(row.brief_files.product_photos.some((f) => f.url === up.json.url));
+  assert.match(row.draft_md, /Open Monday to Sunday in Bodija/);
+  assert.doesNotMatch(row.draft_md, /### Gele/);
+  assert.match(row.draft_md, /We sew in Ibadan/, "other text untouched");
+  assert.match(row.draft_md, /\*Draft written by AI/);
+  assert.ok(ap.results.some((r) => !r.ok && /couldn't find/.test(r.text)), "a wrong piece of text is skipped, not guessed");
+  const done = ap.changes.find((x) => x.id === c.id);
+  assert.equal(done.status, "done");
+  assert.ok(h.newMail(n).some((m) => /approved their changes/.test(m.subject)), "you are told");
+  assert.match((await h.call("GET", `/preview?c=${vt}`)).text, /These changes are live/);
+  assert.match((await h.call("POST", "/api/preview", { c: vt, action: "approved" })).json.message, /already live/);
+  const { buildSiteModel, renderPage } = await import("../api/_lib/sitegen.mjs");
+  const site = buildSiteModel({ ...(await h.row(id)), ...row });
+  const shop = renderPage(site, site.pages.find((p) => p.kind === "shop").slug, { mode: "export", link: (x) => x });
+  assert.match(shop, /Silk scarf/);
+  assert.doesNotMatch(shop, />Gele</);
+  assert.match((await h.action({ action: "change_ai_apply", id, change_id: c.id })).json.error, /already applied/);
+  // (You can also apply it yourself without the customer: change_ai_apply, tested via the "already applied" guard.)
+
+  const un = (await h.action({ action: "change_ai_undo", id, change_id: c.id })).json;
+  assert.equal(un.live, "updated");
+  b = (await h.sql(`SELECT brief, draft_md FROM customer_requests WHERE id = $1`, [id]))[0];
+  assert.deepEqual(b.brief.products.map((p) => p.name), ["Ankara gown", "Lace blouse", "Gele"]);
+  assert.equal(b.draft_md, md);
+  assert.equal(un.changes.find((x) => x.id === c.id).status, "open");
+  // Or you apply it yourself (no customer check): done + the customer is emailed what changed.
+  const n3 = h.sent.length;
+  const mine = (await h.action({ action: "change_ai_apply", id, change_id: c.id })).json;
+  assert.equal(mine.live, "updated", JSON.stringify(mine));
+  assert.ok(h.newMail(n3).some((m) => m.to.includes("kemi@gmail.com") && /live/.test(m.subject)));
+
+  // A request that came on WhatsApp: typed in by you, no emails.
+  const m2 = h.sent.length;
+  const add = (await h.action({ action: "change_add", id, body: "Change our phone to 0809 111 2222" })).json;
+  assert.equal(add.changes[0].body, "Change our phone to 0809 111 2222");
+  assert.equal(h.newMail(m2).length, 0);
+  delete globalThis.__AI_CHANGE_REPLY__;
+});
+
+test("Marketing: offer bar + chat, referrals with rewards, ad spend report, QR, showcase, captions, link page", async () => {
+  // Offer: shows on the website feed and the chat knows it.
+  assert.match((await h.action({ action: "mk_offer_save", offer: { title: "", until: "2099-01-01" } })).json.error, /title/);
+  const off = (await h.action({ action: "mk_offer_save", offer: { title: "₦10,000 off Business websites", text: "This month only", until: "2099-12-31" } })).json.offer;
+  assert.equal(off.tag, "10000-off-business-websites");
+  const feed = (await h.call("GET", "/api/site?greeting=1")).json;
+  assert.equal(feed.offer.title, "₦10,000 off Business websites");
+  assert.match(feed.offer.ends, /2099-12-31T23:59:59/);
+  await h.call("POST", "/api/chat", { sessionId: "s-offer-chat-0001", messages: [{ role: "user", content: "how much?" }] });
+  assert.match(globalThis.__LAST_AI_SYSTEM__, /SPECIAL OFFER RUNNING NOW[^"]*10,000 off Business/);
+  await h.action({ action: "mk_offer_save", offer: { remove: true } });
+  assert.equal((await h.call("GET", "/api/site?greeting=1")).json.offer, null);
+
+  // Referral: a live customer's link brings a business that pays; the reward shows and can be marked given.
+  const id = (await h.action({ action: "create", name: "Tunde Bello", contact: "08037778888", business: "Tunde Prints", interest: "Business website" })).json.id;
+  await h.sql(`UPDATE customer_requests SET status = 'won', website_url = 'https://tundeprints.com.ng' WHERE id = $1`, [id]);
+  const ref = (await h.action({ action: "mk_ref", id })).json;
+  assert.equal(ref.code, "TUND" + id);
+  assert.match(ref.link, /websites\?ref=TUND/);
+  await h.call("POST", "/api/lead", { name: "Bisi Cakes", contact: "08039990000", interest: "Starter website", from: "referral:" + ref.code.toLowerCase() });
+  const friend = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((r) => r.name === "Bisi Cakes");
+  await h.admin("PATCH", "/api/requests", { id: friend.id, status: "won" });
+  let info = (await h.action({ action: "mk_ref", id })).json;
+  assert.equal(info.list.length, 1); assert.equal(info.paid, 1); assert.equal(info.used, 0);
+  info = (await h.action({ action: "mk_ref_use", id, n: 1 })).json;
+  assert.equal(info.used, 1);
+  assert.equal((await h.action({ action: "mk_ref_top" })).json.top[0].paid, 1);
+  const mlink = (await h.action({ action: "manage_link", id })).json.url;
+  const mp = (await h.call("GET", "/manage?" + mlink.split("?")[1])).text;
+  assert.match(mp, /Invite a business/);
+  assert.match(mp, new RegExp("ref=" + ref.code));
+
+  // Ad spend: cost per enquiry and per paying customer for a campaign.
+  assert.match((await h.action({ action: "mk_spend_add", entry: { tag: "x", amount: "" } })).json.error, /how much/);
+  await h.call("POST", "/api/lead", { name: "Kola Ads", contact: "08031110001", interest: "Online Store", from: "facebook / nov-test" });
+  await h.call("POST", "/api/lead", { name: "Ife Ads", contact: "08031110002", interest: "Online Store", from: "facebook / nov-test" });
+  const kola = (await h.admin("GET", "/api/requests?view=all")).json.requests.find((r) => r.name === "Kola Ads");
+  await h.admin("PATCH", "/api/requests", { id: kola.id, status: "won", quote_amount: 150000 });
+  const sp = (await h.action({ action: "mk_spend_add", entry: { platform: "Facebook / Instagram", tag: "nov-test", amount: "₦10,000" } })).json;
+  const row = sp.report.find((x) => x.tag === "nov-test");
+  assert.equal(row.spend, 10000); assert.equal(row.leads, 2); assert.equal(row.paid, 1);
+  assert.equal(row.perLead, 5000); assert.equal(row.perPaid, 10000); assert.equal(row.value, 150000);
+  assert.equal((await h.action({ action: "mk_spend_del", spend_id: sp.spend[0].id })).json.spend.length, 0);
+
+  // QR (tagged), showcase (only with the customer's OK), our review list, AI captions.
+  const qr = (await h.action({ action: "mk_qr", tag: "Showcase 12" })).json;
+  assert.match(qr.url, /utm_source=qr&utm_campaign=showcase-12/); assert.match(qr.svg, /^<svg/);
+  let sites = (await h.action({ action: "mk_showcase_list" })).json.sites;
+  assert.ok(sites.some((x) => x.id === id && !x.ok));
+  sites = (await h.action({ action: "mk_showcase_ok", id, ok: true })).json.sites;
+  assert.ok(sites.find((x) => x.id === id).ok);
+  const sc = (await h.action({ action: "mk_showcase", id })).json;
+  assert.equal(sc.name, "Tunde Prints"); assert.equal(sc.url, "tundeprints.com.ng"); assert.ok(sc.primary);
+  assert.ok(Array.isArray((await h.action({ action: "mk_reviews" })).json.reviews));
+  const cap = (await h.action({ action: "mk_captions", topic: "Starter ₦50,000", lang: "Nigerian Pidgin", link: "https://www.sirraddo.com.ng/websites?utm_source=post" })).json;
+  assert.equal(cap.captions.length, 3);
+  assert.match(globalThis.__LAST_AI_PROMPT__, /in Nigerian Pidgin/);
+  assert.match(globalThis.__LAST_AI_PROMPT__, /Never name or compare with any other company/);
+
+  // Video maker: the AI writes the scenes (cleaned up); the browser makes the video.
+  const vs = (await h.action({ action: "mk_video_script", idea: "Christmas promo for online stores", lang: "Nigerian Pidgin" })).json.script;
+  assert.equal(vs.hook.title, "Your shop never close");
+  assert.equal(vs.scenes.length, 2, "an empty scene is dropped");
+  assert.equal(vs.scenes[0].points.length, 4, "at most 4 points");
+  assert.equal(vs.scenes[1].price, "from ₦150,000");
+  assert.equal(vs.tag, "shop-never-close");
+  assert.match(globalThis.__LAST_AI_PROMPT__, /in Nigerian Pidgin/);
+
+  // Link-in-bio page.
+  const lp = await h.call("GET", "/links");
+  assert.equal(lp.status, 200);
+  assert.match(lp.text, /sirraddodemo\.com\.ng/);
 });
 
 test("change requests: private page, emails, Mark done; free month then quote first", async () => {
@@ -239,6 +431,18 @@ test("Online Store: basket checkout into the store's own Paystack, order emails,
   const b2 = (await briefOf()).products[0];
   assert.equal(b2.stock, "10");
   assert.ok(!b2.soldout);
+  // You add a product after launch by saving their project form: stock the owner set stays.
+  await h.action({ action: "brief_link", id });
+  const [{ brief_token: bt }] = await h.sql(`SELECT brief_token FROM customer_requests WHERE id = $1`, [id]);
+  assert.ok(bt);
+  {
+    const cur = await briefOf();
+    const sv = await h.call("POST", "/api/brief", { t: bt, answers: { ...cur, products: [...cur.products.map(({ stock, soldout, ...p }) => p), { name: "New Gele", price: "8000" }] } }, J);
+    assert.equal(sv.status, 200, sv.text);
+    const after = await briefOf();
+    assert.equal(after.products[0].stock, "10", "Manage stock kept when the form is saved again");
+    assert.ok(after.products.some((p) => p.name === "New Gele"));
+  }
 });
 
 test("daily run completes without errors", async () => {

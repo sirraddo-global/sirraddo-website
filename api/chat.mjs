@@ -51,6 +51,7 @@ async function handleSave(input, ctx) {
   const r = {
     sessionId: ctx.sessionId,
     page: ctx.page,
+    cameFrom: ctx.cameFrom,
     transcript: ctx.transcript,
     name: str(input.name, 120),
     contact: str(input.contact, 120),
@@ -140,6 +141,7 @@ export default async function handler(req, res) {
   const ctx = {
     sessionId: str(body.sessionId, 64) || `anon-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     page: str(body.page, 200),
+    cameFrom: str(body.from, 80),
     transcript: messages,
   };
 
@@ -153,7 +155,10 @@ export default async function handler(req, res) {
   const withImages = images.length ? [...messages.slice(0, -1), { ...last, images }] : messages;
   // Service notices showing now (planned upgrade, service problem, holiday): the assistant can mention them.
   const notices = await currentNotices().catch(() => []);
-  const system = notices.length ? `${SYSTEM_PROMPT}\n\nSERVICE NOTICES SHOWING ON THE WEBSITE NOW (mention them when relevant, e.g. if someone asks about delays, payments or availability):\n${notices.map((n) => `- ${n.title}: ${n.message}`).join("\n")}` : SYSTEM_PROMPT;
+  let system = notices.length ? `${SYSTEM_PROMPT}\n\nSERVICE NOTICES SHOWING ON THE WEBSITE NOW (mention them when relevant, e.g. if someone asks about delays, payments or availability):\n${notices.map((n) => `- ${n.title}: ${n.message}`).join("\n")}` : SYSTEM_PROMPT;
+  // A special offer running now (Admin → Marketing → Offer): the assistant mentions it when it fits.
+  const offer = await import("./_lib/marketing.mjs").then((m) => m.currentOffer()).catch(() => null);
+  if (offer) system += `\n\nSPECIAL OFFER RUNNING NOW (mention it when someone asks about prices or is deciding; the team applies it on the quote; don't invent other discounts): ${offer.title}${offer.text ? ` (${offer.text})` : ""}. Last day: ${offer.until}.`;
   let saved = false;
   let lastErr = null;
   // Cheapest first; if it fails, the next one answers (saving is safe to repeat: same chat, same request).

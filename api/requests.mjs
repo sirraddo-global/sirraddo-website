@@ -11,7 +11,7 @@
 //   POST   { action: "send_preview", id }  email the preview link to the customer
 //   GET    ?view=export&id=123  the website as a .zip (pages + images) to upload to any host
 import { timingSafeEqual, createHash, createHmac } from "node:crypto";
-import {
+import { cleanFrom,
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
   ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
@@ -30,7 +30,7 @@ import { putFile, deleteFiles } from "./_lib/platform.mjs";
 import { setDesignRefs, MAX_DESIGN_REFS } from "./_lib/store.mjs";
 import { noticesForAdmin, saveNotice, deleteNotice, NOTICE_KINDS } from "./_lib/notices.mjs";
 import { getConfig, saveConfig, occurrences, queueEmails, emailStatus, audience, GREETING_EMAILS_PER_DAY } from "./_lib/greetings.mjs";
-import { changeLink, listChanges, markChange, freeUntil } from "./_lib/changes.mjs";
+import { changeLink, listChanges, markChange, freeUntil, addChange } from "./_lib/changes.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
@@ -103,6 +103,7 @@ function cleanFields(body) {
     if (has(k)) out[k] = text(body[k], n);
   }
   if ((has("name") && !out.name) || (has("contact") && !out.contact)) throw new Bad("Name and contact can't be empty");
+  if (has("came_from")) out.came_from = cleanFrom(body.came_from);
   if (has("email")) {
     out.email = text(body.email, 200).toLowerCase() || null;
     if (out.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.email)) throw new Bad("That email address doesn't look right");
@@ -264,7 +265,7 @@ export default async function handler(req, res) {
       if (body.action === "create") {
         const f = cleanFields({ name: body.name, contact: body.contact, email: body.email || "", business: body.business, interest: body.interest || "Other", details: body.details || "" });
         if (!f.name || !f.contact) throw new Bad("Name and contact are required");
-        return res.status(201).json(await createRequest(f));
+        return res.status(201).json(await createRequest({ ...f, came_from: body.came_from }));
       }
       if (body.action === "brief_link") {
         const id = Number(body.id);
@@ -427,12 +428,34 @@ export default async function handler(req, res) {
         for (const o of list) o.email = await emailStatus(o.key);
         return res.status(200).json({ festivals: list, audience: (await audience()).length, per_day: GREETING_EMAILS_PER_DAY, can_email: customerEmailConfigured() });
       }
-      if (["changes", "change_mark", "site_stats", "report_send", "report_toggle"].includes(body.action)) {
+      if (["changes", "change_mark", "change_add", "change_ai_plan", "change_ai_apply", "change_ai_undo", "change_ai_send", "change_ai_sent", "site_stats", "report_send", "report_toggle"].includes(body.action)) {
         const id = Number(body.id);
         if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
         const row = await getRequest(id);
         if (!row) return res.status(404).json({ error: "Not found" });
         if (body.action === "changes") return res.status(200).json({ link: await changeLink(id), free_until: freeUntil(row), changes: await listChanges(id, 20) });
+        // A request the customer sent on WhatsApp: type it in here so it's kept with the others (and AI can do it).
+        if (body.action === "change_add") {
+          try { await addChange(row, body.body, [], { quiet: true }); } catch (e) { throw new Bad(e.message); }
+          return res.status(200).json({ link: await changeLink(id), free_until: freeUntil(row), changes: await listChanges(id, 20) });
+        }
+        // "Do it with AI": plan (nothing changes yet), apply (site updated + customer told), undo.
+        if (body.action.startsWith("change_ai_")) {
+          const { planChange, applyChange, undoChange, sendChangePreview, markPreviewSent } = await import("./_lib/ai-change.mjs");
+          const cid = Number(body.change_id);
+          try {
+            let out = {};
+            if (body.action === "change_ai_plan") out.plan = await planChange(id, cid);
+            else if (body.action === "change_ai_apply") out = await applyChange(id, cid, { tell: body.tell !== false });
+            else if (body.action === "change_ai_send") out = await sendChangePreview(id, cid);
+            else if (body.action === "change_ai_sent") out = { url: await markPreviewSent(id, cid) };
+            else out = await undoChange(id, cid);
+            return res.status(200).json({ ...out, changes: await listChanges(id, 20) });
+          } catch (e) {
+            if (e.status === 404) return res.status(404).json({ error: "Not found" });
+            throw new Bad(e.message);
+          }
+        }
         if (body.action === "change_mark") {
           const c = await markChange(id, Number(body.change_id), { done: Boolean(body.done), note: body.note });
           if (!c) return res.status(404).json({ error: "Not found" });
@@ -521,6 +544,35 @@ export default async function handler(req, res) {
         if (!Number.isInteger(id)) throw new Bad("Missing id");
         const ok = body.remove ? await deleteUnanswered(id) : await setUnansweredResolved(id, Boolean(body.resolved));
         return ok ? res.status(200).json({ ok: true }) : res.status(404).json({ error: "Not found" });
+      }
+      // Admin → Marketing (offers, referrals, ad spend, captions, picture maker data).
+      if (String(body.action || "").startsWith("mk_")) {
+        const m = await import("./_lib/marketing.mjs");
+        const id = Number(body.id);
+        try {
+          switch (body.action) {
+            case "mk_qr": return res.status(200).json(await m.qrSvg(body.tag, body.src || "qr"));
+            case "mk_offer_get": return res.status(200).json({ offer: await m.getOffer() });
+            case "mk_offer_save": return res.status(200).json({ offer: await m.saveOffer(body.offer || {}) });
+            case "mk_ref": return res.status(200).json(await m.referralInfo(id));
+            case "mk_ref_use": await m.useReward(id, Number(body.n) || 1); return res.status(200).json(await m.referralInfo(id));
+            case "mk_ref_top": return res.status(200).json({ top: await m.topReferrers(), reward: await m.rewardText() });
+            case "mk_spend": return res.status(200).json({ spend: await m.listSpend(), report: await m.spendReport() });
+            case "mk_spend_add": await m.addSpend(body.entry || {}); return res.status(200).json({ spend: await m.listSpend(), report: await m.spendReport() });
+            case "mk_spend_del": await m.deleteSpend(body.spend_id); return res.status(200).json({ spend: await m.listSpend(), report: await m.spendReport() });
+            case "mk_showcase_list": return res.status(200).json({ sites: await m.showcaseList() });
+            case "mk_showcase_ok": return res.status(200).json({ sites: await m.setShowcaseOk(id, body.ok) });
+            case "mk_showcase": return res.status(200).json(await m.showcaseData(id));
+            case "mk_reviews": return res.status(200).json({ reviews: await m.ourReviews() });
+            case "mk_captions": return res.status(200).json({ captions: await m.writeCaptions(body) });
+            case "mk_video_script": return res.status(200).json({ script: await m.videoScript(body) });
+            default: throw new Bad("Unknown action");
+          }
+        } catch (e) {
+          if (e instanceof Bad) throw e;
+          if (e.message === "Not found") return res.status(404).json({ error: "Not found" });
+          throw new Bad(e.message);
+        }
       }
       throw new Bad("Unknown action");
     }

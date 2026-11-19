@@ -30,6 +30,7 @@ label{display:block;font-weight:700;margin:12px 0 4px}input[type=text],input[typ
 .p{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:6px 10px;align-items:center;padding:10px 0;border-bottom:1px solid #EEF1F5}.p:last-child{border:0}
 .p .n{font-weight:600;overflow-wrap:anywhere}.p .cat{font-size:.8rem;color:#64748B}.p input[type=text]{padding:9px}.p .st{grid-column:1/-1;display:flex;gap:8px;align-items:center;font-size:.92rem;font-weight:600;margin:0}.st input{width:120px}.so{grid-column:1/-1;display:flex;gap:8px;align-items:center;font-size:.92rem;font-weight:600;margin:0}.ck{display:flex;gap:10px;align-items:center;font-weight:600;margin:10px 0}.ck input{width:22px;height:22px;flex:none}
 .p.is-sold .n{text-decoration:line-through;opacity:.6}input[type=checkbox]{width:22px;height:22px}
+a.wa{display:inline-block;background:#1F8A4C;color:#fff;padding:12px 18px;border-radius:10px;font-weight:700;text-decoration:none}
 .bar{position:sticky;bottom:0;background:#F5F7FB;padding:10px 0}.bar button{width:100%;background:#13254F;color:#fff;border:0;border-radius:12px;padding:15px;font:inherit;font-weight:800;font-size:16px}
 .ok{background:#E8F6EC;border-left:4px solid #1E8E3E;padding:10px 12px;border-radius:8px}.err{background:#FDECEC;border-left:4px solid #C0392B;padding:10px 12px;border-radius:8px}
 .m{color:#4A5568;font-size:.9rem}.p[hidden]{display:none}.rv{border-top:1px solid #EEF1F5;padding:12px 0}.rv p{margin:4px 0;overflow-wrap:anywhere}.rs{color:#D9A21B;font-size:1.2rem;letter-spacing:2px}.rv select{font:inherit;font-size:16px;padding:10px;border-radius:10px;border:1px solid #C9D1DE;margin-top:6px}.new{background:#D9A21B;color:#13254F;border-radius:999px;padding:2px 10px;font-size:.8rem}${DARK_PAGE_CSS}
@@ -76,7 +77,18 @@ ${items.length ? `<div class="c"><h2>Products (${items.length})</h2><p class="m"
 ${reviewsCard(r.reviews)}
 ${lookCard(r)}
 ${gbpAsk(r) ? `<div class="c"><h2>Google Maps and Search</h2><p class="m">Once Google has verified your Google Business Profile (it says "Your business is verified" at business.google.com or in the Google Maps app), tick this and save so we know it's done.</p><label class="ck"><input type="checkbox" name="gbp_verified" value="1"> My Google Business Profile is verified</label></div>` : ""}
-<div class="bar"><button type="submit">Save changes</button></div></form>`;
+<div class="bar"><button type="submit">Save changes</button></div></form>
+${inviteCard(r)}`;
+}
+
+// Referral: their own link; when a business they send pays for a website, they get the reward.
+function inviteCard(r) {
+  if (!r.invite) return "";
+  const msg = `I got my website from SIRRADDO and it's working well for my business. If you need one, start here: ${r.invite.link}`;
+  return `<div class="c"><h2>Invite a business 🎁</h2><p class="m">Know a business that needs a website? Share your link. When they pay for a website, you get <b>${esc(r.invite.reward)}</b> for each one.</p>
+<label for="ref">Your link</label><input type="text" id="ref" readonly value="${esc(r.invite.link)}" onclick="this.select()">
+<p style="margin-top:12px"><a class="wa" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">Share on WhatsApp</a></p>
+${r.invite.paid ? `<p class="m">Businesses that paid from your link: <b>${r.invite.paid}</b>${r.invite.left > 0 ? ` · rewards waiting: <b>${r.invite.left}</b>` : ""}</p>` : ""}</div>`;
 }
 
 export default async function handler(req, res) {
@@ -84,6 +96,10 @@ export default async function handler(req, res) {
   const token = new URL(req.url, "http://x").searchParams.get("t") || "";
   const r = await findManageRequest(token).catch(() => null);
   if (r) r.reviews = await listReviews(r.id).catch(() => []);
+  if (r && r.status === "won") {
+    const info = await import("./_lib/marketing.mjs").then((m) => m.referralInfo(r.id)).catch(() => null);
+    if (info) r.invite = { link: info.link, reward: info.reward, paid: info.paid, left: info.paid - info.used };
+  }
   if (!r) return shell(res, 404, "Link not working", `<div class="c"><h1>This link doesn't work</h1><p>It may have been replaced by a newer one. Message us on WhatsApp for your current link.</p></div>`);
   if (req.method === "POST") {
     const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";

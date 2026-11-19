@@ -248,7 +248,7 @@
     fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: state.sessionId, page: location.pathname, messages: state.messages })
+      body: JSON.stringify({ sessionId: state.sessionId, page: location.pathname, from: window.sirraddoFrom ? window.sirraddoFrom() : '', messages: state.messages })
     })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (data) {
@@ -292,7 +292,7 @@
       var asked = state.messages.filter(function (m) { return m.role === 'user'; }).map(function (m) { return m.content; }).join(' / ');
       fetch('/api/lead', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ source: 'chat-form', name: name.value.trim(), contact: phone.value.trim(), details: 'Asked in chat: ' + asked, page: location.pathname })
+        body: JSON.stringify({ source: 'chat-form', from: window.sirraddoFrom ? window.sirraddoFrom() : '', name: name.value.trim(), contact: phone.value.trim(), details: 'Asked in chat: ' + asked, page: location.pathname })
       }).then(function (r) { return r.json(); }).then(function (j) {
         if (!j.ok) throw new Error(j.error || 'failed');
         state.detailsSent = true; save();

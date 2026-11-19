@@ -60,9 +60,48 @@
     bar.appendChild(close);
     document.body.insertBefore(bar, document.body.firstChild);
   }
+  // Special offer (Admin → Marketing → Offer): a gold bar with a live countdown to the last day.
+  function offer(o) {
+    var key = 'sirraddo-offer-closed';
+    try { if (sessionStorage.getItem(key) === o.tag + o.until) return; } catch (e) {}
+    var bar = document.createElement('div');
+    bar.className = 'offer-bar';
+    bar.setAttribute('role', 'region');
+    bar.setAttribute('aria-label', 'Special offer');
+    var text = document.createElement('p');
+    var strong = document.createElement('strong');
+    strong.textContent = '🔥 ' + o.title;
+    text.appendChild(strong);
+    if (o.text) text.appendChild(document.createTextNode(' · ' + o.text));
+    var left = document.createElement('span');
+    left.className = 'offer-left';
+    text.appendChild(left);
+    var go = document.createElement('a');
+    go.href = '/websites#packages';
+    go.textContent = 'See packages';
+    text.appendChild(go);
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'greeting-close';
+    close.setAttribute('aria-label', 'Close offer');
+    close.textContent = '×';
+    close.addEventListener('click', function () { bar.remove(); try { sessionStorage.setItem(key, o.tag + o.until); } catch (e) {} });
+    bar.appendChild(text);
+    bar.appendChild(close);
+    var end = new Date(o.ends).getTime();
+    function tick() {
+      var s = Math.max(0, Math.floor((end - Date.now()) / 1000));
+      if (!s) { bar.remove(); return; }
+      var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+      left.textContent = ' · Ends in ' + (d ? d + 'd ' : '') + h + 'h ' + m + 'm ' + (d ? '' : x + 's');
+    }
+    tick(); setInterval(tick, 1000);
+    document.body.insertBefore(bar, document.body.firstChild);
+  }
   function load() {
     fetch('/api/site?greeting=1').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
       if (!j) return;
+      if (j.offer && document.querySelector('link[href*="styles.css"]')) offer(j.offer);
       if (j.greeting && document.querySelector('link[href*="styles.css"]')) greeting(j.greeting);
       (j.notices || []).slice().reverse().forEach(notice); // notices sit above the greeting
     }).catch(function () {});

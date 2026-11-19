@@ -11,7 +11,7 @@
 //   POST   { action: "send_preview", id }  email the preview link to the customer
 //   GET    ?view=export&id=123  the website as a .zip (pages + images) to upload to any host
 import { timingSafeEqual, createHash, createHmac } from "node:crypto";
-import { cleanFrom,
+import { setMeta, cleanFrom,
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
   ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
@@ -31,6 +31,7 @@ import { setDesignRefs, MAX_DESIGN_REFS } from "./_lib/store.mjs";
 import { noticesForAdmin, saveNotice, deleteNotice, NOTICE_KINDS } from "./_lib/notices.mjs";
 import { getConfig, saveConfig, occurrences, queueEmails, emailStatus, audience, GREETING_EMAILS_PER_DAY } from "./_lib/greetings.mjs";
 import { changeLink, listChanges, markChange, freeUntil, addChange } from "./_lib/changes.mjs";
+import { cleanServices, recordServicePayment } from "./_lib/services.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
@@ -45,7 +46,7 @@ import { getBriefById } from "./_lib/store.mjs";
 // The project brief link is created once the deposit is in: 70% of the quote paid
 // (or any project payment if no quote was entered).
 function depositPaid(row) {
-  const paid = (row.payments || []).filter((p) => p.kind !== "renewal").reduce((s, p) => s + Number(p.amount || 0), 0);
+  const paid = (row.payments || []).filter((p) => !p.kind || p.kind === "project").reduce((s, p) => s + Number(p.amount || 0), 0);
   if (!paid) return false;
   return row.quote_amount ? paid >= Math.round(row.quote_amount * 0.7) : true;
 }
@@ -104,6 +105,8 @@ function cleanFields(body) {
   }
   if ((has("name") && !out.name) || (has("contact") && !out.contact)) throw new Bad("Name and contact can't be empty");
   if (has("came_from")) out.came_from = cleanFrom(body.came_from);
+  if (has("services")) { try { out.services = cleanServices(body.services); } catch (e) { throw new Bad(e.message); } }
+  if (has("wants")) out.wants = ["customer_accounts", "custom_system"].includes(body.wants) ? body.wants : null;
   if (has("email")) {
     out.email = text(body.email, 200).toLowerCase() || null;
     if (out.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(out.email)) throw new Bad("That email address doesn't look right");
@@ -148,7 +151,8 @@ function cleanFields(body) {
       return {
         date: date(p.date) || new Date().toISOString().slice(0, 10),
         amount,
-        kind: p.kind === "renewal" ? "renewal" : "project",
+        kind: p.kind === "renewal" ? "renewal" : p.kind === "service" ? "service" : "project",
+        ...(p.kind === "service" && /^[a-z0-9]{6,16}$/.test(String(p.service_id || "")) ? { service_id: p.service_id } : {}),
         note: text(p.note, 200),
         ...(typeof p.ref === "string" && /^[\w-]{6,80}$/.test(p.ref) ? { ref: p.ref } : {}), // Paystack reference, kept so it is never counted twice
       };
@@ -565,6 +569,14 @@ export default async function handler(req, res) {
             case "mk_showcase": return res.status(200).json(await m.showcaseData(id));
             case "mk_reviews": return res.status(200).json({ reviews: await m.ourReviews() });
             case "mk_captions": return res.status(200).json({ captions: await m.writeCaptions(body) });
+            case "mk_svc_paid": await recordServicePayment(id, String(body.service_id || ""), body.payment || {}); return res.status(200).json(await getRequest(id));
+            case "mk_neon": {
+              const nu = await import("./_lib/neon-usage.mjs");
+              let usage = await nu.savedUsage(), error = null;
+              if (body.refresh && nu.neonConfigured()) { try { usage = await nu.fetchUsage(); await setMeta("neon_usage", JSON.stringify(usage)); } catch (e) { error = e.message; } }
+              return res.status(200).json({ configured: nu.neonConfigured(), usage, error, free: { cuh: nu.FREE_CUH, gb: nu.FREE_GB } });
+            }
+            case "mk_demand": return res.status(200).json({ demand: await m.demand() });
             case "mk_video_script": return res.status(200).json({ script: await m.videoScript(body) });
             default: throw new Bad("Unknown action");
           }

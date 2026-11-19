@@ -50,7 +50,7 @@ export const TEMPLATES = {
   tpl_preview: "Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.",
   tpl_renewal: "Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.\nPay online: {pay_link}",
 };
-const projectPaid = (r) => (r.payments || []).filter((p) => p.kind !== "renewal").reduce((s, p) => s + Number(p.amount || 0), 0);
+const projectPaid = (r) => (r.payments || []).filter((p) => !p.kind || p.kind === "project").reduce((s, p) => s + Number(p.amount || 0), 0);
 
 export function fill(text, r, extra = {}) {
   const q = r.quote_amount;
@@ -65,7 +65,7 @@ export function fill(text, r, extra = {}) {
   };
   return text.replace(/\{(\w+)\}/g, (m, k) => (k in vals ? vals[k] : m));
 }
-const docLink = (r, type) => `${SITE}/doc?t=${r.doc_token}&type=${type}`;
+const docLink = (r, type, sid) => `${SITE}/doc?t=${r.doc_token}&type=${type}${sid ? "&s=" + sid : ""}`;
 function waUrl(r, text) {
   const base = waLink(r.contact);
   return base ? `${base}?text=${encodeURIComponent(text)}` : null;
@@ -259,11 +259,30 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
                 (paystackConfigured() ? `<p style="font-family:Arial,sans-serif;font-size:13px"><a href="${docLink(r, "renewal")}">View the renewal invoice</a></p>` : ""))) report.customerEmails++;
           }
         }
+        // monthly / yearly services: 7 days before, due day, 3 days late
+        for (const s of (r.status === "won" && Array.isArray(r.services) ? r.services : [])) {
+          if (!s.active || !r.doc_token) continue;
+          const d = daysBetween(today, s.next_due);
+          const stage = d <= 7 && d > 0 ? "7" : d === 0 || (d < 0 && d > -3) ? "0" : d <= -3 && d > -30 ? "late" : null;
+          if (!stage) continue;
+          const lead = stage === "late"
+            ? `Your ${esc(s.name)} fee of <b>${naira(s.amount)}</b> was due on ${niceDate(s.next_due)}. Please pay soon to keep it running.`
+            : `Your ${s.period === "yearly" ? "yearly" : "monthly"} ${esc(s.name)} fee of <b>${naira(s.amount)}</b> is due ${d === 0 ? "today" : `on ${niceDate(s.next_due)}`}.`;
+          if (await sendOnce(r, `svc-${s.id}-${s.next_due}-${stage}`, stage === "late" ? `${s.name}: payment overdue` : `${s.name}: payment due ${d === 0 ? "today" : niceDate(s.next_due)}`,
+            customerHtml(r, [lead], paystackConfigured() && amountDue(r, "service-" + s.id)
+              ? { url: payLink(r, "service-" + s.id), label: `Pay ${naira(s.amount)} online` }
+              : { url: docLink(r, "service", s.id), label: "View invoice" }))) report.customerEmails++;
+        }
       } catch (err) {
         console.error("customer reminder failed", r.id, err);
       }
     }
   }
+
+  // Database usage (Neon): saved for admin, and an email at 70% / 90% of the free plan.
+  const neon = await import("./neon-usage.mjs").then((m) => m.checkNeonUsage({ plan: settings.neon_plan || "free", site: SITE })).catch((e) => { console.error("neon usage failed", e.message); return null; });
+  const svcDue = all.flatMap((r) => (r.status === "won" && Array.isArray(r.services) ? r.services : []).filter((s) => s.active && daysBetween(today, s.next_due) <= 7).map((s) => ({ r, s, d: daysBetween(today, s.next_due) })));
+  for (const x of svcDue) if (!x.r.doc_token) Object.assign(x.r, (await ensureDocToken(x.r.id)) || {});
 
   // Client website checks
   const sites = all.filter((r) => r.status === "won" && r.website_url);
@@ -357,6 +376,9 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
     section("Project forms not sent back yet", formsWaiting.map((r) => item(r, r.brief_saved_at ? "started but not sent" : "not opened yet", fill(tpl("tpl_brief"), r)))),
     section("Balances still owed on live sites", owing.map((r) => item(r, `balance ${naira(balance(r))}`,
       (r.doc_token ? fill(tpl("tpl_invoice"), r, { doc_link: docLink(r, "invoice") }) : fill(tpl("tpl_invoice"), r))))),
+    section("Monthly / yearly service fees due", svcDue.map(({ r, s, d }) => item(r, `${esc(s.name)} · ${naira(s.amount)} · ${d < 0 ? `<b style="color:#B42318">${-d} day(s) overdue</b>` : d === 0 ? "<b>due today</b>" : `due in ${d} day(s)`}`,
+      `Hello ${String(r.name).split(" ")[0]}, your ${s.period === "yearly" ? "yearly" : "monthly"} ${s.name} fee of ${naira(s.amount)} is due ${d === 0 ? "today" : "on " + niceDate(s.next_due)}. Invoice and payment: ${docLink(r, "service", s.id)}`))),
+    ...(neon && (settings.neon_plan || "free") === "free" && neon.cuh >= 70 ? [section("Database (Neon)", [`<li><b>${neon.cuh} of 100 compute hours</b> used this month. Upgrade to Launch before 100 (admin → Packages → Database).</li>`])] : []),
     section("Renewals", renewals.map((r) => {
       const d = daysBetween(today, r.renewal_due);
       const when = d < 0 ? `<b style="color:#B42318">${-d} day(s) overdue</b>` : d === 0 ? "<b>due today</b>" : `due in ${d} day(s)`;

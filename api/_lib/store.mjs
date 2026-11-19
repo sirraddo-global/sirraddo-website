@@ -34,6 +34,8 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'chat'`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS came_from TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ref_code TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS services JSONB NOT NULL DEFAULT '[]'::jsonb`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS wants TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ref_used INTEGER NOT NULL DEFAULT 0`,
   `CREATE UNIQUE INDEX IF NOT EXISTS customer_requests_ref_code ON customer_requests (ref_code)`,
   `CREATE TABLE IF NOT EXISTS ad_spend (id SERIAL PRIMARY KEY, day DATE NOT NULL, platform TEXT NOT NULL, tag TEXT NOT NULL, amount INTEGER NOT NULL, note TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
@@ -180,7 +182,7 @@ export async function ensureSchema() {
 export const STATUSES = ["new", "contacted", "quoted", "won", "lost"];
 export const STAGES = ["content", "building", "review", "live"];
 
-const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, ref_code, ref_used, name, contact, business, interest, details, page,
+const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, ref_code, ref_used, services, wants, name, contact, business, interest, details, page,
   transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, payments, project_stage,
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
   brief_token, brief_saved_at, brief_submitted_at, email, doc_token,
@@ -204,18 +206,28 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, ref_code
 export async function saveRequest(r) {
   if (!(await ensureSchema())) return null;
   const rows = await q(
-    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript, email, chat_ideas, came_from, follow_up_on)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, (now() AT TIME ZONE 'Africa/Lagos')::date + 1)
-     ON CONFLICT (session_id) DO UPDATE SET came_from = COALESCE(customer_requests.came_from, EXCLUDED.came_from),
+    `INSERT INTO customer_requests (session_id, source, name, contact, business, interest, details, page, transcript, email, chat_ideas, came_from, wants, follow_up_on)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, $13, (now() AT TIME ZONE 'Africa/Lagos')::date + 1)
+     ON CONFLICT (session_id) DO UPDATE SET came_from = COALESCE(customer_requests.came_from, EXCLUDED.came_from), wants = COALESCE(EXCLUDED.wants, customer_requests.wants),
        name = EXCLUDED.name, contact = EXCLUDED.contact, business = EXCLUDED.business,
        email = COALESCE(EXCLUDED.email, customer_requests.email),
        interest = EXCLUDED.interest, details = EXCLUDED.details, page = EXCLUDED.page,
        transcript = EXCLUDED.transcript, chat_ideas = customer_requests.chat_ideas || EXCLUDED.chat_ideas, updated_at = now()
      RETURNING id, (xmax = 0) AS inserted`,
     [r.sessionId, r.source || "chat", r.name, r.contact, r.business || null, r.interest, r.details || "", r.page || null,
-      JSON.stringify(r.transcript || []), r.email || null, JSON.stringify(r.ideas || {}), cleanFrom(r.cameFrom)]
+      JSON.stringify(r.transcript || []), r.email || null, JSON.stringify(r.ideas || {}), cleanFrom(r.cameFrom),
+      ["customer_accounts", "custom_system"].includes(r.wants) ? r.wants : detectWants(r.details, r.ideas?.goals, r.ideas?.pages, r.ideas?.products_services)]
   );
   return rows[0] ? { id: rows[0].id, inserted: rows[0].inserted === true } : null;
+}
+
+// What a lead asked for beyond our packages (so admin → Packages shows demand): buyer logins / saved addresses
+// for an online store ("customer_accounts"), or a bigger system with logins ("custom_system").
+export function detectWants(...texts) {
+  const t = texts.filter(Boolean).join(" \n ").toLowerCase();
+  if (/\b(portal|dashboard|student|pupil|result checker|school management|booking system|appointment system|hospital|clinic|patients?|members?['’]? area|staff (login|accounts?)|agent (login|accounts?)|multi-?vendor|marketplace|e-?learning|lms|crm|erp|inventory system)\b/.test(t)) return "custom_system";
+  if (/((customer|buyer|user|client)s?['’]? (accounts?|logins?|log ?in|sign ?ins?|sign ?up|registration|profiles?))|\b(saved? (delivery )?address(es)?|order history|track (my )?orders?|wish ?list|my orders|login for (my )?customers)\b/.test(t)) return "customer_accounts";
+  return null;
 }
 
 // Where a customer came from: "facebook / ibadan-test", "google (search)", "referral"… (short, lower case).
@@ -245,7 +257,7 @@ const EDITABLE = {
   name: "text", contact: "text", email: "text", business: "text", interest: "text", details: "text", notes: "text",
   status: "text", follow_up_on: "date", quote_amount: "int", payments: "jsonb", project_stage: "text",
   live_on: "date", renewal_amount: "int", renewal_due: "date", website_url: "text",
-  handover: "jsonb", draft_md: "text", came_from: "text",
+  handover: "jsonb", draft_md: "text", came_from: "text", services: "jsonb", wants: "text",
 };
 export async function updateRequest(id, fields) {
   await ensureSchema();
@@ -570,7 +582,7 @@ export async function deleteUnanswered(id) {
 export const SETTING_KEYS = [
   "bank_name", "account_name", "account_number", "invoice_note",
   "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief", "tpl_receipt", "tpl_invoice",
-  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward",
+  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward", "pkg_build", "pkg_addon", "pkg_renewal_addon", "pkg_rate", "custom_build_from", "custom_monthly", "neon_plan",
 ];
 export async function getSettings() {
   await ensureSchema();

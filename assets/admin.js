@@ -474,15 +474,32 @@
   // A planning page: what the Standard Store (Online Store + customer accounts) includes, every subscription it
   // needs and what each costs, a cost calculator, and the full process from first chat to handover.
   // Prices checked 19 Nov 2026 (Netlify, Neon, Render, Whogohost); change PKG below if they move.
+  var PKG_DEFAULTS = { pkg_build: 200000, pkg_addon: 50000, pkg_renewal_addon: 25000, pkg_rate: 1400, custom_build_from: 300000, custom_monthly: 30000, neon_plan: 'free' };
   var PKG = {
-    rate: 1400, // ₦ per $1 (official ~₦1,330–1,380 + card charges)
+    rate: 1400, // ₦ per $1 (official ~₦1,330–1,380 + card charges); from Settings (Packages → Prices)
     netlify: { freeCredits: 300, personal: { usd: 9, credits: 1000 }, pro: { usd: 20, credits: 5000 }, deploy: 15, perCall: 0.0012 },
     neon: { freeCuH: 100, cuh: 0.106, gbMonth: 0.35, size: 0.25 },
     domainYear: 6450,
-    price: { build: 200000, addon: 50000, renewalAddon: 25000 }
+    price: { build: 200000, addon: 50000, renewalAddon: 25000 },
+    custom: { build: 300000, monthly: 30000 }
   };
+  function pkgSetting(k) { var v = state.settings && state.settings[k]; return v != null && v !== '' ? v : PKG_DEFAULTS[k]; }
+  function loadPkg() {
+    PKG.rate = Number(pkgSetting('pkg_rate')) || 1400;
+    PKG.price = { build: Number(pkgSetting('pkg_build')), addon: Number(pkgSetting('pkg_addon')), renewalAddon: Number(pkgSetting('pkg_renewal_addon')) };
+    PKG.custom = { build: Number(pkgSetting('custom_build_from')), monthly: Number(pkgSetting('custom_monthly')) };
+  }
   function nN(n) { return '₦' + Math.round(n).toLocaleString('en-NG'); }
+  var PKG_TABS = [['standard', 'Standard Store'], ['custom', 'Custom system'], ['database', 'Database'], ['demand', 'Who\u2019s asking'], ['prices', 'Prices']];
   function renderPackages(view) {
+    loadPkg();
+    var tab = state.pkgTab || 'standard';
+    view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Packages' }, PKG_TABS.map(function (t) {
+      return el('button', { type: 'button', 'aria-pressed': t[0] === tab ? 'true' : 'false', text: t[1], onclick: function () { state.pkgTab = t[0]; render(); } });
+    })));
+    ({ standard: pkgStandard, custom: pkgCustom, database: pkgDatabase, demand: pkgDemand, prices: pkgPrices })[tab](view);
+  }
+  function pkgStandard(view) {
     view.appendChild(el('div', { class: 'admin-card' }, [
       el('span', { class: 'admin-badge is-due', text: 'Planned package · not built yet' }),
       el('h2', { text: 'Standard Store (Online Store + customer accounts)' }),
@@ -585,7 +602,7 @@
     // 5. Process
     view.appendChild(el('h2', { class: 'admin-h2', text: '5. From first chat to handover' }));
     var steps = [
-      ['A customer asks', 'From the website chat, WhatsApp or an ad. Until this package is built, the chat sells the normal Online Store; for "customer accounts / logins / saved addresses", reply yourself with this package and price.'],
+      ['A customer asks', 'From the website chat, WhatsApp or an ad. Until this package is built, the chat says it is coming soon, offers the normal Online Store, and tags them "Wants customer accounts" (Packages → Who\u2019s asking). Reply with this package and price when you are ready.'],
       ['Quote and invoice', 'Requests → their request → Package "Online Store", Quote ' + nN(PKG.price.build) + ', and write "Standard Store (customer accounts)" in the summary. Send the invoice.'],
       ['70% deposit', 'They pay online (Paystack link on the invoice) or by transfer; it is recorded and the receipt goes out by itself.'],
       ['Project form', 'They fill the Online Store form: products, photos, delivery areas, and connect their own Paystack (Connect link).'],
@@ -594,7 +611,8 @@
       ['Preview and approval', 'They choose a design and test: sign up, add an address, place a test order, see it under My orders.'],
       ['Balance and go live', 'They pay the 30% balance; Go live puts the store on their domain. Test once more on the real domain.'],
       ['Handover', 'The handover pack and their Manage link: customers list, resetting a buyer’s password, downloading customers and orders.'],
-      ['Every month', 'Check Netlify → Usage and Neon → Billing. Upgrade only when the free limits are close (steps below).']
+      ['Every month', 'Packages → Database shows the database use (and emails you at 70% and 90%). Check Netlify → Usage too. Upgrade only when the free limits are close.'],
+      ['Their yearly add-on', 'Client card → Monthly / yearly services → "Customer accounts (Standard Store)" (yearly). Invoices, reminders and receipts then run by themselves.']
     ];
     view.appendChild(el('ol', { class: 'admin-steps' }, steps.map(function (s) { return el('li', null, [el('b', { text: s[0] }), el('p', { class: 'admin-hint', text: s[1] })]); })));
 
@@ -629,8 +647,49 @@
       'Never email buyers from SIRRADDO’s email (our rule): Google sign-in or owner password resets only.'
     ].map(function (t) { return el('li', { text: t }); })));
 
+  }
+
+  // ---------- Packages → Database: live usage + how to run it ----------
+  function neonCard() {
+    var card = el('div', { class: 'admin-card' }, [el('h2', { text: 'Database usage this month (Neon)' }), el('p', { class: 'admin-hint', text: 'Loading…' })]);
+    function draw(j) {
+      while (card.children.length > 1) card.lastChild.remove();
+      if (!j.configured) {
+        card.appendChild(el('p', { class: 'admin-hint', text: 'Not connected yet. To see usage here and get an email at 70% and 90% of the free plan:' }));
+        card.appendChild(el('ol', { class: 'admin-mini' }, [
+          'Neon → your account (top right) → Account settings → API keys → Create new API key (name it "sirraddo-usage"). Copy it.',
+          'Netlify → project sirraddo → Site configuration → Environment variables → Add: NEON_API_KEY = the key. Never paste it in a chat or email.',
+          'If you have more than one Neon project, also add NEON_PROJECT_ID (Neon → your project → Settings → Project ID).',
+          'It starts working after the next deploy. Reading usage never wakes the database.'
+        ].map(function (t) { return el('li', { text: t }); })));
+        return;
+      }
+      var u = j.usage, free = (pkgSetting('neon_plan') || 'free') === 'free';
+      if (!u) { card.appendChild(el('p', { class: 'admin-hint', text: j.error || 'No reading yet. Tap Check now.' })); }
+      else {
+        var pctH = Math.min(100, Math.round(100 * u.cuh / j.free.cuh)), pctS = Math.min(100, Math.round(100 * u.storageGB / j.free.gb));
+        var bar = function (label, pct, text) {
+          return el('div', { class: 'usage-row' }, [el('div', { class: 'usage-top' }, [el('span', { text: label }), el('b', { text: text })]),
+            el('div', { class: 'usage-bar' + (pct >= 90 ? ' is-bad' : pct >= 70 ? ' is-warn' : '') }, [el('span', { style: 'width:' + pct + '%' })])]);
+        };
+        card.appendChild(bar('Compute hours', free ? pctH : 0, u.cuh + (free ? ' of ' + j.free.cuh + ' (' + pctH + '%)' : ' hours · about $' + (u.cuh * PKG.neon.cuh).toFixed(2) + ' = ' + nN(u.cuh * PKG.neon.cuh * PKG.rate))));
+        card.appendChild(bar('Storage', free ? pctS : 0, u.storageGB + ' GB' + (free ? ' of ' + j.free.gb + ' GB (' + pctS + '%)' : '')));
+        card.appendChild(el('p', { class: 'admin-hint', text: (free ? (pctH >= 90 ? 'Upgrade to Launch today (steps below).' : pctH >= 70 ? 'Plan to upgrade this week (steps below).' : 'Fine for now.') : 'On Launch: you pay for the hours used.') + ' Checked ' + when(u.at) + (u.periodStart ? ' · month started ' + niceDay(u.periodStart.slice(0, 10)) : '') + '.' }));
+        if (j.error) card.appendChild(el('p', { class: 'admin-error', text: j.error }));
+      }
+      card.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Check now', onclick: function (e) {
+        var b = e.currentTarget; b.disabled = true; b.textContent = 'Checking…';
+        api('POST', { action: 'mk_neon', refresh: true }).then(draw).catch(fail);
+      } }));
+    }
+    api('POST', { action: 'mk_neon' }).then(draw).catch(fail);
+    return card;
+  }
+  function pkgDatabase(view) {
+    view.appendChild(neonCard());
+
     // 8. Running the database: checks, upgrades, moving one store
-    view.appendChild(el('h2', { class: 'admin-h2', text: '8. Running the database (all stores share one)' }));
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Running the database (all stores share one)' }));
     view.appendChild(el('p', { class: 'admin-hint', text: 'Every store uses the one Neon database behind this website (each record is labelled with its store). The store pages live on Cloudflare and keep showing even if the database pauses; only checkout, sign-in, reviews, admin and Manage need it. On Free it can be awake 100 hours a month; past that it pauses for every store until next month.' }));
     function stepCard(title, intro, list, foot) {
       return el('div', { class: 'admin-card' }, [el('h3', { text: title }), intro ? el('p', { class: 'admin-hint', text: intro }) : null,
@@ -672,7 +731,143 @@
       'Before any upgrade or move: Settings → Backup → download a backup and keep it safe (never forward it).',
       'Neon can restore the database to an earlier time: Neon → your project → Restore. Paid plans keep a longer history, one more reason to upgrade once real stores depend on it.'
     ]));
+
   }
+
+  // ---------- Packages → Custom system ----------
+  function pkgCustom(view) {
+    var c = PKG.custom;
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('h2', { text: 'Custom systems (built as separate projects)' }),
+      el('p', { class: 'admin-hint', text: 'For anything bigger than a website with a store: school portals and result checkers, clinic or hospital records, booking systems with staff, property sites where agents log in, marketplaces with many sellers, savings/ajo apps, internal dashboards. Each one gets its own server and database; their website links to it (e.g. portal.theirbusiness.com.ng).' })
+    ]));
+    view.appendChild(el('h2', { class: 'admin-h2', text: '1. Price (you decide)' }));
+    view.appendChild(el('div', { class: 'admin-card' }, [el('ul', { class: 'admin-mini' }, [
+      el('li', null, [el('b', { text: 'Build: from ' + nN(c.build) }), ', depending on size (screens, user types, payments, reports).']),
+      el('li', null, [el('b', { text: 'Hosting and care: ' + nN(c.monthly) + ' a month' }), ' (or ' + nN(c.monthly * 10) + ' a year, 2 months free), added as a monthly/yearly service on their client card so invoices and reminders go out by themselves.']),
+      el('li', { text: 'Changes after launch: quoted each time (or a care plan with a few hours a month).' })
+    ])]));
+    view.appendChild(el('h2', { class: 'admin-h2', text: '2. What each one costs you to run (per project)' }));
+    view.appendChild(el('div', { class: 'pkg-costs' }, [
+      ['Server (Render)', 'Starter web service, always on', ['$7/month = ' + nN(7 * PKG.rate) + '/month · ' + nN(7 * PKG.rate * 12) + '/year']],
+      ['Database', 'A new Neon project (free plan: 100 hours, 1 GB) or Render Postgres', ['Neon Free: ₦0 to start', 'Neon Launch when busy: ~' + nN(5.65 * PKG.rate) + '–' + nN(19.7 * PKG.rate) + '/month', 'Render Postgres Basic: $6/month = ' + nN(6 * PKG.rate) + '/month']],
+      ['Address', 'portal.theirdomain.com.ng on their existing domain (Cloudflare)', ['₦0']],
+      ['Emails to their users', 'Password resets, notices: from THEIR own email account on their domain (never SIRRADDO’s)', ['They pay their email provider (many have a free plan)']],
+      ['Code', 'A private repo under the sirraddo-global GitHub organisation', ['₦0']]
+    ].map(function (x) {
+      return el('div', { class: 'admin-card pkg-cost' }, [el('h3', { text: x[0] }), el('p', { class: 'admin-meta', text: x[1] }), el('ul', { class: 'admin-mini' }, x[2].map(function (t) { return el('li', { text: t }); }))]);
+    })));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Typical running cost: ' + nN(7 * PKG.rate) + '–' + nN(13 * PKG.rate) + ' a month per project. At ' + nN(c.monthly) + ' a month you keep ' + nN(c.monthly - 13 * PKG.rate) + ' or more for care and exchange-rate changes.' }));
+    view.appendChild(el('h2', { class: 'admin-h2', text: '3. From first chat to handover' }));
+    var steps = [
+      ['A customer asks', 'The chat saves it as "Custom app" and tags it "custom system" (see Who’s asking). Call or WhatsApp them the same day.'],
+      ['Understand the job (30 minutes)', 'Who logs in (types of users), what each can do, payments, reports, how many users, deadlines. Write it down as a one-page scope.'],
+      ['Quote', 'Requests → their request → Package "Custom app", Quote (build price), summary = the scope. Send the invoice; say the monthly hosting and care fee too.'],
+      ['70% deposit', 'Paid online or by transfer; recorded with a receipt.'],
+      ['Build with Claude', 'New private repo under sirraddo-global. Ask Claude to build it from the scope, with tests. Weekly progress on WhatsApp.'],
+      ['Server and database', 'Render: new Web Service from the repo (Starter). Neon: new project for this client (or Render Postgres). Their secrets only in Render’s environment settings.'],
+      ['Test link', 'They try it on the Render address with test accounts and say what to change.'],
+      ['Balance and go live', 'They pay the 30% balance. Cloudflare: add portal.theirdomain (CNAME to the Render address), and add the custom domain in Render. Add a "Login" button on their website.'],
+      ['Handover', 'Admin logins privately on WhatsApp, a short how-to, and who to call. On their client card → Monthly / yearly services → add "Custom system hosting and care" so the monthly invoices and reminders run by themselves.'],
+      ['Every month', 'Render and Neon usage for that project; the service fee comes in; backups.']
+    ];
+    view.appendChild(el('ol', { class: 'admin-steps' }, steps.map(function (x) { return el('li', null, [el('b', { text: x[0] }), el('p', { class: 'admin-hint', text: x[1] })]); })));
+  }
+
+  // ---------- Packages → Who's asking ----------
+  function pkgDemand(view) {
+    var box = el('div');
+    view.appendChild(el('p', { class: 'admin-intro', text: 'People who asked for things you don’t sell yet (last 90 days): the chat tags them, and website forms are tagged from what they wrote. When enough ask, build it.' }));
+    view.appendChild(box);
+    api('POST', { action: 'mk_demand' }).then(function (j) {
+      var acc = j.demand.filter(function (d) { return d.wants === 'customer_accounts'; }), cus = j.demand.filter(function (d) { return d.wants === 'custom_system'; });
+      box.appendChild(el('div', { class: 'admin-tiles' }, [tile('Customer accounts', acc.length, 'Standard Store'), tile('Custom systems', cus.length, 'portals, bookings…')]));
+      [['Standard Store (customer accounts)', acc], ['Custom systems', cus]].forEach(function (g) {
+        box.appendChild(el('h2', { class: 'admin-h2', text: g[0] }));
+        box.appendChild(g[1].length ? el('ul', { class: 'admin-mini' }, g[1].map(function (d) {
+          return el('li', null, [el('b', { text: d.business || d.name }), ' · ' + d.contact + ' · ' + d.interest + ' · ' + d.status + ' · ' + niceDay(String(d.created_at).slice(0, 10))]);
+        })) : el('p', { class: 'admin-empty', text: 'Nobody yet.' }));
+      });
+    }).catch(fail);
+  }
+
+  // ---------- Packages → Prices ----------
+  function pkgPrices(view) {
+    var card = el('div', { class: 'admin-card' }, [el('h2', { text: 'Prices used on these pages' }), el('p', { class: 'admin-hint', text: 'Change them here; the guides and calculator update. (The public website doesn’t show these packages yet.)' })]);
+    var inputs = {};
+    [['pkg_build', 'Standard Store: build (₦)'], ['pkg_addon', 'Add accounts to an existing store (₦)'], ['pkg_renewal_addon', 'Standard Store: extra per year (₦)'],
+      ['custom_build_from', 'Custom system: build from (₦)'], ['custom_monthly', 'Custom system: hosting and care per month (₦)'], ['pkg_rate', '₦ per $1 (for costs)']].forEach(function (f) {
+      inputs[f[0]] = el('input', { type: 'number', min: 0, inputmode: 'numeric', value: pkgSetting(f[0]) });
+      card.appendChild(field(f[1], inputs[f[0]]));
+    });
+    var plan = select([['free', 'Free (warn me at 70% and 90%)'], ['launch', 'Launch (paid, no warnings)']], pkgSetting('neon_plan') || 'free', { 'aria-label': 'Neon plan' });
+    card.appendChild(field('Neon plan', plan, 'Set to Launch after you upgrade.'));
+    card.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Save prices', onclick: function () {
+      var out = { neon_plan: plan.value };
+      Object.keys(inputs).forEach(function (k) { out[k] = String(Math.max(0, Math.round(Number(inputs[k].value) || 0)) || ''); });
+      api('POST', { action: 'settings', settings: out }).then(function (j) { state.settings = j.settings; flash('Saved'); render(); }).catch(fail);
+    } }));
+    view.appendChild(card);
+  }
+
+  // ---------- Client card → Monthly / yearly services ----------
+  function servicesBlock(r) {
+    var box = el('div', { class: 'admin-golive' });
+    var list = el('div');
+    function save(services, msg) {
+      return api('PATCH', { id: r.id, services: services }).then(function (row) { Object.assign(r, row); flash(msg || 'Saved'); draw(); }).catch(fail);
+    }
+    function draw() {
+      list.innerHTML = '';
+      var svcs = r.services || [];
+      if (!svcs.length) list.appendChild(el('p', { class: 'admin-hint', text: 'None. Add a monthly or yearly fee (dedicated database, custom system hosting and care, customer accounts…). Invoices, reminders, online payment and receipts then run by themselves.' }));
+      svcs.forEach(function (s, i) {
+        var d = Math.round((new Date(s.next_due + 'T00:00:00Z') - new Date(new Date(Date.now() + 3600000).toISOString().slice(0, 10) + 'T00:00:00Z')) / 86400000);
+        var status = !s.active ? 'Stopped' : d < 0 ? (-d) + ' day(s) overdue' : d === 0 ? 'Due today' : 'Next due ' + niceDay(s.next_due) + (d <= 14 ? ' (in ' + d + ' days)' : '');
+        var link = r.doc_token ? location.origin + '/doc?t=' + r.doc_token + '&type=service&s=' + s.id : '';
+        var num = waNumber(r.contact);
+        list.appendChild(el('div', { class: 'admin-card mk-row' }, [
+          el('div', null, [el('b', { text: s.name }), el('div', { class: 'admin-meta', text: naira(s.amount) + ' ' + s.period + ' · ' + status })]),
+          el('div', { class: 'admin-actions' }, [
+            link ? el('a', { class: 'admin-btn', href: link, target: '_blank', rel: 'noopener', text: 'Invoice' }) : null,
+            link && num ? el('a', { class: 'admin-btn admin-btn--wa', target: '_blank', rel: 'noopener', text: 'Send on WhatsApp',
+              href: 'https://wa.me/' + num + '?text=' + encodeURIComponent('Hello ' + String(r.name).split(' ')[0] + ', your ' + s.period + ' ' + s.name + ' fee of ' + naira(s.amount) + ' is due ' + niceDay(s.next_due) + '. Invoice and online payment: ' + link) }) : null,
+            el('button', { class: 'admin-btn', type: 'button', text: 'Record payment', onclick: function () {
+              var amt = window.prompt('Amount received (₦) for ' + s.name + ' due ' + niceDay(s.next_due) + ':', String(s.amount));
+              if (!amt) return;
+              api('POST', { action: 'mk_svc_paid', id: r.id, service_id: s.id, payment: { amount: amt } }).then(function (row) { Object.assign(r, row); flash('Payment recorded; next due date moved on'); draw(); }).catch(fail);
+            } }),
+            el('button', { class: 'admin-btn', type: 'button', text: s.active ? 'Stop' : 'Start again', onclick: function () {
+              var copy = svcs.map(function (x) { return Object.assign({}, x); }); copy[i].active = !s.active; save(copy, s.active ? 'Stopped (no more reminders)' : 'Started again');
+            } })
+          ])
+        ]));
+      });
+    }
+    var name = select(SERVICE_PRESETS.map(function (p) { return p[0]; }).concat(['Other']), SERVICE_PRESETS[0][0], { 'aria-label': 'Service' });
+    var other = el('input', { placeholder: 'Name of the service', hidden: true, maxlength: 80 });
+    var amount = el('input', { type: 'number', min: 1, inputmode: 'numeric', placeholder: 'Amount ₦', value: '' });
+    var period = select([['monthly', 'Monthly'], ['yearly', 'Yearly']], 'monthly', { 'aria-label': 'How often' });
+    var due = el('input', { type: 'date', value: new Date(Date.now() + 3600000).toISOString().slice(0, 10) });
+    name.addEventListener('change', function () {
+      other.hidden = name.value !== 'Other';
+      var p = SERVICE_PRESETS.filter(function (x) { return x[0] === name.value; })[0];
+      if (p) period.value = p[1];
+      if (name.value === 'Custom system hosting and care' && !amount.value) amount.value = PKG.custom.monthly;
+      if (name.value === 'Customer accounts (Standard Store)' && !amount.value) amount.value = PKG.price.renewalAddon;
+    });
+    var add = el('details', { class: 'admin-ai-own' }, [el('summary', { text: '+ Add a monthly or yearly fee' }),
+      field('Service', name), other, field('Amount (₦)', amount), field('How often', period), field('First due date', due, 'The first invoice and reminders go out from 7 days before.'),
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Add', onclick: function () {
+        var n = name.value === 'Other' ? other.value.trim() : name.value;
+        if (!n || !(Number(amount.value) > 0)) return fail(new Error('Choose the service and the amount'));
+        save((r.services || []).concat([{ name: n, amount: Number(amount.value), period: period.value, next_due: due.value, active: true }]), 'Added. Reminders and invoices are automatic.').then(function () { amount.value = ''; add.open = false; });
+      } })]);
+    box.appendChild(list); box.appendChild(add);
+    draw();
+    return box;
+  }
+  var SERVICE_PRESETS = [['Dedicated database', 'monthly'], ['Custom system hosting and care', 'monthly'], ['Customer accounts (Standard Store)', 'yearly'], ['Website care plan', 'monthly']];
 
   // ===================== Marketing =====================
   // Tabs: Today (what to post), Ready ads, Showcase, Review cards, Festive, Offer, Referrals, Ad spend.
@@ -1533,6 +1728,14 @@
       return el('li', null, [el('b', { text: k }), ' · ' + o.n + ' request' + (o.n === 1 ? '' : 's') + ' · ' + o.won + ' paid' + (o.won ? ' (' + naira(o.value) + ')' : '')]);
     })) : el('p', { class: 'admin-empty', text: 'No requests in the last 90 days.' }));
     view.appendChild(el('p', { class: 'admin-hint', text: 'Ads: add ?utm_source=facebook&utm_campaign=ibadan-test to the website link in your ad (any names you like) and it shows here. WhatsApp-only ads: set "Came from" on the customer.' }));
+    var dbLine = el('p', { class: 'admin-hint' });
+    view.appendChild(dbLine);
+    api('POST', { action: 'mk_neon' }).then(function (j) {
+      if (!j.configured || !j.usage) return;
+      var u = j.usage, free = ((state.settings && state.settings.neon_plan) || 'free') === 'free', pct = Math.round(100 * u.cuh / j.free.cuh);
+      dbLine.textContent = 'Database this month: ' + u.cuh + (free ? ' of ' + j.free.cuh + ' free hours (' + pct + '%)' + (pct >= 70 ? '. Upgrade soon: Packages → Database.' : '.') : ' hours (Launch plan).');
+      if (free && pct >= 70) dbLine.className = 'admin-error';
+    }).catch(function () {});
 
     if (due.length) {
       view.appendChild(el('h2', { class: 'admin-h2', text: 'Follow up now' }));
@@ -1656,6 +1859,7 @@
     var SOURCE = { manual: 'Added by hand', form: 'Package form', contact: 'Contact form', 'chat-form': 'Chat (no AI reply)' };
     if (SOURCE[r.source]) badges.appendChild(badge(SOURCE[r.source]));
     if (r.came_from && r.came_from !== 'direct') badges.appendChild(badge('From: ' + r.came_from, 'is-from'));
+    if (r.wants) badges.appendChild(badge(r.wants === 'customer_accounts' ? 'Wants customer accounts' : 'Wants a custom system', 'is-due'));
     if (r.follow_up_on && isOpen(r)) {
       var d = daysUntil(r.follow_up_on);
       badges.appendChild(badge(d < 0 ? 'Follow-up ' + (-d) + 'd overdue' : d === 0 ? 'Follow up today' : 'Follow up ' + niceDate(r.follow_up_on), d <= 0 ? 'is-due' : ''));
@@ -2828,6 +3032,10 @@
       card.appendChild(fold(r, 'after', 'After launch', aftercareBlock(r), oc ? [oc + ' change' + (oc === 1 ? '' : 's') + ' waiting', 'is-due'] : ['Up to date', 'is-won'], oc > 0));
     }
     if (r.status === 'won' && (r.website_url || r.live_on)) card.appendChild(fold(r, 'referral', 'Referrals', referralBlock(r), r.ref_code ? ['Code ' + r.ref_code, ''] : null, false));
+    if (r.status === 'won') {
+      var svcN = (r.services || []).filter(function (x) { return x.active; }).length;
+      card.appendChild(fold(r, 'services', 'Monthly / yearly services', servicesBlock(r), svcN ? [svcN + ' active', 'is-won'] : null, false));
+    }
     var hsent = (r.auto_sent || {}).handover, hbal = balance(r), hlocked = r.quote_amount == null || hbal > 0;
     card.appendChild(fold(r, 'handover', 'Handover pack', handoverBlock(r), hsent ? ['Sent', 'is-won'] : hlocked ? ['Locked', ''] : ['Ready to send', 'is-new'], !hsent && !hlocked));
     return card;

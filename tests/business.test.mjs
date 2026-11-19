@@ -334,6 +334,97 @@ test("Marketing: offer bar + chat, referrals with rewards, ad spend report, QR, 
   assert.match(lp.text, /sirraddodemo\.com\.ng/);
 });
 
+test("monthly/yearly services: invoice, pay online, next due moves on, reminders, receipt; project balance untouched", async () => {
+  const id = (await h.action({ action: "create", name: "Musa Bello", contact: "08036660000", interest: "Custom app", email: "musa@gmail.com" })).json.id;
+  await h.admin("PATCH", "/api/requests", { id, quote_amount: 300000, status: "won" });
+  const t = (await h.action({ action: "doc_link", id })).json.doc_token;
+  const today = new Date(Date.now() + 3600000).toISOString().slice(0, 10);
+  const in5 = new Date(Date.now() + 3600000 + 5 * 86400000).toISOString().slice(0, 10);
+  assert.equal((await h.admin("PATCH", "/api/requests", { id, services: [{ name: "", amount: 1, next_due: today }] })).status, 400);
+  let row = (await h.admin("PATCH", "/api/requests", { id, services: [{ name: "Custom system hosting and care", amount: "₦30,000", period: "monthly", next_due: in5 }] })).json;
+  const sid = row.services[0].id;
+  assert.match(sid, /^[a-z0-9]{6,16}$/);
+  // Invoice + pay button
+  const inv = await h.call("GET", `/doc?t=${t}&type=service&s=${sid}`);
+  assert.equal(inv.status, 200);
+  assert.match(inv.text, /Custom system hosting and care — monthly fee/);
+  assert.match(inv.text, /for=service-/);
+  assert.equal((await h.call("GET", `/doc?t=${t}&type=service&s=nope00`)).status, 404);
+  // Pay online: the project deposit is due too, so ask for the service explicitly
+  const pg = await h.call("GET", `/pay?t=${t}&for=service-${sid}`);
+  assert.match(pg.text, /₦30,000/);
+  const start = await h.call("POST", "/api/pay", { t, email: "musa@gmail.com", for: "service-" + sid });
+  const ref = refFrom(start.json.url);
+  const [body, headers] = signed({ event: "charge.success", data: { reference: ref } });
+  await h.call("POST", "/api/paystack-webhook", body, headers);
+  await h.call("POST", "/api/paystack-webhook", body, headers);
+  row = await h.row(id);
+  assert.equal(row.payments.length, 1, "recorded once");
+  assert.equal(row.payments[0].kind, "service");
+  const next = new Date(in5 + "T12:00:00Z"); next.setUTCMonth(next.getUTCMonth() + 1);
+  assert.equal(row.services[0].next_due, next.toISOString().slice(0, 10), "next due moved on a month");
+  const rc = await h.call("GET", `/doc?t=${t}&type=receipt`);
+  assert.match(rc.text, /Custom system hosting and care payment/);
+  assert.match((await h.call("GET", `/pay?t=${t}`)).text, /70% deposit|₦210,000/, "the project deposit is still fully due (service payment doesn't count)");
+  // Recorded by hand (transfer)
+  row = (await h.action({ action: "mk_svc_paid", id, service_id: sid, payment: { amount: "30000" } })).json;
+  assert.equal(row.payments.length, 2);
+  const next2 = new Date(next.toISOString().slice(0, 10) + "T12:00:00Z"); next2.setUTCMonth(next2.getUTCMonth() + 1);
+  assert.equal(row.services[0].next_due, next2.toISOString().slice(0, 10));
+  // Reminder: due in 5 days → email with a pay link; daily summary lists it
+  await h.admin("PATCH", "/api/requests", { id, services: [{ ...row.services[0], next_due: in5 }] });
+  const { runDaily } = await import("../api/_lib/automation.mjs");
+  const n = h.sent.length;
+  await runDaily(new Date(), { once: false });
+  const mails = h.newMail(n);
+  assert.ok(mails.some((m) => m.to.includes("musa@gmail.com") && /Custom system hosting and care: payment due/.test(m.subject) && /for=service-/.test(m.html)), "client reminded with a pay link");
+  assert.ok(mails.some((m) => /Monthly \/ yearly service fees due/.test(m.html)), "you see it in the daily summary");
+  // Stop: no more reminders
+  await h.admin("PATCH", "/api/requests", { id, services: [{ ...row.services[0], next_due: in5, active: false }] });
+  assert.match((await h.call("GET", `/pay?t=${t}&for=service-${sid}`)).text, /₦210,000|Nothing to pay/);
+});
+
+test("demand: the chat and forms tag people who want customer accounts or a custom system", async () => {
+  const { detectWants } = await import("../api/_lib/store.mjs");
+  assert.equal(detectWants("I want my customers to login and see order history"), "customer_accounts");
+  assert.equal(detectWants("need saved delivery addresses for buyers"), "customer_accounts");
+  assert.equal(detectWants("a school portal where students check results"), "custom_system");
+  assert.equal(detectWants("a nice bakery website"), null);
+  await h.call("POST", "/api/lead", { name: "Ife Store", contact: "08031234321", interest: "Online Store", details: "Customers should have accounts with order history" });
+  const all = (await h.admin("GET", "/api/requests?view=all")).json.requests;
+  assert.equal(all.find((r) => r.name === "Ife Store").wants, "customer_accounts");
+  const d = (await h.action({ action: "mk_demand" })).json.demand;
+  assert.ok(d.some((x) => x.name === "Ife Store" && x.wants === "customer_accounts"));
+  const { SAVE_TOOL } = await import("../api/_lib/knowledge.mjs");
+  assert.deepEqual(SAVE_TOOL.input_schema.properties.needs.enum, ["customer_accounts", "custom_system"]);
+});
+
+test("database usage watch: reads Neon, shows in admin, emails once at 70% and once at 90%", async () => {
+  assert.equal((await h.action({ action: "mk_neon" })).json.configured, false);
+  process.env.NEON_API_KEY = "napi_test";
+  try {
+    const nu = await import("../api/_lib/neon-usage.mjs");
+    globalThis.__NEON_CU_SECONDS__ = 3600 * 20;
+    const j = (await h.action({ action: "mk_neon", refresh: true })).json;
+    assert.equal(j.usage.cuh, 20); assert.equal(j.usage.storageGB, 0.12); assert.equal(j.usage.project, "proj-test");
+    let n = h.sent.length;
+    await nu.checkNeonUsage({ plan: "free" });
+    assert.equal(h.newMail(n).length, 0, "no warning at 20%");
+    globalThis.__NEON_CU_SECONDS__ = 3600 * 75;
+    n = h.sent.length;
+    await nu.checkNeonUsage({ plan: "free" }); await nu.checkNeonUsage({ plan: "free" });
+    assert.equal(h.newMail(n).filter((m) => /Database at 75%/.test(m.subject)).length, 1, "70% warning once");
+    globalThis.__NEON_CU_SECONDS__ = 3600 * 93;
+    n = h.sent.length;
+    await nu.checkNeonUsage({ plan: "free" });
+    assert.ok(h.newMail(n).some((m) => /Database at 93%/.test(m.subject) && /Upgrade today/.test(m.html)), "90% warning");
+    n = h.sent.length;
+    await nu.checkNeonUsage({ plan: "launch" });
+    assert.equal(h.newMail(n).length, 0, "no warnings on Launch");
+    assert.equal((await h.action({ action: "mk_neon" })).json.usage.cuh, 93);
+  } finally { delete process.env.NEON_API_KEY; delete globalThis.__NEON_CU_SECONDS__; }
+});
+
 test("change requests: private page, emails, Mark done; free month then quote first", async () => {
   await h.sql(`UPDATE customer_requests SET live_on = CURRENT_DATE - 5 WHERE id = $1`, [ada]);
   const info = (await h.action({ action: "changes", id: ada })).json;

@@ -60,6 +60,7 @@ async function handleSave(input, ctx) {
     interest: str(input.interest, 60) || "Other",
     details: str(input.details, 2000),
     ideas: cleanIdeas({ ...(input.ideas || {}), recommended: input.recommended }),
+    wants: ["customer_accounts", "custom_system"].includes(input.needs) ? input.needs : null,
   };
   if (!r.name || !(/\d{7,}/.test(r.contact.replace(/\D/g, "")) || /\S+@\S+\.\S+/.test(r.contact))) {
     return { ok: false, text: "Not saved: a name and a valid phone number or email are needed. Ask the visitor for them." };

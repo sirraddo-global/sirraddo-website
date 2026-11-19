@@ -92,7 +92,8 @@ Choosing a package
 - A simple online presence, few pages, small budget: Starter.
 - Wants to be found on Google and Maps, needs several staff emails, or wants a blog: Business.
 - Wants to sell products online with payment: Online Store.
-- Needs special features (bookings, portals, dashboards, apps): Custom app, quoted by the team.`;
+- Needs special features (bookings, portals, dashboards, apps): Custom app, quoted by the team (set needs = custom_system when saving).
+- Online store where buyers have accounts (sign in, see their orders and receipts, save delivery addresses, reorder): this "Standard Store" is coming soon and is not available to buy yet. Say so honestly, offer the normal Online Store now (buyers already get a receipt to save and can order on WhatsApp), take their details, and save with needs = customer_accounts so the team tells them first. Don't promise a date or a price.`;
 
 export const SAVE_TOOL = {
   name: "save_customer_request",
@@ -113,6 +114,11 @@ export const SAVE_TOOL = {
       details: {
         type: "string",
         description: "Short summary for the team: what they need, budget, timeline, questions still open",
+      },
+      needs: {
+        type: "string",
+        enum: ["customer_accounts", "custom_system"],
+        description: "Only if they asked for it: customer_accounts = an online store where buyers sign in, see their orders and save delivery addresses; custom_system = logins/portals/dashboards/booking or school/clinic systems.",
       },
       recommended: {
         type: "string",

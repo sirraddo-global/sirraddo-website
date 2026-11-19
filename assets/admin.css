@@ -323,3 +323,9 @@ a.admin-btn{text-decoration:none}
 .pkg-costs { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 .pkg-cost h3 { margin: 0 0 2px; }
 .pkg-cost p { margin: 4px 0; }
+.usage-row { margin: 10px 0; }
+.usage-top { display: flex; justify-content: space-between; gap: 10px; font-size: .95rem; }
+.usage-bar { height: 10px; background: var(--bg-soft); border-radius: 6px; overflow: hidden; margin-top: 4px; }
+.usage-bar span { display: block; height: 100%; background: #1F8A4C; }
+.usage-bar.is-warn span { background: #D9A21B; }
+.usage-bar.is-bad span { background: #B42318; }

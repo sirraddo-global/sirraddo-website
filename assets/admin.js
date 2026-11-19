@@ -144,6 +144,8 @@
       state.requests = j.requests || [];
       state.unanswered = j.unanswered || [];
       state.settings = j.settings || {};
+      state.me = j.me || { role: 'owner', perms: [] };
+      applyRole();
       state.totals = j.totals || null;
       state.statuses = j.statuses || [];
       state.stages = j.stages || [];
@@ -167,7 +169,25 @@
     try { sessionStorage.removeItem(KEY); localStorage.removeItem(LONG); } catch (e) { /* ignore */ }
     showApp(false);
   }
+  // Staff accounts see only the tabs and parts their permissions allow (the server checks everything too).
+  function canDo(perm) { var m = state.me || { role: 'owner' }; return m.role === 'owner' || (perm === 'view') || ((m.perms || []).indexOf(perm) !== -1); }
+  function isOwner() { return !state.me || state.me.role === 'owner'; }
+  var TAB_PERM = { settings: 'owner', packages: 'owner', marketing: 'marketing', access: 'staff' };
+  function tabAllowed(t) {
+    var need = TAB_PERM[t];
+    if (!need) return true;
+    if (need === 'staff') return !isOwner();
+    if (need === 'owner') return isOwner();
+    return canDo(need);
+  }
+  function applyRole() {
+    Array.prototype.forEach.call(document.querySelectorAll('.admin-tabs button[data-tab]'), function (b) { b.hidden = !tabAllowed(b.getAttribute('data-tab')); });
+    if (!tabAllowed(state.tab)) state.tab = 'dashboard';
+    var who = $('who');
+    if (who) { who.hidden = isOwner(); who.textContent = isOwner() ? '' : 'Signed in as ' + state.me.name; }
+  }
   function setTab(tab) {
+    if (!tabAllowed(tab)) tab = 'dashboard';
     state.tab = tab;
     Array.prototype.forEach.call(document.querySelectorAll('.admin-tabs button'), function (b) {
       b.setAttribute('aria-pressed', b.getAttribute('data-tab') === tab ? 'true' : 'false');
@@ -185,7 +205,7 @@
     var view = $('view');
     view.textContent = '';
     var fn = { dashboard: renderDashboard, requests: renderRequests, clients: renderClients,
-      questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant, marketing: renderMarketing, packages: renderPackages, playbook: renderPlaybook }[state.tab];
+      questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant, marketing: renderMarketing, packages: renderPackages, playbook: renderPlaybook, access: renderAccess }[state.tab];
     fn(view);
   }
 
@@ -929,6 +949,139 @@
         }))]));
       draw();
     }).catch(fail);
+  }
+
+  // ===================== Staff: Settings → Staff (owner) and My access (staff) =====================
+  var PERM_INFO = {
+    customers: ['Customers', 'Add customers, update details, status (not Won), follow-up dates and notes; answer website questions; reviews'],
+    changes: ['Change requests', 'Change requests (incl. Do it with AI and previews), send customers their Manage link, visitor reports'],
+    marketing: ['Marketing', 'Ready ads, picture and video maker, AI captions, showcase, referrals'],
+    money: ['Money', 'Quotes, invoices, receipts, payments, Won status, renewals, monthly/yearly services, ad spend'],
+    build: ['Build and publish', 'Website text, AI design, previews, project stage, go live, publish, pause, restore']
+  };
+  var PERM_PRESETS = [['support', 'Customer support', ['customers', 'changes', 'marketing']], ['manager', 'Manager (everything except settings)', ['customers', 'changes', 'marketing', 'money', 'build']], ['marketing', 'Marketing only', ['marketing']]];
+  function ownerWa() { return String((state.settings && state.settings.owner_whatsapp) || '2348112999073').replace(/\D/g, ''); }
+  function staffSettings(view) {
+    var card = el('div', { class: 'admin-card admin-settings' }, [el('h2', { text: 'Staff accounts' }),
+      el('p', { class: 'admin-hint', text: 'Give someone their own login with limited access (for example while you’re away). They use the same admin page with their own password. Settings, offers, emails, backups, staff and deleting stay yours only. Everything they change is listed below.' })]);
+    var name = el('input', { placeholder: 'Their name', maxlength: 80 });
+    var phone = el('input', { placeholder: 'Their WhatsApp number', inputmode: 'tel' });
+    var preset = select(PERM_PRESETS.map(function (p) { return [p[0], p[1]]; }), 'support', { 'aria-label': 'Role' });
+    var boxes = {};
+    var perms = el('div', { class: 'perm-list' }, Object.keys(PERM_INFO).map(function (k) {
+      boxes[k] = el('input', { type: 'checkbox' });
+      return el('label', null, [boxes[k], el('span', null, [el('b', { text: PERM_INFO[k][0] }), ' · ' + PERM_INFO[k][1]])]);
+    }));
+    function setPreset() { var p = PERM_PRESETS.filter(function (x) { return x[0] === preset.value; })[0]; Object.keys(boxes).forEach(function (k) { boxes[k].checked = p[2].indexOf(k) !== -1; }); }
+    preset.addEventListener('change', setPreset); setPreset();
+    var shown = el('div');
+    var owa = el('input', { value: (state.settings && state.settings.owner_whatsapp) || '2348112999073', inputmode: 'tel' });
+    [field('Name', name), field('WhatsApp', phone), field('Role', preset, 'Start from a role, then tick or untick'), perms].forEach(function (x) { card.appendChild(x); });
+    function showPassword(st, password) {
+      shown.innerHTML = '';
+      var url = location.origin + '/admin';
+      var msg = 'Hello ' + st.name.split(' ')[0] + ', here is your SIRRADDO admin login.\nPage: ' + url + '\nYour password: ' + password + '\nKeep it private and don’t share it. Open "My access" after logging in to see what you can do.';
+      var num = String(st.phone || '').replace(/\D/g, '').replace(/^0/, '234');
+      shown.appendChild(el('div', { class: 'admin-card' }, [el('h3', { text: 'Password for ' + st.name + ' (shown once)' }), el('p', { class: 'staff-pass', text: password }),
+        el('p', { class: 'admin-hint', text: 'Send it privately on WhatsApp. You can’t see it again; use "New password" if it’s lost.' }),
+        el('div', { class: 'admin-actions' }, [
+          el('button', { class: 'admin-btn', type: 'button', text: 'Copy password', onclick: function (e) { copyText(password, 'Password', e.currentTarget); } }),
+          num ? el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + num + '?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Send login on WhatsApp' }) : null])]));
+      shown.scrollIntoView({ behavior: 'smooth' });
+    }
+    card.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Add staff', onclick: function () {
+      api('POST', { action: 'staff_add', staff: { name: name.value, phone: phone.value, perms: Object.keys(boxes).filter(function (k) { return boxes[k].checked; }) } })
+        .then(function (j) { name.value = phone.value = ''; flash('Staff added'); showPassword(j.staff, j.password); drawList(j.staff_list); }).catch(fail);
+    } }));
+    card.appendChild(shown);
+    card.appendChild(field('Your WhatsApp (staff tap "Message the owner")', owa));
+    card.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Save number', onclick: function () {
+      api('POST', { action: 'settings', settings: { owner_whatsapp: owa.value.replace(/\D/g, '').replace(/^0/, '234') } }).then(function (j) { state.settings = j.settings; flash('Saved'); }).catch(fail);
+    } }));
+    view.appendChild(card);
+    var listBox = el('div'), logBox = el('div');
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Staff' })); view.appendChild(listBox);
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'What staff did (latest first)' })); view.appendChild(logBox);
+    function drawList(list) {
+      listBox.innerHTML = '';
+      if (!list.length) { listBox.appendChild(el('p', { class: 'admin-empty', text: 'No staff yet.' })); return; }
+      list.forEach(function (st) {
+        var cb = {};
+        var c = el('div', { class: 'admin-card' }, [el('h3', { text: st.name + (st.active ? '' : ' (switched off)') }),
+          el('p', { class: 'admin-meta', text: (st.phone || 'no number') + ' · last seen ' + (st.last_seen_at ? when(st.last_seen_at) : 'never') })]);
+        c.appendChild(el('div', { class: 'perm-list' }, Object.keys(PERM_INFO).map(function (k) {
+          cb[k] = el('input', { type: 'checkbox' }); cb[k].checked = st.perms.indexOf(k) !== -1;
+          cb[k].addEventListener('change', function () {
+            api('POST', { action: 'staff_update', staff_id: st.id, staff: { perms: Object.keys(cb).filter(function (x) { return cb[x].checked; }) } }).then(function (j) { flash('Access updated'); drawList(j.staff); }).catch(fail);
+          });
+          return el('label', null, [cb[k], el('span', { text: PERM_INFO[k][0] })]);
+        })));
+        c.appendChild(el('div', { class: 'admin-actions' }, [
+          el('button', { class: 'admin-btn', type: 'button', text: st.active ? 'Switch off' : 'Switch on', onclick: function () {
+            api('POST', { action: 'staff_update', staff_id: st.id, staff: { active: !st.active } }).then(function (j) { flash(st.active ? 'Switched off: they are logged out' : 'Switched on'); drawList(j.staff); }).catch(fail);
+          } }),
+          el('button', { class: 'admin-btn', type: 'button', text: 'New password', onclick: function () {
+            if (!window.confirm('Make a new password for ' + st.name + '? The old one stops working and they are logged out.')) return;
+            api('POST', { action: 'staff_reset', staff_id: st.id }).then(function (j) { showPassword(j.staff, j.password); drawList(j.staff_list); }).catch(fail);
+          } }),
+          el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Remove', onclick: function () {
+            if (!window.confirm('Remove ' + st.name + '? Their login stops working. (What they did stays in the list below.)')) return;
+            api('POST', { action: 'staff_delete', staff_id: st.id }).then(function (j) { flash('Removed'); drawList(j.staff); }).catch(fail);
+          } })
+        ]));
+        listBox.appendChild(c);
+      });
+    }
+    api('POST', { action: 'staff_list' }).then(function (j) {
+      drawList(j.staff);
+      logBox.appendChild(j.log.length ? el('ul', { class: 'admin-mini' }, j.log.map(function (l) {
+        return el('li', null, [el('b', { text: l.staff_name }), ' · ' + l.what + (l.customer ? ' · ' + l.customer : '') + ' · ' + when(l.at)]);
+      })) : el('p', { class: 'admin-empty', text: 'Nothing yet.' }));
+    }).catch(fail);
+  }
+
+  // Staff → My access: what this account can do, step-by-step guides, and when to hand over to the owner.
+  var ACCESS_GUIDES = {
+    view: [['See today’s work', ['Dashboard shows follow-ups due, new requests and website questions.', 'Tap a name to open the customer.']],
+      ['Find the right reply for a situation', ['Open Playbook and search (e.g. "refund", "not opening", "domain").', 'Type the customer’s first name, tap Copy reply or Open in WhatsApp.', 'If the steps need something your account can’t do, message the owner (button below).']],
+      ['Ask for help', ['Open Assistant and describe the situation in your own words, e.g. "a customer says their website isn’t opening".', 'Pick the customer in the About box for advice about that job.']]],
+    customers: [['Reply to a new request', ['Requests → open the newest one and read what they need.', 'Tap the WhatsApp message buttons (ready messages) and send.', 'Set Status to Contacted and a Follow up on date (Tomorrow / In 3 days).']],
+      ['Follow up', ['Dashboard → Follow up today → open each one.', 'Send the follow-up message, then move the follow-up date on, or set Lost with a note if they said no.']],
+      ['Add a customer who messaged on WhatsApp', ['Requests → Add a customer: name, phone, package, How did they find us?, what they need.', 'Then reply and set a follow-up date.']],
+      ['Answer a website question', ['Questions → read the question → type the answer (the chat learns it).']]],
+    changes: [['Handle a change request', ['Clients → the customer → After launch → Show change requests.', 'Tap Do it with AI (or wait: it is often ready already). Check the list of edits.', 'Open preview to check, then Send preview on WhatsApp. The customer taps "Put these changes live".', 'If the AI couldn’t do something (e.g. new colours), message the owner.']],
+      ['A request that came on WhatsApp', ['Show change requests → Add a request from WhatsApp → paste what they asked → Do it with AI.']],
+      ['Customer lost their Manage link', ['Client → Manage my website → copy their link and send it privately on WhatsApp.', 'If it may have leaked, ask the owner to make a new one.']]],
+    marketing: [['Post today’s ad', ['Marketing → Today → Share (phone) or Download, then paste the caption.', 'Tick "I posted today".']],
+      ['Captions in Pidgin or Yoruba', ['Any ad → Write captions with AI → choose the language → Copy.']],
+      ['Make a video', ['Marketing → Video maker → type the idea → Write the video → check the lines → Make the video (keep the screen on) → Share.']]],
+    money: [['Send an invoice', ['Client card → Documents → Invoice → send on WhatsApp.']], ['Record a transfer', ['Client card → Payments → add the amount and date.']]],
+    build: [['Update a live website', ['Client → Go live → Update live site after a change.', 'Something broke? Restore previous version.']]]
+  };
+  function renderAccess(view) {
+    var me = state.me || {};
+    view.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Welcome, ' + String(me.name || '').split(' ')[0] }),
+      el('p', { class: 'admin-hint', text: 'This is what your account can do, with step-by-step guides. If something isn’t here, your account can’t do it: message the owner.' }),
+      el('div', { class: 'admin-actions' }, [
+        el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + ownerWa() + '?text=' + encodeURIComponent('Hello Ridwan, it’s ' + me.name + ' from admin. I need your help with: '), target: '_blank', rel: 'noopener', text: 'Message the owner' }),
+        el('button', { class: 'admin-btn', type: 'button', text: 'Ask the assistant', onclick: function () { setTab('assistant'); } }),
+        el('button', { class: 'admin-btn', type: 'button', text: 'Open the Playbook', onclick: function () { setTab('playbook'); } })])]));
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Your account can' }));
+    view.appendChild(el('ul', { class: 'admin-mini' }, [el('li', { text: 'See requests, clients, website questions, chats, the Playbook and the assistant' })].concat(Object.keys(PERM_INFO).filter(function (k) { return canDo(k); }).map(function (k) {
+      return el('li', null, [el('b', { text: PERM_INFO[k][0] + ': ' }), PERM_INFO[k][1]]);
+    }))));
+    var not = Object.keys(PERM_INFO).filter(function (k) { return !canDo(k); });
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Ask the owner for' }));
+    view.appendChild(el('ul', { class: 'admin-mini' }, not.map(function (k) { return el('li', null, [el('b', { text: PERM_INFO[k][0] + ': ' }), PERM_INFO[k][1]]); }).concat([
+      el('li', { text: 'Refunds, discounts or price changes; angry or legal complaints; copyright or data-deletion requests; anything about passwords or keys; settings, offers, emails and backups; deleting anything.' })])));
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Step by step' }));
+    ['view'].concat(Object.keys(PERM_INFO).filter(function (k) { return canDo(k); })).forEach(function (k) {
+      (ACCESS_GUIDES[k] || []).forEach(function (g) {
+        view.appendChild(el('details', { class: 'admin-card pb-item' }, [el('summary', { text: g[0] }), el('ol', { class: 'admin-mini' }, g[1].map(function (t) { return el('li', { text: t }); }))]));
+      });
+    });
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Golden rules' }));
+    view.appendChild(el('ul', { class: 'admin-mini' }, ['Reply to customers within an hour during the day, politely, in their language.', 'Never ask customers for passwords, card numbers or Paystack keys.', 'Never share one customer’s details with another.', 'Never promise prices, discounts or dates that aren’t in the Playbook policies.', 'Not sure? Ask the assistant, then the owner.'].map(function (t) { return el('li', { text: t }); })));
   }
 
   // ===================== Marketing =====================
@@ -2013,6 +2166,7 @@
 
     // Status and follow-up
     var status = select(state.statuses, r.status, null);
+    if (!canDo('money') && r.status !== 'won') Array.prototype.forEach.call(status.options, function (o) { if (o.value === 'won') o.disabled = true; });
     status.addEventListener('change', function () {
       var f = { status: status.value };
       if (status.value === 'won') {
@@ -2035,7 +2189,8 @@
     wrap.appendChild(el('div', { class: 'admin-grid' }, [field('Status', status), field('Follow up on', follow)]));
     wrap.appendChild(quick);
 
-    // Quote and payments
+    // Quote and payments (staff without Money don't see them)
+    if (canDo('money')) {
     var quote = el('input', { type: 'number', min: 0, step: 1000, inputmode: 'numeric', value: r.quote_amount == null ? '' : r.quote_amount, placeholder: DEFAULT_QUOTE[r.interest] || '' });
     quote.addEventListener('change', function () { update(r, { quote_amount: quote.value }, 'Quote saved'); });
     var bal = balance(r);
@@ -2047,6 +2202,7 @@
 
     // Documents
     wrap.appendChild(docsBlock(r));
+    }
 
     wrap.appendChild(briefBlock(r));
 
@@ -2072,7 +2228,7 @@
     if (r.transcript && r.transcript.length) wrap.appendChild(transcript(r.transcript, 'Conversation (' + r.transcript.length + ' messages)'));
 
     // Delete
-    wrap.appendChild(el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Delete request', onclick: function () {
+    if (isOwner()) wrap.appendChild(el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Delete request', onclick: function () {
       if (!window.confirm('Delete ' + r.name + '? This cannot be undone.')) return;
       api('DELETE', null, '?id=' + r.id).then(function () {
         state.requests = state.requests.filter(function (x) { return x.id !== r.id; });
@@ -2555,7 +2711,9 @@
   }
 
   // A tap-to-open section of a client card. The block's own heading moves into the bar, beside its status.
+  var FOLD_PERM = { golive: 'build', handover: 'build', store: 'money', services: 'money', referral: 'marketing', after: 'changes', manage: 'changes', brief: 'customers' };
   function fold(r, key, title, block, status, attention) {
+    if (FOLD_PERM[key] && !canDo(FOLD_PERM[key])) return document.createTextNode('');
     state.folds = state.folds || {};
     var id = r.id + ':' + key;
     var d = el('details', { class: 'admin-fold' });
@@ -3166,7 +3324,7 @@
   // Settings are split into small sections (chips at the top) so there's no long scrolling.
   var SETTINGS_SECTIONS = [
     ['business', 'Bank & invoices'], ['messages', 'WhatsApp messages'], ['handover', 'Handover'],
-    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['greetings', 'Festive greetings'], ['backup', 'Backup']
+    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['backup', 'Backup']
   ];
   function renderSettings(view) {
     var s = state.settings;
@@ -3220,6 +3378,7 @@
     if (pick === 'reviews') view.appendChild(reviewsCard());
     if (pick === 'email') view.appendChild(emailUsageCard());
     if (pick === 'greetings') view.appendChild(greetingsCard());
+    if (pick === 'staff') staffSettings(view);
     if (pick === 'backup') view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
       el('h2', { text: 'Backup' }),
       el('p', { class: 'admin-intro', text: 'Every Monday a backup of all your business data (customers, quotes, payments, website text, orders, change requests) is emailed to you as a file. Keep those emails. You can also download one now. It contains customer details, so keep it private.' }),

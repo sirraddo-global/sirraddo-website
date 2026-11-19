@@ -32,6 +32,7 @@ import { noticesForAdmin, saveNotice, deleteNotice, NOTICE_KINDS } from "./_lib/
 import { getConfig, saveConfig, occurrences, queueEmails, emailStatus, audience, GREETING_EMAILS_PER_DAY } from "./_lib/greetings.mjs";
 import { changeLink, listChanges, markChange, freeUntil, addChange } from "./_lib/changes.mjs";
 import { cleanServices, recordServicePayment } from "./_lib/services.mjs";
+import { PERMS, permFor, fieldPerms, can, staffFromCredential, staffSessionToken, logStaff } from "./_lib/staff.mjs";
 import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
@@ -77,6 +78,15 @@ function authorised(req) {
   const b = createHash("sha256").update(expected).digest();
   return timingSafeEqual(a, b);
 }
+// Who is calling: the owner (ADMIN_PASSWORD or its session), a staff member (their password or session), or nobody.
+async function whoIs(req) {
+  if (authorised(req)) return { role: "owner", name: "Owner", perms: Object.keys(PERMS) };
+  if ((process.env.ADMIN_PASSWORD || "").length < 12) return null;
+  const given = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  if (!given || given.startsWith("s1.") || !dbConfigured()) return null;
+  return staffFromCredential(given).catch(() => null);
+}
+const NOT_ALLOWED = "Your account can't do this. Ask the owner (Ridwan) to do it, or to give your account access.";
 
 class Bad extends Error {}
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -178,7 +188,8 @@ export default async function handler(req, res) {
   const recent = (failed.get(ip) || []).filter((t) => now - t < 15 * 60 * 1000);
   if (recent.length >= 10) return res.status(429).json({ error: "Too many attempts. Try again in 15 minutes." });
 
-  if (!authorised(req)) {
+  const me = await whoIs(req);
+  if (!me) {
     recent.push(now);
     failed.set(ip, recent);
     const configured = (process.env.ADMIN_PASSWORD || "").length >= 12;
@@ -190,11 +201,17 @@ export default async function handler(req, res) {
   // Every customer row sent back carries its handover checklist (what's left before the job is finished).
   const checkSettings = req.method === "GET" ? {} : await getSettings().catch(() => ({}));
   const sendJson = res.json.bind(res);
-  res.json = (o) => sendJson(o && typeof o === "object" && !Array.isArray(o) && o.id && "payments" in o && "hosting" in o
-    ? { ...o, handover_check: handoverChecklist(o, checkSettings) } : o);
+  const hideMoney = me.role === "staff" && !can(me, "money");
+  const strip = (r) => (hideMoney && r && typeof r === "object" && "payments" in r ? { ...r, payments: [], quote_amount: null, renewal_amount: null } : r);
+  res.json = (o) => {
+    if (o && typeof o === "object" && !Array.isArray(o) && o.id && "payments" in o && "hosting" in o) o = { ...o, handover_check: handoverChecklist(o, checkSettings) };
+    if (hideMoney && o && typeof o === "object") { o = strip(o); if (o.row) o = { ...o, row: strip(o.row) }; }
+    return sendJson(o);
+  };
   try {
     if (req.method === "GET") {
       if (query.view === "chats") return res.status(200).json({ chats: await listChats() });
+      if ((query.view === "backup" && !can(me, "owner")) || ((query.view === "export" || query.view === "draft") && !can(me, "build"))) return res.status(403).json({ error: NOT_ALLOWED });
       if (query.view === "backup") {
         const b = await buildBackup();
         res.setHeader("Content-Type", "application/gzip");
@@ -229,13 +246,23 @@ export default async function handler(req, res) {
       const [requests, unanswered, settings, setup, totals] = await Promise.all([listRequests(), listUnanswered(), getSettings(), setupStatus(), dashboardTotals().catch(() => null)]);
       for (const r of requests) r.handover_check = handoverChecklist(r, settings);
       const email_usage = await emailUsage(14).catch(() => null);
-      return res.status(200).json({ requests, unanswered, settings, setup, totals, email_usage, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
+      const meOut = { role: me.role, name: me.name, perms: me.perms };
+      if (me.role === "staff") {
+        // Staff see customers and jobs, not the money totals, setup details or email usage unless they have Money.
+        return res.status(200).json({ me: meOut, requests: can(me, "money") ? requests : requests.map((r) => ({ ...r, payments: [], quote_amount: null, renewal_amount: null })),
+          unanswered, settings, setup: [], totals: can(me, "money") ? totals : null, email_usage: null, statuses: STATUSES, stages: STAGES,
+          can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
+      }
+      return res.status(200).json({ me: meOut, requests, unanswered, settings, setup, totals, email_usage, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
     }
 
     if (req.method === "PATCH") {
       const body = readBody(req);
       const id = Number(body.id);
       if (!Number.isInteger(id)) throw new Bad("Missing id");
+      const needs = fieldPerms(body);
+      if (!needs.every((p) => can(me, p))) return res.status(403).json({ error: NOT_ALLOWED });
+      await logStaff(me, "Edited " + Object.keys(body).filter((k) => k !== "id").join(", "), id);
       const changed = cleanFields(body);
       let row = await updateRequest(id, changed);
       if (!row) return res.status(404).json({ error: "Not found" });
@@ -255,6 +282,7 @@ export default async function handler(req, res) {
       return res.status(200).json(row);
     }
 
+    if (req.method === "DELETE" && me.role !== "owner") return res.status(403).json({ error: NOT_ALLOWED });
     if (req.method === "DELETE") {
       const id = Number(query.id);
       if (!Number.isInteger(id)) throw new Bad("Missing id");
@@ -266,6 +294,8 @@ export default async function handler(req, res) {
 
     if (req.method === "POST") {
       const body = readBody(req);
+      if (!can(me, permFor(body.action))) return res.status(403).json({ error: NOT_ALLOWED });
+      if (me.role === "staff" && !["session", "assistant", "mk_playbook", "mk_qr", "mk_captions", "mk_video_script", "changes", "mk_showcase_list", "mk_showcase", "mk_reviews", "mk_ref", "mk_ref_top", "mk_offer_get", "mk_demand", "mk_spend", "shop_orders", "site_stats"].includes(body.action)) await logStaff(me, String(body.action || "").replace(/_/g, " "), Number(body.id));
       if (body.action === "create") {
         const f = cleanFields({ name: body.name, contact: body.contact, email: body.email || "", business: body.business, interest: body.interest || "Other", details: body.details || "" });
         if (!f.name || !f.contact) throw new Bad("Name and contact are required");
@@ -349,8 +379,22 @@ export default async function handler(req, res) {
       }
       if (body.action === "session") {
         // Only with the real password (not with another session), so a stolen token can't renew itself forever.
-        if (String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").startsWith("s1.")) throw new Bad("Log in with your password");
+        if (/^s[12]\./.test(String(req.headers.authorization || "").replace(/^Bearer\s+/i, ""))) throw new Bad("Log in with your password");
+        if (me.role === "staff") return res.status(200).json({ token: staffSessionToken(me.row, SESSION_DAYS), days: SESSION_DAYS });
         return res.status(200).json({ token: makeSession(), days: SESSION_DAYS });
+      }
+      // Staff accounts (owner only).
+      if (String(body.action || "").startsWith("staff_")) {
+        if (me.role !== "owner") return res.status(403).json({ error: NOT_ALLOWED });
+        const st = await import("./_lib/staff.mjs");
+        try {
+          if (body.action === "staff_list") return res.status(200).json({ staff: await st.listStaff(), log: await st.staffLog(100), perms: st.PERMS, presets: st.PRESETS });
+          if (body.action === "staff_add") { const out = await st.addStaff(body.staff || {}); return res.status(200).json({ ...out, staff_list: await st.listStaff() }); }
+          if (body.action === "staff_update") return res.status(200).json({ staff: await st.updateStaff(body.staff_id, body.staff || {}) });
+          if (body.action === "staff_reset") { const out = await st.resetStaffPassword(body.staff_id); return res.status(200).json({ ...out, staff_list: await st.listStaff() }); }
+          if (body.action === "staff_delete") return res.status(200).json({ staff: await st.deleteStaff(body.staff_id) });
+        } catch (e) { throw new Bad(e.message); }
+        throw new Bad("Unknown action");
       }
       if (body.action === "assistant") {
         const raw = Array.isArray(body.messages) ? body.messages.slice(-20) : [];
@@ -367,7 +411,7 @@ export default async function handler(req, res) {
         if (!provider) throw new Bad("No AI key is set in Netlify (GEMINI_API_KEY or ANTHROPIC_API_KEY)");
         const id = Number.isInteger(Number(body.id)) && Number(body.id) > 0 ? Number(body.id) : null;
         try {
-          const out = await provider.call(provider.start(msgs), await assistantSystem(id), [], FUNCTION_BUDGET_MS() - 3000, { maxTokens: 1500, attemptMs: FUNCTION_BUDGET_MS() - 5000 });
+          const out = await provider.call(provider.start(msgs), await assistantSystem(id, me), [], FUNCTION_BUDGET_MS() - 3000, { maxTokens: 1500, attemptMs: FUNCTION_BUDGET_MS() - 5000 });
           return res.status(200).json({ reply: (out.text || "").trim() || "Sorry, I couldn't answer that. Try asking another way." });
         } catch (e) {
           console.error("admin assistant failed", e.code, e.message);

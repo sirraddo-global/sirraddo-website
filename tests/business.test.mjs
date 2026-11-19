@@ -803,3 +803,56 @@ test("Website chat knows our whole published FAQ (kept in step by the build) and
   for (const q of questions) assert.ok(sys.includes(q.replace(/"/g, '\\"')) || sys.includes(q), `chat doesn't know: ${q}`);
   for (const fact of ["Manage", "Ask me first", "Search Console", ".com.ng", "sirraddodemo.com.ng", "receipt"]) assert.ok(sys.includes(fact), `chat doesn't know: ${fact}`);
 });
+
+test("staff accounts: limited access, no money, owner-only actions blocked, activity logged", async () => {
+  const as = (pw) => async (method, path, body) => h.call(method, path, body, { authorization: "Bearer " + pw });
+  const id = (await h.action({ action: "create", name: "Staff Test Customer", contact: "08037770001", interest: "Starter website" })).json.id;
+  await h.admin("PATCH", "/api/requests", { id, quote_amount: 80000 });
+  // Only the owner manages staff.
+  const add = await h.action({ action: "staff_add", staff: { name: "Tunde Staff", phone: "08031112222", perms: ["customers", "changes"] } });
+  assert.equal(add.status, 200, add.text);
+  const pw = add.json.password;
+  assert.match(pw, /^sgl-/);
+  const staff = as(pw);
+  // The staff password logs in; "me" says who they are.
+  const all = await staff("GET", "/api/requests?view=all");
+  assert.equal(all.status, 200, all.text);
+  assert.equal(all.json.me.role, "staff");
+  assert.deepEqual(all.json.me.perms.sort(), ["changes", "customers"]);
+  const row = all.json.requests.find((r) => r.id === id);
+  assert.equal(row.quote_amount, null, "money hidden");
+  assert.deepEqual(row.payments, []);
+  // Allowed: customer fields. Blocked: money fields, Won, delete, settings, staff, backup.
+  assert.equal((await staff("PATCH", "/api/requests", { id, notes: "called back" })).status, 200);
+  assert.equal((await staff("PATCH", "/api/requests", { id, quote_amount: 1 })).status, 403);
+  assert.equal((await staff("PATCH", "/api/requests", { id, status: "won" })).status, 403);
+  assert.equal((await staff("DELETE", "/api/requests", { id })).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "settings", settings: { owner_whatsapp: "1" } })).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "staff_list" })).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "doc_link", id })).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "mk_offer_save", offer: {} })).status, 403);
+  assert.equal((await staff("GET", "/api/requests?view=backup")).status, 403);
+  assert.equal((await staff("POST", "/api/requests", { action: "unknown_new_thing" })).status, 403, "unknown actions are owner only");
+  // Keep me logged in gives a staff token that works, and an owner token can't be minted from it.
+  const tok = (await staff("POST", "/api/requests", { action: "session" })).json;
+  const t = tok.token || tok.session;
+  assert.match(t, /^s2\./);
+  assert.equal((await as(t)("GET", "/api/requests?view=all")).json.me.name, "Tunde Staff");
+  // The owner sees what they did, and can switch them off (password and token stop working).
+  const list = (await h.action({ action: "staff_list" })).json;
+  assert.ok(list.log.some((l) => /Edited/.test(l.what) && l.staff_name === "Tunde Staff"));
+  const sid = add.json.staff.id;
+  await h.action({ action: "staff_update", staff_id: sid, staff: { active: false } });
+  assert.equal((await staff("GET", "/api/requests?view=all")).status, 401);
+  assert.equal((await as(t)("GET", "/api/requests?view=all")).status, 401);
+  // A new password replaces the old one.
+  await h.action({ action: "staff_update", staff_id: sid, staff: { active: true } });
+  const np = (await h.action({ action: "staff_reset", staff_id: sid })).json.password;
+  assert.equal((await staff("GET", "/api/requests?view=all")).status, 401);
+  assert.equal((await as(np)("GET", "/api/requests?view=all")).status, 200);
+  // With Money, they can see the quote.
+  await h.action({ action: "staff_update", staff_id: sid, staff: { perms: ["customers", "money"] } });
+  assert.equal((await as(np)("GET", "/api/requests?view=all")).json.requests.find((r) => r.id === id).quote_amount, 80000);
+  assert.equal((await h.action({ action: "staff_delete", staff_id: sid })).status, 200);
+  assert.equal((await as(np)("GET", "/api/requests?view=all")).status, 401);
+});

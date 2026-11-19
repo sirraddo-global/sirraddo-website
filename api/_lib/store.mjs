@@ -38,6 +38,8 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS wants TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ref_used INTEGER NOT NULL DEFAULT 0`,
   `CREATE UNIQUE INDEX IF NOT EXISTS customer_requests_ref_code ON customer_requests (ref_code)`,
+  `CREATE TABLE IF NOT EXISTS staff (id SERIAL PRIMARY KEY, name TEXT NOT NULL, phone TEXT, pass_hash TEXT NOT NULL UNIQUE, perms JSONB NOT NULL DEFAULT '[]'::jsonb, active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ)`,
+  `CREATE TABLE IF NOT EXISTS staff_log (id SERIAL PRIMARY KEY, staff_id INTEGER, staff_name TEXT, what TEXT NOT NULL, request_id INTEGER, at TIMESTAMPTZ NOT NULL DEFAULT now())`,
   `CREATE TABLE IF NOT EXISTS ad_spend (id SERIAL PRIMARY KEY, day DATE NOT NULL, platform TEXT NOT NULL, tag TEXT NOT NULL, amount INTEGER NOT NULL, note TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS follow_up_on DATE`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS quote_amount INTEGER`,
@@ -582,7 +584,7 @@ export async function deleteUnanswered(id) {
 export const SETTING_KEYS = [
   "bank_name", "account_name", "account_number", "invoice_note",
   "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief", "tpl_receipt", "tpl_invoice",
-  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward", "pkg_build", "pkg_addon", "pkg_renewal_addon", "pkg_rate", "custom_build_from", "custom_monthly", "neon_plan",
+  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward", "pkg_build", "pkg_addon", "pkg_renewal_addon", "pkg_rate", "custom_build_from", "custom_monthly", "neon_plan", "owner_whatsapp",
 ];
 export async function getSettings() {
   await ensureSchema();

@@ -185,7 +185,7 @@
     var view = $('view');
     view.textContent = '';
     var fn = { dashboard: renderDashboard, requests: renderRequests, clients: renderClients,
-      questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant, marketing: renderMarketing }[state.tab];
+      questions: renderQuestions, chats: renderChats, settings: renderSettings, assistant: renderAssistant, marketing: renderMarketing, packages: renderPackages }[state.tab];
     fn(view);
   }
 
@@ -470,6 +470,166 @@
     { file: 'qr-card.jpg', pdf: 'qr-card.pdf', title: 'QR counter card (A6, print)', size: 'A6 · 105 × 148 mm', group: 'print',
       caption: 'Print, laminate and stand it on the counter of every customer whose website you built (with their permission).' }
   ];
+  // ===================== Packages: Standard Store guide (not built yet) =====================
+  // A planning page: what the Standard Store (Online Store + customer accounts) includes, every subscription it
+  // needs and what each costs, a cost calculator, and the full process from first chat to handover.
+  // Prices checked 19 Nov 2026 (Netlify, Neon, Render, Whogohost); change PKG below if they move.
+  var PKG = {
+    rate: 1400, // ₦ per $1 (official ~₦1,330–1,380 + card charges)
+    netlify: { freeCredits: 300, personal: { usd: 9, credits: 1000 }, pro: { usd: 20, credits: 5000 }, deploy: 15, perCall: 0.0012 },
+    neon: { freeCuH: 100, cuh: 0.106, gbMonth: 0.35, size: 0.25 },
+    domainYear: 6450,
+    price: { build: 200000, addon: 50000, renewalAddon: 25000 }
+  };
+  function nN(n) { return '₦' + Math.round(n).toLocaleString('en-NG'); }
+  function renderPackages(view) {
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('span', { class: 'admin-badge is-due', text: 'Planned package · not built yet' }),
+      el('h2', { text: 'Standard Store (Online Store + customer accounts)' }),
+      el('p', { class: 'admin-hint', text: 'A full shopping experience like the big online marketplaces: buyers create an account, sign in, keep their order records and save delivery addresses. Use this page to quote it, see what it costs you to run, and follow the steps when you are ready to build it with Claude. (In ads and on the website, never name other companies.)' })
+    ]));
+
+    // 1. What the buyer and the store owner get
+    view.appendChild(el('h2', { class: 'admin-h2', text: '1. What it includes' }));
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('h3', { text: 'For buyers (the store’s customers)' }),
+      el('ul', { class: 'admin-mini' }, [
+        'Create an account and sign in: "Sign in with Google" (one tap) or phone number + password',
+        'My orders: every order with status, items, amounts and the receipt (save as picture/PDF, share)',
+        'Saved delivery addresses: several addresses (home, office…), one as default, filled in at checkout',
+        'Reorder in one tap, wishlist / saved items, edit profile',
+        'Checkout faster: name, phone and address already filled in',
+        'No emails to buyers (our rule): Google sign-in needs none; a forgotten password is reset by the store owner'
+      ].map(function (t) { return el('li', { text: t }); })),
+      el('h3', { text: 'For the store owner (in their Manage link)' }),
+      el('ul', { class: 'admin-mini' }, [
+        'Customers list: name, phone, number of orders, total spent, last order',
+        'Each customer’s orders and saved addresses (for delivery)',
+        'Reset a buyer’s password (gives a one-time code to send on WhatsApp)',
+        'Download customers and orders as a spreadsheet (CSV)',
+        'Turn accounts off/on; buyers can still check out as guests'
+      ].map(function (t) { return el('li', { text: t }); }))
+    ]));
+
+    // 2. Price to the customer
+    view.appendChild(el('h2', { class: 'admin-h2', text: '2. Suggested price (you decide)' }));
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('ul', { class: 'admin-mini' }, [
+        el('li', null, [el('b', { text: 'Build: ' + nN(PKG.price.build) }), ' (Online Store ₦150,000 + customer accounts ' + nN(PKG.price.addon) + ')']),
+        el('li', null, [el('b', { text: 'Yearly: their normal renewal + ' + nN(PKG.price.renewalAddon) }), ' (covers your share of the database and hosting upgrades below)']),
+        el('li', null, [el('b', { text: 'Existing Online Store customers: ' + nN(PKG.price.addon) }), ' to add accounts to their store'])
+      ])
+    ]));
+
+    // 3. Subscriptions and costs
+    view.appendChild(el('h2', { class: 'admin-h2', text: '3. What it costs you to run' }));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'All Standard Stores share the same hosting and database, so these are not per store: you pay only when total use outgrows the free plans. ₦ at ' + nN(PKG.rate) + ' per $1.' }));
+    var costs = [
+      ['Netlify', 'Your site and the store logins, orders and addresses', 'Free: 300 credits a month (sites pause if you pass it)',
+        ['Personal: $9/month (1,000 credits) = ' + nN(9 * PKG.rate) + '/month · ' + nN(9 * PKG.rate * 12) + '/year', 'Pro: from $20/month = ' + nN(20 * PKG.rate) + '/month · ' + nN(20 * PKG.rate * 12) + '/year (only if you pass 1,000 credits)']],
+      ['Neon', 'The database: accounts, orders, saved addresses', 'Free: 100 CU-hours and 1 GB a month (pauses at the limit)',
+        ['Launch, pay as you go: $0.106 per CU-hour + $0.35 per GB-month, no minimum', 'Light use: ~' + nN(5.65 * PKG.rate) + '/month · ~' + nN(5.65 * PKG.rate * 12) + '/year', 'Busy all day: ~' + nN(19.7 * PKG.rate) + '/month · ~' + nN(19.7 * PKG.rate * 12) + '/year']],
+      ['Cloudflare', 'Store websites, DNS, email forwarding', 'Free', ['Not needed: ₦0']],
+      ['Google sign-in', 'Google Cloud (project sirraddo-websites)', 'Free', ['Not needed: ₦0']],
+      ['Phone + password login', 'No SMS', 'Free', ['Not needed: ₦0']],
+      ['.com.ng domain', 'Per store; the customer pays it in their renewal', '', ['~' + nN(PKG.domainYear) + '/year (Whogohost list price)']],
+      ['Paystack', 'The store pays Paystack\u2019s fee on each sale, not you', '', ['₦0 to you']]
+    ];
+    view.appendChild(el('div', { class: 'pkg-costs' }, costs.map(function (c) {
+      return el('div', { class: 'admin-card pkg-cost' }, [
+        el('h3', { text: c[0] }), el('p', { class: 'admin-meta', text: c[1] }),
+        c[2] ? el('p', null, [el('b', { text: 'Now: ' }), c[2]]) : null,
+        el('ul', { class: 'admin-mini' }, c[3].map(function (t) { return el('li', { text: t }); }))
+      ]);
+    })));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Worst case with everything upgraded: about ' + nN((9 + 19.7) * PKG.rate) + ' a month (' + nN((9 + 19.7) * PKG.rate * 12) + ' a year), shared by all your stores. Likely ₦0 for a good while. Note: the database cost is mostly fixed (about ' + nN(19.7 * PKG.rate) + ' a month once it is busy all day), so the more Standard Stores you have, the cheaper each one is. Your normal Online Stores may push the database onto the paid plan too as they grow.' }));
+
+    // 4. Calculator
+    view.appendChild(el('h2', { class: 'admin-h2', text: '4. Cost calculator' }));
+    var calc = el('div', { class: 'admin-card' });
+    var stores = el('input', { type: 'number', min: 0, value: 5, inputmode: 'numeric' });
+    var buyers = el('input', { type: 'number', min: 0, value: 200, inputmode: 'numeric' });
+    var deploys = el('input', { type: 'number', min: 0, value: 8, inputmode: 'numeric' });
+    var rate = el('input', { type: 'number', min: 1, value: PKG.rate, inputmode: 'numeric' });
+    var out = el('div');
+    function calcNow() {
+      var s = Math.max(0, +stores.value || 0), b = Math.max(0, +buyers.value || 0), d = Math.max(0, +deploys.value || 0), fx = Math.max(1, +rate.value || PKG.rate);
+      // Each active buyer ≈ 20 account calls a month (sign-in, orders, addresses, checkout); your own site and admin ≈ 60 credits.
+      var calls = s * b * 20;
+      var credits = Math.round(d * PKG.netlify.deploy + calls * PKG.netlify.perCall + 60);
+      var plan = credits <= PKG.netlify.freeCredits * 0.85 ? ['Free', 0] : credits <= PKG.netlify.personal.credits * 0.9 ? ['Personal', 9] : ['Pro', 20];
+      // Database: awake ~5 minutes after each use. 80% of use in 16 daytime hours, 20% at night.
+      var dayRate = calls * 0.8 / 30 / 16, nightRate = calls * 0.2 / 30 / 8;
+      var awake = 16 * (1 - Math.exp(-dayRate * 5 / 60)) + 8 * (1 - Math.exp(-nightRate * 5 / 60)) + 1;
+      var cuh = Math.round(awake * 30 * PKG.neon.size + 15); // + your own admin, site and chat
+      var neonUsd = cuh <= PKG.neon.freeCuH ? 0 : cuh * PKG.neon.cuh + 0.35;
+      var month = (plan[1] + neonUsd) * fx;
+      var revenue = s * PKG.price.renewalAddon;
+      out.innerHTML = '';
+      out.appendChild(el('ul', { class: 'admin-mini' }, [
+        el('li', null, ['Account calls: ', el('b', { text: calls.toLocaleString('en-NG') + ' a month' })]),
+        el('li', null, ['Netlify: ', el('b', { text: '~' + credits + ' credits a month → ' + plan[0] + (plan[1] ? ' ($' + plan[1] + ' = ' + nN(plan[1] * fx) + '/month)' : ' (₦0)') })]),
+        el('li', null, ['Neon: ', el('b', { text: '~' + cuh + ' CU-hours a month → ' + (neonUsd ? 'Launch (~$' + neonUsd.toFixed(2) + ' = ' + nN(neonUsd * fx) + '/month)' : 'Free (₦0)') })]),
+        el('li', null, ['Total running cost: ', el('b', { text: nN(month) + ' a month · ' + nN(month * 12) + ' a year' })]),
+        el('li', null, ['Your yearly add-on income from ' + s + ' store' + (s === 1 ? '' : 's') + ': ', el('b', { text: nN(revenue) + (revenue >= month * 12 ? ' ✓ covers it' : ' ✗ not enough yet') })]),
+        month > 0 ? el('li', null, ['Break-even: ', el('b', { text: Math.ceil(month * 12 / PKG.price.renewalAddon) + ' Standard Stores at ' + nN(PKG.price.renewalAddon) + ' a year' }), ' (or charge more per store)']) : null
+      ]));
+      out.appendChild(el('p', { class: 'admin-hint', text: 'An estimate: real use shows in Netlify → Usage and Neon → Billing. Check monthly.' }));
+    }
+    [stores, buyers, deploys, rate].forEach(function (x) { x.addEventListener('input', calcNow); });
+    [field('Standard Stores', stores), field('Active buyers per store per month', buyers), field('Website updates (deploys) per month', deploys), field('₦ per $1', rate)].forEach(function (x) { calc.appendChild(x); });
+    calc.appendChild(out);
+    view.appendChild(calc);
+    calcNow();
+
+    // 5. Process
+    view.appendChild(el('h2', { class: 'admin-h2', text: '5. From first chat to handover' }));
+    var steps = [
+      ['A customer asks', 'From the website chat, WhatsApp or an ad. Until this package is built, the chat sells the normal Online Store; for "customer accounts / logins / saved addresses", reply yourself with this package and price.'],
+      ['Quote and invoice', 'Requests → their request → Package "Online Store", Quote ' + nN(PKG.price.build) + ', and write "Standard Store (customer accounts)" in the summary. Send the invoice.'],
+      ['70% deposit', 'They pay online (Paystack link on the invoice) or by transfer; it is recorded and the receipt goes out by itself.'],
+      ['Project form', 'They fill the Online Store form: products, photos, delivery areas, and connect their own Paystack (Connect link).'],
+      ['Build the accounts part (once, then reuse)', 'The first time, ask Claude: "Build the Standard Store customer accounts from the Packages page". It adds buyer accounts, orders history, saved addresses and the owner’s customer list to the platform. After that, every Standard Store just switches it on.'],
+      ['Google sign-in (one time + 1 minute per store)', 'One time: Google Cloud (project sirraddo-websites) → APIs & Services → OAuth consent screen (External, app name SIRRADDO) → Credentials → Create OAuth client ID (Web). Per store: add https://theirdomain.com.ng to "Authorised JavaScript origins". Free.'],
+      ['Preview and approval', 'They choose a design and test: sign up, add an address, place a test order, see it under My orders.'],
+      ['Balance and go live', 'They pay the 30% balance; Go live puts the store on their domain. Test once more on the real domain.'],
+      ['Handover', 'The handover pack and their Manage link: customers list, resetting a buyer’s password, downloading customers and orders.'],
+      ['Every month', 'Check Netlify → Usage and Neon → Billing. Upgrade only when the free limits are close (steps below).']
+    ];
+    view.appendChild(el('ol', { class: 'admin-steps' }, steps.map(function (s) { return el('li', null, [el('b', { text: s[0] }), el('p', { class: 'admin-hint', text: s[1] })]); })));
+
+    // 6. Upgrades
+    view.appendChild(el('h2', { class: 'admin-h2', text: '6. How to upgrade (only when needed)' }));
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('h3', { text: 'Neon (database) → Launch' }),
+      el('ol', { class: 'admin-mini' }, [
+        'When: Neon → Billing shows close to 100 CU-hours or 1 GB in a month (the database pauses at the limit until next month).',
+        'console.neon.tech → your organisation → Billing → Upgrade → Launch. Add a dollar card.',
+        'Nothing to move: the same database and connection string keep working (no change in Netlify).',
+        'Keep "scale to zero" on, and set a spending limit (e.g. $25/month) so a busy month can’t surprise you.',
+        'Cost: pay only for use, $0.106 per CU-hour and $0.35 per GB-month, no monthly minimum (about ' + nN(5.65 * PKG.rate) + '–' + nN(19.7 * PKG.rate) + ' a month).'
+      ].map(function (t) { return el('li', { text: t }); })),
+      el('h3', { text: 'Netlify (hosting) → Personal' }),
+      el('ol', { class: 'admin-mini' }, [
+        'When: Netlify → Usage shows over ~250 of 300 credits in a month (on Free, sites pause at 300).',
+        'app.netlify.com → team SIRRADDO GLOBAL LIMITED → Team settings → Billing → Change plan → Personal ($9/month, 1,000 credits). Add a dollar card.',
+        'Leave "auto recharge" off unless you want it to buy extra credits by itself.',
+        'Cost: ' + nN(9 * PKG.rate) + ' a month (' + nN(9 * PKG.rate * 12) + ' a year). Pro (from $20/month) only if you outgrow 1,000 credits.'
+      ].map(function (t) { return el('li', { text: t }); })),
+      el('h3', { text: 'Paying in dollars' }),
+      el('p', { class: 'admin-hint', text: 'Both bill in US dollars. Use a dollar (domiciliary) card or a virtual dollar card, and keep a little extra for exchange-rate changes.' })
+    ]));
+
+    // 7. Before launch
+    view.appendChild(el('h2', { class: 'admin-h2', text: '7. Before you sell it' }));
+    view.appendChild(el('ul', { class: 'admin-mini' }, [
+      'Privacy page: add buyer accounts (what is stored, that it belongs to the store owner, how to delete an account).',
+      'Terms: the store owner is responsible for their customers’ data on their store.',
+      'Website and chat: add the package and price (Claude can do this when building it).',
+      'Never email buyers from SIRRADDO’s email (our rule): Google sign-in or owner password resets only.'
+    ].map(function (t) { return el('li', { text: t }); })));
+  }
+
   // ===================== Marketing =====================
   // Tabs: Today (what to post), Ready ads, Showcase, Review cards, Festive, Offer, Referrals, Ad spend.
   // Pictures for Showcase / Review cards / Festive / Offer are drawn here in the browser (canvas), with a tagged QR.

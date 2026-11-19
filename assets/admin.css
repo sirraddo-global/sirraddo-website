@@ -317,3 +317,9 @@ a.admin-btn{text-decoration:none}
 .admin-table { border-collapse: collapse; width: 100%; font-size: .9rem; }
 .admin-table th, .admin-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line, #E3E7F0); white-space: nowrap; }
 .admin-table td.is-good { color: #1F8A4C; font-weight: 700; }
+.admin-steps { padding-left: 22px; margin: 8px 0 16px; }
+.admin-steps li { margin: 10px 0; }
+.admin-steps li p { margin: 2px 0 0; }
+.pkg-costs { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.pkg-cost h3 { margin: 0 0 2px; }
+.pkg-cost p { margin: 4px 0; }

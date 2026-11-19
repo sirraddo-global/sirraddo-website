@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en-NG">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>My store – SIRRADDO</title>
+  <meta name="theme-color" content="#13254F">
+  <script src="/assets/theme.js"></script>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/assets/mystore.webmanifest">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="My store">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <link rel="stylesheet" href="/assets/admin.css">
+  <script src="/assets/mystore.js" defer></script>
+</head>
+<body class="admin">
+  <header class="admin-bar">
+    <div class="container admin-bar-inner">
+      <strong id="store-name">My store</strong>
+      <button class="admin-link" id="logout" type="button" hidden>Log out</button>
+    </div>
+  </header>
+
+  <main class="container admin-main">
+    <form id="login" class="admin-login">
+      <h1>Log in to your store</h1>
+      <label for="username">Username</label>
+      <input id="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <label class="admin-check"><input id="remember" type="checkbox"> Keep me logged in on this device (30 days)</label>
+      <button class="btn btn--navy" type="submit">Log in</button>
+      <p id="login-error" class="admin-error" role="alert"></p>
+      <p class="admin-hint">Use the username and password SIRRADDO sent you on WhatsApp. The first time, you’ll choose your own password. Forgot it? Message SIRRADDO on WhatsApp to reset it.</p>
+    </form>
+
+    <div id="app" hidden>
+      <nav class="admin-tabs" aria-label="My store">
+        <button type="button" data-tab="orders" aria-pressed="true">Orders</button>
+        <button type="button" data-tab="products" aria-pressed="false">Products</button>
+        <button type="button" data-tab="customers" aria-pressed="false" hidden>Customers</button>
+        <button type="button" data-tab="payments" aria-pressed="false">Payments</button>
+        <button type="button" data-tab="shop" aria-pressed="false">Shop details</button>
+        <button type="button" data-tab="account" aria-pressed="false">Account</button>
+      </nav>
+      <p id="app-status" class="admin-status" role="status" aria-live="polite"></p>
+      <section id="view"></section>
+    </div>
+  </main>
+</body>
+</html>

@@ -502,7 +502,7 @@
     { file: 'qr-card.jpg', pdf: 'qr-card.pdf', title: 'QR counter card (A6, print)', size: 'A6 · 105 × 148 mm', group: 'print',
       caption: 'Print, laminate and stand it on the counter of every customer whose website you built (with their permission).' }
   ];
-  // ===================== Packages: Standard Store guide (not built yet) =====================
+  // ===================== Packages: Standard Store guide (built; switch it on per store) =====================
   // A planning page: what the Standard Store (Online Store + customer accounts) includes, every subscription it
   // needs and what each costs, a cost calculator, and the full process from first chat to handover.
   // Prices checked 19 Nov 2026 (Netlify, Neon, Render, Whogohost); change PKG below if they move.
@@ -511,7 +511,7 @@
     rate: 1400, // ₦ per $1 (official ~₦1,330–1,380 + card charges); from Settings (Packages → Prices)
     netlify: { freeCredits: 300, personal: { usd: 9, credits: 1000 }, pro: { usd: 20, credits: 5000 }, deploy: 15, perCall: 0.0012 },
     neon: { freeCuH: 100, cuh: 0.106, gbMonth: 0.35, size: 0.25 },
-    domainYear: 6450,
+    domainYear: 7200, // .com.ng renewal at Whogohost (the cheap first-year prices online are promos)
     price: { build: 200000, addon: 50000, renewalAddon: 25000 },
     custom: { build: 300000, monthly: 30000 }
   };
@@ -533,8 +533,9 @@
   }
   function pkgStandard(view) {
     view.appendChild(el('div', { class: 'admin-card' }, [
-      el('span', { class: 'admin-badge is-due', text: 'Planned package · not built yet' }),
+      el('span', { class: 'admin-badge is-won', text: 'Available now' }),
       el('h2', { text: 'Standard Store (Online Store + customer accounts)' }),
+      el('p', { class: 'admin-hint', text: 'Built and ready: switch it on for a store on its client card → Online store payments → Ways to pay and Standard Store features → Customer accounts. On the website and in the chat it says "Price on request"; the prices below are only for you (and staff with Money).' }),
       el('p', { class: 'admin-hint', text: 'A full shopping experience like the big online marketplaces: buyers create an account, sign in, keep their order records and save delivery addresses. Use this page to quote it, see what it costs you to run, and follow the steps when you are ready to build it with Claude. (In ads and on the website, never name other companies.)' })
     ]));
 
@@ -545,30 +546,49 @@
       el('ul', { class: 'admin-mini' }, [
         'Create an account and sign in: "Sign in with Google" (one tap) or phone number + password',
         'My orders: every order with status, items, amounts and the receipt (save as picture/PDF, share)',
-        'Saved delivery addresses: several addresses (home, office…), one as default, filled in at checkout',
-        'Reorder in one tap, wishlist / saved items, edit profile',
+        'Saved delivery addresses: up to 5 (home, office…), offered at checkout; a new address is saved by itself',
+        'Order again in one tap, edit name and email, change password',
         'Checkout faster: name, phone and address already filled in',
         'No emails to buyers (our rule): Google sign-in needs none; a forgotten password is reset by the store owner'
       ].map(function (t) { return el('li', { text: t }); })),
-      el('h3', { text: 'For the store owner (in their Manage link)' }),
+      el('h3', { text: 'For the store owner (My store → Customers)' }),
       el('ul', { class: 'admin-mini' }, [
         'Customers list: name, phone, number of orders, total spent, last order',
         'Each customer’s orders and saved addresses (for delivery)',
         'Reset a buyer’s password (gives a one-time code to send on WhatsApp)',
+        'Block or unblock an account',
         'Download customers and orders as a spreadsheet (CSV)',
-        'Turn accounts off/on; buyers can still check out as guests'
+        'Turn accounts off/on (My store → Payments); buyers can still check out as guests'
       ].map(function (t) { return el('li', { text: t }); }))
     ]));
 
     // 2. Price to the customer
-    view.appendChild(el('h2', { class: 'admin-h2', text: '2. Suggested price (you decide)' }));
+    view.appendChild(el('h2', { class: 'admin-h2', text: '2. Your price (only you see this)' }));
     view.appendChild(el('div', { class: 'admin-card' }, [
+      el('p', { class: 'admin-hint', text: 'Customers see "Price on request". Quote these (change them in Prices). The AI can suggest a price for an unusual job, but your saved price always comes first.' }),
       el('ul', { class: 'admin-mini' }, [
         el('li', null, [el('b', { text: 'Build: ' + nN(PKG.price.build) }), ' (Online Store ₦150,000 + customer accounts ' + nN(PKG.price.addon) + ')']),
         el('li', null, [el('b', { text: 'Yearly: their normal renewal + ' + nN(PKG.price.renewalAddon) }), ' (covers your share of the database and hosting upgrades below)']),
         el('li', null, [el('b', { text: 'Existing Online Store customers: ' + nN(PKG.price.addon) }), ' to add accounts to their store'])
-      ])
+      ]),
+      el('div', { class: 'admin-actions' }, [
+        el('button', { class: 'admin-btn', type: 'button', text: 'Change my prices', onclick: function () { state.pkgTab = 'prices'; render(); } }),
+        el('button', { class: 'admin-btn', type: 'button', text: 'Ask the AI for a price suggestion', onclick: function () {
+          asst = { id: null, msgs: [], busy: false }; setTab('assistant');
+          sendAssistant('A customer wants a Standard Store. Show my saved prices first, then suggest a price for a bigger job (e.g. 300+ products, delivery zones, extra pages) and say why. Label yours as a suggestion.');
+        } })])
     ]));
+    // Ways to pay (every Online Store; each one a switch)
+    view.appendChild(el('h2', { class: 'admin-h2', text: 'Ways to pay (every Online Store)' }));
+    view.appendChild(el('div', { class: 'pkg-costs' }, [
+      ['Online payment: Paystack', 'Card, bank transfer, USSD into the store’s own account', ['1.5% + ₦100 per payment (₦100 waived under ₦2,500), capped at ₦2,000: paid by the store', '₦0 to you']],
+      ['Online payment: Flutterwave (optional second option)', 'The owner adds their own key in My store → Payments', ['About 2% per payment (1.4% + 0.6%): paid by the store', 'Suggested add-on: ₦20,000–₦30,000 one-off (you decide)']],
+      ['Bank transfer to the store’s account', 'The buyer pays and taps "I’ve paid"; the owner confirms in My store after checking their bank app', ['No fees', '₦0 to run']],
+      ['Pay on delivery', 'The owner calls the buyer, delivers, then taps Paid & delivered', ['No fees; risk: buyers who don’t pay or pick up', '₦0 to run']],
+      ['Store owner admin (My store)', 'Login + password for orders, stock, prices, payments, customers', ['₦0 to run (same website and database)', 'Included in the Standard Store; for normal Online Stores your call (suggested ₦30,000–₦40,000 or free)']]
+    ].map(function (c) {
+      return el('div', { class: 'admin-card pkg-cost' }, [el('h3', { text: c[0] }), el('p', { class: 'admin-meta', text: c[1] }), el('ul', { class: 'admin-mini' }, c[2].map(function (t) { return el('li', { text: t }); }))]);
+    })));
 
     // 3. Subscriptions and costs
     view.appendChild(el('h2', { class: 'admin-h2', text: '3. What it costs you to run' }));
@@ -581,7 +601,7 @@
       ['Cloudflare', 'Store websites, DNS, email forwarding', 'Free', ['Not needed: ₦0']],
       ['Google sign-in', 'Google Cloud (project sirraddo-websites)', 'Free', ['Not needed: ₦0']],
       ['Phone + password login', 'No SMS', 'Free', ['Not needed: ₦0']],
-      ['.com.ng domain', 'Per store; the customer pays it in their renewal', '', ['~' + nN(PKG.domainYear) + '/year (Whogohost list price)']],
+      ['.com.ng domain', 'Per store; the customer pays it in their renewal', '', [nN(PKG.domainYear) + '/year renewal at Whogohost (first-year promos are cheaper)']],
       ['Paystack', 'The store pays Paystack\u2019s fee on each sale, not you', '', ['₦0 to you']]
     ];
     view.appendChild(el('div', { class: 'pkg-costs' }, costs.map(function (c) {
@@ -634,15 +654,15 @@
     // 5. Process
     view.appendChild(el('h2', { class: 'admin-h2', text: '5. From first chat to handover' }));
     var steps = [
-      ['A customer asks', 'From the website chat, WhatsApp or an ad. Until this package is built, the chat says it is coming soon, offers the normal Online Store, and tags them "Wants customer accounts" (Packages → Who\u2019s asking). Reply with this package and price when you are ready.'],
+      ['A customer asks', 'From the website chat, WhatsApp or an ad. The chat says "Price on request" (never a number) and tags them "Wants customer accounts" (Packages → Who\u2019s asking). Reply with your price from section 2.'],
       ['Quote and invoice', 'Requests → their request → Package "Online Store", Quote ' + nN(PKG.price.build) + ', and write "Standard Store (customer accounts)" in the summary. Send the invoice.'],
       ['70% deposit', 'They pay online (Paystack link on the invoice) or by transfer; it is recorded and the receipt goes out by itself.'],
       ['Project form', 'They fill the Online Store form: products, photos, delivery areas, and connect their own Paystack (Connect link).'],
-      ['Build the accounts part (once, then reuse)', 'The first time, ask Claude: "Build the Standard Store customer accounts from the Packages page". It adds buyer accounts, orders history, saved addresses and the owner’s customer list to the platform. After that, every Standard Store just switches it on.'],
+      ['Switch it on', 'Client card → Online store payments → Ways to pay and Standard Store features: tick Customer accounts (and the ways to pay they want), Save switches. Then Store owner login → Create their login → Send login on WhatsApp.'],
       ['Google sign-in (one time + 1 minute per store)', 'One time: Google Cloud (project sirraddo-websites) → APIs & Services → OAuth consent screen (External, app name SIRRADDO) → Credentials → Create OAuth client ID (Web). Per store: add https://theirdomain.com.ng to "Authorised JavaScript origins". Free.'],
       ['Preview and approval', 'They choose a design and test: sign up, add an address, place a test order, see it under My orders.'],
       ['Balance and go live', 'They pay the 30% balance; Go live puts the store on their domain. Test once more on the real domain.'],
-      ['Handover', 'The handover pack and their Manage link: customers list, resetting a buyer’s password, downloading customers and orders.'],
+      ['Handover', 'The handover pack, plus their My store login (sirraddo.com.ng/mystore): orders (confirm transfers, mark delivered), customers list, resetting a buyer’s password, downloading customers and orders. The Manage link stays as a backup.'],
       ['Every month', 'Packages → Database shows the database use (and emails you at 70% and 90%). Check Netlify → Usage too. Upgrade only when the free limits are close.'],
       ['Their yearly add-on', 'Client card → Monthly / yearly services → "Customer accounts (Standard Store)" (yearly). Invoices, reminders and receipts then run by themselves.']
     ];
@@ -1899,7 +1919,7 @@
     var log = el('div', { class: 'asst-log', 'aria-live': 'polite' });
     if (!asst.msgs.length) {
       var starters = job
-        ? ['What should I do next for this job?', 'Is anything wrong with this job?', 'Their domain is stuck on waiting for nameservers. What should I check?', 'Write a WhatsApp message asking them for the missing details.']
+        ? (canDo('money') ? ['Suggest a price for this job (my saved prices first)'] : []).concat(['What should I do next for this job?', 'Is anything wrong with this job?', 'Their domain is stuck on waiting for nameservers. What should I check?', 'Write a WhatsApp message asking them for the missing details.'])
         : ['Walk me through a job from lead to handover', 'How do I change nameservers at Whogohost?', 'A customer bought their domain on GoDaddy. What do they need to do?', 'Which jobs need my attention today?'];
       log.appendChild(el('div', { class: 'asst-starters' }, starters.map(function (q) {
         return el('button', { class: 'admin-btn', type: 'button', text: q, onclick: function () { sendAssistant(q); } });
@@ -2814,6 +2834,86 @@
     box.appendChild(acts);
     box.appendChild(list);
     box.appendChild(el('p', { class: 'admin-hint', text: 'Every product with a plain price (e.g. 4500) gets "Add to cart". Buyers then choose "Pay online" (only when a key is set) or "Order on WhatsApp". Products priced like "from 5k" stay WhatsApp-only. Paid orders are emailed to the store owner; buyers save or share their receipt on the thank-you page (we never email buyers). No need to republish after changing these settings.' }));
+    box.appendChild(storeOwnerBlock(r));
+    box.appendChild(storeOptionsBlock(r));
+    return box;
+  }
+
+  // The store owner's own login for My store (sirraddo.com.ng/mystore): username + temporary password sent on
+  // WhatsApp; they must choose their own the first time and after every reset. The Manage link stays as a backup.
+  function storeOwnerBlock(r) {
+    if (!isOwner()) return document.createTextNode(''); // the store section is yours only
+    var box = el('div', { class: 'admin-sub' }, [el('h4', { text: 'Store owner login (My store)' })]);
+    var out = el('div');
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Their own admin at sirraddo.com.ng/mystore: orders (confirm transfers, mark delivered), products and stock, payment switches, customers (Standard Store) and shop details. Nothing about other stores.' }));
+    box.appendChild(out);
+    function sendBox(j) {
+      var num = waNumber(r.contact);
+      var msg = 'Hello ' + String(r.name).split(' ')[0] + ', here is the login for your store’s own admin.\nPage: ' + location.origin + '/mystore\nUsername: ' + j.login.username + '\nTemporary password: ' + j.password + '\nIt works for ' + (j.temp_days || 3) + ' days. When you log in you’ll choose your own password. Keep it private.\nThere you can see and confirm orders, change prices and stock, and switch ways to pay on or off.';
+      return el('div', { class: 'admin-callout' }, [el('p', null, ['Username: ', el('b', { text: j.login.username })]), el('p', { class: 'admin-label', text: 'Temporary password (shown once)' }), el('p', { class: 'staff-pass', text: j.password }),
+        el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Copy password', onclick: function (e) { copyText(j.password, 'Password', e.currentTarget); } }),
+          num ? el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + num + '?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Send login on WhatsApp' }) : null])]);
+    }
+    function draw(j, shown) {
+      out.textContent = '';
+      var L = j.login;
+      if (!L) {
+        var u = el('input', { value: j.suggest || '', autocapitalize: 'none', spellcheck: 'false' });
+        out.appendChild(field('Username for them', u, 'What they type to log in. Must be different for every store.'));
+        out.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Create their login', onclick: function (e) {
+          var b = e.currentTarget; b.disabled = true;
+          api('POST', { action: 'store_login', id: r.id, do: 'create', username: u.value }).then(function (k) { draw(k, sendBox(k)); flash('Login created: send it on WhatsApp'); }).catch(function (er) { b.disabled = false; fail(er); });
+        } }));
+        return;
+      }
+      var expired = L.must_change && L.temp_expires && Date.parse(L.temp_expires) < Date.now();
+      out.appendChild(el('p', { class: 'admin-meta' }, [badge(!L.active ? 'Switched off' : L.must_change ? (expired ? 'Temporary password expired' : 'Waiting to choose their password') : 'Active', !L.active || expired ? 'is-due' : L.must_change ? 'is-new' : 'is-won'),
+        ' Username: ' + L.username + ' · last seen ' + (L.last_seen_at ? when(L.last_seen_at) : 'never')]));
+      if (shown) out.appendChild(shown);
+      out.appendChild(el('div', { class: 'admin-actions' }, [
+        el('button', { class: 'admin-btn', type: 'button', text: 'Reset password', onclick: function () {
+          if (!window.confirm('Give them a new temporary password? They are logged out everywhere and must choose a new one.')) return;
+          api('POST', { action: 'store_login', id: r.id, do: 'reset' }).then(function (k) { draw(k, sendBox(k)); }).catch(fail);
+        } }),
+        el('button', { class: 'admin-btn', type: 'button', text: 'Change username', onclick: function () {
+          var nu = window.prompt('New username (they log in with it at /mystore):', L.username); if (!nu || nu === L.username) return;
+          api('POST', { action: 'store_login', id: r.id, do: 'username', username: nu }).then(function (k) { draw(k); flash('Username changed: tell them on WhatsApp'); }).catch(fail);
+        } }),
+        el('button', { class: 'admin-btn', type: 'button', text: L.active ? 'Switch off' : 'Switch on', onclick: function () {
+          api('POST', { action: 'store_login', id: r.id, do: 'active', active: !L.active }).then(function (k) { draw(k); flash(L.active ? 'Switched off: they are logged out' : 'Switched on'); }).catch(fail);
+        } }),
+        el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Remove login', onclick: function () {
+          if (!window.confirm('Remove their My store login? Their Manage link still works (unless it is switched off).')) return;
+          api('POST', { action: 'store_login', id: r.id, do: 'delete' }).then(function (k) { k.suggest = j.suggest; draw(k); }).catch(fail);
+        } })]));
+    }
+    api('POST', { action: 'store_login', id: r.id, do: 'get' }).then(function (j) { draw(j); }).catch(fail);
+    return box;
+  }
+
+  // Ways to pay (each a switch, also in the owner's My store), the Standard Store features and the Manage link.
+  function storeOptionsBlock(r) {
+    var sh = r.shop || {}, t = sh.transfer || {}, d = sh.delivery || {};
+    var box = el('div', { class: 'admin-sub' }, [el('h4', { text: 'Ways to pay and Standard Store features' })]);
+    function tg(label, on, hint) { var c = el('input', { type: 'checkbox' }); c.checked = Boolean(on); return { c: c, row: el('label', { class: 'admin-check' }, [c, el('span', null, [el('b', { text: label }), hint ? ' ' + hint : ''])]) }; }
+    var ps = tg('Paystack', sh.online && !sh.paystackOff, sh.online ? '(key …' + (sh.keyEnd || '') + ')' : '(not connected: send the Connect link above)');
+    if (!sh.online) ps.c.disabled = true;
+    var fw = tg('Flutterwave', sh.flwOnline && !sh.flwOff, sh.flwOnline ? '(key …' + (sh.flwKeyEnd || '') + ')' : '(not connected: the owner adds their key in My store → Payments)');
+    if (!sh.flwOnline) fw.c.disabled = true;
+    var tr = tg('Bank transfer to their account', t.on, '(the owner confirms each payment in My store)');
+    var bank = el('input', { value: t.bank || '', placeholder: 'Bank' }), aname = el('input', { value: t.name || '', placeholder: 'Account name' }), anum = el('input', { value: t.number || '', placeholder: '10-digit account number', inputmode: 'numeric', maxlength: 10 });
+    var dl = tg('Pay on delivery', d.on);
+    var ac = tg('Customer accounts (Standard Store)', sh.accounts, '(buyers sign in, save addresses, see their orders; the owner can still switch it off on their site)');
+    var gg = tg('Google sign-in for buyers', sh.google, '(needs GOOGLE_SIGNIN_CLIENT_ID in Netlify and their domain added in Google Cloud: see Packages → Standard Store)');
+    var mg = tg('Manage link works (backup)', !sh.manageOff, '(switch off once they use My store, if you like)');
+    [ps.row, fw.row, tr.row, el('div', { class: 'admin-grid' }, [field('Bank', bank), field('Account name', aname), field('Account number', anum)]), dl.row, ac.row, gg.row, mg.row].forEach(function (x) { box.appendChild(x); });
+    box.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Save switches', onclick: function (e) {
+      var b = e.currentTarget; b.disabled = true;
+      var body = { action: 'shop_settings', id: r.id, transfer: { on: tr.c.checked, bank: bank.value, name: aname.value, number: anum.value }, delivery: { on: dl.c.checked }, accounts: ac.c.checked, google: gg.c.checked, manageOn: mg.c.checked };
+      if (sh.online) body.paystackOn = ps.c.checked;
+      if (sh.flwOnline) body.flwOn = fw.c.checked;
+      api('POST', body).then(function (j) { if (j.row) replaceRequest(j.row); flash('Saved: their website shows it straight away'); render(); }).catch(function (er) { b.disabled = false; fail(er); });
+    } }));
     return box;
   }
 

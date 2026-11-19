@@ -61,7 +61,7 @@ const TEMP_DAYS = 3;
 export function hashPass(p, salt = randomBytes(16).toString("hex")) {
   return `scrypt$${salt}$${scryptSync(String(p), salt, 32).toString("hex")}`;
 }
-function passOk(p, stored) {
+export function passOk(p, stored) {
   const [kind, salt, hex] = String(stored || "").split("$");
   if (kind !== "scrypt" || !salt || !hex) return false;
   const got = scryptSync(String(p), salt, 32), want = Buffer.from(hex, "hex");

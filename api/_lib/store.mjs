@@ -126,6 +126,24 @@ const SCHEMA = [
      status TEXT NOT NULL DEFAULT 'pending',
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
      paid_at TIMESTAMPTZ)`,
+  // How each order is paid (paystack, flutterwave, transfer, delivery), who placed it (a buyer account, if any) and what happened after.
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS method TEXT NOT NULL DEFAULT 'paystack'`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS buyer_id INTEGER`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS claim JSONB`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS stock_taken BOOLEAN NOT NULL DEFAULT false`,
+  `CREATE INDEX IF NOT EXISTS store_orders_req ON store_orders (request_id, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS store_orders_buyer ON store_orders (buyer_id) WHERE buyer_id IS NOT NULL`,
+  // Store owners' own admin logins (/mystore).
+  `CREATE TABLE IF NOT EXISTS store_users (id SERIAL PRIMARY KEY, request_id INTEGER NOT NULL, name TEXT NOT NULL, username TEXT UNIQUE NOT NULL, pass_hash TEXT NOT NULL,
+     must_change BOOLEAN NOT NULL DEFAULT true, temp_expires TIMESTAMPTZ, active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+     last_seen_at TIMESTAMPTZ, password_changed_at TIMESTAMPTZ)`,
+  // Buyers' accounts on a Standard Store (one list per store; a phone number is one account per store).
+  `CREATE TABLE IF NOT EXISTS store_buyers (id SERIAL PRIMARY KEY, request_id INTEGER NOT NULL, phone TEXT NOT NULL, name TEXT NOT NULL, email TEXT,
+     pass_hash TEXT, google_sub TEXT, addresses JSONB NOT NULL DEFAULT '[]'::jsonb, active BOOLEAN NOT NULL DEFAULT true,
+     reset_hash TEXT, reset_exp TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ, UNIQUE (request_id, phone))`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS store_buyers_google ON store_buyers (request_id, google_sub) WHERE google_sub IS NOT NULL`,
   `CREATE TABLE IF NOT EXISTS chat_logs (
      session_id TEXT PRIMARY KEY,
      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -200,7 +218,7 @@ const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, ref_code
   COALESCE(strpos(draft_md, 'wasn''t written') > 0, false) AS draft_missing,
   left(substring(draft_md from '## Google Business Profile description[^\n]*\n((?:(?!\n## ).)*)'), 1500) AS gbp_text,
   (design_css IS NOT NULL) AS has_design, design_at, design_by, design_error, design_refs, COALESCE(brief_files->'example_shots', '[]'::jsonb) AS example_shots, hosting, chat_ideas, greetings_off,
-  (shop - 'key') || jsonb_build_object('online', COALESCE(shop->>'key', '') <> '') AS shop,
+  (shop - 'key' - 'flwKey') || jsonb_build_object('online', COALESCE(shop->>'key', '') <> '', 'flwOnline', COALESCE(shop->>'flwKey', '') <> '') AS shop,
   (SELECT count(*)::int FROM change_requests c WHERE c.request_id = customer_requests.id AND c.status = 'open') AS open_changes,
   jsonb_build_object('emails', brief->>'email_names', 'emails5', brief->>'email_names_5', 'paystack', brief->>'paystack', 'gbp_gmail', brief->>'gbp_gmail', 'examples', brief->>'examples') AS brief_wants,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('id', o->>'id', 'by', o->>'by', 'at', o->>'at', 'standard', COALESCE(o->>'css', '') = '',

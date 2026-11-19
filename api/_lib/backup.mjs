@@ -1,15 +1,24 @@
 // Weekly backup of the business data: every table in the database, as one gzipped JSON file emailed to you
 // (Mondays, from the daily run). Admin → Settings → "Download backup now" gives the same file any time.
-// Store owners' Paystack keys stay encrypted inside it. Keep the emails: they are your restore points.
+// Store owners' Paystack and Flutterwave keys stay encrypted inside it; login passwords are left out. Keep the emails: they are your restore points.
 import { gzipSync } from "node:zlib";
 import { q, ensureSchema, sendEmail, emailConfigured, getMeta, setMeta } from "./store.mjs";
 
+// Logins (staff, store owners, store buyers) are kept without their scrambled passwords or reset codes: after a
+// restore, give them a new temporary password (or a reset code) instead.
+const SECRET_COLUMNS = ["pass_hash", "reset_hash"];
+function stripSecrets(row) {
+  if (!SECRET_COLUMNS.some((c) => c in row)) return row;
+  const out = { ...row };
+  for (const c of SECRET_COLUMNS) delete out[c];
+  return out;
+}
 export async function buildBackup(now = new Date()) {
   await ensureSchema();
   const tables = (await q(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name`, []))
     .map((t) => t.table_name).filter((t) => /^[a-z_][a-z0-9_]*$/.test(t));
   const data = {};
-  for (const t of tables) data[t] = await q(`SELECT * FROM "${t}"`, []);
+  for (const t of tables) data[t] = (await q(`SELECT * FROM "${t}"`, [])).map(stripSecrets);
   const day = new Date(now.getTime() + 3600 * 1000).toISOString().slice(0, 10);
   const json = JSON.stringify({ app: "sirraddo-website", made: new Date().toISOString(), tables: data });
   const counts = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v.length]));

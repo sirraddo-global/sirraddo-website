@@ -38,7 +38,8 @@ export async function manageLink(id, { renew = false } = {}) {
 
 export async function findManageRequest(token) {
   if (!/^[A-Za-z0-9_-]{20,40}$/.test(String(token || ""))) return null;
-  const rows = await q(`SELECT id FROM customer_requests WHERE shop->'manage'->>'token' = $1`, [token]);
+  // A store that has its own login can have the Manage link switched off (admin or My store).
+  const rows = await q(`SELECT id FROM customer_requests WHERE shop->'manage'->>'token' = $1 AND COALESCE(shop->>'manageOff', 'false') <> 'true'`, [token]);
   return rows[0] ? load(rows[0].id) : null;
 }
 

@@ -548,9 +548,26 @@ export default async function handler(req, res) {
         if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
         if (body.action === "shop_orders") return res.status(200).json({ orders: await listOrders(id, 20) });
         try {
-          const row = await setShopPayments(id, { secretKey: body.secretKey, deliveryFee: body.deliveryFee, notify: body.notify, remove: Boolean(body.remove) });
+          const row = await setShopPayments(id, { secretKey: body.secretKey, deliveryFee: body.deliveryFee, notify: body.notify, remove: Boolean(body.remove),
+            paystackOn: body.paystackOn, flwOn: body.flwOn, flwRemove: Boolean(body.flwRemove), transfer: body.transfer, delivery: body.delivery,
+            accounts: body.accounts, accountsOn: body.accountsOn, google: body.google, manageOn: body.manageOn });
           return res.status(200).json({ row, orders: await listOrders(id, 20) });
         } catch (e) { throw new Bad(e.message); }
+      }
+      // The store owner's own login for My store (/mystore): create, reset (temporary password), switch off/on, rename, remove.
+      if (body.action === "store_login") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
+        const sa = await import("./_lib/storeaccounts.mjs");
+        try {
+          if (body.do === "get") return res.status(200).json({ login: await sa.ownerLogin(id), suggest: sa.suggestOwnerUsername(await sa.storeRow(id)) });
+          if (body.do === "create") return res.status(200).json(await sa.createOwnerLogin(id, { username: body.username }));
+          if (body.do === "reset") return res.status(200).json(await sa.resetOwnerLogin(id));
+          if (body.do === "active") return res.status(200).json({ login: await sa.updateOwnerLogin(id, { active: Boolean(body.active) }) });
+          if (body.do === "username") return res.status(200).json({ login: await sa.updateOwnerLogin(id, { username: body.username }) });
+          if (body.do === "delete") { await sa.deleteOwnerLogin(id); return res.status(200).json({ login: null }); }
+        } catch (e) { throw new Bad(e.message); }
+        throw new Bad("Unknown");
       }
       if (String(body.action || "").startsWith("host_")) {
         const id = Number(body.id);

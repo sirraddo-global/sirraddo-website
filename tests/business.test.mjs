@@ -574,6 +574,18 @@ test("daily run completes without errors", async () => {
   console.error = (...a) => { errors.push(a.join(" ")); orig(...a); };
   // A live site built with an older look is republished by the morning job (no unpublished edits on it).
   await h.sql(`UPDATE customer_requests SET hosting = hosting || '{"look":"old"}'::jsonb, draft_at = NULL, design_at = NULL WHERE id = $1`, [ada]);
+  // Store-only improvements: a business website is updated quietly (no email, even if they chose "Ask me first").
+  const sg = await import("../api/_lib/sitegen.mjs");
+  const notesNow = sg.SITE_LOOK_NOTES[sg.SITE_LOOK];
+  sg.SITE_LOOK_NOTES[sg.SITE_LOOK] = ["Online stores: a store-only improvement"];
+  await h.sql(`UPDATE customer_requests SET hosting = hosting || '{"lookMode":"ask"}'::jsonb WHERE id = $1`, [ada]);
+  const q0 = h.CF.deployments.length, m0 = h.sent.length;
+  try { await h.daily(); } finally { console.error = orig; }
+  assert.ok(h.CF.deployments.length > q0, "updated quietly");
+  assert.ok(!h.newMail(m0).some((m) => /improved|new version/i.test(m.subject)), "no email about store features");
+  sg.SITE_LOOK_NOTES[sg.SITE_LOOK] = [...notesNow, "A general improvement for every website"];
+  await h.sql(`DELETE FROM settings WHERE key LIKE '\_daily%'`).catch(() => {});
+  await h.sql(`UPDATE customer_requests SET hosting = hosting || '{"look":"old","lookMode":"auto"}'::jsonb WHERE id = $1`, [ada]);
   const before = h.CF.deployments.length;
   try { await h.daily(); } finally { console.error = orig; }
   assert.deepEqual(errors.filter((e) => /daily cron failed/.test(e)), []);
@@ -599,6 +611,7 @@ test("daily run completes without errors", async () => {
   const ha = rb.json.row.hosting;
   assert.equal(ha.deploymentId, hb.history[1].id);
   assert.equal(ha.lookMode, "ask", "7am won't undo it");
+  sg.SITE_LOOK_NOTES[sg.SITE_LOOK] = notesNow;
 });
 
 test("backup: download has every table; Monday's email goes once with the file attached", async () => {

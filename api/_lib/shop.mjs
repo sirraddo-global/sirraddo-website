@@ -103,9 +103,34 @@ export async function ensureStoreToken(id) {
   const row = await getRequest(id);
   if (row && kindFor(row.interest) === "store" && !row.shop?.token) await ensureShopToken(id);
 }
-export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove }) {
+export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove, paystackOn, flwKey, flwOn, flwRemove, transfer, delivery, accounts, accountsOn, google, manageOn }) {
   let row = await ensureShopToken(id);
   const patch = {};
+  // Every way to pay is a switch the owner (in My store) or SIRRADDO (in admin) can turn on and off at any time.
+  if (paystackOn !== undefined) patch.paystackOff = !paystackOn;
+  if (flwRemove) { patch.flwKey = null; patch.flwKeyEnd = null; patch.flwMode = null; }
+  else if (flwKey) {
+    const k = String(flwKey).trim();
+    if (/^FLWPUBK/i.test(k)) throw new Error("That's the PUBLIC key (FLWPUBK…). We need the SECRET key: it starts with FLWSECK-.");
+    if (!/^FLWSECK(_TEST)?-[A-Za-z0-9-]{20,}$/.test(k)) throw new Error("That isn't a Flutterwave secret key (it starts with FLWSECK-)");
+    try { await flw(k, "/balances/NGN"); } catch (e) { throw new Error(e.status === 401 ? "Flutterwave didn't accept that key. Copy it again from Settings → API Keys." : "Couldn't check the key with Flutterwave: " + e.message); }
+    patch.flwKey = sealKey(k); patch.flwKeyEnd = k.slice(-4); patch.flwMode = /_TEST-/.test(k) ? "test" : "live"; patch.flwOff = false;
+  }
+  if (flwOn !== undefined) patch.flwOff = !flwOn;
+  if (transfer !== undefined) {
+    const t = transfer || {}, cur = row.shop?.transfer || {};
+    const next = { on: Boolean(t.on ?? cur.on), bank: clean(t.bank ?? cur.bank, 60), name: clean(t.name ?? cur.name, 100), number: String(t.number ?? cur.number ?? "").replace(/\D/g, "").slice(0, 10), note: clean(t.note ?? cur.note, 200) };
+    if (next.on && (!next.bank || !next.name || next.number.length !== 10)) throw new Error("Bank transfer needs the bank name, account name and the 10-digit account number");
+    patch.transfer = next;
+  }
+  if (delivery !== undefined) {
+    const d = delivery || {}, cur = row.shop?.delivery || {};
+    patch.delivery = { on: Boolean(d.on ?? cur.on), note: clean(d.note ?? cur.note, 200) };
+  }
+  if (accounts !== undefined) patch.accounts = Boolean(accounts); // SIRRADDO: the store has the Standard Store accounts feature
+  if (accountsOn !== undefined) patch.accountsOff = !accountsOn;   // the owner: accounts on/off on their website
+  if (google !== undefined) patch.google = Boolean(google);
+  if (manageOn !== undefined) patch.manageOff = !manageOn;
   if (remove) { patch.key = null; patch.keyEnd = null; patch.keyMode = null; }
   else if (secretKey) {
     const k = String(secretKey).trim();
@@ -125,6 +150,32 @@ export async function setShopPayments(id, { secretKey, deliveryFee, notify, remo
   }
   return updateRequestShop(row.id, patch);
 }
+const clean = (v, max) => String(v ?? "").replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+
+// ---------- Flutterwave (a second online payment option, on the store's own account) ----------
+const FLW = "https://api.flutterwave.com/v3";
+async function flw(key, path, body) {
+  const res = await fetch(FLW + path, {
+    method: body ? "POST" : "GET",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok || j.status === "error") throw Object.assign(new Error(j.message || `Flutterwave ${res.status}`), { status: res.status });
+  return j.data;
+}
+
+// Which ways to pay are switched on for a store right now.
+export function payMethods(shop = {}) {
+  const t = shop.transfer || {}, d = shop.delivery || {};
+  return {
+    paystack: Boolean(shop.key) && !shop.paystackOff,
+    flutterwave: Boolean(shop.flwKey) && !shop.flwOff,
+    transfer: Boolean(t.on && t.bank && t.name && t.number),
+    delivery: Boolean(d.on),
+  };
+}
+export const METHOD_LABEL = { paystack: "Paystack (card, transfer, USSD)", flutterwave: "Flutterwave (card, transfer, USSD)", transfer: "Bank transfer", delivery: "Pay on delivery" };
 
 // ---------- Orders ----------
 async function storeByToken(token) {
@@ -142,7 +193,10 @@ export async function shopConfig(token) {
   // Live stock counts, so the website is right even between republishes.
   const stock = {};
   for (const p of shopProducts(r.brief)) if (p.stockLeft !== null || p.soldout) stock[p.i] = p.soldout ? 0 : p.stockLeft;
-  return { online: Boolean(r.shop?.key), mode: r.shop?.keyMode || null, deliveryFee: r.shop?.deliveryFee ?? null, name: storeName(r), stock };
+  const m = payMethods(r.shop || {});
+  const googleClient = r.shop?.accounts && !r.shop?.accountsOff && r.shop?.google && process.env.GOOGLE_SIGNIN_CLIENT_ID ? process.env.GOOGLE_SIGNIN_CLIENT_ID : null;
+  return { online: m.paystack || m.flutterwave, methods: m, mode: r.shop?.keyMode || null, deliveryFee: r.shop?.deliveryFee ?? null, name: storeName(r), stock,
+    deliveryNote: m.delivery ? r.shop.delivery.note || "" : "", accounts: Boolean(r.shop?.accounts && !r.shop?.accountsOff), google: googleClient, id: r.id };
 }
 
 // Work out the order from the product list (never trust prices from the browser).
@@ -161,10 +215,14 @@ function priceOrder(r, items) {
   return { lines, subtotal, delivery, total: subtotal + delivery };
 }
 
-export async function startCheckout(token, items, buyer, returnBase) {
+export async function startCheckout(token, items, buyer, returnBase, opts = {}) {
   const r = await storeByToken(token);
   if (!r) throw Object.assign(new Error("Store not found"), { status: 404 });
-  if (!r.shop?.key) throw Object.assign(new Error("Online payment isn't switched on for this store. Please order on WhatsApp."), { status: 409 });
+  const on = payMethods(r.shop || {});
+  // Old store pages send no method: they mean "Pay online" (whichever online option is on).
+  const method = opts.method || (on.paystack ? "paystack" : on.flutterwave ? "flutterwave" : "paystack");
+  if (!METHOD_LABEL[method]) throw Object.assign(new Error("Unknown payment option"), { status: 400 });
+  if (!on[method]) throw Object.assign(new Error(method === "paystack" || method === "flutterwave" ? "Online payment isn't switched on for this store. Please order on WhatsApp." : `${METHOD_LABEL[method]} isn't available for this store right now. Please choose another option or order on WhatsApp.`), { status: 409 });
   const order = priceOrder(r, items);
   if (!order.lines.length) throw Object.assign(new Error("Your cart is empty"), { status: 400 });
   const b = {
@@ -173,22 +231,54 @@ export async function startCheckout(token, items, buyer, returnBase) {
     note: String(buyer?.note || "").trim().slice(0, 500),
   };
   if (!b.name || !/\d{7,}/.test(b.phone.replace(/\D/g, ""))) throw Object.assign(new Error("Please enter your name and phone number"), { status: 400 });
-  if (!EMAIL.test(b.email)) throw Object.assign(new Error("Please enter your email for the payment receipt"), { status: 400 });
+  const online = method === "paystack" || method === "flutterwave";
+  if (online && !EMAIL.test(b.email)) throw Object.assign(new Error("Please enter your email for the payment receipt"), { status: 400 });
+  if (b.email && !EMAIL.test(b.email)) b.email = "";
+  if (method === "delivery" && !b.address) throw Object.assign(new Error("Please enter your delivery address"), { status: 400 });
+  // A signed-in buyer (Standard Store): the order goes into their account.
+  let buyerId = null;
+  if (opts.buyerToken && r.shop?.accounts) {
+    const { buyerFromToken } = await import("./storeaccounts.mjs");
+    const acct = await buyerFromToken(r.id, opts.buyerToken);
+    if (acct) buyerId = acct.id;
+  }
   const ref = `SHOP${r.id}-${randomBytes(6).toString("hex")}`;
-  await q(`INSERT INTO store_orders (request_id, ref, items, subtotal, delivery, total, buyer, status) VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7::jsonb, 'pending')`,
-    [r.id, ref, JSON.stringify(order.lines), order.subtotal, order.delivery, order.total, JSON.stringify(b)]);
+  const status = method === "transfer" ? "awaiting" : method === "delivery" ? "cod" : "pending";
+  await q(`INSERT INTO store_orders (request_id, ref, items, subtotal, delivery, total, buyer, status, method, buyer_id) VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7::jsonb, $8, $9, $10)`,
+    [r.id, ref, JSON.stringify(order.lines), order.subtotal, order.delivery, order.total, JSON.stringify(b), status, method, buyerId]);
+  if (!online) {
+    // Bank transfer / pay on delivery: the items are kept for this buyer now (stock goes down; cancelling puts it back).
+    const [o] = await q(`SELECT * FROM store_orders WHERE ref = $1`, [ref]);
+    await takeStock(r, o);
+    await notifyOwner(r, o, method === "transfer" ? "awaiting" : "cod");
+    return { url: orderLink({ ref }), ref, method };
+  }
+  if (method === "flutterwave") {
+    const data = await flw(openKey(r.shop.flwKey), "/payments", {
+      tx_ref: ref, amount: order.total, currency: "NGN", redirect_url: `${returnBase}/api/shop?paid=1&ref=${encodeURIComponent(ref)}`,
+      customer: { email: b.email, phonenumber: b.phone, name: b.name }, customizations: { title: storeName(r) }, meta: { order: ref },
+    });
+    return { url: data.link, ref, method };
+  }
   const data = await ps(openKey(r.shop.key), "/transaction/initialize", {
     email: b.email, amount: order.total * 100, currency: "NGN", reference: ref,
     callback_url: `${returnBase}/api/shop?paid=1&ref=${encodeURIComponent(ref)}`,
     metadata: { store: storeName(r), custom_fields: [{ display_name: "Order", variable_name: "order", value: ref }, { display_name: "Phone", variable_name: "phone", value: b.phone }] },
   });
-  return { url: data.authorization_url, ref };
+  return { url: data.authorization_url, ref, method };
 }
+export function orderLink(o) { return `${SITE_URL}/api/shop?ref=${encodeURIComponent(o.ref)}`; }
 
 const naira = (n) => "₦" + Number(n || 0).toLocaleString("en-NG");
 // The buyer's receipt: the store's details, receipt number and date, who paid, each item, and how it was paid.
 // Shown on the thank-you / receipt page and saved on the buyer's phone as a picture or PDF (never emailed).
 const RECEIPT_PREFER = ["receipts", "orders", "sales", "info"];
+export function paidNote(o) {
+  const m = o.method || "paystack";
+  if (m === "transfer") return `Paid by bank transfer, confirmed by the store. Order reference: ${o.ref}.`;
+  if (m === "delivery") return `Paid on delivery. Order reference: ${o.ref}.`;
+  return `Paid online through ${m === "flutterwave" ? "Flutterwave" : "Paystack"} (card, bank transfer or USSD). Payment reference: ${o.ref}.`;
+}
 export function receiptLink(o) { return `${SITE_URL}/api/shop?ref=${encodeURIComponent(o.ref)}&receipt=1`; }
 // The same receipt as plain data, for drawing it as a picture / PDF on the buyer's phone.
 export function receiptData(r, o) {
@@ -202,7 +292,7 @@ export function receiptData(r, o) {
     items: o.items.map((l) => ({ name: l.name, qty: l.qty, price: naira(l.price || Math.round(l.total / (l.qty || 1))), amount: naira(l.total) })),
     delivery: o.delivery ? naira(o.delivery) : "",
     total: naira(o.total),
-    note: `Paid online through Paystack (card, bank transfer or USSD). Payment reference: ${o.ref}.`,
+    note: paidNote(o),
     link: receiptLink(o),
   };
 }
@@ -221,7 +311,7 @@ export function receiptHtml(r, o) {
 ${o.items.map((l) => `<tr><td style="${td}">${esc(l.name)}</td><td style="${td};text-align:center">${l.qty}</td><td style="${td};text-align:right">${naira(l.price || Math.round(l.total / (l.qty || 1)))}</td><td style="${td};text-align:right">${naira(l.total)}</td></tr>`).join("")}
 ${o.delivery ? `<tr><td style="${td}" colspan="3">Delivery</td><td style="${td};text-align:right">${naira(o.delivery)}</td></tr>` : ""}
 <tr><td style="padding:10px 8px;font-weight:800" colspan="3">Total paid</td><td style="padding:10px 8px;text-align:right;font-weight:800;font-size:17px">${naira(o.total)}</td></tr></table>
-<p style="font-size:13px;color:#4A5568;margin:10px 0 0">Paid online through Paystack (card, bank transfer or USSD). Payment reference: ${esc(o.ref)}.${o.delivery ? "" : " Delivery cost, if any, is confirmed by the store."}</p>
+<p style="font-size:13px;color:#4A5568;margin:10px 0 0">${esc(paidNote(o))}${o.delivery ? "" : " Delivery cost, if any, is confirmed by the store."}</p>
 <p style="font-size:13px;color:#4A5568;margin:6px 0 0">Thank you for shopping with ${esc(storeName(r))}.</p></div>`;
 }
 
@@ -234,7 +324,7 @@ function orderHtml(r, o, forOwner) {
 ${o.delivery ? `<tr><td style="${td}">Delivery</td><td style="${td};text-align:right">${naira(o.delivery)}</td></tr>` : ""}
 <tr><td style="${td}"><b>Paid</b></td><td style="${td};text-align:right"><b>${naira(o.total)}</b></td></tr></table>
 <p>Order: ${esc(o.ref)}${o.delivery ? "" : "<br>Delivery cost, if any, will be confirmed by the store."}</p>
-${forOwner ? `<p><b>Customer:</b> ${esc(b.name)} · ${esc(b.phone)} · ${esc(b.email)}${b.address ? `<br><b>Deliver to:</b> ${esc(b.address)}` : ""}${b.note ? `<br><b>Note:</b> ${esc(b.note)}` : ""}</p><p>The money is in your Paystack account (check Paystack → Transactions). Reply to this email to contact the customer.</p>${o.stockNote?.length ? `<p><b>Stock left:</b> ${o.stockNote.map((x) => `${esc(x.name)}: ${x.left}${x.left === 0 ? " (now SOLD OUT on your website)" : ""}`).join(" · ")}. Restock any time in your Manage link.</p>` : ""}`
+${forOwner ? `<p><b>Customer:</b> ${esc(b.name)} · ${esc(b.phone)} · ${esc(b.email)}${b.address ? `<br><b>Deliver to:</b> ${esc(b.address)}` : ""}${b.note ? `<br><b>Note:</b> ${esc(b.note)}` : ""}</p><p>The money is in your ${o.method === "flutterwave" ? "Flutterwave" : "Paystack"} account (check its dashboard → Transactions). Reply to this email to contact the customer.</p>${o.stockNote?.length ? `<p><b>Stock left:</b> ${o.stockNote.map((x) => `${esc(x.name)}: ${x.left}${x.left === 0 ? " (now SOLD OUT on your website)" : ""}`).join(" · ")}. Restock any time in My store (or your Manage link).</p>` : ""}`
     : `<p>${esc(storeName(r))} will contact you about delivery. Questions? Just reply to this email${storeReplyTo(r) ? ` or write to ${esc(storeReplyTo(r))}` : ""}.</p>`}
 </div>`;
 }
@@ -247,29 +337,29 @@ export async function confirmOrder(ref) {
   if (!o) return null;
   if (o.status === "paid") return { order: o, store: await storeById(o.request_id), already: true };
   const r = await storeById(o.request_id);
-  if (!r?.shop?.key) return { order: o, store: r };
-  let tx;
-  try { tx = await ps(openKey(r.shop.key), `/transaction/verify/${encodeURIComponent(o.ref)}`); } catch { return { order: o, store: r }; }
-  if (tx?.status !== "success" || Number(tx.amount) !== o.total * 100 || tx.currency !== "NGN") {
-    if (["failed", "abandoned", "reversed"].includes(tx?.status)) await q(`UPDATE store_orders SET status = $1 WHERE ref = $2 AND status = 'pending'`, [tx.status, o.ref]);
-    return { order: { ...o, status: tx?.status || o.status }, store: r };
+  // Bank transfer and pay-on-delivery orders are confirmed by the store owner, not here.
+  if (o.method === "transfer" || o.method === "delivery") return { order: o, store: r };
+  if (o.method === "flutterwave") {
+    if (!r?.shop?.flwKey) return { order: o, store: r };
+    let tx;
+    try { tx = await flw(openKey(r.shop.flwKey), `/transactions/verify_by_reference?tx_ref=${encodeURIComponent(o.ref)}`); } catch { return { order: o, store: r }; }
+    if (tx?.status !== "successful" || Number(tx.amount) < o.total || tx.currency !== "NGN") {
+      if (tx?.status === "failed") await q(`UPDATE store_orders SET status = 'failed' WHERE ref = $1 AND status = 'pending'`, [o.ref]);
+      return { order: { ...o, status: tx?.status === "failed" ? "failed" : o.status }, store: r };
+    }
+  } else {
+    if (!r?.shop?.key) return { order: o, store: r };
+    let tx;
+    try { tx = await ps(openKey(r.shop.key), `/transaction/verify/${encodeURIComponent(o.ref)}`); } catch { return { order: o, store: r }; }
+    if (tx?.status !== "success" || Number(tx.amount) !== o.total * 100 || tx.currency !== "NGN") {
+      if (["failed", "abandoned", "reversed"].includes(tx?.status)) await q(`UPDATE store_orders SET status = $1 WHERE ref = $2 AND status = 'pending'`, [tx.status, o.ref]);
+      return { order: { ...o, status: tx?.status || o.status }, store: r };
+    }
   }
   const upd = await q(`UPDATE store_orders SET status = 'paid', paid_at = now() WHERE ref = $1 AND status <> 'paid' RETURNING *`, [o.ref]);
   if (!upd[0]) return { order: { ...o, status: "paid" }, store: r, already: true };
   const order = upd[0];
-  // Take the sold items off the stock count (one SQL statement per item, so two orders can't both read the old number).
-  const low = [];
-  for (const l of order.items || []) {
-    const rows = await q(`UPDATE customer_requests SET brief = jsonb_set(brief, ARRAY['products', $2::text, 'stock'], to_jsonb(GREATEST(0, (brief->'products'->($2::int)->>'stock')::int - $3::int)::text))
-      WHERE id = $1 AND (brief->'products'->($2::int)->>'stock') ~ '^[0-9]{1,6}$' RETURNING (brief->'products'->($2::int)->>'stock')::int AS left`, [r.id, String(l.i), Number(l.qty) || 0]).catch((e) => { console.error("stock update failed", e); return []; });
-    if (rows[0]) low.push({ name: l.name, left: rows[0].left });
-  }
-  if (low.length) {
-    order.stockNote = low;
-    // The live site shows the new counts (and "Sold out" at 0).
-    const h = r.hosting || {};
-    if (h.project && !h.pausedAt) waitUntil(import("./golive.mjs").then(({ publish }) => publish(r.id, { force: true })));
-  }
+  await takeStock(r, order);
   const owner = ownerEmail(r);
   if (customerEmailConfigured()) {
     if (owner) await sendCustomerEmail(owner, `New order ${naira(order.total)} from ${order.buyer.name} (${storeName(r)})`, orderHtml(r, order, true), order.buyer.email, `${storeName(r)} orders`).catch((e) => console.error("order email to store failed", e));
@@ -287,6 +377,105 @@ export function storeReplyTo(r, prefer = ["orders", "sales", "receipts", "info"]
   const pick = prefer.find((l) => e.locals.includes(l)) || e.locals[0];
   return `${pick}@${h.domain}`;
 }
+// Take the sold items off the stock count (one SQL statement per item, so two orders can't both read the old number).
+// Each order takes stock once (stock_taken); cancelling an unpaid transfer / pay-on-delivery order puts it back.
+async function changeStock(r, order, sign) {
+  const low = [];
+  for (const l of order.items || []) {
+    const rows = await q(`UPDATE customer_requests SET brief = jsonb_set(brief, ARRAY['products', $2::text, 'stock'], to_jsonb(GREATEST(0, (brief->'products'->($2::int)->>'stock')::int + $3::int)::text))
+      WHERE id = $1 AND (brief->'products'->($2::int)->>'stock') ~ '^[0-9]{1,6}$' RETURNING (brief->'products'->($2::int)->>'stock')::int AS left`, [r.id, String(l.i), sign * (Number(l.qty) || 0)]).catch((e) => { console.error("stock update failed", e); return []; });
+    if (rows[0]) low.push({ name: l.name, left: rows[0].left });
+  }
+  if (low.length) {
+    // The live site shows the new counts (and "Sold out" at 0).
+    const h = r.hosting || {};
+    if (h.project && !h.pausedAt) waitUntil(import("./golive.mjs").then(({ publish }) => publish(r.id, { force: true })));
+  }
+  return low;
+}
+async function takeStock(r, order) {
+  const [claimed] = await q(`UPDATE store_orders SET stock_taken = true WHERE ref = $1 AND NOT stock_taken RETURNING ref`, [order.ref]);
+  if (!claimed) return;
+  const low = await changeStock(r, order, -1);
+  if (low.length) order.stockNote = low;
+}
+async function giveStockBack(r, order) {
+  const [claimed] = await q(`UPDATE store_orders SET stock_taken = false WHERE ref = $1 AND stock_taken RETURNING ref`, [order.ref]);
+  if (claimed) await changeStock(r, order, 1);
+}
+
+// The store owner hears about new bank-transfer / pay-on-delivery orders and transfer "I've paid" messages.
+async function notifyOwner(r, o, kind) {
+  const owner = ownerEmail(r);
+  const b = o.buyer || {};
+  const lines = `<ul>${(o.items || []).map((l) => `<li>${esc(l.name)} × ${l.qty}: ${naira(l.total)}</li>`).join("")}${o.delivery ? `<li>Delivery: ${naira(o.delivery)}</li>` : ""}</ul><p><b>Total: ${naira(o.total)}</b> · Order ${esc(o.ref)}</p>
+<p><b>Customer:</b> ${esc(b.name)} · ${esc(b.phone)}${b.email ? " · " + esc(b.email) : ""}${b.address ? `<br><b>Deliver to:</b> ${esc(b.address)}` : ""}${b.note ? `<br><b>Note:</b> ${esc(b.note)}` : ""}</p>`;
+  const subject = kind === "awaiting" ? `New order ${naira(o.total)} (bank transfer, not paid yet) from ${b.name}`
+    : kind === "claim" ? `${b.name} says they paid ${naira(o.total)} by transfer: please check`
+    : `New order ${naira(o.total)} (pay on delivery) from ${b.name}`;
+  const intro = kind === "awaiting" ? `<p><b>New order by bank transfer.</b> The customer has your account details and will pay ${naira(o.total)} with ${esc(o.ref)} as the narration. <b>Don't send the items until you see the money in your bank app</b>, then open My store → Orders → Confirm paid.</p>`
+    : kind === "claim" ? `<p><b>${esc(b.name)} says they have paid</b>${o.claim?.from ? ` (from the account of ${esc(o.claim.from)})` : ""}${o.claim?.note ? `: "${esc(o.claim.note)}"` : ""}. <b>Check your bank app first.</b> If the money is there, open My store → Orders → Confirm paid. Screenshots can be fake.</p>`
+    : `<p><b>New order, pay on delivery.</b> Call the customer to arrange delivery. When they pay, open My store → Orders → Paid & delivered.</p>`;
+  if (owner && customerEmailConfigured()) await sendCustomerEmail(owner, `${subject} (${storeName(r)})`, `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5">${intro}${lines}</div>`, b.email || undefined, `${storeName(r)} orders`).catch((e) => console.error("order email to store failed", e));
+  else if (!owner && emailConfigured()) await sendEmail(`🛒 Store order for ${storeName(r)} (${reference(r.id)}) has no alert email`, intro + lines).catch(() => {});
+}
+
+// ---------- After the order: the owner confirms transfers, marks delivered, cancels; the buyer says they paid ----------
+export async function orderByRef(ref) {
+  await ensureSchema();
+  const [o] = await q(`SELECT * FROM store_orders WHERE ref = $1`, [String(ref || "")]);
+  return o || null;
+}
+export async function claimTransfer(ref, { from, note }) {
+  const o = await orderByRef(ref);
+  if (!o || o.method !== "transfer") throw Object.assign(new Error("Order not found"), { status: 404 });
+  if (o.status !== "awaiting") return o;
+  if (o.claim?.at && Date.now() - new Date(o.claim.at) < 10 * 60000) return o; // one message every 10 minutes is enough
+  const claim = { at: new Date().toISOString(), from: clean(from, 100), note: clean(note, 200) };
+  const [row] = await q(`UPDATE store_orders SET claim = $1::jsonb WHERE ref = $2 RETURNING *`, [JSON.stringify(claim), o.ref]);
+  const r = await storeById(o.request_id);
+  await notifyOwner(r, row, "claim");
+  return row;
+}
+// action: paid (transfer received / paid on delivery), delivered, cancel. Only for this store's own orders.
+export async function ownerOrderAction(requestId, ref, action) {
+  const o = await orderByRef(ref);
+  if (!o || o.request_id !== Number(requestId)) throw new Error("Order not found");
+  const r = await storeById(o.request_id);
+  if (action === "paid") {
+    if (o.status === "paid") return o;
+    if (!["awaiting", "cod"].includes(o.status)) throw new Error("Only bank-transfer and pay-on-delivery orders are confirmed by hand. Online payments confirm themselves.");
+    const [row] = await q(`UPDATE store_orders SET status = 'paid', paid_at = now(), delivered_at = CASE WHEN method = 'delivery' THEN now() ELSE delivered_at END WHERE ref = $1 RETURNING *`, [o.ref]);
+    await takeStock(r, row);
+    return row;
+  }
+  if (action === "delivered") {
+    if (o.status !== "paid" && o.status !== "cod") throw new Error("Confirm the payment first.");
+    const [row] = await q(`UPDATE store_orders SET delivered_at = now() WHERE ref = $1 RETURNING *`, [o.ref]);
+    return row;
+  }
+  if (action === "undelivered") {
+    const [row] = await q(`UPDATE store_orders SET delivered_at = NULL WHERE ref = $1 RETURNING *`, [o.ref]);
+    return row;
+  }
+  if (action === "cancel") {
+    if (o.status === "paid") throw new Error("This order is paid. To cancel it, refund the customer first (online payments: from your Paystack or Flutterwave dashboard), then message them.");
+    if (o.status === "cancelled") return o;
+    const [row] = await q(`UPDATE store_orders SET status = 'cancelled', cancelled_at = now() WHERE ref = $1 RETURNING *`, [o.ref]);
+    await giveStockBack(r, row);
+    return row;
+  }
+  throw new Error("Unknown action");
+}
+export async function storeOrders(requestId, { status = "", search = "", limit = 100, buyerId = null } = {}) {
+  await ensureSchema();
+  const s = String(search || "").trim().toLowerCase();
+  return q(`SELECT ref, items, subtotal, delivery, total, buyer, status, method, buyer_id, claim, created_at, paid_at, delivered_at, cancelled_at FROM store_orders
+    WHERE request_id = $1 AND ($2 = '' OR status = $2 OR ($2 = 'todo' AND (status IN ('awaiting','cod') OR (status = 'paid' AND delivered_at IS NULL))))
+      AND ($3 = '' OR lower(buyer->>'name') LIKE '%' || $3 || '%' OR buyer->>'phone' LIKE '%' || $3 || '%' OR lower(ref) LIKE '%' || $3 || '%')
+      AND ($5::int IS NULL OR buyer_id = $5) AND ($2 <> '' OR status NOT IN ('pending', 'failed', 'abandoned', 'reversed'))
+    ORDER BY created_at DESC LIMIT $4`, [Number(requestId), String(status || ""), s, Math.min(500, Number(limit) || 100), buyerId]);
+}
 async function storeById(id) {
   const rows = await q(`SELECT id, name, business, contact, email, interest, brief, shop, hosting, website_url FROM customer_requests WHERE id = $1`, [id]);
   return rows[0] ?? null;
@@ -299,7 +488,7 @@ export async function listOrders(id, limit = 10) {
 // Daily: confirm payments where the buyer closed the page before returning.
 export async function reconcileOrders() {
   await ensureSchema();
-  const pending = await q(`SELECT ref FROM store_orders WHERE status = 'pending' AND created_at < now() - interval '10 minutes' AND created_at > now() - interval '3 days' LIMIT 50`, []);
+  const pending = await q(`SELECT ref FROM store_orders WHERE status = 'pending' AND method IN ('paystack', 'flutterwave') AND created_at < now() - interval '10 minutes' AND created_at > now() - interval '3 days' LIMIT 50`, []);
   let paid = 0;
   for (const p of pending) {
     const res = await confirmOrder(p.ref).catch(() => null);

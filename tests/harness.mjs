@@ -38,6 +38,12 @@ export async function startHarness() {
     if (url.includes("api.cloudflare.com")) return cfFetch(url, opts);
     if (url.includes("resend.com")) { if (globalThis.__RESEND_429__) return new Response('{"name":"daily_quota_exceeded","message":"You have reached your daily email quota"}', { status: 429 }); sent.push(JSON.parse(opts.body)); return new Response("{}", { status: 200, headers: { "x-resend-daily-quota": String(sent.length), "x-resend-monthly-quota": String(sent.length) } }); }
     if (url.includes("api.paystack.co")) return paystackFake(url, opts);
+    if (url.includes("api.flutterwave.com")) return flwFake(url, opts);
+    if (url.includes("oauth2.googleapis.com/tokeninfo")) {
+      const t = decodeURIComponent(url.split("id_token=")[1] || "");
+      if (!t.startsWith("good-")) return new Response(JSON.stringify({ error: "invalid_token" }), { status: 400 });
+      return new Response(JSON.stringify({ aud: process.env.GOOGLE_SIGNIN_CLIENT_ID, sub: t.slice(5), iss: "https://accounts.google.com", exp: String(Math.floor(Date.now() / 1000) + 600), email: t.slice(5) + "@gmail.com", email_verified: "true", name: "Google Buyer" }), { status: 200 });
+    }
     if (url.includes("console.neon.tech")) {
       const j = (o) => new Response(JSON.stringify(o), { status: 200 });
       if (url.includes("/projects?")) return j({ projects: [{ id: "proj-test" }] });
@@ -64,6 +70,17 @@ export async function startHarness() {
     if (url.includes("/siteVerification/v1/webResource/")) return json({ id: "x", owners: body.owners });
     if (url.includes("/webmasters/v3/sites/")) return new Response("", { status: 200 });
     return json({ error: { message: "unknown" } }, 404);
+  }
+  const flw = {};
+  globalThis.__FLW__ = flw;
+  function flwFake(url, opts) {
+    const auth = String(opts.headers?.Authorization || "");
+    const json = (o, status = 200) => new Response(JSON.stringify(o), { status });
+    if (auth.includes("BAD")) return json({ status: "error", message: "Invalid authorization key" }, 401);
+    if (url.includes("/balances/NGN")) return json({ status: "success", data: { currency: "NGN", available_balance: 0 } });
+    if (url.endsWith("/payments")) { const b = JSON.parse(opts.body); flw[b.tx_ref] = { tx_ref: b.tx_ref, amount: b.amount, currency: "NGN", status: globalThis.__FLW_STATUS__ || "successful" }; return json({ status: "success", data: { link: "https://checkout.flutterwave.com/v3/hosted/pay/" + b.tx_ref } }); }
+    const ref = decodeURIComponent((url.split("tx_ref=")[1] || ""));
+    return flw[ref] ? json({ status: "success", data: flw[ref] }) : json({ status: "error", message: "No transaction was found" }, 404);
   }
   function paystackFake(url, opts) {
     const auth = String(opts.headers?.Authorization || "");
@@ -104,7 +121,7 @@ export async function startHarness() {
   for (const [path, file] of Object.entries({
     "/api/chat": "chat", "/api/requests": "requests", "/api/cron-daily": "cron-daily", "/api/lead": "lead", "/api/brief": "brief",
     "/api/brief-upload": "brief-upload", "/doc": "doc", "/preview": "preview", "/api/preview": "preview", "/change": "site", "/api/site": "site",
-    "/pay": "pay", "/api/pay": "pay", "/api/paystack-webhook": "paystack-webhook", "/api/shop": "shop", "/connect": "connect", "/manage": "manage", "/api/chat-upload": "chat-upload",
+    "/pay": "pay", "/api/pay": "pay", "/api/paystack-webhook": "paystack-webhook", "/api/shop": "shop", "/connect": "connect", "/manage": "manage", "/api/mystore": "mystore", "/api/chat-upload": "chat-upload",
   })) handlers[path] = (await import(join(ROOT, "api", file + ".mjs"))).default;
 
   // Every API call goes through the same Netlify adapter the live site uses (netlify/lib/adapter.mjs).

@@ -628,6 +628,50 @@
       'Website and chat: add the package and price (Claude can do this when building it).',
       'Never email buyers from SIRRADDO’s email (our rule): Google sign-in or owner password resets only.'
     ].map(function (t) { return el('li', { text: t }); })));
+
+    // 8. Running the database: checks, upgrades, moving one store
+    view.appendChild(el('h2', { class: 'admin-h2', text: '8. Running the database (all stores share one)' }));
+    view.appendChild(el('p', { class: 'admin-hint', text: 'Every store uses the one Neon database behind this website (each record is labelled with its store). The store pages live on Cloudflare and keep showing even if the database pauses; only checkout, sign-in, reviews, admin and Manage need it. On Free it can be awake 100 hours a month; past that it pauses for every store until next month.' }));
+    function stepCard(title, intro, list, foot) {
+      return el('div', { class: 'admin-card' }, [el('h3', { text: title }), intro ? el('p', { class: 'admin-hint', text: intro }) : null,
+        el('ol', { class: 'admin-mini' }, list.map(function (t) { return el('li', { text: t }); })), foot ? el('p', { class: 'admin-hint', text: foot }) : null]);
+    }
+    view.appendChild(stepCard('A. Monthly check (5 minutes, first week of the month)', null, [
+      'Neon: console.neon.tech → your project → Billing / Usage. Under 70 compute hours and 0.7 GB: nothing to do. 70–100 hours: upgrade this month (B).',
+      'Netlify: app.netlify.com → team → Usage. Under ~250 credits is fine; above, see C.',
+      'Neon → Monitoring: if one store causes most of the activity, read D.'
+    ]));
+    view.appendChild(stepCard('B. Upgrade Neon to Launch (10 minutes, no downtime)', null, [
+      'console.neon.tech → your organisation → Billing → Upgrade → Launch.',
+      'Add a dollar card (domiciliary or virtual).',
+      'Set a spending limit (e.g. $25 a month) so a surprise month can’t run up a big bill.',
+      'Leave "scale to zero" on: quiet hours cost nothing.',
+      'Nothing else changes: same database and connection string, no Netlify change, no deploy.'
+    ], 'Cost: about ' + nN(5.65 * PKG.rate) + ' a month light, up to about ' + nN(19.7 * PKG.rate) + ' busy.'));
+    view.appendChild(stepCard('C. Upgrade Netlify to Personal (5 minutes)', null, [
+      'app.netlify.com → team SIRRADDO GLOBAL LIMITED → Team settings → Billing → Change plan → Personal ($9/month, 1,000 credits).',
+      'Add the dollar card. Leave "auto recharge" off.'
+    ], 'Cost: ' + nN(9 * PKG.rate) + ' a month.'));
+    view.appendChild(stepCard('D. When a store needs its own database', 'Move a store only if one of these is true:', [
+      'That one store keeps the database awake almost all day, or uses most of the storage.',
+      'It gets thousands of orders or sign-ins a day and other stores feel slower.',
+      'The customer asks for their data to be kept separate (and pays for it).'
+    ]));
+    view.appendChild(stepCard('E. Move one store to its own database', 'Not built yet. The first time, ask Claude: "Build per-store database moving". It adds the switch plus "Pause checkout", "Move to own database", "Move back" and "Remove old copy" buttons to the client card (one deploy, 15 credits). Then each move takes about 30 minutes, best at night:', [
+      'Agree the price: their database costs ' + nN(5.65 * PKG.rate) + '–' + nN(19.7 * PKG.rate) + ' a month; charge e.g. ₦15,000–₦35,000 a month (or yearly).',
+      'Create their database: console.neon.tech → New project → "store-theirname", same region and Postgres version as your main project → copy the pooled connection string.',
+      'Save it as a secret: Netlify → project sirraddo → Environment variables → add STORE_DB_<client ID> = the connection string. Never paste it in a chat or email. Saving it needs one redeploy (15 credits).',
+      'Client card → Pause checkout (buyers see "Back in a few minutes"; pages stay up).',
+      'Client card → Move to own database: it copies their products, orders, buyers, addresses and reviews and shows the counts (e.g. Orders 1,240 = 1,240 ✓).',
+      'Test on their live site: a test order, sign in, save an address, a review, their Manage page.',
+      'Client card → Resume checkout.',
+      'Keep the old copy 7 days as a backup, then Remove old copy.',
+      'Bill their database monthly or yearly with their normal invoices.'
+    ], 'Undo within 7 days: Move back (orders made since the move are copied back, and checkout uses the main database again).'));
+    view.appendChild(stepCard('F. Backups', null, [
+      'Before any upgrade or move: Settings → Backup → download a backup and keep it safe (never forward it).',
+      'Neon can restore the database to an earlier time: Neon → your project → Restore. Paid plans keep a longer history, one more reason to upgrade once real stores depend on it.'
+    ]));
   }
 
   // ===================== Marketing =====================

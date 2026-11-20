@@ -113,7 +113,7 @@ export async function ensureStoreToken(id) {
   const row = await getRequest(id);
   if (row && kindFor(row.interest) === "store" && !row.shop?.token) await ensureShopToken(id);
 }
-export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove, paystackOn, flwKey, flwOn, flwRemove, transfer, delivery, accounts, accountsOn, google, googleOn, manageOn, zones, freeOver, codes, instalments, hideStock, leadTime }) {
+export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove, paystackOn, flwKey, flwOn, flwRemove, transfer, delivery, accounts, accountsOn, google, googleOn, manageOn, zones, freeOver, codes, instalments, hideStock }) {
   let row = await ensureShopToken(id);
   const patch = {};
   // Every way to pay is a switch the owner (in My store) or SIRRADDO (in admin) can turn on and off at any time.
@@ -144,10 +144,8 @@ export async function setShopPayments(id, { secretKey, deliveryFee, notify, remo
   if (manageOn !== undefined) patch.manageOff = !manageOn;
   // Delivery fee by area, free delivery above an amount, discount codes and pay small-small (the owner, in My store).
   if (zones !== undefined) patch.zones = cleanZones(zones);
-  // Stores that source items when customers order (or just don't want numbers shown): hide "Only 2 left", and a
-  // short note on every product, e.g. "Sourced on order · ready in 3–5 days".
+  // Stores that source items when customers order (or just don't want numbers shown): no "Only 2 left" / "5 in stock".
   if (hideStock !== undefined) patch.hideStock = Boolean(hideStock);
-  if (leadTime !== undefined) patch.leadTime = clean(leadTime, 80);
   if (freeOver !== undefined) { const n = Math.round(Number(String(freeOver ?? "").replace(/[^\d.]/g, "")) || 0); if (n < 0 || n > 1e8) throw new Error("Free delivery: write an amount in naira, or leave it empty"); patch.freeOver = n || null; }
   if (codes !== undefined) patch.codes = cleanCodes(codes, row.shop?.codes);
   if (instalments !== undefined) {
@@ -253,7 +251,7 @@ export async function shopConfig(token) {
   const googleClient = r.shop?.accounts && !r.shop?.accountsOff && r.shop?.google && !r.shop?.googleOff && googleClientId() ? googleClientId() : null;
   return { online: m.paystack || m.flutterwave, methods: m, mode: r.shop?.keyMode || null, deliveryFee: r.shop?.deliveryFee ?? null, name: storeName(r), stock,
     deliveryNote: m.delivery ? r.shop.delivery.note || "" : "", accounts: Boolean(r.shop?.accounts && !r.shop?.accountsOff), google: googleClient, id: r.id,
-    vstock, hideStock: Boolean(r.shop?.hideStock), leadTime: r.shop?.leadTime || "", zones: cleanZones(r.shop?.zones), freeOver: Number(r.shop?.freeOver) || 0, codes: activeCodes(r.shop).length > 0, firstPct: m.instalment ? firstPayment(r.shop, 100).pct : 0 };
+    vstock, hideStock: Boolean(r.shop?.hideStock), zones: cleanZones(r.shop?.zones), freeOver: Number(r.shop?.freeOver) || 0, codes: activeCodes(r.shop).length > 0, firstPct: m.instalment ? firstPayment(r.shop, 100).pct : 0 };
 }
 
 // Work out the order from the product list (never trust prices from the browser).

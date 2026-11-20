@@ -217,12 +217,12 @@
     api('products').then(function (j) {
       var rows = {};
       if (!j.products.length) { box.appendChild(el('p', { class: 'admin-empty', text: 'No products yet.' })); return; }
-      // Stock on the website: hide the numbers, and a note for stores that source items when customers order.
-      var s0 = state.store || {}, hs = el('input', { type: 'checkbox', checked: !s0.hideStock }), lt = el('input', { value: s0.leadTime || '', maxlength: '80', placeholder: 'e.g. Sourced on order · ready in 3–5 days' });
+      // Stock on the website: hide the numbers (e.g. stores that source items when customers order).
+      var s0 = state.store || {}, hs = el('input', { type: 'checkbox', checked: !s0.hideStock });
       box.appendChild(el('div', { class: 'admin-card admin-settings' }, [el('h2', { text: 'Stock on your website' }),
-        el('p', { class: 'admin-hint', text: 'Don’t keep stock and buy items when customers order? Leave “In stock” empty for those products: nothing shows and they never sell out. You can also hide the numbers for everything and add a note customers see on every product.' }),
-        el('label', { class: 'admin-check' }, [hs, ' Show stock numbers to customers (e.g. “Only 2 left”)']), field('Note on every product (optional)', lt, 'e.g. “Sourced on order · ready in 3–5 days” or “Made to order · 1 week”.'),
-        btn('Save', function (e) { savePayments({ hideStock: !hs.checked, leadTime: lt.value }, e.currentTarget); }, 'admin-btn--primary')]));
+        el('p', { class: 'admin-hint', text: 'Don’t keep stock and buy items when customers order? Leave “In stock” empty for those products: nothing shows and they never sell out. Or untick below to hide stock numbers for every product.' }),
+        el('label', { class: 'admin-check' }, [hs, ' Show stock numbers to customers (e.g. “Only 2 left”)']),
+        btn('Save', function (e) { savePayments({ hideStock: !hs.checked }, e.currentTarget); }, 'admin-btn--primary')]));
       // "Tell me when it's back": message them from your WhatsApp when it's in stock, then tick them off.
       if ((j.alerts || []).length) {
         var ab = el('div', { class: 'admin-card admin-callout' }, [el('h2', { text: 'Waiting for stock (' + j.alerts.length + ')' }), el('p', { class: 'admin-hint', text: 'These customers asked to be told when an item is back. When it is, message them, then tap Done.' })]);

@@ -69,7 +69,7 @@ export default async function handler(req, res) {
       if (!c) return res.status(404).json({ error: "Store not found" });
       res.setHeader("Cache-Control", "no-store");
       return res.status(200).json({ online: c.online, methods: c.methods, deliveryFee: c.deliveryFee, deliveryNote: c.deliveryNote, stock: c.stock, accounts: c.accounts, google: c.google,
-        vstock: c.vstock, hideStock: c.hideStock, leadTime: c.leadTime, zones: c.zones, freeOver: c.freeOver, codes: c.codes, firstPct: c.firstPct });
+        vstock: c.vstock, hideStock: c.hideStock, zones: c.zones, freeOver: c.freeOver, codes: c.codes, firstPct: c.firstPct });
     }
     if (req.method === "GET" && query.ref) {
       const r = await confirmOrder(query.ref);

@@ -557,17 +557,16 @@ test("order and receipt pages are on the store's own website (…/order?ref=…)
   assert.match((await k("orders")).json.orders[0].link, /^https?:\/\/[^/]+\/api\/shop\?ref=/);
 });
 
-test("stores that source on order: hide stock numbers, a note on every product; products without a count never sell out", async () => {
+test("stores that source on order: hide stock numbers; products without a count never sell out", async () => {
   const { id, tok } = await makeStore("Source Shop");
   const k = await ownerOf(id);
-  assert.equal((await k("payments", { payments: { hideStock: true, leadTime: "Sourced on order · ready in 3–5 days" } })).status, 200);
-  const st = (await k("me")).json.store; assert.equal(st.hideStock, true); assert.equal(st.leadTime, "Sourced on order · ready in 3–5 days");
-  const cfg = (await h.call("GET", `/api/shop?config=1&s=${tok}`)).json;
-  assert.equal(cfg.hideStock, true); assert.equal(cfg.leadTime, "Sourced on order · ready in 3–5 days");
+  assert.equal((await k("payments", { payments: { hideStock: true } })).status, 200);
+  assert.equal((await k("me")).json.store.hideStock, true);
+  assert.equal((await h.call("GET", `/api/shop?config=1&s=${tok}`)).json.hideStock, true);
   const { buildSiteModel, renderPage } = await import("../api/_lib/sitegen.mjs");
   const [{ brief }] = await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]);
   const html = renderPage(buildSiteModel({ ...(await h.row(id)), brief, draft_md: "# Website text\n## Page: Home\n### Hero\nX\nY." }), "index", { mode: "export", link: (x) => x });
-  assert.doesNotMatch(html, /class="stock/, "no 'Only 5 left'"); assert.match(html, /<p class="lead">Sourced on order · ready in 3–5 days<\/p>/);
+  assert.doesNotMatch(html, /class="stock/, "no 'Only 5 left'");
   // "Lace" has no stock count: as many as they like
   assert.equal((await shop({ s: tok, action: "quote", items: [{ i: 1, q: 40 }] })).json.subtotal, 800000);
 });

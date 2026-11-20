@@ -249,7 +249,7 @@ export function buildSiteModel(row) {
     creditTag,
     // White label (e.g. sites sold through an agency): no "Website by SIRRADDO" in the footer.
     noCredit: Boolean(row.hosting?.noCredit),
-    hideStock: Boolean(row.shop?.hideStock), leadTime: String(row.shop?.leadTime || ""),
+    hideStock: Boolean(row.shop?.hideStock),
     // Where the site lives (for Google: canonical links, sitemap, share previews). Empty until it has an address.
     baseUrl: domain ? `https://${domain}` : row.hosting?.pagesUrl || (/^https:\/\//.test(row.website_url || "") ? row.website_url.replace(/\/+$/, "") : ""),
     name: b.business_name || row.business || row.name,
@@ -493,7 +493,7 @@ function productCards(site, img) {
       : p.price ? `<p class="price">${esc(p.amount ? naira(p.amount) : naira(p.price))}</p>` : "";
     const rate = rv.length ? `<p class="prate"><span aria-hidden="true">\u2605</span> ${avg.toFixed(1)} <small>(${rv.length} review${rv.length === 1 ? "" : "s"})</small></p>` : "";
     const data = `${photos.length > 1 ? ` data-photos="${esc(JSON.stringify(photos))}"` : ""}${rv.length ? ` data-rv="${esc(JSON.stringify(rv.slice(0, 6).map((x) => ({ n: x.name, s: x.stars, t: x.text, v: x.verified }))))}"` : ""}`;
-    return `<div class="card prod${sold ? " is-soldout" : ""}${p.onSale ? " on-sale" : ""}" data-pi="${p.i}"${data}>${p.onSale ? `<span class="sale-tag">\u2212${p.off}%</span>` : ""}${photo ? `<img class="pv-open" src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3><button class="pname pv-open" type="button" aria-haspopup="dialog">${esc(p.name)}</button></h3>${rate}${text ? `<div class="pdesc" hidden>${esc(text)}</div>` : ""}${price}${site.leadTime && p.amount && !sold ? `<p class="lead">${esc(site.leadTime)}</p>` : ""}${buy}</div>`;
+    return `<div class="card prod${sold ? " is-soldout" : ""}${p.onSale ? " on-sale" : ""}" data-pi="${p.i}"${data}>${p.onSale ? `<span class="sale-tag">\u2212${p.off}%</span>` : ""}${photo ? `<img class="pv-open" src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3><button class="pname pv-open" type="button" aria-haspopup="dialog">${esc(p.name)}</button></h3>${rate}${text ? `<div class="pdesc" hidden>${esc(text)}</div>` : ""}${price}${buy}</div>`;
   }).join("")}</div>`;
 }
 
@@ -517,7 +517,7 @@ const PRODUCT_POP = `<style>.ppop{position:fixed;inset:0;z-index:65;background:r
 .pzoom{position:fixed;inset:0;z-index:80;background:#000;overflow:auto;touch-action:pan-x pan-y pinch-zoom}.pzoom[hidden]{display:none}.pzoom img{display:block;width:100%;min-height:100%;object-fit:contain;cursor:zoom-in}.pzoom.big img{width:220%;max-width:none;cursor:zoom-out}.pzoom .x{position:fixed;top:10px;right:10px;width:46px;height:46px;border-radius:50%;border:0;background:rgba(255,255,255,.9);font-size:28px;cursor:pointer}
 .card.prod{position:relative}.sale-tag{position:absolute;top:8px;left:8px;z-index:2;background:#E11D48;color:#fff;font-weight:800;font-size:.8rem;border-radius:8px;padding:3px 8px}
 .price s{opacity:.55;font-weight:500;font-size:.88em;margin-left:4px}.price .off{color:#E11D48;font-size:.85em;margin-left:4px}.sale-end{font-size:.85rem;font-weight:700;color:#C2410C;margin:-4px 0 8px}.prate{margin:0 0 4px;font-size:.9rem;font-weight:700}.prate span{color:#F5A524}.prate small{font-weight:500;opacity:.7}
-.lead{margin:-4px 0 8px;font-size:.85rem;font-weight:600;opacity:.8}.buy .ntf{display:block;margin-top:8px;font-size:.9rem;padding:9px 12px;background:transparent!important;color:inherit!important;border:1.5px solid currentColor!important}</style>
+.buy .ntf{display:block;margin-top:8px;font-size:.9rem;padding:9px 12px;background:transparent!important;color:inherit!important;border:1.5px solid currentColor!important}</style>
 <div class="ppop" hidden role="dialog" aria-modal="true" aria-label="Product details"><div class="box"><div class="bar"><button class="shr" type="button">Share</button><button class="x" type="button" aria-label="Close">×</button></div><div class="in"></div></div></div>
 <div class="pzoom" hidden role="dialog" aria-label="Photo"><button class="x" type="button" aria-label="Close">×</button><img alt=""></div>
 <script>(function(){var pop=document.querySelector('.ppop'),box=pop.querySelector('.box'),inn=pop.querySelector('.in'),zm=document.querySelector('.pzoom'),last=null,cur=null;
@@ -697,7 +697,6 @@ try{var zk=localStorage.getItem(C.key+'-zone');if(zk!==null&&Z[+zk])zs.value=zk}
 $('.cart .code').hidden=!CODES;$('.cart .apply').onclick=function(){code=$('#cb-code').value.trim().toUpperCase();$('.cart .cmsg').textContent=code?'Checking\u2026':'';quote()};
 window.__shopCfg=j;try{window.dispatchEvent(new CustomEvent('shopcfg',{detail:j}))}catch(x){}
 if(j.hideStock)document.querySelectorAll('.card .stock').forEach(function(x){x.remove()});
-if(j.leadTime!==undefined)document.querySelectorAll('.card.prod').forEach(function(c){var l=c.querySelector('.lead'),pr=c.querySelector('.price');if(!j.leadTime){if(l)l.remove();return}if(!c.querySelector('.btn.add,.btn.add-opt'))return;if(!l&&pr){l=document.createElement('p');l.className='lead';var se=c.querySelector('.sale-end');(se||pr).insertAdjacentElement('afterend',l)}if(l)l.textContent=j.leadTime});
 var st=j.stock||{};Object.keys(st).forEach(function(i){var n=+st[i];document.querySelectorAll('.btn.add[data-i="'+i+'"]').forEach(function(a){a.setAttribute('data-max',n);var bp=a.closest('.buy'),sl=bp.previousElementSibling;
 if(n<=0){bp.innerHTML='<span class="soldout">Sold out</span>';bp.removeAttribute('data-i');var c=bp.closest('.card');if(c)c.classList.add('is-soldout');if(sl&&sl.classList.contains('stock'))sl.remove();}
 else if(!j.hideStock){if(!sl||!sl.classList.contains('stock')){sl=document.createElement('p');bp.parentNode.insertBefore(sl,bp)}sl.className='stock'+(n<=5?' low':'');sl.textContent=n<=5?'Only '+n+' left':n+' in stock';}});

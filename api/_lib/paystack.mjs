@@ -8,7 +8,8 @@ import {
 } from "./store.mjs";
 import { applyRules, emailBriefLink, todayLagos, addYear, daysBetween, SITE } from "./automation.mjs";
 import { serviceDue, dueServices, findService, advanceService } from "./services.mjs";
-import { buildDoc, balance, naira } from "./docs.mjs";
+import { buildDoc, balance, naira, depositPct, depositOf } from "./docs.mjs";
+export { depositPct, depositOf };
 
 const API = "https://api.paystack.co";
 export const paystackConfigured = () => /^sk_(live|test)_/.test(process.env.PAYSTACK_SECRET_KEY || "");
@@ -29,13 +30,15 @@ const projectPaid = (r) => (r.payments || []).filter((p) => !p.kind || p.kind ==
 // What the customer can pay now, worked out on the server (never trusted from the browser).
 // for: "deposit" | "balance" | "renewal" | "" (auto)
 export function amountDue(r, want = "") {
-  const deposit = r.quote_amount && !projectPaid(r) ? Math.round(r.quote_amount * 0.7) : 0;
-  const bal = r.quote_amount != null && projectPaid(r) > 0 ? balance(r) : 0;
+  const deposit = r.quote_amount && !projectPaid(r) ? depositOf(r) : 0;
+  // After the deposit: the next instalment you set (e.g. 30% when they approve the preview), or the whole balance.
+  const fullBal = r.quote_amount != null && projectPaid(r) > 0 ? balance(r) : 0;
+  const bal = r.next_payment > 0 && r.next_payment < fullBal ? r.next_payment : fullBal;
   // Renewals can be paid from 60 days before the due date (or any time after it).
   const renewalOpen = r.renewal_amount && r.renewal_due && (r.project_stage === "live" || r.live_on) && daysBetween(todayLagos(), r.renewal_due) <= 60;
   const options = {
-    deposit: deposit ? { kind: "project", amount: deposit, label: `70% deposit for your ${r.interest}` } : null,
-    balance: bal > 0 ? { kind: "project", amount: bal, label: `Balance for your ${r.interest}` } : null,
+    deposit: deposit ? { kind: "project", amount: deposit, label: `${depositPct(r)}% deposit for your ${r.interest}` } : null,
+    balance: bal > 0 ? { kind: "project", amount: bal, label: bal < fullBal ? `Next instalment for your ${r.interest}` : `Balance for your ${r.interest}` } : null,
     renewal: renewalOpen ? { kind: "renewal", amount: r.renewal_amount, label: `Yearly website renewal (due ${r.renewal_due})`, renewal_due: r.renewal_due } : null,
   };
   // Monthly / yearly services: for = "service-<id>".
@@ -114,7 +117,7 @@ export async function recordPayment(tx) {
     row = (await afterProjectPayment(id).catch((e) => { console.error("after payment hosting failed", e); return null; })) || row;
   }
   const paidProject = projectPaid(row);
-  if (!row.brief_token && paidProject > 0 && (!row.quote_amount || paidProject >= Math.round(row.quote_amount * 0.7))) {
+  if (!row.brief_token && paidProject > 0 && (!row.quote_amount || paidProject >= depositOf(row))) {
     row = (await ensureBriefToken(id)) || row;
     await emailBriefLink(row);
   }

@@ -45,6 +45,9 @@ const niceDate = (d) => {
 const payments = (r) => (Array.isArray(r.payments) ? r.payments : []);
 const paid = (r, kind) => payments(r).filter((p) => !kind || p.kind === kind).reduce((s, p) => s + Number(p.amount || 0), 0);
 const projectPaid = (r) => payments(r).filter((p) => !p.kind || p.kind === "project").reduce((s, p) => s + Number(p.amount || 0), 0);
+// The deposit to start: 70% unless you set another share for this job (instalments, e.g. 50%).
+export const depositPct = (r) => (Number.isInteger(r?.deposit_pct) && r.deposit_pct >= 10 && r.deposit_pct <= 100 ? r.deposit_pct : 70);
+export const depositOf = (r) => (r?.quote_amount ? Math.round(r.quote_amount * depositPct(r) / 100) : 0);
 export const balance = (r) => (r.quote_amount == null ? null : Math.max(0, r.quote_amount - projectPaid(r)));
 
 export const DOC_TYPES = ["invoice", "receipt", "renewal", "handover", "service"];
@@ -189,7 +192,8 @@ export function buildDoc(r, type, settings = {}) {
     rows.push([`${r.interest} — design and setup, first year of domain, hosting, SSL and business email included`, r.quote_amount]);
     totals.push(["Total", r.quote_amount]);
     const pp = projectPaid(r);
-    if (!pp) totals.push(["Deposit to start (70%)", Math.round(r.quote_amount * 0.7)]);
+    if (!pp) totals.push([`Deposit to start (${depositPct(r)}%)`, depositOf(r)]);
+    else if (r.next_payment > 0 && r.next_payment < balance(r)) totals.push(["Next instalment due", r.next_payment]);
     else totals.push(["Paid so far", pp]);
     totals.push(["Balance due", balance(r)]);
   } else if (type === "renewal") {
@@ -212,7 +216,7 @@ export function buildDoc(r, type, settings = {}) {
     number = `SGL-RCT-${year}-${num}-${payments(r).length}`;
     for (const p of payments(r)) {
       const svcName = p.kind === "service" ? ((Array.isArray(r.services) ? r.services : []).find((x) => x.id === p.service_id)?.name || "Service") : "";
-      rows.push([`${niceDate(p.date)} — ${p.kind === "renewal" ? "Renewal payment" : p.kind === "service" ? `${svcName} payment` : `Payment for ${r.interest}`}${p.note ? ` (${p.note})` : ""}`, p.amount]);
+      rows.push([`${niceDate(p.date)} — ${p.refund ? "Refund paid back to you" : p.kind === "renewal" ? "Renewal payment" : p.kind === "service" ? `${svcName} payment` : `Payment for ${r.interest}`}${p.note ? ` (${p.note})` : ""}`, p.amount]);
     }
     totals.push(["Total received", paid(r)]);
     if (r.quote_amount != null) totals.push(["Project balance", balance(r)]);

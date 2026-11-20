@@ -29,7 +29,7 @@
   var DEFAULT_HANDOVER_TERMS = "Small fixes to text and photos are free for 30 days after your website goes live. After that, tell us what you'd like changed and we'll quote it before we start. Your yearly renewal keeps your domain, hosting, SSL certificate, business email and backups running.";
   var TEMPLATES = {
     tpl_new: { label: 'First contact', text: 'Hello {name}, this is SIRRADDO GLOBAL LIMITED. Thank you for your interest in our {package} package. Could you tell us a bit more about your business so we can get started?' },
-    tpl_quoted: { label: 'Quote follow-up', text: 'Hello {name}, following up on your {package} quote of {amount}. To start, we need a 70% deposit of {deposit}, and the balance when your site is ready. Any questions, just ask.' },
+    tpl_quoted: { label: 'Quote follow-up', text: 'Hello {name}, following up on your {package} quote of {amount}. To start, we need a {deposit_pct} deposit of {deposit}, and the balance when your site is ready. Any questions, just ask.' },
     tpl_won: { label: 'Send your content', text: 'Hello {name}, thank you for choosing SIRRADDO! To begin, please send your logo, photos, a short business description and your contact details. Your website will be live within 7 working days after we receive them.' },
     tpl_payment: { label: 'Payment received', text: 'Hello {name}, we have received your payment, thank you. Total paid: {paid}. Balance: {balance}.' },
     tpl_brief: { label: 'Send project form', text: 'Hello {name}, thank you for your deposit! Please fill in your project details here: {brief_link}\nIt takes about 10-15 minutes, and you can save and finish later with the same link.' },
@@ -1121,6 +1121,49 @@
     view.appendChild(passwordForm(true, function () { load().then(function () { setTab('access'); }); }));
   }
 
+  // Company documents (Playbook → formal quote / tender): CAC certificate, TIN, SCUML, letter of introduction… kept
+  // here so they can be sent on WhatsApp or by email in one tap. Anyone with a document's link can open it.
+  function companyDocs(view) {
+    var card = el('div', { class: 'admin-card admin-settings' }, [el('h2', { text: 'Company documents' }),
+      el('p', { class: 'admin-hint', text: 'For companies, banks and tenders: upload PDFs (or photos) of your CAC certificate, TIN / tax clearance, SCUML certificate, letter of introduction, etc. Each gets a private link to send. Anyone with the link can open it, so send it only to the company asking. Max 4 MB each.' })]);
+    var title = el('input', { placeholder: 'Name, e.g. CAC certificate', maxlength: 80 });
+    var file = el('input', { type: 'file', accept: 'application/pdf,image/jpeg,image/png' });
+    var list = el('div');
+    function draw(docs) {
+      list.textContent = '';
+      if (!docs.length) { list.appendChild(el('p', { class: 'admin-empty', text: 'No documents yet.' })); return; }
+      docs.forEach(function (d) {
+        var msg = 'Hello, please find our ' + d.title + ' here: ' + d.url + '\nSIRRADDO GLOBAL LIMITED (RC 9939920)';
+        list.appendChild(el('div', { class: 'admin-card' }, [el('h3', { text: d.title }), el('p', { class: 'admin-meta', text: 'Added ' + when(d.at) }),
+          el('div', { class: 'admin-actions' }, [
+            el('a', { class: 'admin-btn', href: d.url, target: '_blank', rel: 'noopener', text: 'Open' }),
+            el('button', { class: 'admin-btn', type: 'button', text: 'Copy link', onclick: function (e) { copyText(d.url, 'Link', e.currentTarget); } }),
+            el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Send on WhatsApp' }),
+            el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Remove', onclick: function () {
+              if (!window.confirm('Remove ' + d.title + '?')) return;
+              api('POST', { action: 'company_doc_remove', url: d.url }).then(function (j) { draw(j.docs); flash('Removed'); }).catch(fail);
+            } })])]));
+      });
+    }
+    card.appendChild(field('Document name', title));
+    card.appendChild(field('File (PDF, JPG or PNG)', file));
+    card.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Upload', onclick: function (e) {
+      var f = file.files && file.files[0], b = e.currentTarget;
+      if (!f) { fail(new Error('Choose a file')); return; }
+      if (f.size > 4 * 1024 * 1024) { fail(new Error('That file is too big (max 4 MB). Compress the PDF first.')); return; }
+      b.disabled = true;
+      var rd = new FileReader();
+      rd.onload = function () {
+        api('POST', { action: 'company_doc_add', title: title.value || f.name.replace(/\.[^.]+$/, ''), type: f.type, data: String(rd.result).split(',')[1] })
+          .then(function (j) { b.disabled = false; title.value = ''; file.value = ''; draw(j.docs); flash('Uploaded'); }).catch(function (er) { b.disabled = false; fail(er); });
+      };
+      rd.readAsDataURL(f);
+    } }));
+    view.appendChild(card);
+    view.appendChild(list);
+    api('POST', { action: 'company_docs' }).then(function (j) { draw(j.docs); }).catch(fail);
+  }
+
   // Away mode: staff become the first contact; the website says replies may be slower (never that you're away).
   function awayInfo() {
     var u = state.settings && state.settings.away_until;
@@ -1151,7 +1194,7 @@
       ['Follow up', ['Dashboard → Follow up today → open each one.', 'Send the follow-up message, then move the follow-up date on, or set Lost with a note if they said no.']],
       ['Add a customer who messaged on WhatsApp', ['Requests → Add a customer: name, phone, package, How did they find us?, what they need.', 'Then reply and set a follow-up date.']],
       ['Answer a website question', ['Questions → read the question → type the answer (the chat learns it).']]],
-    changes: [['Handle a change request', ['Clients → the customer → After launch → Show change requests.', 'Tap Do it with AI (or wait: it is often ready already). Check the list of edits.', 'Open preview to check, then Send preview on WhatsApp. The customer taps "Put these changes live".', 'If the AI couldn’t do something (e.g. new colours), message the owner.']],
+    changes: [['Handle a change request', ['Clients → the customer → After launch → Show change requests.', 'Tap Do it with AI (or wait: it is often ready already). Check the list of edits.', 'Open preview to check, then Send preview on WhatsApp. The customer taps "Put these changes live".', 'If the AI couldn\u2019t do something (e.g. a new design, fonts or layout), message the owner. New colours the AI can do.']],
       ['A request that came on WhatsApp', ['Show change requests → Add a request from WhatsApp → paste what they asked → Do it with AI.']],
       ['Customer lost their Manage link', ['Client → Manage my website → copy their link and send it privately on WhatsApp.', 'If it may have leaked, ask the owner to make a new one.']]],
     marketing: [['Post today’s ad', ['Marketing → Today → Share (phone) or Download, then paste the caption.', 'Tick "I posted today".']],
@@ -1178,7 +1221,7 @@
     var not = Object.keys(PERM_INFO).filter(function (k) { return !canDo(k); });
     view.appendChild(el('h2', { class: 'admin-h2', text: 'Ask the owner for' }));
     view.appendChild(el('ul', { class: 'admin-mini' }, not.map(function (k) { return el('li', null, [el('b', { text: PERM_INFO[k][0] + ': ' }), PERM_INFO[k][1]]); }).concat([
-      el('li', { text: 'Refunds, discounts or price changes; angry or legal complaints; copyright or data-deletion requests; anything about passwords or keys; settings, offers, emails and backups; deleting anything.' })])));
+      el('li', { text: 'Refunds, discounts or price changes; angry or legal complaints; copyright or data-deletion requests; a new design, fonts or layout; company documents for tenders; anything about passwords or keys; settings, offers, emails and backups; deleting anything. The Playbook has a page for each.' })])));
     view.appendChild(el('h2', { class: 'admin-h2', text: 'Step by step' }));
     ['view'].concat(Object.keys(PERM_INFO).filter(function (k) { return canDo(k); })).forEach(function (k) {
       (ACCESS_GUIDES[k] || []).forEach(function (g) {
@@ -2239,7 +2282,7 @@
     if (!state.canPay || !r.doc_token) text = text.split('\n').filter(function (l) { return l.indexOf('{pay_link}') === -1; }).join('\n');
     var vals = {
       name: (r.name || '').split(' ')[0], package: r.interest, amount: naira(quote),
-      deposit: quote ? naira(Math.round(quote * 0.7)) : '-', paid: naira(paid(r, 'project')), balance: naira(balance(r)),
+      deposit: quote ? naira(depositAmount(r)) : '-', deposit_pct: depositPct(r) + '%', paid: naira(paid(r, 'project')), balance: naira(balance(r)),
       renewal_amount: naira(r.renewal_amount), renewal_due: r.renewal_due ? niceDate(r.renewal_due) : '-',
       brief_link: r.brief_token ? briefUrl(r) : '(no project form link yet)',
       last_payment: payments(r).length ? naira(payments(r)[payments(r).length - 1].amount) : '-',
@@ -2314,9 +2357,16 @@
     var quote = el('input', { type: 'number', min: 0, step: 1000, inputmode: 'numeric', value: r.quote_amount == null ? '' : r.quote_amount, placeholder: DEFAULT_QUOTE[r.interest] || '' });
     quote.addEventListener('change', function () { update(r, { quote_amount: quote.value }, 'Quote saved'); });
     var bal = balance(r);
+    // Instalments (Playbook): the deposit share to start, and an optional next instalment (e.g. 30% at preview approval).
+    var dpct = select([['70', '70% (usual)'], ['50', '50%'], ['60', '60%'], ['100', '100% upfront'], ['30', '30%']], String(depositPct(r)), { 'aria-label': 'Deposit to start' });
+    dpct.addEventListener('change', function () { update(r, { deposit_pct: dpct.value }, 'Deposit set to ' + dpct.value + '%'); });
+    var nextPay = el('input', { type: 'number', min: 0, step: 1000, inputmode: 'numeric', value: r.next_payment == null ? '' : r.next_payment, placeholder: 'Optional' });
+    nextPay.addEventListener('change', function () { update(r, { next_payment: nextPay.value }, nextPay.value ? 'Next instalment saved: their invoice and pay link ask for ' + naira(Number(nextPay.value)) : 'Next instalment cleared: they pay the whole balance'); });
     wrap.appendChild(el('div', { class: 'admin-grid' }, [
-      field('Quote (₦)', quote, r.quote_amount ? '70% deposit: ' + naira(Math.round(r.quote_amount * 0.7)) : 'Package price, e.g. ' + naira(DEFAULT_QUOTE[r.interest] || 50000)),
-      el('div', { class: 'admin-field' }, [el('span', { text: 'Balance' }), el('strong', { class: bal ? 'admin-owed' : '', text: naira(bal) })])
+      field('Quote (₦)', quote, r.quote_amount ? depositPct(r) + '% deposit: ' + naira(depositAmount(r)) : 'Package price, e.g. ' + naira(DEFAULT_QUOTE[r.interest] || 50000)),
+      el('div', { class: 'admin-field' }, [el('span', { text: 'Balance' }), el('strong', { class: bal ? 'admin-owed' : '', text: naira(bal) })]),
+      field('Deposit to start', dpct, 'Instalments: 50% for ₦150,000+ (Playbook)'),
+      field('Next instalment (₦)', nextPay, 'e.g. 30% when they approve the preview. Empty = the whole balance.')
     ]));
     wrap.appendChild(paymentsBlock(r));
 
@@ -2368,7 +2418,7 @@
   function briefBlock(r) {
     var box = el('div', { class: 'admin-brief' }, [el('span', { class: 'admin-label', text: 'Project form' })]);
     if (!r.brief_token) {
-      box.appendChild(el('p', { class: 'admin-empty', text: 'Created automatically when the 70% deposit is recorded.' }));
+      box.appendChild(el('p', { class: 'admin-empty', text: 'Created automatically when the deposit is recorded.' }));
       box.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Create link now', onclick: function () {
         api('POST', { action: 'brief_link', id: r.id }).then(function (row) { replaceRequest(row); flash('Project form link created'); render(); }).catch(fail);
       } }));
@@ -2663,6 +2713,10 @@
       if (!window.confirm('Put back the version published ' + new Date(prevV.at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + '?\n\nUse this when the owner dislikes a recent change or new look. Their website will then wait for their OK before our next improvements (Ask me first).\n\nNote: tapping "Update live site" or the owner saving in their Manage link publishes the newest version again.')) return;
       act({ action: 'host_rollback' }, 'Previous version is live again (Ask me first is now on)', e.currentTarget, 'Restoring…');
     } }));
+    if (h.project) pubActs.appendChild(el('button', { class: 'admin-btn', type: 'button', text: h.noCredit ? 'Show "Website by SIRRADDO"' : 'Hide "Website by SIRRADDO"', onclick: function (e) {
+      if (!h.noCredit && !window.confirm('Remove "Website by SIRRADDO · Get a website like this" from the footer of this site (white label, e.g. sold through an agency)? The live site is updated.')) return;
+      act({ action: 'site_credit', on: Boolean(h.noCredit) }, h.noCredit ? 'Credit shown again' : 'Credit hidden', e.currentTarget, 'Updating…');
+    } }));
     if (h.publishedAt && !h.pausedAt) pubActs.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Pause site', onclick: function (e) {
       if (!window.confirm('Pause ' + (h.domain || 'this site') + '? Visitors will see "temporarily unavailable" and email forwarding stops until you restore it.')) return;
       act({ action: 'host_pause' }, 'Site paused', e.currentTarget, 'Pausing…');
@@ -2827,12 +2881,25 @@
         if (!j.orders.length) { list.appendChild(el('p', { class: 'admin-hint', text: 'No online orders yet. (WhatsApp orders go straight to their WhatsApp.)' })); return; }
         j.orders.forEach(function (o) {
           var items = o.items.map(function (l) { return l.name + ' ×' + l.qty; }).join(', ');
+          if (o.status === 'pending' || o.status === 'abandoned' || o.status === 'failed') list.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Check payment: ' + naira(o.total) + ' · ' + (o.buyer.name || ''), onclick: function (e2) {
+            var bb = e2.currentTarget; bb.disabled = true;
+            api('POST', { action: 'shop_check', id: r.id, ref: o.ref }).then(function (k) { flash(k.order.status === 'paid' ? 'Paid: order confirmed, the owner was emailed and the receipt is ready' : 'Not paid (' + k.order.status + ') according to the payment company'); bb.textContent = k.order.status === 'paid' ? 'Paid \u2713' : 'Not paid'; })
+              .catch(function (er) { bb.disabled = false; fail(er); });
+          } }));
           list.appendChild(el('p', { class: 'admin-meta' }, [badge(o.status === 'paid' ? 'Paid' : o.status, o.status === 'paid' ? 'is-won' : ''), ' ' + naira(o.total) + ' · ' + (o.buyer.name || '') + ' · ' + items + ' · ' + when(o.paid_at || o.created_at)]));
         });
       }).catch(function (e2) { b.disabled = false; fail(e2); });
     } }));
     box.appendChild(acts);
     box.appendChild(list);
+    // Playbook → "A buyer asks a store to delete their data" (after the store owner agrees).
+    var erasePhone = el('input', { placeholder: 'Buyer\u2019s phone number', inputmode: 'tel' });
+    box.appendChild(el('details', { class: 'admin-sub' }, [el('summary', { text: 'Delete a buyer\u2019s data' }),
+      el('p', { class: 'admin-hint', text: 'Only after the store owner agrees. Deletes the buyer\u2019s account (Standard Store) and removes their name, phone, email and address from every order (amounts stay). The owner can also do it in My store.' }),
+      erasePhone, el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Delete their data', onclick: function () {
+        if (!erasePhone.value.trim() || !window.confirm('Remove the data of ' + erasePhone.value + ' from this store? It can\u2019t be undone.')) return;
+        api('POST', { action: 'shop_erase', id: r.id, phone: erasePhone.value }).then(function (k) { flash((k.account ? 'Account deleted; ' : 'No account; ') + 'details removed from ' + k.orders + ' order(s)'); erasePhone.value = ''; }).catch(fail);
+      } })]));
     box.appendChild(el('p', { class: 'admin-hint', text: 'Every product with a plain price (e.g. 4500) gets "Add to cart". Buyers then choose "Pay online" (only when a key is set) or "Order on WhatsApp". Products priced like "from 5k" stay WhatsApp-only. Paid orders are emailed to the store owner; buyers save or share their receipt on the thank-you page (we never email buyers). No need to republish after changing these settings.' }));
     box.appendChild(storeOwnerBlock(r));
     box.appendChild(storeOptionsBlock(r));
@@ -2907,6 +2974,10 @@
     var gg = tg('Google sign-in for buyers', sh.google, '(needs GOOGLE_SIGNIN_CLIENT_ID in Netlify and their domain added in Google Cloud: see Packages → Standard Store)');
     var mg = tg('Manage link works (backup)', !sh.manageOff, '(switch off once they use My store, if you like)');
     [ps.row, fw.row, tr.row, el('div', { class: 'admin-grid' }, [field('Bank', bank), field('Account name', aname), field('Account number', anum)]), dl.row, ac.row, gg.row, mg.row].forEach(function (x) { box.appendChild(x); });
+    if (sh.flwOnline) box.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Disconnect Flutterwave', onclick: function () {
+      if (!window.confirm('Remove their Flutterwave key? They can add it again in My store \u2192 Payments.')) return;
+      api('POST', { action: 'shop_settings', id: r.id, flwRemove: true }).then(function (j) { if (j.row) replaceRequest(j.row); flash('Flutterwave disconnected'); render(); }).catch(fail);
+    } }));
     box.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Save switches', onclick: function (e) {
       var b = e.currentTarget; b.disabled = true;
       var body = { action: 'shop_settings', id: r.id, transfer: { on: tr.c.checked, bank: bank.value, name: aname.value, number: anum.value }, delivery: { on: dl.c.checked }, accounts: ac.c.checked, google: gg.c.checked, manageOn: mg.c.checked };
@@ -3311,13 +3382,15 @@
     }).catch(function () { setError('Could not load the answers.'); });
   }
 
+  function depositPct(r) { return r.deposit_pct >= 10 && r.deposit_pct <= 100 ? r.deposit_pct : 70; }
+  function depositAmount(r) { return r.quote_amount ? Math.round(r.quote_amount * depositPct(r) / 100) : 0; }
   function paymentsBlock(r) {
     var box = el('div', { class: 'admin-payments' }, [el('span', { class: 'admin-label', text: 'Payments' })]);
     var list = payments(r);
     if (list.length) {
       box.appendChild(el('ul', null, list.map(function (p, idx) {
         return el('li', null, [
-          niceDate(p.date) + ' · ' + naira(p.amount) + ' · ' + (p.kind === 'renewal' ? 'renewal' : 'project') + (p.note ? ' · ' + p.note : ''),
+          niceDate(p.date) + ' · ' + (p.amount < 0 ? 'REFUND ' + naira(-p.amount) : naira(p.amount)) + ' · ' + (p.kind === 'renewal' ? 'renewal' : p.kind === 'service' ? 'service' : 'project') + (p.note ? ' · ' + p.note : ''),
           el('button', { class: 'admin-x', type: 'button', 'aria-label': 'Remove payment', text: '×', onclick: function () {
             if (!window.confirm('Remove this payment of ' + naira(p.amount) + '?')) return;
             update(r, { payments: list.filter(function (_, j) { return j !== idx; }) }, 'Payment removed');
@@ -3328,7 +3401,7 @@
       box.appendChild(el('p', { class: 'admin-empty', text: 'No payments yet.' }));
     }
     var bal = balance(r);
-    var suggested = paid(r, 'project') === 0 && r.quote_amount ? Math.round(r.quote_amount * 0.7) : bal || '';
+    var suggested = paid(r, 'project') === 0 && r.quote_amount ? depositAmount(r) : (r.next_payment > 0 && r.next_payment < bal ? r.next_payment : bal) || '';
     var amount = el('input', { type: 'number', min: 1, step: 500, inputmode: 'numeric', placeholder: 'Amount ₦', value: suggested });
     var date = el('input', { type: 'date', value: today() });
     var kind = select([['project', 'Project'], ['renewal', 'Renewal']], 'project', { 'aria-label': 'Payment type' });
@@ -3336,10 +3409,16 @@
     var autoEmail = el('input', { type: 'checkbox', id: 'ae' + r.id });
     autoEmail.checked = Boolean(state.canEmail && emailOf(r));
     var autoLabel = state.canEmail && emailOf(r) ? el('label', { class: 'admin-check', for: 'ae' + r.id }, [autoEmail, ' Email the receipt to ' + emailOf(r)]) : null;
+    // A refund (money paid back, Playbook → refund): recorded as a negative payment with the reason; no receipt email.
+    var isRefund = el('input', { type: 'checkbox' });
+    var refundLabel = isOwner() ? el('label', { class: 'admin-check' }, [isRefund, ' This is a refund (money we paid back)']) : null;
+    isRefund.addEventListener('change', function () { add.textContent = isRefund.checked ? 'Record refund' : 'Add payment'; note.placeholder = isRefund.checked ? 'Why (required), e.g. cancelled before work started' : 'Note (e.g. transfer ref)'; if (autoLabel) autoLabel.hidden = isRefund.checked; });
     var add = el('button', { class: 'admin-btn', type: 'button', text: 'Add payment', onclick: function () {
-      if (!Number(amount.value)) { setError('Enter the amount paid'); return; }
-      var next = list.concat([{ date: date.value || today(), amount: Number(amount.value), kind: kind.value, note: note.value }]);
-      var sendMail = autoLabel && autoEmail.checked;
+      if (!Number(amount.value)) { setError(isRefund.checked ? 'Enter the amount refunded' : 'Enter the amount paid'); return; }
+      if (isRefund.checked && !note.value.trim()) { setError('Write why the refund was made'); return; }
+      if (isRefund.checked && !window.confirm('Record a refund of ' + naira(Number(amount.value)) + ' to ' + r.name + '? Their paid total goes down by it.')) return;
+      var next = list.concat([isRefund.checked ? { date: date.value || today(), amount: -Math.abs(Number(amount.value)), kind: kind.value, note: note.value, refund: true } : { date: date.value || today(), amount: Number(amount.value), kind: kind.value, note: note.value }]);
+      var sendMail = autoLabel && autoEmail.checked && !isRefund.checked;
       var wasWon = r.status === 'won';
       state.justPaid[r.id] = true;
       update(r, { payments: next }, 'Payment recorded').then(function () {
@@ -3350,7 +3429,7 @@
           .catch(function (e) { setError('Receipt not emailed: ' + e.message); });
       });
     } });
-    box.appendChild(el('div', { class: 'admin-pay-form' }, [amount, date, kind, note, autoLabel, add]));
+    box.appendChild(el('div', { class: 'admin-pay-form' }, [amount, date, kind, note, refundLabel, autoLabel, add]));
     return box;
   }
 
@@ -3436,7 +3515,12 @@
       el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: 'Send renewal invoice', disabled: !r.renewal_amount || !waNumber(r.contact), onclick: function () { docAction(r, 'renewal', 'whatsapp'); } }),
       el('button', { class: 'admin-btn', type: 'button', text: 'Open in Requests', onclick: function () {
         state.filters = { q: r.contact, status: '', interest: '', due: false }; state.open[r.id] = true; setTab('requests');
-      } })
+      } }),
+      (r.renewal_due || (r.services || []).some(function (x) { return x.active; })) && isOwner() ? el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Stop renewals & services', onclick: function () {
+        var why = window.prompt('Stop renewal reminders, renewal invoices, the overdue auto-pause and their monthly/yearly service fees for ' + r.name + '? (e.g. moved to another developer, business closed)\n\nReason (saved in notes):', 'Moved away');
+        if (why === null) return;
+        api('POST', { action: 'stop_renewals', id: r.id, reason: why }).then(function (j) { if (j.row) replaceRequest(j.row); flash('Renewals and services stopped. Their site stays as it is (Go live → Pause site to take it down).'); render(); }).catch(fail);
+      } }) : null
     ]));
     if (!canDo('money')) card.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Open in Requests', onclick: function () {
       state.filters = { q: r.contact, status: '', interest: '', due: false }; state.open[r.id] = true; setTab('requests');
@@ -3523,7 +3607,12 @@
           el('p', { class: 'admin-meta', text: when(c.updated_at) + ' · ' + (c.page || '') }),
           el('p', { class: 'admin-details', text: '“' + first.slice(0, 160) + (first.length > 160 ? '…' : '') + '”' }),
           badges,
-          transcript(msgs, 'Read conversation')
+          transcript(msgs, 'Read conversation'),
+          // Data-deletion request (Playbook): delete this conversation and its photos. Chats also go after 90 days.
+          isOwner() ? el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Delete chat', onclick: function () {
+            if (!window.confirm('Delete this conversation and any photos sent in it? It can\u2019t be undone.')) return;
+            api('POST', { action: 'chat_delete', session_id: c.session_id }).then(function () { state.chats = (state.chats || []).filter(function (x) { return x.session_id !== c.session_id; }); flash('Chat deleted'); draw(); }).catch(fail);
+          } }) : null
         ]));
       });
     }
@@ -3536,7 +3625,7 @@
   // Settings are split into small sections (chips at the top) so there's no long scrolling.
   var SETTINGS_SECTIONS = [
     ['business', 'Bank & invoices'], ['messages', 'WhatsApp messages'], ['handover', 'Handover'],
-    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['backup', 'Backup']
+    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['docs', 'Company documents'], ['backup', 'Backup']
   ];
   function renderSettings(view) {
     var s = state.settings;
@@ -3591,6 +3680,7 @@
     if (pick === 'email') view.appendChild(emailUsageCard());
     if (pick === 'greetings') view.appendChild(greetingsCard());
     if (pick === 'staff') staffSettings(view);
+    if (pick === 'docs') companyDocs(view);
     if (pick === 'backup') view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
       el('h2', { text: 'Backup' }),
       el('p', { class: 'admin-intro', text: 'Every Monday a backup of all your business data (customers, quotes, payments, website text, orders, change requests) is emailed to you as a file. Keep those emails. You can also download one now. It contains customer details, so keep it private.' }),

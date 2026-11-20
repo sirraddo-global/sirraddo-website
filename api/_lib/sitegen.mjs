@@ -230,6 +230,8 @@ export function buildSiteModel(row) {
   return {
     kind,
     creditTag,
+    // White label (e.g. sites sold through an agency): no "Website by SIRRADDO" in the footer.
+    noCredit: Boolean(row.hosting?.noCredit),
     // Where the site lives (for Google: canonical links, sitemap, share previews). Empty until it has an address.
     baseUrl: domain ? `https://${domain}` : row.hosting?.pagesUrl || (/^https:\/\//.test(row.website_url || "") ? row.website_url.replace(/\/+$/, "") : ""),
     name: b.business_name || row.business || row.name,
@@ -722,7 +724,7 @@ function footer(site, link) {
   return `<footer><div class="wrap"><strong>${esc(site.name)}</strong>${site.tagline ? `<span>${esc(site.tagline)}</span>` : ""}
 <span>${[site.phone && esc(site.phone), site.email && `<a href="mailto:${esc(site.email)}">${esc(site.email)}</a>`, site.address && esc(site.address.split("\n")[0])].filter(Boolean).join(" · ")}</span>
 ${socials ? `<span>${socials}</span>` : ""}<span>© ${new Date().getFullYear()} ${esc(site.name)}</span>
-<span class="credit">Website by <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">SIRRADDO</a> · <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">Get a website like this</a></span></div></footer>
+${site.noCredit ? "" : `<span class="credit">Website by <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">SIRRADDO</a> · <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">Get a website like this</a></span>`}</div></footer>
 ${site.whatsapp ? `<a class="wa" href="${waLink(site)}" aria-label="Chat on WhatsApp">WhatsApp</a>` : ""}`;
 }
 

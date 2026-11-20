@@ -2,8 +2,8 @@
 // SIRRADDO gave them (temporary at first; they must choose their own). Everything here is limited to their own store.
 //   POST { action, ... } with "Authorization: Bearer <ou.… login | o1.… session>"
 import { dbConfigured, getRequest, getBriefById, q } from "./_lib/store.mjs";
-import { ownerFromCredential, ownerSessionToken, setOwnerPassword, listBuyers, buyerResetCode, setBuyerActive } from "./_lib/storeaccounts.mjs";
-import { setShopPayments, payMethods, storeOrders, ownerOrderAction, receiptLink, orderLink, METHOD_LABEL } from "./_lib/shop.mjs";
+import { ownerFromCredential, ownerSessionToken, setOwnerPassword, listBuyers, buyerResetCode, setBuyerActive, eraseBuyer } from "./_lib/storeaccounts.mjs";
+import { setShopPayments, payMethods, storeOrders, ownerOrderAction, receiptLink, orderLink, METHOD_LABEL, confirmOrder, orderByRef } from "./_lib/shop.mjs";
 import { applyManage, afterManage, manageLink } from "./_lib/manage.mjs";
 import { listReviews } from "./_lib/reviews.mjs";
 
@@ -86,6 +86,20 @@ export default async function handler(req, res) {
     if (action === "order") {
       const row = await ownerOrderAction(id, body.ref, body.do);
       return res.status(200).json({ order: { ...row, how: METHOD_LABEL[row.method] || row.method, link: row.status === "paid" ? receiptLink(row) : orderLink(row) } });
+    }
+    // An online payment that didn't finish on the page ("I paid but got no order"): ask Paystack / Flutterwave again.
+    if (action === "check") {
+      const o = await orderByRef(body.ref);
+      if (!o || o.request_id !== id) return res.status(404).json({ error: "Order not found" });
+      const { order } = await confirmOrder(o.ref);
+      return res.status(200).json({ order: { ...order, how: METHOD_LABEL[order.method] || order.method, link: order.status === "paid" ? receiptLink(order) : orderLink(order) } });
+    }
+    // A customer asked you to delete their data: their account goes and their details are removed from their orders.
+    if (action === "customer_delete") return res.status(200).json(await eraseBuyer(id, { buyerId: body.buyer_id }));
+    if (action === "order_erase") {
+      const o = await orderByRef(body.ref);
+      if (!o || o.request_id !== id) return res.status(404).json({ error: "Order not found" });
+      return res.status(200).json(await eraseBuyer(id, { phone: o.buyer?.phone }));
     }
     if (action === "products") {
       const br = r.brief || {};

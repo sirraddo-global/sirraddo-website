@@ -103,8 +103,8 @@
   }
 
   // ---------- Orders ----------
-  var STATUS = { paid: ['Paid', 'is-won'], awaiting: ['Waiting for transfer', 'is-due'], cod: ['Pay on delivery', 'is-new'], cancelled: ['Cancelled', 'is-lost'], failed: ['Payment failed', 'is-lost'], abandoned: ['Not paid', 'is-lost'] };
-  var FILTERS = [['todo', 'To do'], ['', 'All'], ['awaiting', 'Waiting for transfer'], ['cod', 'Pay on delivery'], ['paid', 'Paid'], ['cancelled', 'Cancelled']];
+  var STATUS = { pending: ['Payment not finished', 'is-due'], paid: ['Paid', 'is-won'], awaiting: ['Waiting for transfer', 'is-due'], cod: ['Pay on delivery', 'is-new'], cancelled: ['Cancelled', 'is-lost'], failed: ['Payment failed', 'is-lost'], abandoned: ['Not paid', 'is-lost'] };
+  var FILTERS = [['todo', 'To do'], ['', 'All'], ['awaiting', 'Waiting for transfer'], ['cod', 'Pay on delivery'], ['paid', 'Paid'], ['pending', 'Online payment not finished'], ['cancelled', 'Cancelled']];
   function renderOrders(v) {
     var s = state.store || {};
     var none = !s.methods || !(s.methods.paystack || s.methods.flutterwave || s.methods.transfer || s.methods.delivery);
@@ -143,7 +143,7 @@
       return function (e) {
         if (ask && !window.confirm(ask)) return;
         var bt = e.currentTarget; bt.disabled = true;
-        api('order', { ref: o.ref, do: what }).then(function () { flash(ok); load().then(redraw); }).catch(function (er) { bt.disabled = false; fail(er); });
+        (what === 'erase' ? api('order_erase', { ref: o.ref }) : api('order', { ref: o.ref, do: what })).then(function () { flash(ok); load().then(redraw); }).catch(function (er) { bt.disabled = false; fail(er); });
       };
     }
     var acts = el('div', { class: 'admin-actions' });
@@ -154,7 +154,13 @@
     if (o.status === 'paid' && !o.delivered_at) acts.appendChild(btn('Mark delivered', act('delivered', null, 'Marked delivered'), 'admin-btn--primary'));
     if (o.status === 'paid' && o.delivered_at) acts.appendChild(btn('Not delivered (undo)', act('undelivered', null, 'Changed back to not delivered')));
     if (o.status === 'awaiting' || o.status === 'cod') acts.appendChild(btn('Cancel order', act('cancel', 'Cancel this order? Its items go back into stock. Tell the customer on WhatsApp.', 'Order cancelled'), 'admin-btn--danger'));
+    if (o.status === 'pending' || o.status === 'abandoned' || o.status === 'failed') acts.appendChild(btn('Check payment', function (e) {
+      var bt = e.currentTarget; bt.disabled = true;
+      api('check', { ref: o.ref }).then(function (j) { flash(j.order.status === 'paid' ? 'Paid \u2713 The order is confirmed and the customer\u2019s receipt is ready.' : 'Not paid yet (' + j.order.status + '). If the customer says they paid, ask for the payment reference and check it in your payment dashboard.'); load().then(redraw); })
+        .catch(function (er) { bt.disabled = false; fail(er); });
+    }, 'admin-btn--primary'));
     acts.appendChild(el('a', { class: 'admin-btn', href: o.link, target: '_blank', rel: 'noopener', text: o.status === 'paid' ? 'Receipt' : 'Order page' }));
+    if (b.phone) acts.appendChild(btn('Remove customer\u2019s details', act('erase', 'Remove this customer\u2019s name, phone, email and address from ALL their orders (and delete their account, if they have one)? Only do this if they asked you to delete their data. It can\u2019t be undone.', 'Their details are removed')));
     c.appendChild(acts);
     return c;
   }
@@ -308,6 +314,10 @@
               more.appendChild(el('div', { class: 'admin-callout' }, [el('p', null, ['Code: ', el('b', { text: k.code }), ' (works 24 hours)']), num ? el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + num + '?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Send code on WhatsApp' }) : null]));
             }).catch(fail);
           }));
+          acts.appendChild(btn('Delete account & data', function () {
+            if (!window.confirm('Delete ' + cu.name + '\u2019s account and remove their name, phone, email and address from their orders? Only do this if they asked. It can\u2019t be undone. (The amounts stay in your records.)')) return;
+            api('customer_delete', { buyer_id: cu.id }).then(function (k) { flash('Deleted. Their details were removed from ' + k.orders + ' order' + (k.orders === 1 ? '' : 's') + '.'); draw(); }).catch(fail);
+          }, 'admin-btn--danger'));
           acts.appendChild(btn(cu.active ? 'Block' : 'Unblock', function () {
             if (cu.active && !window.confirm('Block ' + cu.name + '? They can’t sign in (they can still buy as a guest).')) return;
             api('customer_active', { buyer_id: cu.id, active: !cu.active }).then(function () { flash(cu.active ? 'Blocked' : 'Unblocked'); draw(); }).catch(fail);

@@ -676,7 +676,7 @@ test("festive greetings: banner during the festival, optional emails in batches,
 
 test("handover pack fills itself from Go live, Settings and the go-live date", async () => {
   await h.action({ action: "settings", settings: { default_registrar: "Whogohost" } });
-  await h.sql(`UPDATE customer_requests SET live_on = '2026-11-20', handover = '{}'::jsonb, hosting = hosting || $1::jsonb WHERE id = $2`,
+  await h.sql(`UPDATE customer_requests SET live_on = '2026-03-15', handover = '{}'::jsonb, hosting = hosting || $1::jsonb WHERE id = $2`,
     [JSON.stringify({ email: { locals: ["info", "sales"], to: "ada@gmail.com", status: "active" } }), ada]);
   const t = (await h.action({ action: "doc_link", id: ada })).json.doc_token;
   let page = (await h.call("GET", `/doc?t=${t}&type=handover`)).text;
@@ -684,14 +684,14 @@ test("handover pack fills itself from Go live, Settings and the go-live date", a
   assert.match(page, /info@adasalon\.com\.ng/);
   assert.match(page, /Whogohost/, "usual registrar");
   assert.match(page, /ada@gmail\.com/, "inbox shown");
-  assert.match(page, /20 November 2027|20 Nov 2027/, "registered until = go-live + 1 year");
+  assert.match(page, /15 March 2027|15 Mar 2027/, "registered until = go-live + 1 year");
   assert.match(page, /Home/, "pages listed");
   assert.match(page, /sitemap\.xml/);
   assert.match(page, /monthly report/i);
   await h.admin("PATCH", "/api/requests", { id: ada, handover: { domain_by: "customer", registrar: "Qservers" } });
   page = (await h.call("GET", `/doc?t=${t}&type=handover`)).text;
   assert.match(page, /Qservers/, "what you typed wins");
-  assert.doesNotMatch(page, /20 November 2027|20 Nov 2027/, "no guessed expiry for their own domain");
+  assert.doesNotMatch(page, /15 March 2027|15 Mar 2027/, "no guessed expiry for their own domain");
   // Everything the customer could ask for later is in the pack.
   assert.match(page, /You can have 3 more at no extra cost/, "Business includes 5 addresses, 2 set up");
   assert.match(page, /When you reply/);

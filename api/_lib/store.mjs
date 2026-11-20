@@ -36,6 +36,9 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ref_code TEXT`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS services JSONB NOT NULL DEFAULT '[]'::jsonb`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS wants TEXT`,
+  // Instalments: the deposit share to start (default 70%) and an optional next instalment amount.
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS deposit_pct INTEGER`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS next_payment INTEGER`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ref_used INTEGER NOT NULL DEFAULT 0`,
   `CREATE UNIQUE INDEX IF NOT EXISTS customer_requests_ref_code ON customer_requests (ref_code)`,
   `CREATE TABLE IF NOT EXISTS staff (id SERIAL PRIMARY KEY, name TEXT NOT NULL, username TEXT UNIQUE, phone TEXT, pass_hash TEXT NOT NULL, must_change BOOLEAN NOT NULL DEFAULT true, temp_expires TIMESTAMPTZ, perms JSONB NOT NULL DEFAULT '[]'::jsonb, active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ, password_changed_at TIMESTAMPTZ)`,
@@ -208,7 +211,7 @@ export const STATUSES = ["new", "contacted", "quoted", "won", "lost"];
 export const STAGES = ["content", "building", "review", "live"];
 
 const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, ref_code, ref_used, services, wants, name, contact, business, interest, details, page,
-  transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, payments, project_stage,
+  transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, deposit_pct, next_payment, payments, project_stage,
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
   brief_token, brief_saved_at, brief_submitted_at, email, doc_token,
   website_url, site_status, site_checked_at, ssl_expires::text AS ssl_expires, auto_sent,
@@ -282,7 +285,7 @@ const EDITABLE = {
   name: "text", contact: "text", email: "text", business: "text", interest: "text", details: "text", notes: "text",
   status: "text", follow_up_on: "date", quote_amount: "int", payments: "jsonb", project_stage: "text",
   live_on: "date", renewal_amount: "int", renewal_due: "date", website_url: "text",
-  handover: "jsonb", draft_md: "text", came_from: "text", services: "jsonb", wants: "text",
+  handover: "jsonb", draft_md: "text", came_from: "text", services: "jsonb", wants: "text", deposit_pct: "int", next_payment: "int",
 };
 export async function updateRequest(id, fields) {
   await ensureSchema();
@@ -306,8 +309,12 @@ export async function updateRequest(id, fields) {
   return rows[0] ?? null;
 }
 
+// Deleting a customer removes everything about them: their change requests, website stats, reviews, store orders,
+// store login and their buyers' accounts (e.g. for a data-deletion request). Their files are removed by the caller.
 export async function deleteRequest(id) {
   await ensureSchema();
+  for (const t of ["change_requests", "site_stats", "site_visitors", "greeting_sends", "site_reviews", "store_orders", "store_users", "store_buyers"])
+    await q(`DELETE FROM ${t} WHERE request_id = $1`, [id]).catch((e) => console.error("delete from", t, e.message));
   const rows = await q(`DELETE FROM customer_requests WHERE id = $1 RETURNING id`, [id]);
   return rows.length > 0;
 }

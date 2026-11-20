@@ -37,7 +37,7 @@ const ACTIONS = {
 export function permFor(action) { return ACTIONS[action] || OWNER_ONLY; }
 
 const CUSTOMER_FIELDS = new Set(["id", "name", "contact", "business", "interest", "details", "notes", "email", "came_from", "wants", "follow_up_on", "status"]);
-const MONEY_FIELDS = new Set(["quote_amount", "payments", "renewal_amount", "renewal_due", "services"]);
+const MONEY_FIELDS = new Set(["quote_amount", "payments", "renewal_amount", "renewal_due", "services", "deposit_pct", "next_payment"]);
 const BUILD_FIELDS = new Set(["project_stage", "draft_md", "website_url", "live_on", "handover", "brief", "hosting"]);
 // The permissions a PATCH needs, from the fields it changes.
 export function fieldPerms(body) {

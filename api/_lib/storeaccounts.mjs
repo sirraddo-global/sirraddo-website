@@ -244,3 +244,23 @@ export async function setBuyerActive(requestId, buyerId, active) {
   return buyerPub(b);
 }
 export { buyerPub };
+
+// A buyer asked the store to delete their data: their account is deleted and their name, phone, email, address
+// and notes are removed from their orders (the amounts and items stay for the store's accounts).
+export async function eraseBuyer(requestId, { buyerId, phone } = {}) {
+  await ensureSchema();
+  const id = Number(requestId);
+  let ph = normPhone(phone);
+  if (buyerId) {
+    const [b] = await q(`SELECT phone FROM store_buyers WHERE id = $1 AND request_id = $2`, [Number(buyerId), id]);
+    if (!b) throw new Error("Customer not found");
+    ph = b.phone;
+  }
+  if (!ph) throw new Error("Enter the customer's phone number");
+  const forms = [ph, "234" + ph.slice(1)];
+  const gone = await q(`DELETE FROM store_buyers WHERE request_id = $1 AND phone = $2 RETURNING id`, [id, ph]);
+  const ids = gone.map((g) => g.id).concat(buyerId ? [Number(buyerId)] : []);
+  const orders = await q(`UPDATE store_orders SET buyer = jsonb_build_object('name', 'Removed (customer asked)', 'phone', '', 'email', '', 'address', '', 'note', ''), claim = NULL, buyer_id = NULL
+    WHERE request_id = $1 AND (buyer_id = ANY($2::int[]) OR regexp_replace(COALESCE(buyer->>'phone', ''), '\\D', '', 'g') = ANY($3::text[])) RETURNING ref`, [id, ids, forms]);
+  return { account: gone.length > 0, orders: orders.length };
+}

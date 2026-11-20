@@ -81,7 +81,7 @@
   function render() {
     var v = $('view'); v.textContent = '';
     if (state.me && state.me.must_change) return renderChange(v);
-    ({ orders: renderOrders, products: renderProducts, customers: renderCustomers, payments: renderPayments, shop: renderShop, account: renderAccount })[state.tab](v);
+    ({ orders: renderOrders, products: renderProducts, customers: renderCustomers, payments: renderPayments, shop: renderShop, account: renderAccount, reports: renderReports })[state.tab](v);
   }
 
   // ---------- Password ----------
@@ -110,8 +110,8 @@
   }
 
   // ---------- Orders ----------
-  var STATUS = { pending: ['Payment not finished', 'is-due'], paid: ['Paid', 'is-won'], awaiting: ['Waiting for transfer', 'is-due'], cod: ['Pay on delivery', 'is-new'], cancelled: ['Cancelled', 'is-lost'], failed: ['Payment failed', 'is-lost'], abandoned: ['Not paid', 'is-lost'] };
-  var FILTERS = [['todo', 'To do'], ['', 'All'], ['awaiting', 'Waiting for transfer'], ['cod', 'Pay on delivery'], ['paid', 'Paid'], ['pending', 'Online payment not finished'], ['cancelled', 'Cancelled']];
+  var STATUS = { pending: ['Payment not finished', 'is-due'], paid: ['Paid', 'is-won'], awaiting: ['Waiting for transfer', 'is-due'], cod: ['Pay on delivery', 'is-new'], cancelled: ['Cancelled', 'is-lost'], failed: ['Payment failed', 'is-lost'], abandoned: ['Not paid', 'is-lost'], part: ['Paying small-small', 'is-due'] };
+  var FILTERS = [['todo', 'To do'], ['', 'All'], ['awaiting', 'Waiting for transfer'], ['cod', 'Pay on delivery'], ['part', 'Paying small-small'], ['paid', 'Paid'], ['pending', 'Online payment not finished'], ['cancelled', 'Cancelled']];
   function renderOrders(v) {
     var s = state.store || {};
     var none = !s.methods || !(s.methods.paystack || s.methods.flutterwave || s.methods.transfer || s.methods.delivery);
@@ -153,7 +153,11 @@
       el('p', { class: 'admin-meta', text: [b.phone, b.email].filter(Boolean).join(' · ') }),
       b.address ? el('p', { class: 'admin-meta' }, [el('b', { text: 'Deliver to: ' }), b.address]) : null,
       b.note ? el('p', { class: 'admin-meta' }, [el('b', { text: 'Note: ' }), b.note]) : null,
-      el('ul', { class: 'admin-mini' }, o.items.map(function (l) { return el('li', { text: l.name + ' × ' + l.qty + ': ' + naira(l.total) }); }).concat(o.delivery ? [el('li', { text: 'Delivery: ' + naira(o.delivery) })] : [])),
+      el('ul', { class: 'admin-mini' }, o.items.map(function (l) { return el('li', { text: l.name + ' × ' + l.qty + ': ' + naira(l.total) }); })
+        .concat(o.discount ? [el('li', { text: 'Discount' + (o.code ? ' (code ' + o.code + ')' : '') + ': −' + naira(o.discount) })] : [])
+        .concat(o.delivery || o.zone ? [el('li', { text: 'Delivery' + (o.zone ? ' to ' + o.zone : '') + ': ' + (o.delivery ? naira(o.delivery) : 'free') })] : [])),
+      o.status === 'part' ? el('p', { class: 'admin-callout' }, [el('b', { text: 'Paying small-small: ' }), naira(o.paid_amount || 0) + ' paid, ' + naira(o.total - (o.paid_amount || 0)) + ' left. ' + ((o.payments || []).length ? 'Payments: ' + o.payments.map(function (x) { return naira(x.amount) + ' (' + when(x.at) + ')'; }).join(', ') + '. ' : '') + 'Send the items when it’s fully paid.']) : null,
+      (o.status === 'paid' || o.status === 'cod') && !o.delivered_at && (o.packed_at || o.shipped_at) ? el('p', { class: 'admin-meta' }, [badge(o.shipped_at ? 'Out for delivery' : 'Packed', 'is-new'), ' ' + when(o.shipped_at || o.packed_at)]) : null,
       o.claim && o.status === 'awaiting' ? el('p', { class: 'admin-callout' }, [el('b', { text: 'They say they have paid' }), (o.claim.from ? ' from the account of ' + o.claim.from : '') + (o.claim.note ? ': “' + o.claim.note + '”' : '') + ' (' + when(o.claim.at) + '). Check your bank app before you confirm.']) : null,
       el('p', { class: 'admin-hint', text: 'Order ' + o.ref })
     ]);
@@ -166,9 +170,25 @@
     }
     var acts = el('div', { class: 'admin-actions' });
     var num = wa(b.phone);
-    if (num) acts.appendChild(el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + num + '?text=' + encodeURIComponent('Hello ' + String(b.name || '').split(' ')[0] + ', this is ' + (state.store.name || 'the store') + ' about your order ' + o.ref + '. '), target: '_blank', rel: 'noopener', text: 'WhatsApp customer' }));
+    if (num) acts.appendChild(el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + num + '?text=' + encodeURIComponent('Hello ' + String(b.name || '').split(' ')[0] + ', this is ' + (state.store.name || 'the store') + ' about your order ' + o.ref + '. You can follow it here: ' + String(o.link || '').replace('&receipt=1', '') + ' '), target: '_blank', rel: 'noopener', text: 'WhatsApp customer' }));
     if (o.status === 'awaiting') acts.appendChild(btn('Confirm paid', act('paid', 'Have you SEEN ' + naira(o.total) + ' in your bank app from this customer? Screenshots can be fake. Confirm only if the money is there.', 'Payment confirmed. The customer’s receipt is ready.'), 'admin-btn--primary'));
     if (o.status === 'cod') acts.appendChild(btn('Paid & delivered', act('paid', 'Did you deliver it and receive ' + naira(o.total) + '?', 'Marked paid and delivered'), 'admin-btn--primary'));
+    // Order tracking: each tap shows on the customer's order page.
+    if ((o.status === 'paid' || o.status === 'cod') && !o.delivered_at) {
+      if (!o.packed_at) acts.appendChild(btn('Packed', act('packed', null, 'Marked packed. The customer sees it on their order page.')));
+      if (!o.shipped_at) acts.appendChild(btn('Out for delivery', act('shipped', null, 'Marked out for delivery. The customer sees it on their order page.')));
+    }
+    if (o.status === 'part') {
+      var amt = el('input', { type: 'number', min: '1', step: '100', placeholder: 'Amount received (₦)', 'aria-label': 'Amount received' });
+      acts.appendChild(amt);
+      acts.appendChild(btn('Record payment', function (e) {
+        var n = amt.value.trim(); if (!n) { amt.focus(); return; }
+        if (!window.confirm('Have you SEEN ' + naira(n) + ' in your bank app from this customer? Record it only if the money is there.')) return;
+        var bt = e.currentTarget; bt.disabled = true;
+        api('order', { ref: o.ref, do: 'payment', amount: n }).then(function (j) { flash(j.order.status === 'paid' ? 'Fully paid ✓ Send the items now. The customer’s receipt is ready.' : 'Recorded ✓ ' + naira(j.order.total - j.order.paid_amount) + ' left to pay.'); load().then(redraw); }).catch(function (er) { bt.disabled = false; fail(er); });
+      }, 'admin-btn--primary'));
+      if (!o.paid_amount) acts.appendChild(btn('Cancel order', act('cancel', 'Cancel this order? Its items go back into stock. Tell the customer on WhatsApp.', 'Order cancelled'), 'admin-btn--danger'));
+    }
     if (o.status === 'paid' && !o.delivered_at) acts.appendChild(btn('Mark delivered', act('delivered', null, 'Marked delivered'), 'admin-btn--primary'));
     if (o.status === 'paid' && o.delivered_at) acts.appendChild(btn('Not delivered (undo)', act('undelivered', null, 'Changed back to not delivered')));
     if (o.status === 'awaiting' || o.status === 'cod') acts.appendChild(btn('Cancel order', act('cancel', 'Cancel this order? Its items go back into stock. Tell the customer on WhatsApp.', 'Order cancelled'), 'admin-btn--danger'));
@@ -197,6 +217,17 @@
     api('products').then(function (j) {
       var rows = {};
       if (!j.products.length) { box.appendChild(el('p', { class: 'admin-empty', text: 'No products yet.' })); return; }
+      // "Tell me when it's back": message them from your WhatsApp when it's in stock, then tick them off.
+      if ((j.alerts || []).length) {
+        var ab = el('div', { class: 'admin-card admin-callout' }, [el('h2', { text: 'Waiting for stock (' + j.alerts.length + ')' }), el('p', { class: 'admin-hint', text: 'These customers asked to be told when an item is back. When it is, message them, then tap Done.' })]);
+        j.alerts.forEach(function (a) {
+          var n = wa(a.phone), item = a.product + (a.variant ? ' (' + a.variant + ')' : '');
+          ab.appendChild(el('div', { class: 'admin-meta' }, [el('b', { text: item + ': ' }), a.name + ' · ' + a.phone + ' · ' + when(a.created_at) + ' ',
+            n ? el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + n + '?text=' + encodeURIComponent('Hello ' + a.name.split(' ')[0] + ', good news from ' + (state.store.name || 'us') + ': ' + item + ' is back in stock. ' + (state.store.website || '')), target: '_blank', rel: 'noopener', text: 'WhatsApp' }) : null,
+            btn('Done', function (e) { var bt = e.currentTarget; bt.disabled = true; api('alerts_done', { ids: [a.id] }).then(function () { flash('Done'); render(); }).catch(fail); })]));
+        });
+        box.appendChild(ab);
+      }
       var find = el('input', { type: 'search', placeholder: 'Find a product' });
       if (j.products.length > 8) box.appendChild(el('div', { class: 'admin-card' }, [find]));
       j.products.forEach(function (p) {
@@ -204,14 +235,23 @@
         var stock = el('input', { value: String(p.stock), inputmode: 'numeric', placeholder: 'not counted', 'aria-label': 'Stock of ' + p.name });
         var sold = el('input', { type: 'checkbox', checked: p.soldout });
         var top = el('input', { type: 'checkbox', checked: p.top });
-        rows[p.i] = { price: price, stock: stock, sold: sold, top: top };
+        var was = el('input', { value: p.was || '', inputmode: 'decimal', placeholder: 'Empty = no sale', 'aria-label': 'Old price of ' + p.name });
+        var ends = el('input', { type: 'datetime-local', value: String(p.saleEnds || '').slice(0, 16), 'aria-label': 'Sale ends for ' + p.name });
+        var opts = el('input', { value: p.options || '', placeholder: 'e.g. Size: 40, 41, 42 | Colour: Black, Brown', 'aria-label': 'Sizes or colours of ' + p.name });
+        var vst = el('textarea', { rows: '3', placeholder: 'e.g.\n41 / Black = 3\n42 / Brown = 0', 'aria-label': 'Stock per choice of ' + p.name }); vst.value = p.vstock || '';
+        rows[p.i] = { price: price, stock: stock, sold: sold, top: top, was: was, ends: ends, opts: opts, vst: vst };
         var card = el('div', { class: 'admin-card', 'data-s': (p.name + ' ' + p.category).toLowerCase() }, [el('h3', { text: p.name }), p.category ? el('p', { class: 'admin-meta', text: p.category }) : null,
-          el('div', { class: 'admin-grid' }, [field('Price', price), field('In stock', stock)]), el('label', { class: 'admin-check' }, [sold, ' Sold out']), el('label', { class: 'admin-check' }, [top, ' Show at the top of my home page'])]);
+          el('div', { class: 'admin-grid' }, [field('Price', price), field('In stock', stock)]), el('label', { class: 'admin-check' }, [sold, ' Sold out']), el('label', { class: 'admin-check' }, [top, ' Show at the top of my home page']),
+          el('details', { class: 'admin-more' }, [el('summary', { text: 'Sale, sizes & colours' + (p.was ? ' · ON SALE' : '') + (p.options ? ' · has choices' : '') }),
+            el('div', { class: 'admin-grid' }, [field('Old price (₦), crossed out', was, 'The price above is the sale price.'), field('Sale ends (optional)', ends, 'After this, the old price comes back by itself.')]),
+            field('Sizes / colours (optional)', opts, 'Customers must choose one of each. Separate groups with |'),
+            p.options ? field('Stock for each choice (optional)', vst, 'One per line: choice = number. Leave out choices you don’t count.') : el('p', { class: 'admin-hint', text: 'Save the sizes/colours first, then you can add stock for each choice here.' })])]);
         box.appendChild(card);
       });
       find.addEventListener('input', function () { var w = find.value.toLowerCase(); Array.prototype.forEach.call(box.querySelectorAll('[data-s]'), function (c) { c.hidden = w && c.getAttribute('data-s').indexOf(w) < 0; }); });
       box.appendChild(el('div', { class: 'admin-actions' }, [btn('Save products', function (e) {
-        var products = {}; Object.keys(rows).forEach(function (i) { products[i] = { price: rows[i].price.value, stock: rows[i].stock.value, soldout: rows[i].sold.checked, top: rows[i].top.checked }; });
+        var products = {}; Object.keys(rows).forEach(function (i) { var R = rows[i]; products[i] = { price: R.price.value, stock: R.stock.value, soldout: R.sold.checked, top: R.top.checked, was: R.was.value, saleEnds: R.ends.value, options: R.opts.value };
+          if (R.opts.value.trim()) products[i].vstock = R.vst.value; });
         saveShop({ products: products }, e.currentTarget);
       }, 'admin-btn--primary')]));
     }).catch(fail);
@@ -241,7 +281,7 @@
       j.reviews.forEach(function (x) {
         sel[x.id] = el('select', { 'aria-label': 'Review from ' + x.name }, [x.status === 'pending' ? el('option', { value: 'pending', text: 'New: choose' }) : null, el('option', { value: 'shown', text: 'Show on website' }), el('option', { value: 'hidden', text: 'Hide' })]);
         sel[x.id].value = x.status;
-        rv.appendChild(el('div', { class: 'admin-meta' }, [el('b', { text: '★'.repeat(x.stars) + ' ' + x.name }), x.body ? el('p', { text: x.body }) : null, sel[x.id]]));
+        rv.appendChild(el('div', { class: 'admin-meta' }, [el('b', { text: '★'.repeat(x.stars) + ' ' + x.name }), x.product ? ' on ' + x.product : '', x.verified ? ' ' : null, x.verified ? badge('✓ Verified buyer', 'is-won') : null, x.body ? el('p', { text: x.body }) : null, sel[x.id]]));
       });
       if (j.reviews.length) rv.appendChild(btn('Save reviews', function (e) { var reviews = {}; Object.keys(sel).forEach(function (k) { reviews[k] = sel[k].value; }); saveShop({ reviews: reviews }, e.currentTarget); }, 'admin-btn--primary'));
       v.appendChild(rv);
@@ -287,6 +327,34 @@
     var gg = null;
     if (s.googleFeature) { gg = toggle('Also allow “Continue with Google”', s.googleOn, '(an extra way in; customers always sign in with phone number and password)'); other.appendChild(gg.row); }
     v.appendChild(other);
+    // Delivery fee by area (the customer picks their area at checkout) and free delivery above an amount.
+    var zl = el('div'), zones = (s.zones || []).map(function (z) { return { name: z.name, fee: z.fee }; });
+    function zdraw() { zl.textContent = ''; zones.forEach(function (z, k) {
+      var nm = el('input', { value: z.name, placeholder: 'Area, e.g. Bodija', 'aria-label': 'Area name', oninput: function () { z.name = nm.value; } });
+      var fe = el('input', { type: 'number', min: '0', step: '100', value: z.fee, placeholder: '₦', 'aria-label': 'Fee for this area', oninput: function () { z.fee = fe.value; } });
+      zl.appendChild(el('div', { class: 'admin-grid' }, [field('Area', nm), field('Fee (₦, 0 = free)', fe), btn('Remove', function () { zones.splice(k, 1); zdraw(); }, 'admin-btn--danger')])); }); }
+    zdraw();
+    var free = el('input', { type: 'number', min: '0', step: '1000', value: s.freeOver || '', placeholder: 'e.g. 50000 (empty = never free)' });
+    v.appendChild(el('div', { class: 'admin-card admin-settings' }, [el('h2', { text: 'Delivery fee by area' }), el('p', { class: 'admin-hint', text: 'Add your areas and what delivery costs to each. Customers pick their area at checkout and the fee is added by itself. Add “Pick up from our shop” with fee 0 if you have a shop. With no areas, the flat fee above is used.' }),
+      zl, btn('+ Add an area', function () { zones.push({ name: '', fee: '' }); zdraw(); }), field('Free delivery on orders above (₦)', free, 'Customers see “Add ₦X more for free delivery” in their cart.')]));
+    // Discount codes.
+    var cl = el('div'), codes = (s.codes || []).map(function (c) { return { code: c.code, kind: c.pct ? 'pct' : 'amount', val: c.pct || c.amount, min: c.min || '', ends: c.ends || '', max: c.max || '', used: c.used || 0, off: !!c.off }; });
+    function cdraw() { cl.textContent = ''; codes.forEach(function (c, k) {
+      var cc = el('input', { value: c.code, placeholder: 'e.g. SALE10', 'aria-label': 'Code', oninput: function () { c.code = cc.value.toUpperCase(); } });
+      var kd = el('select', { 'aria-label': 'Type of discount', onchange: function () { c.kind = kd.value; } }, [el('option', { value: 'pct', text: '% off' }), el('option', { value: 'amount', text: '₦ off' })]); kd.value = c.kind;
+      var vv = el('input', { type: 'number', min: '1', value: c.val, 'aria-label': 'How much off', oninput: function () { c.val = vv.value; } });
+      var mn = el('input', { type: 'number', min: '0', step: '1000', value: c.min, placeholder: 'No minimum', 'aria-label': 'Minimum order', oninput: function () { c.min = mn.value; } });
+      var en = el('input', { type: 'date', value: String(c.ends).slice(0, 10), 'aria-label': 'Ends', oninput: function () { c.ends = en.value; } });
+      var mx = el('input', { type: 'number', min: '0', value: c.max, placeholder: 'No limit', 'aria-label': 'Most uses', oninput: function () { c.max = mx.value; } });
+      var on = el('input', { type: 'checkbox', checked: !c.off, onchange: function () { c.off = !on.checked; } });
+      cl.appendChild(el('div', { class: 'admin-card' }, [el('div', { class: 'admin-grid' }, [field('Code', cc), field('Discount', el('span', { class: 'admin-row' }, [kd, vv])), field('Minimum order (₦)', mn), field('Ends (optional)', en), field('Most uses (optional)', mx)]),
+        el('p', { class: 'admin-meta', text: 'Used ' + c.used + ' time' + (c.used === 1 ? '' : 's') }), el('label', { class: 'admin-check' }, [on, ' Switched on']), btn('Remove', function () { codes.splice(k, 1); cdraw(); }, 'admin-btn--danger')])); }); }
+    cdraw();
+    v.appendChild(el('div', { class: 'admin-card admin-settings' }, [el('h2', { text: 'Discount codes' }), el('p', { class: 'admin-hint', text: 'Share a code on your WhatsApp Status or flyers. Customers type it in their cart. It only works on orders paid through your website.' }), cl, btn('+ Add a code', function () { codes.push({ code: '', kind: 'pct', val: 10, min: '', ends: '', max: '', used: 0, off: false }); cdraw(); })]));
+    // Pay small-small.
+    var ins = s.instalments || {}, pss = toggle('Let customers pay small-small', ins.on, '(by bank transfer, in parts; the items are kept for them and sent when fully paid)');
+    var fp = el('input', { type: 'number', min: '10', max: '90', value: ins.firstPct || 30 });
+    v.appendChild(el('div', { class: 'admin-card admin-settings' }, [el('h2', { text: 'Pay small-small' }), pss.row, field('First payment (% of the total)', fp, 'You record each payment in Orders when you see it in your bank app. Uses your bank transfer details above.')]));
     var bsave = btn('Save payment settings', function (e) {
       var p = { paystackOn: ps.box.checked, flwOn: fw.box.checked, transfer: { on: tr.box.checked, bank: bank.value, name: aname.value, number: anum.value, note: tnote.value },
         delivery: { on: dl.box.checked, note: dnote.value }, deliveryFee: fee.value.trim(), notify: notify.value.trim() };
@@ -296,6 +364,10 @@
       if (fwKey.value.trim()) p.flwKey = fwKey.value.trim();
       if (ac) p.accountsOn = ac.box.checked;
       if (gg) p.googleOn = gg.box.checked;
+      p.zones = zones.filter(function (z) { return String(z.name).trim(); }).map(function (z) { return { name: z.name, fee: Number(z.fee) || 0 }; });
+      p.freeOver = free.value.trim();
+      p.codes = codes.filter(function (c) { return String(c.code).trim(); }).map(function (c) { return { code: c.code, pct: c.kind === 'pct' ? Number(c.val) : 0, amount: c.kind === 'amount' ? Number(c.val) : 0, min: Number(c.min) || 0, ends: c.ends, max: Number(c.max) || 0, off: c.off }; });
+      p.instalments = { on: pss.box.checked, firstPct: Number(fp.value) || 30 };
       savePayments(p, e.currentTarget);
     }, 'admin-btn--primary');
     v.appendChild(el('div', { class: 'admin-actions' }, [bsave]));
@@ -352,6 +424,38 @@
     var t; search.addEventListener('input', function () { clearTimeout(t); t = setTimeout(draw, 300); });
     draw();
     v.appendChild(el('div', { class: 'admin-actions' }, [btn('Download customers (spreadsheet)', function () { download('customers'); })]));
+    // Signed-in customers who left items in their cart (an hour or more ago).
+    var carts = el('div', { class: 'admin-card' }, [el('h2', { text: 'Unfinished carts' })]);
+    v.insertBefore(carts, v.firstChild);
+    api('carts').then(function (j) {
+      if (!j.carts.length) { carts.appendChild(el('p', { class: 'admin-hint', text: 'None right now. When a signed-in customer leaves items in their cart, they appear here so you can follow up.' })); return; }
+      carts.appendChild(el('p', { class: 'admin-hint', text: 'Signed-in customers who left items in their cart. A friendly message often brings them back.' }));
+      j.carts.forEach(function (c) {
+        var n = wa(c.phone), tot = c.items.reduce(function (a, l) { return a + (l.p || 0) * l.q; }, 0), names = c.items.map(function (l) { return l.n + (l.v ? ' (' + l.v + ')' : '') + ' ×' + l.q; }).join(', ');
+        carts.appendChild(el('div', { class: 'admin-meta' }, [el('b', { text: c.name + ': ' }), names + (tot ? ' · ' + naira(tot) : '') + ' · ' + when(c.updated_at) + (c.nudged_at ? ' · messaged' : '') + ' ',
+          n ? el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + n + '?text=' + encodeURIComponent('Hello ' + c.name.split(' ')[0] + ', this is ' + state.store.name + '. You left ' + names + ' in your cart. Can we help you complete your order? ' + (state.store.website || '')), target: '_blank', rel: 'noopener', text: 'WhatsApp',
+            onclick: function () { api('cart_nudged', { buyer_id: c.buyer_id }).catch(function () {}); } }) : null]));
+      });
+    }).catch(function () {});
+  }
+
+  // ---------- Reports ----------
+  function renderReports(v) {
+    v.appendChild(el('p', { class: 'admin-hint', text: 'Last 90 days. Paid orders, and pay-on-delivery orders once delivered.' }));
+    var box = el('div'); v.appendChild(box);
+    api('reports').then(function (j) {
+      var t = j.last90 || {};
+      box.appendChild(el('div', { class: 'admin-tiles' }, [el('div', { class: 'admin-tile' }, [el('span', { class: 'admin-tile-label', text: 'Sales' }), el('strong', { text: naira(t.total) }), el('small', { text: t.orders + ' order' + (t.orders === 1 ? '' : 's') })]),
+        el('div', { class: 'admin-tile' }, [el('span', { class: 'admin-tile-label', text: 'Average order' }), el('strong', { text: naira(t.avg) })])]));
+      var max = Math.max.apply(null, (j.weeks || []).map(function (w) { return w.total; }).concat([1]));
+      box.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Sales by week' })].concat((j.weeks || []).length ? j.weeks.map(function (w) {
+        return el('div', { class: 'admin-bar-row wide' }, [el('span', { text: 'Week of ' + w.week }), el('span', { class: 'admin-bar-track' }, [el('i', { class: 'admin-bar-fill', style: 'width:' + Math.max(4, Math.round(w.total / max * 100)) + '%' })]), el('b', { text: naira(w.total) + ' · ' + w.orders })]); }) : [el('p', { class: 'admin-hint', text: 'No sales yet.' })])));
+      box.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Best sellers' })].concat((j.best || []).length ? [el('ol', { class: 'admin-mini' }, j.best.map(function (b) { return el('li', { text: b.name + ': ' + b.qty + ' sold · ' + naira(b.total) }); }))] : [el('p', { class: 'admin-hint', text: 'No sales yet.' })])));
+      var dmax = Math.max.apply(null, (j.days || []).map(function (d) { return d.orders; }).concat([1]));
+      box.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Busiest days' })].concat((j.days || []).length ? j.days.map(function (d) {
+        return el('div', { class: 'admin-bar-row wide' }, [el('span', { text: d.day }), el('span', { class: 'admin-bar-track' }, [el('i', { class: 'admin-bar-fill', style: 'width:' + Math.max(4, Math.round(d.orders / dmax * 100)) + '%' })]), el('b', { text: d.orders + ' order' + (d.orders === 1 ? '' : 's') })]); }) : [el('p', { class: 'admin-hint', text: 'No sales yet.' })])));
+      if ((j.codes || []).length) box.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Discount codes used' }), el('ul', { class: 'admin-mini' }, j.codes.map(function (c) { return el('li', { text: c.code + ': ' + c.orders + ' order' + (c.orders === 1 ? '' : 's') + ' · ' + naira(c.discount) + ' off in total' }); }))]));
+    }).catch(fail);
   }
 
   // ---------- Account ----------

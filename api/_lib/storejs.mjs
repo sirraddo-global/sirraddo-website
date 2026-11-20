@@ -40,7 +40,7 @@ var I={home:'<path d="M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6h-6v6H4a1 1 0 01-1-1z" f
 function ic(n){return '<svg viewBox="0 0 24 24" aria-hidden="true">'+I[n]+'</svg>'}
 function lget(k){try{var v=JSON.parse(localStorage.getItem(k)||'[]');return Array.isArray(v)?v:[]}catch(x){return[]}}
 function lset(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(x){}}
-function pinfo(i){var a=document.querySelector('.btn.add[data-i="'+i+'"]');return a?{i:+i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),u:a.getAttribute('data-img')||''}:null}
+function pinfo(i){var a=document.querySelector('.btn.add[data-i="'+i+'"],.btn.add-opt[data-i="'+i+'"]');return a?{i:+i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),u:a.getAttribute('data-img')||'',o:a.classList.contains('add-opt')?1:0}:null}
 function saved(){return lget(SK)}function isSaved(i){return saved().some(function(x){return x.i===+i})}
 function toggleSave(i){var L=saved(),k=-1;L.forEach(function(x,j){if(x.i===+i)k=j});if(k>=0)L.splice(k,1);else{var p=pinfo(i);if(!p)return;L.unshift(p)}lset(SK,L.slice(0,50));hearts();badges()}
 function seen(i){var p=pinfo(i);if(!p)return;var L=lget(RK).filter(function(x){return x.i!==p.i});L.unshift(p);lset(RK,L.slice(0,12))}
@@ -82,8 +82,8 @@ t.textContent={orders:'Orders',addr:'Address book',me:'Account details'}[view]||
 B.innerHTML='<div class="sub"></div>';
 var S=$('.sub',B);
 if(view==='orders'){S.innerHTML='<p class="note">Loading your orders…</p>';post({action:'orders'}).then(function(j){
-var lab={paid:'Paid',awaiting:'Waiting for your transfer',cod:'Pay on delivery',cancelled:'Cancelled',failed:'Not paid',abandoned:'Not paid',reversed:'Reversed'};
-S.innerHTML=j.orders.length?j.orders.map(function(o,k){return '<div class="ord"><b>'+money(o.total)+' · '+new Date(o.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+'</b><span class="st'+(o.status==='paid'?' ok':'')+'">'+(o.delivered?'Delivered':(lab[o.status]||o.status))+'</span> <span class="note">'+e(o.how)+'</span><div class="note">'+o.items.map(function(l){return e(l.name)+' ×'+l.qty}).join(', ')+'</div><div class="row"><a href="'+e(o.link)+'" target="_blank" rel="noopener">'+(o.status==='paid'?'Receipt':'Order details')+'</a><button type="button" class="again" data-k="'+k+'">Order again</button></div></div>'}).join(''):'<div class="empty">'+ic('box')+'<br>No orders yet. Your orders appear here when you’re signed in at checkout.</div>';
+var lab={paid:'Paid',awaiting:'Waiting for your transfer',cod:'Pay on delivery',part:'Paying small-small',cancelled:'Cancelled',failed:'Not paid',abandoned:'Not paid',reversed:'Reversed'};
+S.innerHTML=j.orders.length?j.orders.map(function(o,k){return '<div class="ord"><b>'+money(o.total)+' · '+new Date(o.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+'</b><span class="st'+(o.status==='paid'?' ok':'')+'">'+((o.status!=='cancelled'&&o.stage&&o.stage!=='Order received'?o.stage:o.delivered?'Delivered':(lab[o.status]||o.status)))+'</span> <span class="note">'+e(o.how)+'</span><div class="note">'+o.items.map(function(l){return e(l.name)+' ×'+l.qty}).join(', ')+'</div><div class="row"><a href="'+e(o.link)+'" target="_blank" rel="noopener">'+(o.status==='paid'?'Receipt':'Order details')+'</a>'+(o.track&&o.status!=='cancelled'&&!o.delivered?'<a href="'+e(o.track)+'" target="_blank" rel="noopener">Track</a>':'')+'<button type="button" class="again" data-k="'+k+'">Order again</button></div></div>'}).join(''):'<div class="empty">'+ic('box')+'<br>No orders yet. Your orders appear here when you’re signed in at checkout.</div>';
 S.__orders=j.orders}).catch(function(x){S.innerHTML='';msg(x.message,1)});}
 if(view==='addr'){var L=me.addresses||[];S.innerHTML=(L.length?L.map(function(x,k){return '<div class="addr"><span><b>'+e(x.label)+'</b><br>'+e(x.text)+'</span><button type="button" class="lnk rmaddr" data-k="'+k+'">Remove</button></div>'}).join(''):'<p class="note">No saved addresses yet. The address you use at checkout is saved for next time.</p>')+
 (L.length<20?'<h3>Add an address</h3>'+field('ac-al','Name it','text','maxlength="30" placeholder="e.g. Home, Office"')+'<label for="ac-at">Address</label><textarea id="ac-at" rows="2" maxlength="300"></textarea><button class="go addaddr" type="button">Save address</button>':'')}
@@ -97,10 +97,13 @@ var tb=t.closest('.tabs button');if(tb){view=tb.getAttribute('data-v');msg('');d
 if(t.closest('.bk')){view=me?'menu':(cfg&&cfg.accounts?'in':'saved');msg('');draw();return}
 var gg=t.closest('[data-go]');if(gg){view=gg.getAttribute('data-go');msg('');draw();return}
 var us=t.closest('.unsave');if(us){toggleSave(us.getAttribute('data-i'));draw();return}
-var ad=t.closest('.sv .ad');if(ad){var it=saved().concat(lget(RK)).filter(function(x){return x.i===+ad.getAttribute('data-i')})[0];if(it&&window.__addToCart){close();window.__addToCart(it.i,1,it)}return}
+var ad=t.closest('.sv .ad');if(ad){var it=saved().concat(lget(RK)).filter(function(x){return x.i===+ad.getAttribute('data-i')})[0];if(!it)return;close();
+// A product with sizes/colours: open it to choose (on this page, or the home page, which lists every product).
+if(it.o||document.querySelector('.btn.add-opt[data-i="'+it.i+'"]')){if(document.querySelector('.card.prod[data-pi="'+it.i+'"]'))location.hash='p-'+it.i;else location.href=(homeA?homeA.getAttribute('href'):'/')+'#p-'+it.i;return}
+if(window.__addToCart)window.__addToCart(it.i,1,it);return}
 if(t.closest('.fp')){view='forgot';msg('');draw();return}if(t.closest('.back')){view='in';msg('');draw();return}
 if(t.closest('.signout')){out();close();return}
-var ag=t.closest('.again');if(ag){var o=$('.sub',box).__orders[+ag.getAttribute('data-k')];if(o&&window.__addToCart){o.items.forEach(function(l){window.__addToCart(l.i,l.qty)});close();}return}
+var ag=t.closest('.again');if(ag){var o=$('.sub',box).__orders[+ag.getAttribute('data-k')];if(o&&window.__addToCart){o.items.forEach(function(l){window.__addToCart(l.i,l.qty,l.v?{v:l.v,n:l.name,p:Math.round(l.total/(l.qty||1))}:undefined)});close();}return}
 var rm=t.closest('.rmaddr');if(rm){var L=(me.addresses||[]).slice();L.splice(+rm.getAttribute('data-k'),1);post({action:'update',addresses:L}).then(function(j){me=j.buyer;draw()}).catch(function(x){msg(x.message,1)});return}
 if(t.closest('.addaddr')){var tx=val('ac-at');if(!tx){msg('Type the address',1);return}post({action:'update',addresses:(me.addresses||[]).concat([{label:val('ac-al')||'Address',text:tx}])}).then(function(j){me=j.buyer;msg('Saved');draw()}).catch(function(x){msg(x.message,1)});return}
 if(t.closest('.savedet')){post({action:'update',name:val('ac-name'),email:val('ac-email')}).then(function(j){me=j.buyer;msg('Saved');draw()}).catch(function(x){msg(x.message,1)});return}
@@ -128,10 +131,10 @@ function badges(){if(sl){var k=saved().length;sl.textContent=k?'♡ Saved ('+k+'
 bar.addEventListener('click',function(ev){var x=ev.target.closest('[data-t]');if(!x)return;ev.preventDefault();var w=x.getAttribute('data-t');if(w==='cart'){var cb=document.querySelector('.cart-btn');if(cb)cb.click()}else open(w==='saved'?'saved':undefined)});
 document.body.appendChild(bar);document.body.classList.add('has-tabbar');tabs();
 var cbb=document.querySelector('.cart-btn b');if(cbb&&window.MutationObserver)new MutationObserver(badges).observe(cbb,{childList:true,characterData:true,subtree:true});
-function hearts(){document.querySelectorAll('.card.prod').forEach(function(c){var a=c.querySelector('.btn.add');if(!a)return;var i=a.getAttribute('data-i'),h=c.querySelector('.heart');if(!h){h=document.createElement('button');h.type='button';h.className='heart';h.setAttribute('data-i',i);h.innerHTML=ic('heart');c.insertBefore(h,c.firstChild)}var on=isSaved(i);h.setAttribute('aria-pressed',on);h.setAttribute('aria-label',(on?'Remove from saved: ':'Save for later: ')+a.getAttribute('data-name'))})}
+function hearts(){document.querySelectorAll('.card.prod').forEach(function(c){var a=c.querySelector('.btn.add,.btn.add-opt');if(!a)return;var i=a.getAttribute('data-i'),h=c.querySelector('.heart');if(!h){h=document.createElement('button');h.type='button';h.className='heart';h.setAttribute('data-i',i);h.innerHTML=ic('heart');c.insertBefore(h,c.firstChild)}var on=isSaved(i);h.setAttribute('aria-pressed',on);h.setAttribute('aria-label',(on?'Remove from saved: ':'Save for later: ')+a.getAttribute('data-name'))})}
 hearts();
 document.addEventListener('click',function(ev){var h=ev.target.closest('.heart');if(h){ev.preventDefault();ev.stopPropagation();toggleSave(h.getAttribute('data-i'));return}
-var o=ev.target.closest('.pv-open,.btn.add');if(o){var c=o.closest('.card.prod'),ad=c&&c.querySelector('.btn.add');if(ad)seen(ad.getAttribute('data-i'))}},true);
+var o=ev.target.closest('.pv-open,.btn.add,.btn.add-opt');if(o){var c=o.closest('.card.prod'),ad=c&&c.querySelector('.btn.add,.btn.add-opt');if(ad)seen(ad.getAttribute('data-i'))}},true);
 if(location.hash==='#saved')setTimeout(function(){open('saved')},0);
 if(PV){tabs();return}
 function start(j){cfg=j;link();if(takeHash())return;var h=location.hash==='#account'&&cfg.accounts;if(cfg.accounts&&tok)post({action:'me'}).then(function(k){me=k.buyer;link();if(h)open()}).catch(function(){if(h)open()});else if(h)open();}

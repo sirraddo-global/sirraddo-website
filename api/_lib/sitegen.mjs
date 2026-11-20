@@ -5,6 +5,7 @@ import { kindFor } from "./brief-schema.mjs";
 import { SITE_URL } from "../../site.config.mjs";
 import { ACCOUNT_CSS, ACCOUNT_JS } from "./storejs.mjs";
 import { salePrice, parseOptions } from "./storeplus.mjs";
+import { KIT_CSS, actionBar, openBadge, kitScript, kitButtons, manifest, SW_JS, appIconSvg } from "./sitekit.mjs";
 
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -177,10 +178,20 @@ function bizEmail(row) {
 }
 // Bump this whenever the look or layout of customer sites changes: the 7am job then republishes every live site
 // still built with an older version (text the owner hasn't published yet is never pushed).
-export const SITE_LOOK = "2026-11-20";
+export const SITE_LOOK = "2026-11-21";
 // What the website owner sees in the "your website was improved" email: plain words, newest look first.
 // Add an entry here every time SITE_LOOK changes.
 export const SITE_LOOK_NOTES = {
+  "2026-11-21": [
+    "Your website can now be installed like an app: visitors tap “Install our app” (or Add to home screen) and get your own app icon on their phone, with no app store.",
+    "On phones, a bar at the bottom gives one-tap Call, WhatsApp, Directions and your main page.",
+    "If your opening hours are on your website, it now shows “Open now” or “Closed now” (Lagos time).",
+    "A “Share this website” button helps your customers send your website to their friends.",
+    "Online stores: an app-style layout on phones (Home, Shop, Cart, Saved, Account), every product on your home page with a search box, and your new or chosen products sliding across the top.",
+    "Online stores: sales with the old price crossed out and a countdown, discount codes, delivery fees by area with free delivery above an amount, and sizes/colours with stock for each one.",
+    "Online stores: buyers can track their order (packed, out for delivery, delivered), pay small-small, ask to be told when a sold-out item is back, swipe and zoom product photos, and share products on WhatsApp.",
+    "Online stores: you set all of this in My store, which now also has Reports (best sellers, sales by week, busiest days) and, with customer accounts, reviews from verified buyers and unfinished carts to follow up.",
+  ],
   "2026-11-20": [
     "Online stores: more ways to pay, each one a switch you control in My store: online payment, bank transfer to your account, and pay on delivery.",
     "Online stores with customer accounts: buyers can sign in, see their orders and receipts, order again and save their delivery addresses.",
@@ -395,7 +406,7 @@ function contactCard(site, mode) {
   if (site.whatsapp) rows.push(["WhatsApp", `<a href="${waLink(site)}">Chat with us</a>`]);
   if (site.email) rows.push(["Email", `<a href="mailto:${esc(site.email)}">${esc(site.email)}</a>`]);
   if (site.address) rows.push(["Address", `${esc(site.address).replace(/\n/g, "<br>")}<br><a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(site.address)}">Open in Google Maps</a>`]);
-  if (site.hours) rows.push(["Opening hours", esc(site.hours)]);
+  if (site.hours) rows.push(["Opening hours", esc(site.hours) + openBadge(site)]);
   if (!rows.length) return mode === "preview" ? `<p><mark class="todo">To be added: contact details</mark></p>` : "";
   return `<div class="card contact"><dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>${site.whatsapp ? `<a class="btn" href="${waLink(site)}">Message us on WhatsApp</a>` : ""}</div>`;
 }
@@ -792,7 +803,7 @@ function pageBody(site, page, mode, link, img) {
     const btn = heroSec?.fields["button text"] || "Contact us";
     const contactPage = site.pages.find((p) => p.kind === "contact");
     const href = site.whatsapp ? waLink(site) : contactPage ? link(contactPage.slug) : "#";
-    out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}<a class="btn" href="${href}">${inline(btn, mode)}</a></div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}" fetchpriority="high" decoding="async">` : site.productPhotos.length >= 4 ? `<div class="hero-grid">${site.productPhotos.slice(0, 4).map((p, k) => `<img src="${img(p.url)}" alt=""${k ? ' loading="lazy"' : ' fetchpriority="high"'} decoding="async">`).join("")}</div>` : ""}</div></section>`);
+    out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}<a class="btn" href="${href}">${inline(btn, mode)}</a>${openBadge(site)}</div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}" fetchpriority="high" decoding="async">` : site.productPhotos.length >= 4 ? `<div class="hero-grid">${site.productPhotos.slice(0, 4).map((p, k) => `<img src="${img(p.url)}" alt=""${k ? ' loading="lazy"' : ' fetchpriority="high"'} decoding="async">`).join("")}</div>` : ""}</div></section>`);
     const trust = trustPoints(site);
     if (trust.length) out.push(`<div class="trust"><div class="wrap">${trust.map((t) => `<span>\u2713 ${esc(t)}</span>`).join("")}</div></div>`);
     const car = topCarousel(site, img);
@@ -872,7 +883,7 @@ function footer(site, link) {
   const socials = site.socials.map((s) => (/^https?:\/\//.test(s) ? `<a href="${esc(s)}" rel="noopener">${esc(s.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a>` : esc(s))).join(" · ");
   return `<footer><div class="wrap"><strong>${esc(site.name)}</strong>${site.tagline ? `<span>${esc(site.tagline)}</span>` : ""}
 <span>${[site.phone && esc(site.phone), site.email && `<a href="mailto:${esc(site.email)}">${esc(site.email)}</a>`, site.address && esc(site.address.split("\n")[0])].filter(Boolean).join(" · ")}</span>
-${socials ? `<span>${socials}</span>` : ""}<span>© ${new Date().getFullYear()} ${esc(site.name)}</span>
+${socials ? `<span>${socials}</span>` : ""}${kitButtons()}<span>© ${new Date().getFullYear()} ${esc(site.name)}</span>
 ${site.noCredit ? "" : `<span class="credit">Website by <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">SIRRADDO</a> · <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">Get a website like this</a></span>`}</div></footer>
 ${site.whatsapp ? `<a class="wa" href="${waLink(site)}" aria-label="Chat on WhatsApp">WhatsApp</a>` : ""}`;
 }
@@ -941,15 +952,15 @@ export function renderPage(site, slug, { mode = "export", link, img = (u) => u, 
 <title>${esc(preview ? "Preview: " + title : title)}</title>${desc ? `\n<meta name="description" content="${esc(desc)}">` : ""}
 ${seoHead(site, page, { title, desc, img, preview, notFound })}
 ${preview || notFound ? '<meta name="robots" content="noindex, nofollow">' : ""}<meta name="theme-color" content="${site.theme.primary}">
-${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}
+${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}${mode === "export" && !notFound ? `<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="${site.logo ? img(site.logo.url) : "/app-icon.svg"}"><meta name="mobile-web-app-capable" content="yes">` : ""}
 <style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}
-<style id="guard">${GUARD_CSS}${hasCart(site) ? CART_CSS + ACCOUNT_CSS : ""}</style></head>
+<style id="guard">${GUARD_CSS}${KIT_CSS}${hasCart(site) ? CART_CSS + ACCOUNT_CSS : ""}</style></head>
 <body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">${top ?? `Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}`}</div>` : ""}
 ${site.notice ? `<div class="site-notice" role="status">${esc(site.notice)}</div>` : ""}${header(site, page, link, img)}
 <main>${notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
 ${preview ? panel ?? previewPanel(row, token, choice) : ""}
 ${footer(site, link)}
-${site.products && site.products.length ? PRODUCT_POP : ""}${hasCart(site) ? cartScript(site, mode) + `<script>${ACCOUNT_JS}</script>` : ""}${mode === "export" && !notFound ? statsScript(site) : ""}
+${site.products && site.products.length ? PRODUCT_POP : ""}${hasCart(site) ? cartScript(site, mode) + `<script>${ACCOUNT_JS}</script>` : actionBar(site, link, waLink(site))}${kitScript(site, { exportMode: mode === "export" && !notFound })}${mode === "export" && !notFound ? statsScript(site) : ""}
 </body></html>`;
 }
 
@@ -1047,6 +1058,8 @@ export function exportFiles(site) {
   pages.push({ name: "404.html", html: renderPage(site, "index", { mode: "export", link: rootLink, img: (u) => "/" + img(u), notFound: true }) });
   const base = site.baseUrl;
   const today = new Date().toISOString().slice(0, 10);
+  // Install as an app: the app's details, its icon and the small helper that keeps pages for a bad network.
+  pages.push({ name: "manifest.webmanifest", html: manifest(site) }, { name: "sw.js", html: SW_JS }, { name: "app-icon.svg", html: appIconSvg(site) });
   pages.push({ name: "robots.txt", html: `User-agent: *\nAllow: /\n${base ? `Sitemap: ${base}/sitemap.xml\n` : ""}` });
   if (base) {
     pages.push({ name: "sitemap.xml", html: `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${site.pages.map((p) => `  <url><loc>${esc(base + pagePath(p.slug))}</loc><lastmod>${today}</lastmod></url>`).join("\n")}\n</urlset>\n` });

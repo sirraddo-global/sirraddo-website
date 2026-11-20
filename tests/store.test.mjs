@@ -507,3 +507,25 @@ test("tell me when it's back; verified-buyer reviews; unfinished carts; reports"
   await k("customer_delete", { buyer_id: bid });
   assert.equal((await h.sql(`SELECT count(*)::int AS n FROM buyer_carts WHERE request_id = $1`, [id]))[0].n, 0);
 });
+
+test("every package: install as an app, phone quick-action bar, open now, share (stores keep their own bar)", async () => {
+  const { buildSiteModel, renderPage, exportFiles } = await import("../api/_lib/sitegen.mjs");
+  const id = (await h.action({ action: "create", name: "Biz Owner", contact: "08031112222", interest: "Business website" })).json.id;
+  const brief = { business_name: "Ola Clinic", phone: "0803 111 2222", whatsapp: "08031112222", address: "5 Ring Road, Ibadan", hours: "Mon–Sat 8am–6pm", services: [{ name: "Checkup" }] };
+  const site = buildSiteModel({ ...(await h.row(id)), brief, draft_md: "# Website text\n## Page: Home\n### Hero\nOla Clinic\nCare in Ibadan.\n## Page: Contact\n### Contact\nVisit us." });
+  const files = exportFiles(site).pages;
+  const f = (n) => files.find((x) => x.name === n);
+  assert.ok(f("manifest.webmanifest") && f("sw.js") && f("app-icon.svg"), "app files published with the site");
+  assert.equal(JSON.parse(f("manifest.webmanifest").html).name, "Ola Clinic");
+  const home = f("index.html").html;
+  assert.match(home, /<link rel="manifest" href="\/manifest.webmanifest">/); assert.match(home, /serviceWorker\.register\('\/sw\.js'\)/);
+  assert.match(home, /class="qbar"/); assert.match(home, /href="tel:08031112222">/); assert.match(home, /google\.com\/maps\/dir/);
+  assert.match(home, /class="opennow" hidden data-hours="Mon–Sat 8am–6pm"/); assert.match(home, /Share this website/);
+  const pv = renderPage(site, "index", { mode: "preview", link: (x) => x, row: await h.row(id), token: "t" });
+  assert.doesNotMatch(pv, /rel="manifest"/, "not on the preview"); assert.doesNotMatch(pv, /serviceWorker\.register/);
+  // a store keeps its own bar (Home, Shop, Cart, Saved, Account) instead
+  const { id: sid } = await makeStore("Bar Shop");
+  const [{ brief: sb }] = await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [sid]);
+  const shopHtml = renderPage(buildSiteModel({ ...(await h.row(sid)), brief: sb, draft_md: "# Website text\n## Page: Home\n### Hero\nX\nY." }), "index", { mode: "export", link: (x) => x });
+  assert.doesNotMatch(shopHtml, /class="qbar"/);
+});

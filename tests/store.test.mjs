@@ -200,6 +200,8 @@ test("Standard Store: buyer accounts (phone + password, Google), saved addresses
   // Addresses (up to 5) and details.
   const upd = (await shop({ s: tok, t, action: "update", addresses: [{ label: "Home", text: "5 Oke Ado, Ibadan" }, { label: "", text: "" }], email: "ife@x.com" })).json;
   assert.deepEqual(upd.buyer.addresses, [{ label: "Home", text: "5 Oke Ado, Ibadan" }]);
+  const many = Array.from({ length: 25 }, (_, k) => ({ label: "Place " + (k + 1), text: (k + 1) + " Ring Road, Ibadan" }));
+  assert.equal((await shop({ s: tok, t, action: "update", addresses: many })).json.buyer.addresses.length, 20, "up to 20 delivery addresses to pick from");
   // Orders while signed in go into their account; a token from another store doesn't work here.
   const o = (await shop({ s: tok, t, method: "delivery", items: [{ i: 1, q: 1 }], buyer: { name: "Ife Ola", phone: "08031230000", address: "5 Oke Ado, Ibadan" } })).json;
   const p = (await shop({ s: tok, t, items: [{ i: 1, q: 2 }], buyer: { name: "Ife Ola", phone: "08031230000", email: "ife@x.com" } })).json;
@@ -254,6 +256,9 @@ test("the store website gets the new checkout buttons and the account panel; the
   for (const m of ["paystack", "flutterwave", "transfer", "delivery"]) assert.match(html, new RegExp(`data-m="${m}"`));
   assert.match(html, /window\.SAcct=/);
   assert.match(html, /Forgot password/);
+  const names = (brief.products || []).map((p) => p.name);
+  assert.ok(names.length >= 2 && names.every((n) => html.includes(">" + n + "<")), "the home page lists every product");
+  assert.match(html, /class="shop-search"/, "with a search box"); assert.doesNotMatch(html, /Featured products|Shop all products/);
   const pv = renderPage(site, site.pages[0].slug, { mode: "preview", link: (x) => x, row: await h.row(id), token: "t" });
   assert.match(pv, /"preview":true/, "the preview loads the new look, with accounts switched off (no sign-in calls)");
 });

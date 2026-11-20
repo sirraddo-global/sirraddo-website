@@ -1,6 +1,6 @@
 // Customer accounts on a Standard Store website (added to every Online Store page; it only shows itself when the
 // store has accounts switched on). Buyers sign in with phone number + password (or Google, when set up), see their
-// orders and receipts, order again, and keep up to 5 delivery addresses. A forgotten password is reset with a
+// orders and receipts, order again, and keep up to 20 delivery addresses. A forgotten password is reset with a
 // one-time code the store sends on WhatsApp: nothing is ever emailed to buyers.
 // Plain ES5 for old phones. It talks to the cart script through window.__shopC (settings), the "shopcfg" event
 // (the store's live settings) and window.SAcct (the signed-in buyer, used by the cart at checkout).
@@ -47,7 +47,7 @@ function seen(i){var p=pinfo(i);if(!p)return;var L=lget(RK).filter(function(x){r
 function waUrl(t){return C.wa?'https://wa.me/'+C.wa+(t?'?text='+encodeURIComponent(t):''):''}
 function keep(j){tok=j.token||tok;me=j.buyer||me;try{localStorage.setItem(KEY,tok)}catch(x){}link();}
 function out(){tok='';me=null;try{localStorage.removeItem(KEY)}catch(x){}link();}
-window.SAcct={t:function(){return tok},b:function(){return me},saveAddress:function(a){if(!me||!a)return;var l=me.addresses||[];if(l.some(function(x){return x.text.toLowerCase()===a.toLowerCase()})||l.length>=5)return;l=l.concat([{label:'Address '+(l.length+1),text:a}]);post({action:'update',addresses:l}).then(function(j){me=j.buyer}).catch(function(){})}};
+window.SAcct={t:function(){return tok},b:function(){return me},saveAddress:function(a){if(!me||!a)return;var l=me.addresses||[];if(l.some(function(x){return x.text.toLowerCase()===a.toLowerCase()})||l.length>=20)return;l=l.concat([{label:'Address '+(l.length+1),text:a}]);post({action:'update',addresses:l}).then(function(j){me=j.buyer}).catch(function(){})}};
 var box=document.createElement('div');box.className='cart acct';box.hidden=true;box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-label','Your account');
 box.innerHTML='<div class="panel"><h2><button class="bk" type="button" aria-label="Back" hidden>‹</button><span class="ttl">Your account</span><button class="x" type="button" aria-label="Close">×</button></h2><div class="body"></div><p class="note msg" role="status"></p></div>';
 document.body.appendChild(box);
@@ -86,7 +86,7 @@ var lab={paid:'Paid',awaiting:'Waiting for your transfer',cod:'Pay on delivery',
 S.innerHTML=j.orders.length?j.orders.map(function(o,k){return '<div class="ord"><b>'+money(o.total)+' · '+new Date(o.created_at).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+'</b><span class="st'+(o.status==='paid'?' ok':'')+'">'+(o.delivered?'Delivered':(lab[o.status]||o.status))+'</span> <span class="note">'+e(o.how)+'</span><div class="note">'+o.items.map(function(l){return e(l.name)+' ×'+l.qty}).join(', ')+'</div><div class="row"><a href="'+e(o.link)+'" target="_blank" rel="noopener">'+(o.status==='paid'?'Receipt':'Order details')+'</a><button type="button" class="again" data-k="'+k+'">Order again</button></div></div>'}).join(''):'<div class="empty">'+ic('box')+'<br>No orders yet. Your orders appear here when you’re signed in at checkout.</div>';
 S.__orders=j.orders}).catch(function(x){S.innerHTML='';msg(x.message,1)});}
 if(view==='addr'){var L=me.addresses||[];S.innerHTML=(L.length?L.map(function(x,k){return '<div class="addr"><span><b>'+e(x.label)+'</b><br>'+e(x.text)+'</span><button type="button" class="lnk rmaddr" data-k="'+k+'">Remove</button></div>'}).join(''):'<p class="note">No saved addresses yet. The address you use at checkout is saved for next time.</p>')+
-(L.length<5?'<h3>Add an address</h3>'+field('ac-al','Name it','text','maxlength="30" placeholder="e.g. Home, Office"')+'<label for="ac-at">Address</label><textarea id="ac-at" rows="2" maxlength="300"></textarea><button class="go addaddr" type="button">Save address</button>':'')}
+(L.length<20?'<h3>Add an address</h3>'+field('ac-al','Name it','text','maxlength="30" placeholder="e.g. Home, Office"')+'<label for="ac-at">Address</label><textarea id="ac-at" rows="2" maxlength="300"></textarea><button class="go addaddr" type="button">Save address</button>':'')}
 if(view==='me'){S.innerHTML=field('ac-name','Your name','text','maxlength="80" value="'+e(me.name)+'"')+field('ac-email','Email (optional)','email','maxlength="200" value="'+e(me.email)+'"')+'<p class="note">Phone: '+e(me.phone)+'</p><button class="go savedet" type="button">Save details</button><h3>Change password</h3>'+
 (me.google?'':field('ac-cur','Current password','password','autocomplete="current-password"'))+field('ac-pw','New password (at least 6 characters)','password','autocomplete="new-password"')+'<button class="go savepw" type="button">Change password</button>'}}
 function row(v,icon,label,n){return '<button type="button" class="mi" data-go="'+v+'">'+ic(icon)+'<span class="l">'+label+'</span>'+(n?'<span class="n">'+n+'</span>':'')+'<span class="c">›</span></button>'}

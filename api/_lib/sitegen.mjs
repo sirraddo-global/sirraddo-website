@@ -436,7 +436,7 @@ function shopSections(site, img) {
     g.products.push(p);
   }
   const id = (c) => "cat-" + slugify(c.name);
-  const search = site.products.length > 8 ? `<input class="shop-search" type="search" placeholder="Search ${site.products.length} products" aria-label="Search products" autocomplete="off">` : "";
+  const search = site.products.length > 1 ? `<input class="shop-search" type="search" placeholder="Search ${site.products.length} products" aria-label="Search products" autocomplete="off">` : "";
   const tools = (nav) => search || nav ? `<div class="shop-tools" id="categories">${search}${nav}</div><p class="shop-none" hidden>No products match. Try another word.</p>${SHOP_JS}` : "";
   if (cats.length < 2) return tools("") + productCards(site, img);
   return tools(`<nav class="cat-nav" aria-label="Product categories">${cats.map((c) => `<a href="#${id(c)}">${esc(c.name)} <span>(${c.products.length})</span></a>`).join("")}</nav>`) +
@@ -682,7 +682,8 @@ function pageBody(site, page, mode, link, img) {
       const sp = find("services", "prices");
       extra("What we offer", serviceCards({ ...site, services: sp ? site.services.slice(0, 3) : site.services }, true) + (sp && site.services.length > 3 ? more(sp, "See all services") : ""));
     }
-    if (site.products.length) extra("Featured products", productCards({ ...site, products: site.products.slice(0, 8) }, img) + more(find("shop"), "Shop all products"));
+    // Every product on the home page, with the search box and category buttons (the same as the Shop page).
+    if (site.products.length) extra("Our products", shopSections(site, img));
     // Reviews: the latest approved ones, or (with no Testimonials page) an invitation to leave the first.
     const tp = find("testimonials");
     if (site.reviews.count) extra("What customers say", reviewsHtml(site, mode, { all: false, form: !tp }) + more(tp, `Read all ${site.reviews.count} review${site.reviews.count === 1 ? "" : "s"}`));

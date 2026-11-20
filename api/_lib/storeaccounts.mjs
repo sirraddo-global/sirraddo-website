@@ -18,6 +18,8 @@ const same = (a, b) => a.length === b.length && timingSafeEqual(Buffer.from(a), 
 const ownerPub = (u) => u && { id: u.id, request_id: u.request_id, name: u.name, username: u.username, active: u.active, must_change: u.must_change,
   temp_expires: u.temp_expires, last_seen_at: u.last_seen_at, password_changed_at: u.password_changed_at, created_at: u.created_at };
 
+// How many delivery addresses a buyer can keep (they pick one at checkout).
+export const MAX_ADDRESSES = 20;
 export async function ownerLogin(requestId) {
   await ensureSchema();
   const [u] = await q(`SELECT * FROM store_users WHERE request_id = $1 ORDER BY id LIMIT 1`, [Number(requestId)]);
@@ -195,7 +197,7 @@ export async function buyerUpdate(b, { name, email, addresses }) {
     vals.push(em || null); sets.push(`email = $${vals.length}`);
   }
   if (addresses !== undefined) {
-    const list = (Array.isArray(addresses) ? addresses : []).slice(0, 5).map((a) => ({ label: cleanText(a?.label, 30) || "Address", text: cleanText(a?.text, 300) })).filter((a) => a.text);
+    const list = (Array.isArray(addresses) ? addresses : []).slice(0, MAX_ADDRESSES).map((a) => ({ label: cleanText(a?.label, 30) || "Address", text: cleanText(a?.text, 300) })).filter((a) => a.text);
     vals.push(JSON.stringify(list)); sets.push(`addresses = $${vals.length}::jsonb`);
   }
   if (!sets.length) return buyerPub(b);

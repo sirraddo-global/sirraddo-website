@@ -198,7 +198,7 @@ export async function publish(id, { force = false } = {}) {
   const dep = await deploy(project, files);
   // The last few versions, newest first, so "Restore previous version" can put one back.
   const history = dep?.id ? [{ id: dep.id, at: new Date().toISOString(), look: SITE_LOOK }, ...(h.history || []).filter((v) => v.id !== dep.id)].slice(0, 6) : h.history || [];
-  const patch = { project, pagesUrl: `https://${project}.pages.dev`, publishedAt: new Date().toISOString(), look: SITE_LOOK, deploymentId: dep?.id || null, history, pausedAt: null, pauseReason: null,
+  const patch = { project, pagesUrl: `https://${project}.pages.dev`, publishedAt: new Date().toISOString(), look: SITE_LOOK, orderPage: pages.some((p) => p.name === "order.html"), deploymentId: dep?.id || null, history, pausedAt: null, pauseReason: null,
     // When it first went online with money still owed (auto-pauses after BALANCE_GRACE_DAYS).
     owingSince: owed ? h.owingSince || new Date().toISOString() : null };
   let attached = h.attached && h.project === project;

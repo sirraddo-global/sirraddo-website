@@ -42,7 +42,7 @@ function storeInfo(r, sh) {
     transfer: sh.transfer || { on: false }, delivery: sh.delivery || { on: false }, deliveryFee: sh.deliveryFee ?? null, notify: sh.notify || "",
     accountsFeature: Boolean(sh.accounts), accountsOn: Boolean(sh.accounts && !sh.accountsOff), manageOn: !sh.manageOff,
     googleFeature: Boolean(sh.accounts && sh.google && googleClientId()), googleOn: !sh.googleOff,
-    zones: sh.zones || [], freeOver: sh.freeOver || "", codes: sh.codes || [], instalments: sh.instalments || { on: false, firstPct: 30 },
+    hideStock: Boolean(sh.hideStock), leadTime: sh.leadTime || "", zones: sh.zones || [], freeOver: sh.freeOver || "", codes: sh.codes || [], instalments: sh.instalments || { on: false, firstPct: 30 },
   };
 }
 // The owner's money at a glance: paid sales today and this month (Lagos time), orders still to deliver, items running low.
@@ -100,18 +100,18 @@ export default async function handler(req, res) {
     }
     if (action === "orders") {
       const list = await storeOrders(id, { status: body.status, search: body.search, limit: 200 });
-      return res.status(200).json({ orders: list.map((o) => ({ ...o, how: METHOD_LABEL[o.method] || o.method, link: o.status === "paid" ? receiptLink(o) : orderLink(o) })) });
+      return res.status(200).json({ orders: list.map((o) => ({ ...o, how: METHOD_LABEL[o.method] || o.method, link: o.status === "paid" ? receiptLink(o, r) : orderLink(o, r) })) });
     }
     if (action === "order") {
       const row = body.do === "payment" ? await recordInstalment(id, body.ref, body.amount) : await ownerOrderAction(id, body.ref, body.do);
-      return res.status(200).json({ order: { ...row, how: METHOD_LABEL[row.method] || row.method, link: row.status === "paid" ? receiptLink(row) : orderLink(row) } });
+      return res.status(200).json({ order: { ...row, how: METHOD_LABEL[row.method] || row.method, link: row.status === "paid" ? receiptLink(row, r) : orderLink(row, r) } });
     }
     // An online payment that didn't finish on the page ("I paid but got no order"): ask Paystack / Flutterwave again.
     if (action === "check") {
       const o = await orderByRef(body.ref);
       if (!o || o.request_id !== id) return res.status(404).json({ error: "Order not found" });
       const { order } = await confirmOrder(o.ref);
-      return res.status(200).json({ order: { ...order, how: METHOD_LABEL[order.method] || order.method, link: order.status === "paid" ? receiptLink(order) : orderLink(order) } });
+      return res.status(200).json({ order: { ...order, how: METHOD_LABEL[order.method] || order.method, link: order.status === "paid" ? receiptLink(order, r) : orderLink(order, r) } });
     }
     // A customer asked you to delete their data: their account goes and their details are removed from their orders.
     if (action === "customer_delete") return res.status(200).json(await eraseBuyer(id, { buyerId: body.buyer_id }));
@@ -144,7 +144,7 @@ export default async function handler(req, res) {
       const p = body.payments || {};
       // The owner can connect their own Paystack / Flutterwave keys here (it's their own account) and switch every option.
       await setShopPayments(id, { secretKey: p.paystackKey, paystackOn: p.paystackOn, flwKey: p.flwKey, flwOn: p.flwOn, flwRemove: p.flwRemove,
-        transfer: p.transfer, delivery: p.delivery, deliveryFee: p.deliveryFee, notify: p.notify, zones: p.zones, freeOver: p.freeOver, codes: p.codes, instalments: p.instalments, accountsOn: sh.accounts ? p.accountsOn : undefined, googleOn: sh.accounts && sh.google && typeof p.googleOn === "boolean" ? p.googleOn : undefined });
+        transfer: p.transfer, delivery: p.delivery, deliveryFee: p.deliveryFee, notify: p.notify, zones: p.zones, freeOver: p.freeOver, codes: p.codes, instalments: p.instalments, hideStock: p.hideStock, leadTime: p.leadTime, accountsOn: sh.accounts ? p.accountsOn : undefined, googleOn: sh.accounts && sh.google && typeof p.googleOn === "boolean" ? p.googleOn : undefined });
       const fresh = await getRequest(id);
       fresh.brief = r.brief;
       return res.status(200).json({ store: storeInfo(fresh, await rawShop(id)) });

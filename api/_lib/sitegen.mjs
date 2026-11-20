@@ -249,6 +249,7 @@ export function buildSiteModel(row) {
     creditTag,
     // White label (e.g. sites sold through an agency): no "Website by SIRRADDO" in the footer.
     noCredit: Boolean(row.hosting?.noCredit),
+    hideStock: Boolean(row.shop?.hideStock), leadTime: String(row.shop?.leadTime || ""),
     // Where the site lives (for Google: canonical links, sitemap, share previews). Empty until it has an address.
     baseUrl: domain ? `https://${domain}` : row.hosting?.pagesUrl || (/^https:\/\//.test(row.website_url || "") ? row.website_url.replace(/\/+$/, "") : ""),
     name: b.business_name || row.business || row.name,
@@ -479,7 +480,7 @@ function productCards(site, img) {
     const order = waLink(site, `Hello ${site.name}, I'd like to order: ${p.name}${p.price ? " (" + naira(p.price) + ")" : ""}`);
     const left = /^\d{1,6}$/.test(String(p.stock ?? "").trim()) ? Number(p.stock) : null;
     const sold = p.soldout || left === 0;
-    const stockLine = !sold && left !== null ? `<p class="stock${left <= 5 ? " low" : ""}">${left <= 5 ? `Only ${left} left` : `${left} in stock`}</p>` : "";
+    const stockLine = !sold && left !== null && !site.hideStock ? `<p class="stock${left <= 5 ? " low" : ""}">${left <= 5 ? `Only ${left} left` : `${left} in stock`}</p>` : "";
     const buy = sold ? `<p class="buy"><span class="soldout">Sold out</span>${shopOn ? `<button class="btn ntf" type="button" data-i="${p.i}">Tell me when it's back</button>` : ""}</p>`
       : opts ? `${stockLine}<p class="buy"><button class="btn add-opt" type="button" data-i="${p.i}" data-name="${esc(p.name)}" data-price="${p.amount}"${left !== null ? ` data-max="${left}"` : ""}${photo ? ` data-img="${img(photo.url)}"` : ""} data-opts="${esc(JSON.stringify(opts))}">Choose ${esc(opts.map((g) => g.name.toLowerCase()).join(" & "))}</button></p>`
       : p.amount
@@ -492,7 +493,7 @@ function productCards(site, img) {
       : p.price ? `<p class="price">${esc(p.amount ? naira(p.amount) : naira(p.price))}</p>` : "";
     const rate = rv.length ? `<p class="prate"><span aria-hidden="true">\u2605</span> ${avg.toFixed(1)} <small>(${rv.length} review${rv.length === 1 ? "" : "s"})</small></p>` : "";
     const data = `${photos.length > 1 ? ` data-photos="${esc(JSON.stringify(photos))}"` : ""}${rv.length ? ` data-rv="${esc(JSON.stringify(rv.slice(0, 6).map((x) => ({ n: x.name, s: x.stars, t: x.text, v: x.verified }))))}"` : ""}`;
-    return `<div class="card prod${sold ? " is-soldout" : ""}${p.onSale ? " on-sale" : ""}" data-pi="${p.i}"${data}>${p.onSale ? `<span class="sale-tag">\u2212${p.off}%</span>` : ""}${photo ? `<img class="pv-open" src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3><button class="pname pv-open" type="button" aria-haspopup="dialog">${esc(p.name)}</button></h3>${rate}${text ? `<div class="pdesc" hidden>${esc(text)}</div>` : ""}${price}${buy}</div>`;
+    return `<div class="card prod${sold ? " is-soldout" : ""}${p.onSale ? " on-sale" : ""}" data-pi="${p.i}"${data}>${p.onSale ? `<span class="sale-tag">\u2212${p.off}%</span>` : ""}${photo ? `<img class="pv-open" src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3><button class="pname pv-open" type="button" aria-haspopup="dialog">${esc(p.name)}</button></h3>${rate}${text ? `<div class="pdesc" hidden>${esc(text)}</div>` : ""}${price}${site.leadTime && p.amount && !sold ? `<p class="lead">${esc(site.leadTime)}</p>` : ""}${buy}</div>`;
   }).join("")}</div>`;
 }
 
@@ -516,7 +517,7 @@ const PRODUCT_POP = `<style>.ppop{position:fixed;inset:0;z-index:65;background:r
 .pzoom{position:fixed;inset:0;z-index:80;background:#000;overflow:auto;touch-action:pan-x pan-y pinch-zoom}.pzoom[hidden]{display:none}.pzoom img{display:block;width:100%;min-height:100%;object-fit:contain;cursor:zoom-in}.pzoom.big img{width:220%;max-width:none;cursor:zoom-out}.pzoom .x{position:fixed;top:10px;right:10px;width:46px;height:46px;border-radius:50%;border:0;background:rgba(255,255,255,.9);font-size:28px;cursor:pointer}
 .card.prod{position:relative}.sale-tag{position:absolute;top:8px;left:8px;z-index:2;background:#E11D48;color:#fff;font-weight:800;font-size:.8rem;border-radius:8px;padding:3px 8px}
 .price s{opacity:.55;font-weight:500;font-size:.88em;margin-left:4px}.price .off{color:#E11D48;font-size:.85em;margin-left:4px}.sale-end{font-size:.85rem;font-weight:700;color:#C2410C;margin:-4px 0 8px}.prate{margin:0 0 4px;font-size:.9rem;font-weight:700}.prate span{color:#F5A524}.prate small{font-weight:500;opacity:.7}
-.buy .ntf{display:block;margin-top:8px;font-size:.9rem;padding:9px 12px;background:transparent!important;color:inherit!important;border:1.5px solid currentColor!important}</style>
+.lead{margin:-4px 0 8px;font-size:.85rem;font-weight:600;opacity:.8}.buy .ntf{display:block;margin-top:8px;font-size:.9rem;padding:9px 12px;background:transparent!important;color:inherit!important;border:1.5px solid currentColor!important}</style>
 <div class="ppop" hidden role="dialog" aria-modal="true" aria-label="Product details"><div class="box"><div class="bar"><button class="shr" type="button">Share</button><button class="x" type="button" aria-label="Close">×</button></div><div class="in"></div></div></div>
 <div class="pzoom" hidden role="dialog" aria-label="Photo"><button class="x" type="button" aria-label="Close">×</button><img alt=""></div>
 <script>(function(){var pop=document.querySelector('.ppop'),box=pop.querySelector('.box'),inn=pop.querySelector('.in'),zm=document.querySelector('.pzoom'),last=null,cur=null;
@@ -542,7 +543,7 @@ w.innerHTML=G.map(function(g,k){return '<div class="og"><b>'+E(g.name)+'</b><div
 inn.appendChild(w);var key=function(){return pick.length===G.length&&pick.every(function(x){return x!=null})?pick.join(' / '):''};
 function paint(){w.querySelectorAll('.og button').forEach(function(bt){var k=+bt.getAttribute('data-g');bt.setAttribute('aria-pressed',pick[k]===bt.getAttribute('data-v'));
 if(G.length===1||pick[1-k]!=null){var t=pick.slice();t[k]=bt.getAttribute('data-v');var kk=t.join(' / ');bt.classList.toggle('out',vs[kk]!==undefined&&+vs[kk]<=0)}});
-var v=key(),n=v&&vs[v]!==undefined?+vs[v]:null;w.querySelector('.vleft').textContent=!v?'Choose '+G.map(function(g){return g.name.toLowerCase()}).join(' and ')+'.':n===0?'Sold out in '+v+'.':n!==null&&n<=5?'Only '+n+' left in '+v+'.':''}
+var v=key(),n=v&&vs[v]!==undefined?+vs[v]:null;w.querySelector('.vleft').textContent=!v?'Choose '+G.map(function(g){return g.name.toLowerCase()}).join(' and ')+'.':n===0?'Sold out in '+v+'.':n!==null&&n<=5&&!cfg.hideStock?'Only '+n+' left in '+v+'.':''}
 w.addEventListener('click',function(e){var bt=e.target.closest('.og button');if(bt){pick[+bt.getAttribute('data-g')]=bt.getAttribute('data-v');paint();return}
 if(e.target.closest('.addv')){var v=key();if(!v){w.querySelector('.vleft').textContent='Please choose '+G.map(function(g){return g.name.toLowerCase()}).join(' and ')+' first.';return}
 if(vs[v]!==undefined&&+vs[v]<=0)return;if(window.__addToCart){window.__addToCart(i,1,{v:v},true);e.target.closest('.addv').textContent='Added \\u2713 Add another';w.querySelector('.vleft').textContent=v+' is in your cart.'}}});paint()}
@@ -695,12 +696,49 @@ Z=j.zones||[];FO=+j.freeOver||0;CODES=!!j.codes;var zs=$('#cb-zone');if(Z.length
 try{var zk=localStorage.getItem(C.key+'-zone');if(zk!==null&&Z[+zk])zs.value=zk}catch(x){}}zs.onchange=function(){try{localStorage.setItem(C.key+'-zone',zs.value)}catch(x){}quote();draw()};
 $('.cart .code').hidden=!CODES;$('.cart .apply').onclick=function(){code=$('#cb-code').value.trim().toUpperCase();$('.cart .cmsg').textContent=code?'Checking\u2026':'';quote()};
 window.__shopCfg=j;try{window.dispatchEvent(new CustomEvent('shopcfg',{detail:j}))}catch(x){}
+if(j.hideStock)document.querySelectorAll('.card .stock').forEach(function(x){x.remove()});
+if(j.leadTime!==undefined)document.querySelectorAll('.card.prod').forEach(function(c){var l=c.querySelector('.lead'),pr=c.querySelector('.price');if(!j.leadTime){if(l)l.remove();return}if(!c.querySelector('.btn.add,.btn.add-opt'))return;if(!l&&pr){l=document.createElement('p');l.className='lead';var se=c.querySelector('.sale-end');(se||pr).insertAdjacentElement('afterend',l)}if(l)l.textContent=j.leadTime});
 var st=j.stock||{};Object.keys(st).forEach(function(i){var n=+st[i];document.querySelectorAll('.btn.add[data-i="'+i+'"]').forEach(function(a){a.setAttribute('data-max',n);var bp=a.closest('.buy'),sl=bp.previousElementSibling;
 if(n<=0){bp.innerHTML='<span class="soldout">Sold out</span>';bp.removeAttribute('data-i');var c=bp.closest('.card');if(c)c.classList.add('is-soldout');if(sl&&sl.classList.contains('stock'))sl.remove();}
-else{if(!sl||!sl.classList.contains('stock')){sl=document.createElement('p');bp.parentNode.insertBefore(sl,bp)}sl.className='stock'+(n<=5?' low':'');sl.textContent=n<=5?'Only '+n+' left':n+' in stock';}});
+else if(!j.hideStock){if(!sl||!sl.classList.contains('stock')){sl=document.createElement('p');bp.parentNode.insertBefore(sl,bp)}sl.className='stock'+(n<=5?' low':'');sl.textContent=n<=5?'Only '+n+' left':n+' in stock';}});
 B.forEach(function(l){if(+l.i===+i&&!l.v&&l.q>n)l.q=n});});var vs=j.vstock||{};B.forEach(function(l){if(l.v&&vs[l.i]&&vs[l.i][l.v]!==undefined&&l.q>vs[l.i][l.v])l.q=+vs[l.i][l.v]});B=B.filter(function(l){return l.q>0});save();draw()}).catch(function(){});
 if(C.preview){online=true;M={paystack:true}}
 draw();})();</script>`;
+}
+// The buyer's order / receipt page, on the store's OWN website (…/order?ref=…): it asks our API for the order and
+// shows it in the store's design (payment details, tracking, the receipt to save). Old links on our address still work.
+function orderBody() {
+  const api = JSON.stringify(SITE_URL).replace(/</g, "\\u003c");
+  return `<section class="block"><div class="wrap"><div class="card ordpg" id="ordpg"><p>Loading your order\u2026</p></div></div></section>
+<style>.ordpg{max-width:560px;margin:0 auto}.ordpg table{width:100%;border-collapse:collapse;margin:10px 0}.ordpg td{padding:7px 0;border-bottom:1px solid rgba(127,127,127,.2);vertical-align:top}.ordpg .r{text-align:right}
+.ordpg .m{opacity:.8;font-size:.92rem}.ordpg .ok{background:rgba(22,163,74,.12);border-left:4px solid #16A34A;padding:10px 12px;border-radius:8px}.ordpg .cp{font:inherit;font-size:.8rem;border:1px solid rgba(127,127,127,.5);background:transparent;color:inherit;border-radius:8px;padding:2px 8px;cursor:pointer;margin-left:6px}
+.ordpg label{display:block;font-weight:600;margin:10px 0 4px}.ordpg input{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:12px;border:1px solid rgba(127,127,127,.5);border-radius:10px;background:transparent;color:inherit}
+.ordpg .trk{list-style:none;margin:14px 0;padding:0}.ordpg .trk li{position:relative;padding:0 0 18px 34px;opacity:.6}.ordpg .trk li:before{content:"";position:absolute;left:8px;top:4px;width:14px;height:14px;border-radius:50%;border:2px solid currentColor;opacity:.5}
+.ordpg .trk li:after{content:"";position:absolute;left:15px;top:22px;bottom:2px;width:2px;background:currentColor;opacity:.2}.ordpg .trk li:last-child:after{display:none}.ordpg .trk li.d{opacity:1;font-weight:700}.ordpg .trk li.d:before{background:#16A34A;border-color:#16A34A;opacity:1}.ordpg .trk small{display:block;font-weight:400;opacity:.75}
+.ordpg .acts,.ordpg .save{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.ordpg .acts>*,.ordpg .save button{flex:1 1 140px;text-align:center}.ordpg .save button{font:inherit;font-weight:700;border-radius:12px;padding:13px;cursor:pointer;border:1px solid rgba(127,127,127,.5);background:transparent;color:inherit}
+.ordpg .save button[data-save=png]{background:var(--cart-acc,#0BA4DB);color:#fff;border:0}.ordpg .doc{margin:14px 0;overflow-x:auto}@media print{header,footer,.qbar,.tabbar,.wa,.ordpg .save,.ordpg .acts,.ordpg .noprint{display:none!important}}</style>
+<script>(function(){var A=${api},q=new URLSearchParams(location.search),ref=q.get('ref')||'',box=document.getElementById('ordpg');
+function E(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}function N(n){return '\\u20a6'+Number(n||0).toLocaleString('en-NG')}
+if(!/^SHOP\\d+-[a-f0-9]+$/.test(ref)){box.innerHTML='<h1>Order not found</h1><p>Please check the link the store sent you.</p>';return}
+function items(j){var o=j.order;return '<table>'+o.items.map(function(l){return '<tr><td>'+E(l.name)+' \\u00d7 '+l.qty+'</td><td class="r">'+N(l.total)+'</td></tr>'}).join('')+(o.discount?'<tr><td>Discount'+(o.code?' ('+E(o.code)+')':'')+'</td><td class="r">\\u2212'+N(o.discount)+'</td></tr>':'')+(o.delivery?'<tr><td>Delivery'+(o.zone?' ('+E(o.zone)+')':'')+'</td><td class="r">'+N(o.delivery)+'</td></tr>':'')+'<tr><td><b>'+(o.status==='paid'?'Paid':'Total')+'</b></td><td class="r"><b>'+N(o.total)+'</b></td></tr></table>'}
+function track(j){if(!j.track.length)return '';var u=location.origin+location.pathname+'?ref='+encodeURIComponent(ref);return '<h2>Track your order</h2><ol class="trk">'+j.track.map(function(s){return '<li class="'+(s.done?'d':'')+'">'+E(s.label)+(s.when?'<small>'+E(s.when)+'</small>':'')+'</li>'}).join('')+'</ol><div class="acts noprint"><button class="btn" type="button" onclick="location.reload()">Refresh</button><a class="btn" href="https://wa.me/?text='+encodeURIComponent('Track my order '+ref+': '+u)+'" target="_blank" rel="noopener">Share on WhatsApp</a></div>'}
+function bank(j,amt){var t=j.transfer;return '<table><tr><td>Bank</td><td class="r"><b>'+E(t.bank)+'</b></td></tr><tr><td>Account name</td><td class="r"><b>'+E(t.name)+'</b></td></tr><tr><td>Account number</td><td class="r"><b style="font-size:1.2rem;letter-spacing:1px">'+E(t.number)+'</b> <button type="button" class="cp" data-c="'+E(t.number)+'">Copy</button></td></tr>'+(amt?'<tr><td>Amount</td><td class="r"><b>'+N(amt)+'</b></td></tr>':'')+'<tr><td>Narration / description</td><td class="r"><b>'+E(ref)+'</b> <button type="button" class="cp" data-c="'+E(ref)+'">Copy</button></td></tr></table>'+(t.note?'<p class="m">'+E(t.note)+'</p>':'')}
+function saveBtns(j){return '<div class="save noprint"><button type="button" data-save="png">Save as picture</button><button type="button" data-save="pdf">Save as PDF</button><button type="button" data-save="share">Share</button><button type="button" data-save="link">Copy receipt link</button></div><p class="m save-msg" role="status"></p>'}
+function draw(j){var o=j.order,st=j.store,h='';document.title=(o.status==='paid'?'Receipt ':'Order ')+ref+' \\u00b7 '+st.name;
+if(o.status==='paid'&&q.get('receipt')){h='<div class="acts noprint"><button class="btn" type="button" onclick="print()">Print</button><a class="btn" href="'+E(st.home||'/')+'">Back to the shop</a></div>'+saveBtns(j)+'<div class="doc">'+j.receipt.html+'</div>'}
+else if(o.status==='paid'){h='<h1>Thank you, '+E(o.first)+'!</h1><p>Your payment went through and <b>'+E(st.name)+'</b> has your order.</p>'+items(j)+track(j)+'<p><b>Save your receipt</b> to your phone:</p>'+saveBtns(j)+'<p class="m">Need it again later? Keep this link: <a href="'+E(j.receipt.link)+'">'+E(j.receipt.link.replace(/^https?:\\/\\//,''))+'</a></p>'}
+else if(o.status==='cod'){h='<h1>Thank you, '+E(o.first)+'!</h1><p>Your order is placed with <b>'+E(st.name)+'</b>. You\\u2019ll <b>pay on delivery</b>: the store will contact you on '+E(o.phone||'your phone')+' to arrange it.</p>'+(j.deliveryNote?'<p class="m">'+E(j.deliveryNote)+'</p>':'')+items(j)+track(j)+'<p class="m">Order '+E(ref)+'. Save this page to come back to it.</p>'}
+else if(o.status==='awaiting'){h='<h1>Almost done, '+E(o.first)+'!</h1><p>Your order is saved. Please pay <b>'+N(o.total)+'</b> by bank transfer to:</p>'+bank(j,o.total)+'<p class="m">Only pay into the account above, in the store\\u2019s name. '+E(st.name)+' sends your items once they see the money.</p><h2>Your order</h2>'+items(j)+track(j)+
+'<div id="claim">'+(o.claimed?'<p class="ok">Thanks! You told '+E(st.name)+' you\\u2019ve paid. '+E(st.name)+' will confirm once they see it in their bank app. Keep this page: it updates when they confirm.</p>':'<h2>Paid? Tell the store</h2><label for="cf">Name on the account you paid from</label><input id="cf" maxlength="100" autocomplete="name"><label for="cn">Anything else (optional)</label><input id="cn" maxlength="200" placeholder="e.g. paid at 2:15pm"><p><button type="button" class="btn" id="cb">I\\u2019ve paid</button></p><p class="m" id="cm" role="status"></p>')+'</div>'}
+else if(o.status==='part'){var left=o.total-o.paid;h='<h1>Pay small-small</h1><p>Your items are kept for you at <b>'+E(st.name)+'</b>. Pay by bank transfer, in parts, any time; they\\u2019re sent when the full amount is paid.</p>'+bank(j,0)+'<table><tr><td>Total</td><td class="r"><b>'+N(o.total)+'</b></td></tr><tr><td>Paid so far</td><td class="r"><b>'+N(o.paid)+'</b></td></tr><tr><td>Left to pay</td><td class="r"><b style="font-size:1.15rem">'+N(left)+'</b></td></tr></table>'+
+(!o.paid&&j.firstPayment?'<p class="ok">First payment: at least <b>'+N(j.firstPayment.amount)+'</b> ('+j.firstPayment.pct+'%).</p>':'')+(o.payments.length?'<p class="m">Payments received: '+o.payments.map(N).join(', ')+'.</p>':'')+'<h2>Your order</h2>'+items(j)+track(j)}
+else if(o.status==='cancelled'){h='<h1>Order cancelled</h1><p>'+E(st.name)+' cancelled order '+E(ref)+'. If you think this is a mistake, please contact the store.</p>'+items(j)}
+else h='<h1>Payment not completed</h1><p>We couldn\\u2019t confirm a payment for this order yet. If money left your account, it will be confirmed shortly: please contact the store with your payment reference. You can also go back to the shop and try again.</p>';
+box.innerHTML=h+(q.get('receipt')&&o.status==='paid'?'':'<p class="noprint"><a class="btn" href="'+E(st.home||'/')+'">Back to the shop</a></p>');
+if(j.receipt&&box.querySelector('.save')){var d=document.createElement('script');d.type='application/json';d.id='rcpt';d.textContent=JSON.stringify(j.receipt.data);document.body.appendChild(d);var sc=document.createElement('script');sc.src=A+'/assets/receipt.js';sc.defer=true;document.body.appendChild(sc)}
+var cb=document.getElementById('cb');if(cb)cb.addEventListener('click',function(){cb.disabled=true;fetch(A+'/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'claim',ref:ref,from:document.getElementById('cf').value,note:document.getElementById('cn').value})}).then(function(r){return r.json().then(function(k){if(!r.ok)throw new Error(k.error||'Error');return k})}).then(function(){load()}).catch(function(err){cb.disabled=false;document.getElementById('cm').textContent=err.message})})}
+box.addEventListener('click',function(e){var b=e.target.closest('.cp');if(b&&navigator.clipboard){navigator.clipboard.writeText(b.getAttribute('data-c'));b.textContent='Copied'}});
+function load(){fetch(A+'/api/shop?json=1&ref='+encodeURIComponent(ref)).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Order not found');return j})}).then(draw).catch(function(){box.innerHTML='<h1>Order not found</h1><p>Please check the link the store sent you, or contact the store.</p>'})}load();})();</script>`;
 }
 const gallery = (photos, img) => `<div class="gallery">${photos.map((p) => `<a href="${img(p.url)}"><img src="${img(p.url)}" alt="${esc(p.name || "Photo")}" loading="lazy" decoding="async"></a>`).join("")}</div>`;
 
@@ -942,8 +980,8 @@ fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},
 }
 
 // mode: "preview" (served at /preview, with the approval panel) or "export" (plain files for hosting).
-export function renderPage(site, slug, { mode = "export", link, img = (u) => u, row, token, choice, switcher = "", notFound = false, top = null, panel = null } = {}) {
-  const page = notFound ? NOT_FOUND_PAGE : site.pages.find((p) => p.slug === slug) || site.pages[0];
+export function renderPage(site, slug, { mode = "export", link, img = (u) => u, row, token, choice, switcher = "", notFound = false, top = null, panel = null, orderPage = false } = {}) {
+  const page = orderPage ? ORDER_PAGE : notFound ? NOT_FOUND_PAGE : site.pages.find((p) => p.slug === slug) || site.pages[0];
   const title = page.title || (page.kind === "home" ? site.name : `${page.name} | ${site.name}`);
   const desc = page.meta || site.tagline || "";
   const preview = mode === "preview";
@@ -951,13 +989,13 @@ export function renderPage(site, slug, { mode = "export", link, img = (u) => u, 
 <html lang="en-NG"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(preview ? "Preview: " + title : title)}</title>${desc ? `\n<meta name="description" content="${esc(desc)}">` : ""}
 ${seoHead(site, page, { title, desc, img, preview, notFound })}
-${preview || notFound ? '<meta name="robots" content="noindex, nofollow">' : ""}<meta name="theme-color" content="${site.theme.primary}">
+${preview || notFound || orderPage ? '<meta name="robots" content="noindex, nofollow">' : ""}<meta name="theme-color" content="${site.theme.primary}">
 ${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}${mode === "export" && !notFound ? `<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="${site.logo ? img(site.logo.url) : "/app-icon.svg"}"><meta name="mobile-web-app-capable" content="yes">` : ""}
 <style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}
 <style id="guard">${GUARD_CSS}${KIT_CSS}${hasCart(site) ? CART_CSS + ACCOUNT_CSS : ""}</style></head>
 <body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">${top ?? `Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}`}</div>` : ""}
 ${site.notice ? `<div class="site-notice" role="status">${esc(site.notice)}</div>` : ""}${header(site, page, link, img)}
-<main>${notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
+<main>${orderPage ? orderBody() : notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
 ${preview ? panel ?? previewPanel(row, token, choice) : ""}
 ${footer(site, link)}
 ${site.products && site.products.length ? PRODUCT_POP : ""}${hasCart(site) ? cartScript(site, mode) + `<script>${ACCOUNT_JS}</script>` : actionBar(site, link, waLink(site))}${kitScript(site, { exportMode: mode === "export" && !notFound })}${mode === "export" && !notFound ? statsScript(site) : ""}
@@ -966,6 +1004,7 @@ ${site.products && site.products.length ? PRODUCT_POP : ""}${hasCart(site) ? car
 
 // ---------- Google and share previews ----------
 const NOT_FOUND_PAGE = { slug: "404", kind: "notfound", name: "Page not found", title: "", meta: "", sections: [] };
+const ORDER_PAGE = { slug: "order", kind: "order", name: "Your order", title: "", meta: "", sections: [] };
 const jsonLd = (o) => `<script type="application/ld+json">${JSON.stringify(o).replace(/</g, "\\u003c")}</script>`;
 const pagePath = (slug) => (slug === "index" ? "/" : `/${slug}`);
 
@@ -1056,6 +1095,7 @@ export function exportFiles(site) {
   // The "page not found" page is shown at any address, so its links start from the site root.
   const rootLink = (slug) => (slug === "index" ? "/" : `/${slug}`);
   pages.push({ name: "404.html", html: renderPage(site, "index", { mode: "export", link: rootLink, img: (u) => "/" + img(u), notFound: true }) });
+  if (hasCart(site)) pages.push({ name: "order.html", html: renderPage(site, "index", { mode: "export", link: rootLink, img: (u) => "/" + img(u), orderPage: true }) });
   const base = site.baseUrl;
   const today = new Date().toISOString().slice(0, 10);
   // Install as an app: the app's details, its icon and the small helper that keeps pages for a bad network.

@@ -113,7 +113,7 @@ export async function ensureStoreToken(id) {
   const row = await getRequest(id);
   if (row && kindFor(row.interest) === "store" && !row.shop?.token) await ensureShopToken(id);
 }
-export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove, paystackOn, flwKey, flwOn, flwRemove, transfer, delivery, accounts, accountsOn, google, googleOn, manageOn, zones, freeOver, codes, instalments }) {
+export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove, paystackOn, flwKey, flwOn, flwRemove, transfer, delivery, accounts, accountsOn, google, googleOn, manageOn, zones, freeOver, codes, instalments, hideStock, leadTime }) {
   let row = await ensureShopToken(id);
   const patch = {};
   // Every way to pay is a switch the owner (in My store) or SIRRADDO (in admin) can turn on and off at any time.
@@ -144,6 +144,10 @@ export async function setShopPayments(id, { secretKey, deliveryFee, notify, remo
   if (manageOn !== undefined) patch.manageOff = !manageOn;
   // Delivery fee by area, free delivery above an amount, discount codes and pay small-small (the owner, in My store).
   if (zones !== undefined) patch.zones = cleanZones(zones);
+  // Stores that source items when customers order (or just don't want numbers shown): hide "Only 2 left", and a
+  // short note on every product, e.g. "Sourced on order · ready in 3–5 days".
+  if (hideStock !== undefined) patch.hideStock = Boolean(hideStock);
+  if (leadTime !== undefined) patch.leadTime = clean(leadTime, 80);
   if (freeOver !== undefined) { const n = Math.round(Number(String(freeOver ?? "").replace(/[^\d.]/g, "")) || 0); if (n < 0 || n > 1e8) throw new Error("Free delivery: write an amount in naira, or leave it empty"); patch.freeOver = n || null; }
   if (codes !== undefined) patch.codes = cleanCodes(codes, row.shop?.codes);
   if (instalments !== undefined) {
@@ -249,7 +253,7 @@ export async function shopConfig(token) {
   const googleClient = r.shop?.accounts && !r.shop?.accountsOff && r.shop?.google && !r.shop?.googleOff && googleClientId() ? googleClientId() : null;
   return { online: m.paystack || m.flutterwave, methods: m, mode: r.shop?.keyMode || null, deliveryFee: r.shop?.deliveryFee ?? null, name: storeName(r), stock,
     deliveryNote: m.delivery ? r.shop.delivery.note || "" : "", accounts: Boolean(r.shop?.accounts && !r.shop?.accountsOff), google: googleClient, id: r.id,
-    vstock, zones: cleanZones(r.shop?.zones), freeOver: Number(r.shop?.freeOver) || 0, codes: activeCodes(r.shop).length > 0, firstPct: m.instalment ? firstPayment(r.shop, 100).pct : 0 };
+    vstock, hideStock: Boolean(r.shop?.hideStock), leadTime: r.shop?.leadTime || "", zones: cleanZones(r.shop?.zones), freeOver: Number(r.shop?.freeOver) || 0, codes: activeCodes(r.shop).length > 0, firstPct: m.instalment ? firstPayment(r.shop, 100).pct : 0 };
 }
 
 // Work out the order from the product list (never trust prices from the browser).
@@ -331,23 +335,32 @@ export async function startCheckout(token, items, buyer, returnBase, opts = {}) 
     const [o] = await q(`SELECT * FROM store_orders WHERE ref = $1`, [ref]);
     await takeStock(r, o);
     await notifyOwner(r, o, method === "transfer" || method === "instalment" ? "awaiting" : "cod");
-    return { url: orderLink({ ref }), ref, method };
+    return { url: orderLink({ ref }, r), ref, method };
   }
   if (method === "flutterwave") {
     const data = await flw(openKey(r.shop.flwKey), "/payments", {
-      tx_ref: ref, amount: order.total, currency: "NGN", redirect_url: `${returnBase}/api/shop?paid=1&ref=${encodeURIComponent(ref)}`,
+      tx_ref: ref, amount: order.total, currency: "NGN", redirect_url: orderLink({ ref }, r) + "&paid=1",
       customer: { email: b.email, phonenumber: b.phone, name: b.name }, customizations: { title: storeName(r) }, meta: { order: ref },
     });
     return { url: data.link, ref, method };
   }
   const data = await ps(openKey(r.shop.key), "/transaction/initialize", {
     email: b.email, amount: order.total * 100, currency: "NGN", reference: ref,
-    callback_url: `${returnBase}/api/shop?paid=1&ref=${encodeURIComponent(ref)}`,
+    callback_url: orderLink({ ref }, r) + "&paid=1",
     metadata: { store: storeName(r), custom_fields: [{ display_name: "Order", variable_name: "order", value: ref }, { display_name: "Phone", variable_name: "phone", value: b.phone }] },
   });
   return { url: data.authorization_url, ref, method };
 }
-export function orderLink(o) { return `${SITE_URL}/api/shop?ref=${encodeURIComponent(o.ref)}`; }
+// The buyer's order / receipt page is on the store's OWN website (…/order?ref=…) once the site has been published
+// with that page; before that (or when the site is paused) it is our address, which always works too.
+export function storePageBase(r) {
+  const h = r?.hosting || {};
+  if (!h.orderPage || h.pausedAt) return null;
+  const u = r.website_url || h.pagesUrl || "";
+  try { return u ? new URL(/^https?:\/\//i.test(u) ? u : "https://" + u).origin : null; } catch { return null; }
+}
+export function orderLink(o, r) { const b = storePageBase(r); return b ? `${b}/order?ref=${encodeURIComponent(o.ref)}` : `${SITE_URL}/api/shop?ref=${encodeURIComponent(o.ref)}`; }
+export async function storeRow(id) { return storeById(id); }
 
 const naira = (n) => "₦" + Number(n || 0).toLocaleString("en-NG");
 // The buyer's receipt: the store's details, receipt number and date, who paid, each item, and how it was paid.
@@ -360,7 +373,7 @@ export function paidNote(o) {
   if (m === "instalment") return `Paid small-small by bank transfer (${(o.payments || []).length || 1} payment${(o.payments || []).length === 1 ? "" : "s"}), confirmed by the store. Order reference: ${o.ref}.`;
   return `Paid online through ${m === "flutterwave" ? "Flutterwave" : "Paystack"} (card, bank transfer or USSD). Payment reference: ${o.ref}.`;
 }
-export function receiptLink(o) { return `${SITE_URL}/api/shop?ref=${encodeURIComponent(o.ref)}&receipt=1`; }
+export function receiptLink(o, r) { return orderLink(o, r) + "&receipt=1"; }
 // The same receipt as plain data, for drawing it as a picture / PDF on the buyer's phone.
 export function receiptData(r, o) {
   const b = o.buyer || {}, br = r.brief || {};
@@ -375,7 +388,7 @@ export function receiptData(r, o) {
     discount: o.discount ? `−${naira(o.discount)}${o.code ? ` (code ${o.code})` : ""}` : "",
     total: naira(o.total),
     note: paidNote(o),
-    link: receiptLink(o),
+    link: receiptLink(o, r),
   };
 }
 export function receiptHtml(r, o) {

@@ -497,7 +497,7 @@ test("tell me when it's back; verified-buyer reviews; unfinished carts; reports"
   assert.deepEqual([rv.name, rv.product, rv.verified, rv.status], ["Chika E.", "Lace", true, "pending"]);
   // orders in the account show where the order is
   const mine = (await shop({ s: tok, t, action: "orders" })).json.orders[0];
-  assert.equal(mine.stage, "Order received"); assert.match(mine.track, /api\/shop\?ref=/);
+  assert.equal(mine.stage, "Order received"); assert.match(mine.track, /^https:\/\/extra-shop\.pages\.dev\/order\?ref=SHOP/, "on the store's own address");
   // reports
   const rep = (await k("reports")).json;
   assert.equal(rep.best[0].name, "Lace"); assert.equal(rep.best[0].qty, 2); assert.equal(rep.last90.total, 40000);
@@ -528,4 +528,46 @@ test("every package: install as an app, phone quick-action bar, open now, share 
   const [{ brief: sb }] = await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [sid]);
   const shopHtml = renderPage(buildSiteModel({ ...(await h.row(sid)), brief: sb, draft_md: "# Website text\n## Page: Home\n### Hero\nX\nY." }), "index", { mode: "export", link: (x) => x });
   assert.doesNotMatch(shopHtml, /class="qbar"/);
+});
+
+test("order and receipt pages are on the store's own website (…/order?ref=…), in its own design", async () => {
+  const { id, tok } = await makeStore("Own Link Shop");
+  await h.action({ action: "shop_settings", id, transfer: { on: true, bank: "GTBank", name: "Own Link Shop", number: "0123456789" } });
+  // published with its own order page
+  const row = await h.row(id);
+  assert.equal(row.hosting.orderPage, true);
+  const res0 = await h.call("POST", "/api/shop", { s: tok, method: "transfer", items: [{ i: 0, q: 1 }], buyer, zone: "" }, { ...J, "x-forwarded-for": "10.9.9.9" });
+  const placed = res0.json;
+  assert.equal(res0.status, 200, res0.text);
+  assert.equal(placed.url, `https://own-link-shop.pages.dev/order?ref=${placed.ref}`, "the buyer goes to the store's own address");
+  await h.sql(`UPDATE customer_requests SET website_url = 'https://ownlink.com.ng' WHERE id = $1`, [id]);
+  const k = await ownerOf(id);
+  const o = (await k("order", { ref: placed.ref, do: "paid" })).json.order;
+  assert.equal(o.link, `https://ownlink.com.ng/order?ref=${placed.ref}&receipt=1`, "receipt link on their own domain");
+  const j = (await h.call("GET", `/api/shop?ref=${placed.ref}&json=1`)).json;
+  assert.equal(j.order.status, "paid"); assert.equal(j.store.home, "https://ownlink.com.ng/"); assert.match(j.receipt.html, /RECEIPT/);
+  assert.equal(j.receipt.data.link, `https://ownlink.com.ng/order?ref=${placed.ref}&receipt=1`); assert.ok(j.track.length === 5);
+  // the page itself is in the published files, not for Google
+  const { buildSiteModel, exportFiles } = await import("../api/_lib/sitegen.mjs");
+  const [{ brief }] = await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]);
+  const pg = exportFiles(buildSiteModel({ ...(await h.row(id)), brief, draft_md: "# Website text\n## Page: Home\n### Hero\nX\nY." })).pages.find((p) => p.name === "order.html");
+  assert.ok(pg); assert.match(pg.html, /id="ordpg"/); assert.match(pg.html, /noindex/); assert.match(pg.html, /<header/);
+  // paused site: back to our address (always works)
+  await h.sql(`UPDATE customer_requests SET hosting = hosting || '{"pausedAt":"2026-11-01"}'::jsonb WHERE id = $1`, [id]);
+  assert.match((await k("orders")).json.orders[0].link, /^https?:\/\/[^/]+\/api\/shop\?ref=/);
+});
+
+test("stores that source on order: hide stock numbers, a note on every product; products without a count never sell out", async () => {
+  const { id, tok } = await makeStore("Source Shop");
+  const k = await ownerOf(id);
+  assert.equal((await k("payments", { payments: { hideStock: true, leadTime: "Sourced on order · ready in 3–5 days" } })).status, 200);
+  const st = (await k("me")).json.store; assert.equal(st.hideStock, true); assert.equal(st.leadTime, "Sourced on order · ready in 3–5 days");
+  const cfg = (await h.call("GET", `/api/shop?config=1&s=${tok}`)).json;
+  assert.equal(cfg.hideStock, true); assert.equal(cfg.leadTime, "Sourced on order · ready in 3–5 days");
+  const { buildSiteModel, renderPage } = await import("../api/_lib/sitegen.mjs");
+  const [{ brief }] = await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]);
+  const html = renderPage(buildSiteModel({ ...(await h.row(id)), brief, draft_md: "# Website text\n## Page: Home\n### Hero\nX\nY." }), "index", { mode: "export", link: (x) => x });
+  assert.doesNotMatch(html, /class="stock/, "no 'Only 5 left'"); assert.match(html, /<p class="lead">Sourced on order · ready in 3–5 days<\/p>/);
+  // "Lace" has no stock count: as many as they like
+  assert.equal((await shop({ s: tok, action: "quote", items: [{ i: 1, q: 40 }] })).json.subtotal, 800000);
 });

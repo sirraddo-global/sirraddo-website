@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en-NG">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Sign in with Google</title>
+  <meta name="theme-color" content="#13254F">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F5F7FB;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:#1B2433;padding:20px}
+    .card{background:#fff;border:1px solid #E3E8F0;border-radius:18px;padding:28px 24px;max-width:380px;width:100%;text-align:center;box-shadow:0 10px 30px rgba(19,37,79,.08)}
+    h1{font-size:1.25rem;margin:0 0 6px;color:#13254F}p{margin:6px 0;line-height:1.5;color:#4A5466;font-size:.95rem}
+    #gbtn{display:flex;justify-content:center;margin:22px 0 10px;min-height:44px}
+    .err{color:#B3261E;font-weight:600}.small{font-size:.8rem;color:#7A8496;margin-top:18px}
+    .back{display:inline-block;margin-top:8px;color:#13254F;font-weight:600}
+  </style>
+  <script src="/assets/signin.js" defer></script>
+</head>
+<body>
+  <main class="card">
+    <h1 id="title">Sign in with Google</h1>
+    <p id="lead">Checking the store…</p>
+    <div id="gbtn"></div>
+    <p id="msg" role="alert"></p>
+    <p class="small">Google only shares your name and email with the store. Your Google password is never seen by the store.</p>
+  </main>
+</body>
+</html>

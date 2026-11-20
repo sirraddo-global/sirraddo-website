@@ -187,6 +187,25 @@ async function storeByToken(token) {
 const storeName = (r) => r.brief?.business_name || r.business || r.name;
 const ownerEmail = (r) => r.shop?.notify || (EMAIL.test(String(r.brief?.order_alerts || "")) ? r.brief.order_alerts : null) || r.email || null;
 
+// The web addresses a store's website runs on (its own domain, www., its address before the domain, and any saved URL).
+// The shared Google sign-in page only ever hands a sign-in back to one of these.
+export function storeOrigins(r) {
+  const out = new Set();
+  const add = (u) => { try { const x = new URL(/^https?:\/\//i.test(u) ? u : "https://" + u); if (x.protocol === "https:") out.add(x.origin); } catch { /* not an address */ } };
+  if (r?.website_url) add(r.website_url);
+  if (r?.hosting?.domain) { const d = String(r.hosting.domain).replace(/^www\./i, ""); add(d); add("www." + d); }
+  if (r?.hosting?.pagesUrl) add(r.hosting.pagesUrl);
+  return [...out];
+}
+// For the shared Google sign-in page (www.sirraddo.com.ng/signin): is this store using Google sign-in, and is the
+// address that asked really one of the store's own websites?
+export async function googleHub(token, origin) {
+  const r = await storeByToken(token);
+  const c = r && (await shopConfig(token));
+  if (!c || !c.google) return { error: "Google sign-in isn't switched on for this store.", status: 409 };
+  if (!storeOrigins(r).includes(String(origin || ""))) return { error: "This sign-in page was opened from a website that isn't this store's.", status: 403 };
+  return { client: c.google, name: c.name, origin };
+}
 export async function shopConfig(token) {
   const r = await storeByToken(token);
   if (!r) return null;

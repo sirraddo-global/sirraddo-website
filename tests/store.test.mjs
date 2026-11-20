@@ -285,3 +285,23 @@ test("My store: sales at a glance — paid today and this month, orders to deliv
   await k("order", { ref: t.ref, do: "delivered" });
   assert.equal((await k("me")).json.summary.toDeliver, 1);
 });
+
+test("Google sign-in, one time for every store: the shared sirraddo.com.ng/signin page only hands a sign-in back to the store's own web address", async () => {
+  const { id, tok } = await makeStore("Hub Shop");
+  const hub = (o) => shop({ s: tok, action: "google_hub", o });
+  await h.action({ action: "shop_settings", id, accounts: true });
+  assert.equal((await hub("https://hubshop.com.ng")).status, 409, "Google sign-in not ticked yet");
+  await h.action({ action: "shop_settings", id, google: true });
+  await h.sql(`UPDATE customer_requests SET hosting = $1::jsonb, website_url = $2 WHERE id = $3`, [JSON.stringify({ domain: "hubshop.com.ng", pagesUrl: "https://hub-shop.pages.dev" }), "https://hubshop.com.ng/", id]);
+  for (const o of ["https://hubshop.com.ng", "https://www.hubshop.com.ng", "https://hub-shop.pages.dev"]) {
+    const ok = await hub(o);
+    assert.equal(ok.status, 200, o); assert.equal(ok.json.client, "test-client.apps.googleusercontent.com"); assert.equal(ok.json.name, "Hub Shop");
+  }
+  for (const o of ["https://evil.com.ng", "http://hubshop.com.ng", "https://hubshop.com.ng.evil.com", "", "null"]) assert.equal((await hub(o)).status, 403, `refused: ${o}`);
+  assert.equal((await shop({ s: "nope-not-a-store", action: "google_hub", o: "https://hubshop.com.ng" })).status, 404);
+  // The store website opens the shared page and only listens to sirraddo.com.ng for the answer.
+  const { ACCOUNT_JS } = await import("../api/_lib/storejs.mjs");
+  assert.match(ACCOUNT_JS, /\/signin\?s=/); assert.match(ACCOUNT_JS, /ev\.origin!==hub/); assert.doesNotMatch(ACCOUNT_JS, /gsi\/client/, "Google's script now loads only on sirraddo.com.ng");
+  const { readFileSync } = await import("node:fs");
+  assert.match(readFileSync(new URL("../assets/signin.js", import.meta.url), "utf8"), /postMessage\(\{ sirraddoGoogle: cred \}, o\)/, "never sent to '*'");
+});

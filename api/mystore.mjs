@@ -117,7 +117,7 @@ export default async function handler(req, res) {
     if (action === "products") {
       const br = r.brief || {};
       return res.status(200).json({
-        products: (br.products || []).map((p, i) => ({ i, name: p.name, category: p.category || "", price: p.price || "", stock: p.stock ?? "", soldout: Boolean(p.soldout) })).filter((p) => p.name),
+        products: (br.products || []).map((p, i) => ({ i, name: p.name, category: p.category || "", price: p.price || "", stock: p.stock ?? "", soldout: Boolean(p.soldout), top: Boolean(p.top) })).filter((p) => p.name),
         details: { tagline: br.tagline || "", hours: br.hours || "", phone: br.phone || "", whatsapp: br.whatsapp || "", site_notice: br.site_notice || "" },
         reviews: (await listReviews(id).catch(() => [])).map((x) => ({ id: x.id, name: x.name, stars: x.stars, body: x.body, status: x.status, created_at: x.created_at })),
       });

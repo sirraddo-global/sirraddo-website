@@ -454,7 +454,7 @@ function productCards(site, img) {
       : order ? `${stockLine}<p class="buy"><a class="btn" href="${order}">${p.price ? "Order on WhatsApp" : "Ask on WhatsApp"}</a></p>` : "";
     // Compact card: photo, name and price. Tapping the photo or name opens the full description (and the same Add to cart) in a pop-up.
     const text = p.text || p.details;
-    return `<div class="card prod${sold ? " is-soldout" : ""}">${photo ? `<img class="pv-open" src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3><button class="pname pv-open" type="button" aria-haspopup="dialog">${esc(p.name)}</button></h3>${text ? `<div class="pdesc" hidden>${esc(text)}</div>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
+    return `<div class="card prod${sold ? " is-soldout" : ""}" data-pi="${p.i}">${photo ? `<img class="pv-open" src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3><button class="pname pv-open" type="button" aria-haspopup="dialog">${esc(p.name)}</button></h3>${text ? `<div class="pdesc" hidden>${esc(text)}</div>` : ""}${p.price ? `<p class="price">${esc(naira(p.price))}</p>` : ""}${buy}</div>`;
   }).join("")}</div>`;
 }
 
@@ -625,6 +625,40 @@ function trustPoints(site) {
   if (city && city.length <= 30) t.push(`Visit us in ${city.replace(/\s+nigeria$/i, "")}`);
   return t.slice(0, 4);
 }
+// The moving banner at the top of a store's home page: the products the owner ticked "Show at the top" in My store,
+// or (if none are ticked) the newest products. It slides by itself every few seconds, can be swiped, stops while
+// touched, and tapping a slide opens that product. Sold-out products are left out.
+export function topProducts(site) {
+  const ok = site.products.filter((p) => !p.soldout && String(p.stock ?? "").trim() !== "0");
+  const picked = ok.filter((p) => p.top);
+  return { list: (picked.length ? picked : ok.slice(-6).reverse()).slice(0, 12), picked: picked.length > 0 };
+}
+const CAROUSEL_CSS = `.topcar{padding:18px 0 6px}.topcar h2{margin:0 0 10px;font-size:1.15rem}.topcar .trk{display:flex;gap:12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:4px}.topcar .trk::-webkit-scrollbar{display:none}
+.topcar .sl{flex:0 0 86%;scroll-snap-align:center;display:grid;grid-template-columns:44% 1fr;gap:14px;align-items:center;border-radius:18px;padding:14px;background:var(--cart-soft,rgba(0,0,0,.04));border:1px solid rgba(0,0,0,.06);cursor:pointer;color:inherit;text-align:left;font:inherit;min-height:150px}
+@media(min-width:760px){.topcar .sl{flex-basis:calc(50% - 6px)}}@media(min-width:1100px){.topcar .sl{flex-basis:calc(33.33% - 8px)}}
+.topcar .sl img,.topcar .sl .ph{width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;background:rgba(0,0,0,.06)}.topcar .sl .ph{display:flex;align-items:center;justify-content:center;font-size:2.2rem;font-weight:800;opacity:.5}
+.topcar .sl b{display:block;font-size:1.05rem;line-height:1.25}.topcar .sl .p{display:block;font-weight:800;font-size:1.2rem;margin:6px 0 10px}.topcar .sl .go{display:inline-block;border-radius:999px;padding:8px 16px;font-weight:700;font-size:.9rem}
+.topcar .tag{display:inline-block;font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;border-radius:999px;padding:3px 9px;margin-bottom:8px;background:#E11D48;color:#fff}
+.topcar .dots{display:flex;justify-content:center;gap:6px;margin-top:10px}.topcar .dots i{width:7px;height:7px;border-radius:999px;background:currentColor;opacity:.25;transition:all .3s}.topcar .dots i.on{width:22px;opacity:.8}`;
+const CAROUSEL_JS = `<script>(function(){var c=document.querySelector('.topcar');if(!c)return;var t=c.querySelector('.trk'),S=t.querySelectorAll('.sl'),D=c.querySelectorAll('.dots i'),k=0,hold=false,still=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+function at(){var x=t.scrollLeft,b=0,d=1e9;S.forEach(function(s,i){var v=Math.abs(s.offsetLeft-t.offsetLeft-x);if(v<d){d=v;b=i}});return b}
+function dots(){k=at();D.forEach(function(d,i){d.classList.toggle('on',i===k)})}
+function go(i){var s=S[i];if(s)t.scrollTo({left:s.offsetLeft-t.offsetLeft,behavior:'smooth'})}
+t.addEventListener('scroll',function(){clearTimeout(t.__d);t.__d=setTimeout(dots,80)});
+['pointerdown','touchstart','mouseenter','focusin'].forEach(function(e){t.addEventListener(e,function(){hold=true},{passive:true})});
+['mouseleave','touchend','focusout'].forEach(function(e){t.addEventListener(e,function(){setTimeout(function(){hold=false},2500)},{passive:true})});
+if(!still&&S.length>1)setInterval(function(){if(hold||document.hidden)return;var end=t.scrollLeft+t.clientWidth>=t.scrollWidth-4;go(end?0:k+1)},3500);
+t.addEventListener('click',function(e){var s=e.target.closest('.sl');if(!s)return;var card=document.querySelector('.card.prod[data-pi="'+s.getAttribute('data-pi')+'"] .pv-open');if(card){card.scrollIntoView({block:'center'});card.click()}});dots();})();</script>`;
+function topCarousel(site, img) {
+  if (site.products.length < 2) return "";
+  const { list, picked } = topProducts(site);
+  if (list.length < 1) return "";
+  const slides = list.map((p) => {
+    const photo = productPhotoFor(site, p);
+    return `<button class="sl" type="button" data-pi="${p.i}" aria-label="${esc(p.name)}">${photo ? `<img src="${img(photo.url)}" alt="" loading="lazy" decoding="async">` : `<span class="ph">${esc(p.name.slice(0, 1).toUpperCase())}</span>`}<span><span class="tag">${picked ? "Top pick" : "New"}</span><b>${esc(p.name)}</b>${p.price ? `<span class="p">${esc(naira(p.price))}</span>` : ""}<span class="go btn">Shop now</span></span></button>`;
+  }).join("");
+  return `<style>${CAROUSEL_CSS}</style><section class="topcar"><div class="wrap"><h2>${picked ? "Top picks" : "New in store"}</h2><div class="trk">${slides}</div>${list.length > 1 ? `<div class="dots" aria-hidden="true">${list.map(() => "<i></i>").join("")}</div>` : ""}</div></section>${CAROUSEL_JS}`;
+}
 function pageBody(site, page, mode, link, img) {
   const out = [];
   let sections = page.sections;
@@ -650,6 +684,8 @@ function pageBody(site, page, mode, link, img) {
     out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}<a class="btn" href="${href}">${inline(btn, mode)}</a></div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}" fetchpriority="high" decoding="async">` : site.productPhotos.length >= 4 ? `<div class="hero-grid">${site.productPhotos.slice(0, 4).map((p, k) => `<img src="${img(p.url)}" alt=""${k ? ' loading="lazy"' : ' fetchpriority="high"'} decoding="async">`).join("")}</div>` : ""}</div></section>`);
     const trust = trustPoints(site);
     if (trust.length) out.push(`<div class="trust"><div class="wrap">${trust.map((t) => `<span>\u2713 ${esc(t)}</span>`).join("")}</div></div>`);
+    const car = topCarousel(site, img);
+    if (car) out.push(car);
   } else {
     out.push(`<div class="page-head"><div class="wrap"><h1>${esc(page.name)}</h1></div></div>`);
   }

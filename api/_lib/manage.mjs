@@ -69,6 +69,7 @@ export async function applyManage(r, input) {
       }
     }
     if (sold !== Boolean(p.soldout)) { changes.push(`${p.name}: ${sold ? "SOLD OUT" : "back in stock"}`); if (sold) p.soldout = true; else delete p.soldout; }
+    if (v && "top" in v) { const top = v.top === true || v.top === "1" || v.top === "on"; if (top !== Boolean(p.top)) { changes.push(`${p.name}: ${top ? "shown at the top of the home page" : "no longer at the top"}`); if (top) p.top = true; else delete p.top; } }
   }
   const patch = { products };
   for (const [key, label, max] of [["hours", "Opening hours", 120], ["phone", "Phone", 30], ["whatsapp", "WhatsApp", 30], ["site_notice", "Notice on the website", 200], ["tagline", "Slogan", 100]]) {

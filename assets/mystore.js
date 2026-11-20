@@ -192,7 +192,7 @@
 
   // ---------- Products ----------
   function renderProducts(v) {
-    v.appendChild(el('p', { class: 'admin-hint', text: 'Change prices and stock, or mark items sold out. Online, transfer and pay-on-delivery orders take the stock down by themselves; WhatsApp and shop sales don’t, so adjust the number here. New products or photos: ask SIRRADDO (Request a change).' }));
+    v.appendChild(el('p', { class: 'admin-hint', text: 'Change prices and stock, or mark items sold out. Tick “Show at the top” for the products to slide across the top of your home page (if none are ticked, your newest products show there). Online, transfer and pay-on-delivery orders take the stock down by themselves; WhatsApp and shop sales don’t, so adjust the number here. New products or photos: ask SIRRADDO (Request a change).' }));
     var box = el('div'); v.appendChild(box);
     api('products').then(function (j) {
       var rows = {};
@@ -203,14 +203,15 @@
         var price = el('input', { value: p.price, inputmode: 'decimal', 'aria-label': 'Price of ' + p.name });
         var stock = el('input', { value: String(p.stock), inputmode: 'numeric', placeholder: 'not counted', 'aria-label': 'Stock of ' + p.name });
         var sold = el('input', { type: 'checkbox', checked: p.soldout });
-        rows[p.i] = { price: price, stock: stock, sold: sold };
+        var top = el('input', { type: 'checkbox', checked: p.top });
+        rows[p.i] = { price: price, stock: stock, sold: sold, top: top };
         var card = el('div', { class: 'admin-card', 'data-s': (p.name + ' ' + p.category).toLowerCase() }, [el('h3', { text: p.name }), p.category ? el('p', { class: 'admin-meta', text: p.category }) : null,
-          el('div', { class: 'admin-grid' }, [field('Price', price), field('In stock', stock)]), el('label', { class: 'admin-check' }, [sold, ' Sold out'])]);
+          el('div', { class: 'admin-grid' }, [field('Price', price), field('In stock', stock)]), el('label', { class: 'admin-check' }, [sold, ' Sold out']), el('label', { class: 'admin-check' }, [top, ' Show at the top of my home page'])]);
         box.appendChild(card);
       });
       find.addEventListener('input', function () { var w = find.value.toLowerCase(); Array.prototype.forEach.call(box.querySelectorAll('[data-s]'), function (c) { c.hidden = w && c.getAttribute('data-s').indexOf(w) < 0; }); });
       box.appendChild(el('div', { class: 'admin-actions' }, [btn('Save products', function (e) {
-        var products = {}; Object.keys(rows).forEach(function (i) { products[i] = { price: rows[i].price.value, stock: rows[i].stock.value, soldout: rows[i].sold.checked }; });
+        var products = {}; Object.keys(rows).forEach(function (i) { products[i] = { price: rows[i].price.value, stock: rows[i].stock.value, soldout: rows[i].sold.checked, top: rows[i].top.checked }; });
         saveShop({ products: products }, e.currentTarget);
       }, 'admin-btn--primary')]));
     }).catch(fail);

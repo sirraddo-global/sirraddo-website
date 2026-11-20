@@ -320,3 +320,24 @@ test("Google sign-in, one time for every store: the shared sirraddo.com.ng/signi
   const { readFileSync } = await import("node:fs");
   assert.match(readFileSync(new URL("../assets/signin.js", import.meta.url), "utf8"), /postMessage\(\{ sirraddoGoogle: cred \}, o\)/, "never sent to '*'");
 });
+
+test("Top of the home page: the products the owner ticks slide across the top; with none ticked, the newest; sold-out ones left out", async () => {
+  const { topProducts, buildSiteModel, renderPage } = await import("../api/_lib/sitegen.mjs");
+  const { id } = await makeStore("Slide Shop");
+  const cr = (await h.action({ action: "store_login", id, do: "create" })).json;
+  const k = my((await my(ownerLogin(cr.login.username, cr.password))("my_password", { current: cr.password, password: "SlideShop2026" })).json.token);
+  const names = async () => { const row = await h.row(id); const [{ brief }] = await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]); return topProducts(buildSiteModel({ ...row, brief, draft_md: "# Website text\n## Page: Home\n### Hero\nX\nY." })); };
+  let t = await names();
+  assert.equal(t.picked, false); assert.ok(t.list.length >= 2, "newest products by default");
+  const prods = (await k("products")).json.products;
+  assert.equal(prods[0].top, false);
+  await k("save", { products: { [prods[1].i]: { top: true } } });
+  t = await names(); assert.equal(t.picked, true); assert.deepEqual(t.list.map((p) => p.name), [prods[1].name], "only the ticked one");
+  assert.equal((await k("products")).json.products[1].top, true);
+  await k("save", { products: { [prods[1].i]: { soldout: true, top: true } } });
+  t = await names(); assert.ok(!t.list.some((p) => p.name === prods[1].name), "sold out: left out");
+  const row = await h.row(id); const [{ brief }] = await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]);
+  const site = buildSiteModel({ ...row, brief, draft_md: "# Website text\n## Page: Home\n### Hero\nX\nY." });
+  const html = renderPage(site, site.pages[0].slug, { mode: "export", link: (x) => x });
+  assert.match(html, /class="topcar"/); assert.match(html, /class="card prod[^"]*" data-pi="\d+"/);
+});

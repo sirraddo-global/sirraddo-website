@@ -558,7 +558,7 @@ f.querySelector('.stars').onclick=function(e){var x=e.target.closest('button');i
 f.querySelector('.send').onclick=function(){var m=f.querySelector('.fm');if(!st){m.textContent='Please tap the stars.';return}m.textContent='Sending\\u2026';api({action:'review',t:A.t(),i:i,stars:st,text:f.querySelector('textarea').value}).then(function(){f.innerHTML='<p class="fm">Thank you! Your review shows once the store has seen it.</p>'}).catch(function(err){m.textContent=err.message})}})}
 // Sold out: leave your number; the store messages you on WhatsApp when it's back.
 function notify(i,name){var C=window.__shopC;if(!C||!C.s)return;var f=document.createElement('div');f.className='form';f.innerHTML='<b>Tell me when '+E(name)+' is back</b><input class="nn" placeholder="Your name" autocomplete="name"><input class="np" type="tel" placeholder="Your phone (WhatsApp)" autocomplete="tel"><button type="button" class="go">Notify me</button><p class="fm" role="status"></p>';
-inn.appendChild(f);f.querySelector('.go').onclick=function(){var m=f.querySelector('.fm');m.textContent='Saving\\u2026';api({action:'notify_me',i:i,name:f.querySelector('.nn').value,phone:f.querySelector('.np').value}).then(function(){f.innerHTML='<p class="fm">\\u2713 Done. The store will message you when it\\u2019s back.</p>'}).catch(function(err){m.textContent=err.message})}}
+inn.appendChild(f);f.querySelector('.go').onclick=function(){var m=f.querySelector('.fm');if(C.preview){m.textContent='This is a preview: on the live website this saves your number for the store.';return}m.textContent='Saving\\u2026';api({action:'notify_me',i:i,name:f.querySelector('.nn').value,phone:f.querySelector('.np').value}).then(function(){f.innerHTML='<p class="fm">\\u2713 Done. The store will message you when it\\u2019s back.</p>'}).catch(function(err){m.textContent=err.message})}}
 document.addEventListener('click',function(e){var n=e.target.closest('.btn.ntf');if(n){var cc=n.closest('.card.prod');if(cc){open(cc);var bb=inn.querySelector('.buy .ntf');if(bb)bb.remove();notify(+n.getAttribute('data-i'),cc.querySelector('.pname').textContent)}return}
 var o=e.target.closest('.pv-open,.btn.add-opt');if(!o||o.closest('.ppop'))return;var c=o.closest('.card.prod');if(!c)return;e.preventDefault();open(c);});
 inn.addEventListener('click',function(e){var im=e.target.closest('.gal img');if(im){zm.querySelector('img').src=im.src;zm.className='pzoom';zm.hidden=false;return}var n=e.target.closest('.btn.ntf');if(n){n.remove();notify(+n.getAttribute('data-i'),cur?cur.querySelector('.pname').textContent:'')}});
@@ -610,7 +610,7 @@ const CART_CSS = `.cart-btn{position:fixed;left:16px;bottom:16px;z-index:60;back
 .buy .step b{min-width:28px;text-align:center;font-size:1.15rem}.buy .step small{opacity:.75;font-weight:600}`;
 
 function cartScript(site, mode) {
-  const cfg = { s: site.shopToken, api: SITE_URL, wa: site.whatsapp, name: site.name, preview: mode === "preview", key: "basket-" + (site.shopToken || slugify(site.name)) };
+  const cfg = { s: site.shopToken, api: mode === "preview" ? "" : SITE_URL, wa: site.whatsapp, name: site.name, preview: mode === "preview", key: "basket-" + (site.shopToken || slugify(site.name)) };
   return `<button class="cart-btn" type="button" hidden aria-label="Open cart">🛒 Cart <b>0</b></button>
 <div class="cart" hidden role="dialog" aria-modal="true" aria-label="Your cart"><div class="panel">
 <h2><span>Your cart<small class="cnt"></small></span><button class="x" type="button" aria-label="Close">×</button></h2><div class="lines"></div>
@@ -633,7 +633,7 @@ var A=window.SAcct;if(A&&A.t&&A.t()&&C.s&&!C.preview){clearTimeout(sy);sy=setTim
 quote()}
 function same(x,i,v){return x.i===+i&&(x.v||'')===(v||'')}
 // The exact total (discount code, delivery area, free delivery) comes from the store's side.
-function quote(){Q=null;if(!C.s||C.preview||!B.length||!(Z.length||CODES||FO))return;clearTimeout(qt);qt=setTimeout(function(){var zv=$('#cb-zone').value;
+function quote(){Q=null;if(!C.s||!B.length||!(Z.length||CODES||FO))return;clearTimeout(qt);qt=setTimeout(function(){var zv=$('#cb-zone').value;
 fetch(C.api+'/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s:C.s,action:'quote',items:B.map(function(l){return{i:l.i,q:l.q,v:l.v||''}}),zone:zv===''?undefined:+zv,code:code})})
 .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Error');return j})}).then(function(j){Q=j;$('.cart .cmsg').textContent=j.code?j.code+': '+j.codeLabel+' applied \u2713':'';draw()})
 .catch(function(err){if(code){$('.cart .cmsg').innerHTML='<span class="err">'+String(err.message).replace(/[&<>]/g,'')+'</span>';code='';quote()}})},250)}
@@ -689,7 +689,7 @@ var A=window.SAcct,body={s:C.s,method:m,t:A?A.t():'',items:B.map(function(l){ret
 fetch(C.api+'/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
 .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Error');return j})})
 .then(function(j){if(A&&A.b()&&b.address)A.saveAddress(b.address);B=[];save();location.href=j.url}).catch(function(err){pay.disabled=false;msg.innerHTML='<span class="err">'+String(err.message).replace(/[&<>]/g,'')+'</span>'});});});
-if(C.s&&!C.preview)fetch(C.api+'/api/shop?config=1&s='+encodeURIComponent(C.s)).then(function(r){return r.json()}).then(function(j){M=j.methods||{paystack:!!j.online};online=!!(M.paystack||M.flutterwave);fee=j.deliveryFee;
+if(C.s)fetch(C.api+'/api/shop?config=1&s='+encodeURIComponent(C.s)).then(function(r){return r.json()}).then(function(j){M=j.methods||{paystack:!!j.online};online=!!(M.paystack||M.flutterwave);fee=j.deliveryFee;
 var dn=$('.cart .dnote');if(j.deliveryNote&&M.delivery){dn.hidden=false;dn.textContent='Pay on delivery: '+j.deliveryNote}
 // Delivery areas (fee per area), free delivery above an amount, and the discount code box.
 Z=j.zones||[];FO=+j.freeOver||0;CODES=!!j.codes;var zs=$('#cb-zone');if(Z.length){zs.hidden=false;$('.cart .zl').hidden=false;zs.innerHTML='<option value="">Choose your area\u2026</option>'+Z.map(function(z,k){return '<option value="'+k+'">'+String(z.name).replace(/[<&]/g,'')+' \u2014 '+(z.fee?money(z.fee):'free')+'</option>'}).join('');
@@ -701,7 +701,7 @@ var st=j.stock||{};Object.keys(st).forEach(function(i){var n=+st[i];document.que
 if(n<=0){bp.innerHTML='<span class="soldout">Sold out</span>';bp.removeAttribute('data-i');var c=bp.closest('.card');if(c)c.classList.add('is-soldout');if(sl&&sl.classList.contains('stock'))sl.remove();}
 else if(!j.hideStock){if(!sl||!sl.classList.contains('stock')){sl=document.createElement('p');bp.parentNode.insertBefore(sl,bp)}sl.className='stock'+(n<=5?' low':'');sl.textContent=n<=5?'Only '+n+' left':n+' in stock';}});
 B.forEach(function(l){if(+l.i===+i&&!l.v&&l.q>n)l.q=n});});var vs=j.vstock||{};B.forEach(function(l){if(l.v&&vs[l.i]&&vs[l.i][l.v]!==undefined&&l.q>vs[l.i][l.v])l.q=+vs[l.i][l.v]});B=B.filter(function(l){return l.q>0});save();draw()}).catch(function(){});
-if(C.preview){online=true;M={paystack:true}}
+if(C.preview&&!C.s){online=true;M={paystack:true}}
 draw();})();</script>`;
 }
 // The buyer's order / receipt page, on the store's OWN website (…/order?ref=…): it asks our API for the order and

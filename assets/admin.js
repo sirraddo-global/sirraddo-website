@@ -659,7 +659,7 @@
       ['70% deposit', 'They pay online (Paystack link on the invoice) or by transfer; it is recorded and the receipt goes out by itself.'],
       ['Project form', 'They fill the Online Store form: products, photos, delivery areas, and connect their own Paystack (Connect link).'],
       ['Switch it on', 'Client card → Online store payments → Ways to pay and Standard Store features: tick Customer accounts (and the ways to pay they want), Save switches. Then Store owner login → Create their login → Send login on WhatsApp.'],
-      ['Google sign-in (one time + 1 minute per store)', 'One time: Google Cloud (project sirraddo-websites) → APIs & Services → OAuth consent screen (External, app name SIRRADDO) → Credentials → Create OAuth client ID (Web). Per store: add https://theirdomain.com.ng to "Authorised JavaScript origins". Free.'],
+      ['Google sign-in (one time only)', 'One time: Google Cloud → APIs & Services → OAuth consent screen (External, app name SIRRADDO) → Credentials → Create OAuth client ID (Web). Add https://www.sirraddo.com.ng and https://sirraddo.com.ng to "Authorised JavaScript origins". Put the client ID in Netlify as GOOGLE_SIGNIN_CLIENT_ID. Every store then signs buyers in through sirraddo.com.ng/signin: nothing to add per store. Free.'],
       ['Preview and approval', 'They choose a design and test: sign up, add an address, place a test order, see it under My orders.'],
       ['Balance and go live', 'They pay the 30% balance; Go live puts the store on their domain. Test once more on the real domain.'],
       ['Handover', 'The handover pack, plus their My store login (sirraddo.com.ng/mystore): orders (confirm transfers, mark delivered), customers list, resetting a buyer’s password, downloading customers and orders. The Manage link stays as a backup.'],
@@ -2971,7 +2971,7 @@
     var bank = el('input', { value: t.bank || '', placeholder: 'Bank' }), aname = el('input', { value: t.name || '', placeholder: 'Account name' }), anum = el('input', { value: t.number || '', placeholder: '10-digit account number', inputmode: 'numeric', maxlength: 10 });
     var dl = tg('Pay on delivery', d.on);
     var ac = tg('Customer accounts (Standard Store)', sh.accounts, '(buyers sign in, save addresses, see their orders; the owner can still switch it off on their site)');
-    var gg = tg('Google sign-in for buyers', sh.google, '(needs GOOGLE_SIGNIN_CLIENT_ID in Netlify and their domain added in Google Cloud: see Packages → Standard Store)');
+    var gg = tg('Google sign-in for buyers', sh.google, '(optional extra: phone number + password stays the main sign-in; the store owner can switch Google off in My store)' + (sh.googleOff ? ' · the owner has switched it off' : ''));
     var mg = tg('Manage link works (backup)', !sh.manageOff, '(switch off once they use My store, if you like)');
     [ps.row, fw.row, tr.row, el('div', { class: 'admin-grid' }, [field('Bank', bank), field('Account name', aname), field('Account number', anum)]), dl.row, ac.row, gg.row, mg.row].forEach(function (x) { box.appendChild(x); });
     if (sh.flwOnline) box.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Disconnect Flutterwave', onclick: function () {

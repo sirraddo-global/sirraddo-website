@@ -4,7 +4,7 @@
 //   GET ?paid=1&ref=REF         -> Paystack sends the buyer back here: confirm, email the store owner, show the receipt to save
 //   GET ?ref=REF&receipt=1      -> the buyer's receipt to view, print or save as PDF
 import { dbConfigured, esc } from "./_lib/store.mjs";
-import { shopConfig, startCheckout, confirmOrder, receiptHtml, receiptLink, receiptData, claimTransfer, storeOrders, orderLink, METHOD_LABEL } from "./_lib/shop.mjs";
+import { shopConfig, googleHub, startCheckout, confirmOrder, receiptHtml, receiptLink, receiptData, claimTransfer, storeOrders, orderLink, METHOD_LABEL } from "./_lib/shop.mjs";
 import * as acct from "./_lib/storeaccounts.mjs";
 import { SITE_URL } from "../site.config.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
@@ -131,6 +131,7 @@ var cb=document.getElementById('cb');if(cb)cb.addEventListener('click',function(
       const c = await shopConfig(body.s);
       if (!c) return res.status(404).json({ error: "Store not found" });
       if (!c.accounts) return res.status(409).json({ error: "Accounts aren't switched on for this store." });
+      if (action === "google_hub") { const { status, ...g } = await googleHub(body.s, body.o); return res.status(status || 200).json(g); }
       if (["signup", "login", "google", "reset"].includes(action) && authLimited(ip + ":" + c.id)) return res.status(429).json({ error: "Too many tries. Please wait a while, or order as a guest." });
       try {
         if (action === "signup") return res.status(200).json(await acct.buyerSignup(c.id, body));

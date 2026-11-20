@@ -103,7 +103,7 @@ export async function ensureStoreToken(id) {
   const row = await getRequest(id);
   if (row && kindFor(row.interest) === "store" && !row.shop?.token) await ensureShopToken(id);
 }
-export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove, paystackOn, flwKey, flwOn, flwRemove, transfer, delivery, accounts, accountsOn, google, manageOn }) {
+export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove, paystackOn, flwKey, flwOn, flwRemove, transfer, delivery, accounts, accountsOn, google, googleOn, manageOn }) {
   let row = await ensureShopToken(id);
   const patch = {};
   // Every way to pay is a switch the owner (in My store) or SIRRADDO (in admin) can turn on and off at any time.
@@ -129,6 +129,7 @@ export async function setShopPayments(id, { secretKey, deliveryFee, notify, remo
   }
   if (accounts !== undefined) patch.accounts = Boolean(accounts); // SIRRADDO: the store has the Standard Store accounts feature
   if (accountsOn !== undefined) patch.accountsOff = !accountsOn;   // the owner: accounts on/off on their website
+  if (googleOn !== undefined) patch.googleOff = !googleOn;   // the owner: Google sign-in on/off (phone number + password always stays)
   if (google !== undefined) patch.google = Boolean(google);
   if (manageOn !== undefined) patch.manageOff = !manageOn;
   if (remove) { patch.key = null; patch.keyEnd = null; patch.keyMode = null; }
@@ -187,6 +188,25 @@ async function storeByToken(token) {
 const storeName = (r) => r.brief?.business_name || r.business || r.name;
 const ownerEmail = (r) => r.shop?.notify || (EMAIL.test(String(r.brief?.order_alerts || "")) ? r.brief.order_alerts : null) || r.email || null;
 
+// The web addresses a store's website runs on (its own domain, www., its address before the domain, and any saved URL).
+// The shared Google sign-in page only ever hands a sign-in back to one of these.
+export function storeOrigins(r) {
+  const out = new Set();
+  const add = (u) => { try { const x = new URL(/^https?:\/\//i.test(u) ? u : "https://" + u); if (x.protocol === "https:") out.add(x.origin); } catch { /* not an address */ } };
+  if (r?.website_url) add(r.website_url);
+  if (r?.hosting?.domain) { const d = String(r.hosting.domain).replace(/^www\./i, ""); add(d); add("www." + d); }
+  if (r?.hosting?.pagesUrl) add(r.hosting.pagesUrl);
+  return [...out];
+}
+// For the shared Google sign-in page (www.sirraddo.com.ng/signin): is this store using Google sign-in, and is the
+// address that asked really one of the store's own websites?
+export async function googleHub(token, origin) {
+  const r = await storeByToken(token);
+  const c = r && (await shopConfig(token));
+  if (!c || !c.google) return { error: "Google sign-in isn't switched on for this store.", status: 409 };
+  if (!storeOrigins(r).includes(String(origin || ""))) return { error: "This sign-in page was opened from a website that isn't this store's.", status: 403 };
+  return { client: c.google, name: c.name, origin };
+}
 export async function shopConfig(token) {
   const r = await storeByToken(token);
   if (!r) return null;
@@ -194,7 +214,7 @@ export async function shopConfig(token) {
   const stock = {};
   for (const p of shopProducts(r.brief)) if (p.stockLeft !== null || p.soldout) stock[p.i] = p.soldout ? 0 : p.stockLeft;
   const m = payMethods(r.shop || {});
-  const googleClient = r.shop?.accounts && !r.shop?.accountsOff && r.shop?.google && process.env.GOOGLE_SIGNIN_CLIENT_ID ? process.env.GOOGLE_SIGNIN_CLIENT_ID : null;
+  const googleClient = r.shop?.accounts && !r.shop?.accountsOff && r.shop?.google && !r.shop?.googleOff && process.env.GOOGLE_SIGNIN_CLIENT_ID ? process.env.GOOGLE_SIGNIN_CLIENT_ID : null;
   return { online: m.paystack || m.flutterwave, methods: m, mode: r.shop?.keyMode || null, deliveryFee: r.shop?.deliveryFee ?? null, name: storeName(r), stock,
     deliveryNote: m.delivery ? r.shop.delivery.note || "" : "", accounts: Boolean(r.shop?.accounts && !r.shop?.accountsOff), google: googleClient, id: r.id };
 }

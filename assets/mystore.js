@@ -283,6 +283,8 @@
     var other = el('div', { class: 'admin-card admin-settings' }, [el('h2', { text: 'Delivery fee and alerts' }), el('div', { class: 'admin-grid' }, [field('Delivery fee (₦, flat)', fee), field('Email new orders to', notify)])]);
     var ac = null;
     if (s.accountsFeature) { ac = toggle('Customer accounts on my website', s.accountsOn, '(sign in, saved addresses, order history; guests can still buy)'); other.appendChild(ac.row); }
+    var gg = null;
+    if (s.googleFeature) { gg = toggle('Also allow “Continue with Google”', s.googleOn, '(an extra way in; customers always sign in with phone number and password)'); other.appendChild(gg.row); }
     v.appendChild(other);
     var bsave = btn('Save payment settings', function (e) {
       var p = { paystackOn: ps.box.checked, flwOn: fw.box.checked, transfer: { on: tr.box.checked, bank: bank.value, name: aname.value, number: anum.value, note: tnote.value },
@@ -292,6 +294,7 @@
       if (psKey.value.trim()) p.paystackKey = psKey.value.trim();
       if (fwKey.value.trim()) p.flwKey = fwKey.value.trim();
       if (ac) p.accountsOn = ac.box.checked;
+      if (gg) p.googleOn = gg.box.checked;
       savePayments(p, e.currentTarget);
     }, 'admin-btn--primary');
     v.appendChild(el('div', { class: 'admin-actions' }, [bsave]));

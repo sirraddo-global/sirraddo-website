@@ -267,3 +267,21 @@ test("backups leave out every login's scrambled password and reset code", async 
   assert.ok(data.tables.store_buyers.length > 0, "buyers are backed up");
   assert.doesNotMatch(JSON.stringify(data), /"pass_hash"|"reset_hash"|scrypt\$/);
 });
+
+test("My store: sales at a glance — paid today and this month, orders to deliver, items running low", async () => {
+  const { id, tok } = await makeStore("Glance Shop");
+  await h.action({ action: "shop_settings", id, transfer: { on: true, bank: "Access", name: "Glance", number: "0987654321" }, delivery: { on: true } });
+  const cr = (await h.action({ action: "store_login", id, do: "create" })).json;
+  const k = my((await my(ownerLogin(cr.login.username, cr.password))("my_password", { current: cr.password, password: "GlanceShop2026" })).json.token);
+  const buyer = { name: "Ada", phone: "08030000009", address: "Ring Road" };
+  const t = (await shop({ s: tok, method: "transfer", items: [{ i: 0, q: 3 }], buyer })).json;
+  await shop({ s: tok, method: "delivery", items: [{ i: 1, q: 1 }], buyer });
+  let sm = (await k("me")).json.summary;
+  assert.deepEqual([sm.today, sm.month, sm.toDeliver], [0, 0, 1], "nothing paid yet; pay-on-delivery waits to be delivered");
+  assert.deepEqual(sm.low, [{ name: "Ankara", stock: 2 }], "5 in stock, 3 ordered: running low");
+  await k("order", { ref: t.ref, do: "paid" });
+  sm = (await k("me")).json.summary;
+  assert.equal(sm.today, 30000); assert.equal(sm.todayOrders, 1); assert.equal(sm.month, 30000); assert.equal(sm.toDeliver, 2);
+  await k("order", { ref: t.ref, do: "delivered" });
+  assert.equal((await k("me")).json.summary.toDeliver, 1);
+});

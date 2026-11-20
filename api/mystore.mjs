@@ -3,7 +3,7 @@
 //   POST { action, ... } with "Authorization: Bearer <ou.… login | o1.… session>"
 import { dbConfigured, getRequest, getBriefById, q } from "./_lib/store.mjs";
 import { ownerFromCredential, ownerSessionToken, setOwnerPassword, listBuyers, buyerResetCode, setBuyerActive, eraseBuyer } from "./_lib/storeaccounts.mjs";
-import { setShopPayments, payMethods, storeOrders, ownerOrderAction, receiptLink, orderLink, METHOD_LABEL, confirmOrder, orderByRef } from "./_lib/shop.mjs";
+import { setShopPayments, payMethods, storeOrders, ownerOrderAction, receiptLink, orderLink, METHOD_LABEL, confirmOrder, orderByRef, isSoldOut, stockOf } from "./_lib/shop.mjs";
 import { applyManage, afterManage, manageLink } from "./_lib/manage.mjs";
 import { listReviews } from "./_lib/reviews.mjs";
 
@@ -37,6 +37,18 @@ function storeInfo(r, sh) {
     transfer: sh.transfer || { on: false }, delivery: sh.delivery || { on: false }, deliveryFee: sh.deliveryFee ?? null, notify: sh.notify || "",
     accountsFeature: Boolean(sh.accounts), accountsOn: Boolean(sh.accounts && !sh.accountsOff), manageOn: !sh.manageOff,
   };
+}
+// The owner's money at a glance: paid sales today and this month (Lagos time), orders still to deliver, items running low.
+async function salesSummary(id, brief) {
+  const [t] = await q(`SELECT
+      COALESCE(SUM(total) FILTER (WHERE (paid_at AT TIME ZONE 'Africa/Lagos')::date = (now() AT TIME ZONE 'Africa/Lagos')::date), 0)::bigint AS today,
+      COUNT(*) FILTER (WHERE (paid_at AT TIME ZONE 'Africa/Lagos')::date = (now() AT TIME ZONE 'Africa/Lagos')::date)::int AS today_n,
+      COALESCE(SUM(total) FILTER (WHERE date_trunc('month', paid_at AT TIME ZONE 'Africa/Lagos') = date_trunc('month', now() AT TIME ZONE 'Africa/Lagos')), 0)::bigint AS month,
+      COUNT(*) FILTER (WHERE date_trunc('month', paid_at AT TIME ZONE 'Africa/Lagos') = date_trunc('month', now() AT TIME ZONE 'Africa/Lagos'))::int AS month_n,
+      COUNT(*) FILTER (WHERE delivered_at IS NULL AND (status = 'paid' OR status = 'cod'))::int AS to_deliver
+    FROM store_orders WHERE request_id = $1 AND status IN ('paid', 'cod')`, [id]).catch(() => [{}]);
+  const low = (brief?.products || []).filter((p) => p?.name && !isSoldOut(p) && stockOf(p) !== null && stockOf(p) <= 2).map((p) => ({ name: p.name, stock: stockOf(p) }));
+  return { today: Number(t?.today || 0), todayOrders: t?.today_n || 0, month: Number(t?.month || 0), monthOrders: t?.month_n || 0, toDeliver: t?.to_deliver || 0, low };
 }
 const csv = (rows) => rows.map((r) => r.map((v) => { const t = String(v ?? ""); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; }).join(",")).join("\n");
 
@@ -77,7 +89,7 @@ export default async function handler(req, res) {
     }
     if (action === "me") {
       const todo = await storeOrders(id, { status: "todo", limit: 200 });
-      return res.status(200).json({ me, store: storeInfo(r, sh), todo: todo.length, awaiting: todo.filter((o) => o.status === "awaiting").length });
+      return res.status(200).json({ me, store: storeInfo(r, sh), todo: todo.length, awaiting: todo.filter((o) => o.status === "awaiting").length, summary: await salesSummary(id, r.brief) });
     }
     if (action === "orders") {
       const list = await storeOrders(id, { status: body.status, search: body.search, limit: 200 });

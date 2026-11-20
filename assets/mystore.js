@@ -27,6 +27,11 @@
   function wa(num) { var d = String(num || '').replace(/\D/g, ''); if (d.charAt(0) === '0') d = '234' + d.slice(1); return d.length >= 10 ? d : ''; }
   function flash(t) { var s = $('app-status'); s.textContent = t; clearTimeout(flash.t); flash.t = setTimeout(function () { s.textContent = ''; }, 4000); }
   function field(label, input, hint) { return el('label', { class: 'admin-field' }, [el('span', { class: 'admin-label', text: label }), input, hint ? el('small', { class: 'admin-hint', text: hint }) : null]); }
+  // "Show password": one tick box that reveals every password box it's given.
+  function showToggle(inputs) {
+    var box = el('input', { type: 'checkbox', onchange: function () { inputs.forEach(function (i) { i.type = box.checked ? 'text' : 'password'; }); } });
+    return el('label', { class: 'admin-check' }, [box, ' Show password']);
+  }
   function badge(t, c) { return el('span', { class: 'admin-badge ' + (c || ''), text: t }); }
   function btn(text, onclick, cls) { return el('button', { class: 'admin-btn ' + (cls || ''), type: 'button', text: text, onclick: onclick }); }
   function api(action, body) {
@@ -43,6 +48,7 @@
     $('app').hidden = true; $('logout').hidden = true; $('login').hidden = false; $('store-name').textContent = 'My store';
   }
 
+  $('show-pw').addEventListener('change', function () { $('password').type = this.checked ? 'text' : 'password'; });
   $('login').addEventListener('submit', function (e) {
     e.preventDefault(); $('login-error').textContent = '';
     var u = $('username').value.trim().toLowerCase();
@@ -63,7 +69,7 @@
 
   function load() {
     return api('me').then(function (j) {
-      state.me = j.me; state.store = j.store;
+      state.me = j.me; state.store = j.store; state.summary = j.summary || null;
       $('login').hidden = true; $('app').hidden = false; $('logout').hidden = false;
       $('store-name').textContent = (j.store && j.store.name) || 'My store';
       document.querySelector('.admin-tabs').style.display = j.me.must_change ? 'none' : '';
@@ -81,12 +87,13 @@
   // ---------- Password ----------
   function passwordForm(forced, done) {
     var cur = el('input', { type: 'password', autocomplete: 'current-password' });
-    var p1 = el('input', { type: 'password', autocomplete: 'new-password' }), p2 = el('input', { type: 'password', autocomplete: 'new-password' });
+    var p1 = el('input', { type: 'password', autocomplete: 'new-password', required: true, minlength: '8' }), p2 = el('input', { type: 'password', autocomplete: 'new-password', required: true, minlength: '8' });
+    if (!(forced && typedPw)) cur.required = true;
     if (forced && typedPw) cur.value = typedPw;
     var err = el('p', { class: 'admin-error', role: 'alert' });
     var b = el('button', { class: 'btn btn--navy', type: 'submit', text: 'Save my new password' });
     var f = el('form', { class: 'admin-card admin-settings' }, [(forced && typedPw) ? null : field(forced ? 'Temporary password (from SIRRADDO)' : 'Current password', cur),
-      field('New password', p1, 'At least 8 characters, with letters and a number.'), field('Type it again', p2), b, err]);
+      field('New password', p1, 'At least 8 characters, with letters and a number.'), field('Type it again', p2), showToggle([cur, p1, p2]), b, err]);
     f.addEventListener('submit', function (e) {
       e.preventDefault(); err.textContent = '';
       if (p1.value !== p2.value) { err.textContent = 'The two new passwords are not the same.'; return; }
@@ -114,6 +121,17 @@
       return el('button', { type: 'button', 'aria-pressed': String(state.filter === f[0]), text: f[1], onclick: function () { state.filter = f[0]; render(); } });
     }));
     var list = el('div');
+    var sm = state.summary;
+    if (sm) {
+      var tile = function (label, big, small, onclick) { return el(onclick ? 'button' : 'div', { class: 'admin-tile', type: onclick ? 'button' : null, onclick: onclick }, [el('span', { class: 'admin-tile-label', text: label }), el('strong', { text: big }), small ? el('small', { text: small }) : null]); };
+      var plural = function (n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); };
+      v.appendChild(el('div', { class: 'admin-tiles', style: 'margin-bottom:12px' }, [
+        tile('Paid today', naira(sm.today), plural(sm.todayOrders, 'order')),
+        tile('Paid this month', naira(sm.month), plural(sm.monthOrders, 'order')),
+        tile('To deliver', String(sm.toDeliver), 'Tap to see them', function () { state.filter = 'todo'; render(); }),
+        sm.low && sm.low.length ? tile('Running low', String(sm.low.length), sm.low.slice(0, 3).map(function (p) { return p.name + ' (' + p.stock + ')'; }).join(', '), function () { setTab('products'); }) : null
+      ]));
+    }
     v.appendChild(chips); v.appendChild(el('div', { class: 'admin-card' }, [search]));
     v.appendChild(list);
     function draw() {

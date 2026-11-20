@@ -545,8 +545,9 @@ document.addEventListener('click',function(e){var s=e.target.closest('.buy .step
 var a=e.target.closest('.btn.add');if(!a)return;var i=+a.getAttribute('data-i'),l=B.filter(function(x){return x.i===i})[0];
 if(l)cap(l,1);else if(mx(i)>0)B.push({i:i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:1,u:a.getAttribute('data-img')||''});save();draw();});
 // "Order again" from a buyer's account: put the same items back in the cart (if they're still on sale).
-window.__addToCart=function(i,q){var a=document.querySelector('.btn.add[data-i="'+i+'"]');if(!a||mx(i)<=0)return;var l=B.filter(function(x){return x.i===+i})[0];
-if(!l){l={i:+i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:0,u:a.getAttribute('data-img')||''};B.push(l)}cap(l,+q||1);save();draw();btn.click()};
+// (also from Saved items / Recently viewed on a page that doesn't show that product: it brings its own name, price and photo)
+window.__addToCart=function(i,q,d){var a=document.querySelector('.btn.add[data-i="'+i+'"]');if(a?mx(i)<=0:!(d&&d.n&&d.p>0))return;var l=B.filter(function(x){return x.i===+i})[0];
+if(!l){l=a?{i:+i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:0,u:a.getAttribute('data-img')||''}:{i:+i,n:String(d.n),p:+d.p,q:0,u:d.u||''};B.push(l)}cap(l,+q||1);save();draw();btn.click()};
 box.addEventListener('click',function(e){if(e.target===box||e.target.closest('.x')){box.hidden=true;document.body.style.overflow='';return}var r=e.target.closest('.rm');if(r){B.splice(+r.getAttribute('data-k'),1);save();draw();return}var q=e.target.closest('.qty button');if(!q)return;var l=B[+q.getAttribute('data-k')];cap(l,+q.getAttribute('data-d'));if(l.q<1)B.splice(B.indexOf(l),1);save();draw();});
 // The cart takes the website's own colours and font (light or dark design).
 function paint(){var bg='#fff',el=document.body;while(el){var c=getComputedStyle(el).backgroundColor;if(c&&c!=='transparent'&&!/rgba\\(.*,\\s*0\\)$/.test(c)){bg=c;break}el=el.parentElement}
@@ -800,7 +801,7 @@ ${site.notice ? `<div class="site-notice" role="status">${esc(site.notice)}</div
 <main>${notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
 ${preview ? panel ?? previewPanel(row, token, choice) : ""}
 ${footer(site, link)}
-${site.products && site.products.length ? PRODUCT_POP : ""}${hasCart(site) ? cartScript(site, mode) + (mode === "preview" ? "" : `<script>${ACCOUNT_JS}</script>`) : ""}${mode === "export" && !notFound ? statsScript(site) : ""}
+${site.products && site.products.length ? PRODUCT_POP : ""}${hasCart(site) ? cartScript(site, mode) + `<script>${ACCOUNT_JS}</script>` : ""}${mode === "export" && !notFound ? statsScript(site) : ""}
 </body></html>`;
 }
 

@@ -255,7 +255,7 @@ test("the store website gets the new checkout buttons and the account panel; the
   assert.match(html, /window\.SAcct=/);
   assert.match(html, /Forgot password/);
   const pv = renderPage(site, site.pages[0].slug, { mode: "preview", link: (x) => x, row: await h.row(id), token: "t" });
-  assert.doesNotMatch(pv, /window\.SAcct=/);
+  assert.match(pv, /"preview":true/, "the preview loads the new look, with accounts switched off (no sign-in calls)");
 });
 
 test("backups leave out every login's scrambled password and reset code", async () => {

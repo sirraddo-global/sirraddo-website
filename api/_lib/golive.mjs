@@ -49,10 +49,16 @@ export async function restorePrevious(id) {
 }
 
 // Tell the owner (our customer) their website got our latest improvements, or ask first if they chose that.
+// What's new for this website: store-only improvements aren't news for other websites.
+export function lookNotesFor(r) {
+  const isStore = r?.interest === "Online Store";
+  return (SITE_LOOK_NOTES[SITE_LOOK] || []).filter((n) => isStore || !/^Online stores/i.test(n));
+}
 export async function tellNewLook(r, mode) {
   const to = customerEmail(r);
   if (!to || !customerEmailConfigured()) return false;
-  const notes = SITE_LOOK_NOTES[SITE_LOOK] || [];
+  const notes = lookNotesFor(r);
+  if (!notes.length) return false;
   const { manageLink, manageTitle } = await import("./manage.mjs");
   const { changeLink } = await import("./changes.mjs");
   const manage = (await manageLink(r.id).catch(() => null))?.url;
@@ -329,7 +335,10 @@ export async function dailyHosting(all, now = new Date()) {
       // published. The owner is emailed what changed. If they chose "Ask me first", we only ask; they update it with
       // their Manage link (or it updates next time they save something there).
       else if (h.project && !h.pausedAt && h.publishedAt && h.look !== SITE_LOOK && !owing(r)) {
-        if (h.lookMode === "ask") {
+        // Nothing visible changes for this website (e.g. store-only improvements on a business site): update it quietly.
+        if (!lookNotesFor(r).length) {
+          if (out.refreshed.length < 15) { await publish(r.id); out.refreshed.push(r); }
+        } else if (h.lookMode === "ask") {
           if (h.lookAsked !== SITE_LOOK && out.lookAsked.length < 15) {
             await tellNewLook(r, "ask").catch((e) => console.error("new look email", r.id, e));
             await saveHosting(r.id, { lookAsked: SITE_LOOK });

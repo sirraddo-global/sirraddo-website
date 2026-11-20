@@ -11,7 +11,7 @@
 //   POST   { action: "send_preview", id }  email the preview link to the customer
 //   GET    ?view=export&id=123  the website as a .zip (pages + images) to upload to any host
 import { timingSafeEqual, createHash, createHmac } from "node:crypto";
-import { setMeta, cleanFrom,
+import { setMeta, getMeta, q, cleanFrom,
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
   ensureDocToken, getRequest, customerEmail, customerEmailConfigured, sendCustomerEmail,
@@ -33,7 +33,7 @@ import { getConfig, saveConfig, occurrences, queueEmails, emailStatus, audience,
 import { changeLink, listChanges, markChange, freeUntil, addChange } from "./_lib/changes.mjs";
 import { cleanServices, recordServicePayment } from "./_lib/services.mjs";
 import { PERMS, permFor, fieldPerms, can, staffFromCredential, staffSessionToken, logStaff } from "./_lib/staff.mjs";
-import { paystackConfigured, payButton } from "./_lib/paystack.mjs";
+import { paystackConfigured, payButton, depositOf } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
 import { pickProvider, friendlyAiError } from "./_lib/providers.mjs";
@@ -49,7 +49,7 @@ import { getBriefById } from "./_lib/store.mjs";
 function depositPaid(row) {
   const paid = (row.payments || []).filter((p) => !p.kind || p.kind === "project").reduce((s, p) => s + Number(p.amount || 0), 0);
   if (!paid) return false;
-  return row.quote_amount ? paid >= Math.round(row.quote_amount * 0.7) : true;
+  return row.quote_amount ? paid >= depositOf(row) : true;
 }
 
 const failed = new Map(); // ip -> timestamps of wrong passwords
@@ -117,6 +117,12 @@ function cleanFields(body) {
   if ((has("name") && !out.name) || (has("contact") && !out.contact)) throw new Bad("Name and contact can't be empty");
   if (has("came_from")) out.came_from = cleanFrom(body.came_from);
   if (has("services")) { try { out.services = cleanServices(body.services); } catch (e) { throw new Bad(e.message); } }
+  if (has("deposit_pct")) {
+    const v = body.deposit_pct === "" || body.deposit_pct == null ? null : Number(body.deposit_pct);
+    if (v !== null && (!Number.isInteger(v) || v < 10 || v > 100)) throw new Bad("Deposit must be between 10% and 100%");
+    out.deposit_pct = v === 70 ? null : v;
+  }
+  if (has("next_payment")) out.next_payment = naira(body.next_payment);
   if (has("wants")) out.wants = ["customer_accounts", "custom_system"].includes(body.wants) ? body.wants : null;
   if (has("email")) {
     out.email = text(body.email, 200).toLowerCase() || null;
@@ -157,9 +163,13 @@ function cleanFields(body) {
   if (has("payments")) {
     if (!Array.isArray(body.payments) || body.payments.length > 200) throw new Bad("Payments must be a list");
     out.payments = body.payments.map((p) => {
-      const amount = naira(p?.amount);
+      // A refund is money paid back: stored as a negative amount so every total goes down by it.
+      const refund = p?.refund === true || Number(p?.amount) < 0;
+      const amount = refund ? -naira(Math.abs(Number(p?.amount))) : naira(p?.amount);
       if (!amount) throw new Bad("Each payment needs an amount");
+      if (refund && !text(p.note, 200)) throw new Bad("Write why the refund was made (e.g. cancelled before work started)");
       return {
+        ...(refund ? { refund: true } : {}),
         date: date(p.date) || new Date().toISOString().slice(0, 10),
         amount,
         kind: p.kind === "renewal" ? "renewal" : p.kind === "service" ? "service" : "project",
@@ -282,6 +292,12 @@ export default async function handler(req, res) {
       if (!Number.isInteger(id)) throw new Bad("Missing id");
       const needs = fieldPerms(body);
       if (!needs.every((p) => can(me, p))) return res.status(403).json({ error: NOT_ALLOWED });
+      // Refunds are the owner's decision: staff (even with Money) can't add or remove one.
+      if (me.role === "staff" && Array.isArray(body.payments)) {
+        const cur = await getRequest(id);
+        const refunds = (list) => JSON.stringify((list || []).filter((p) => p?.refund || Number(p?.amount) < 0).map((p) => [p.date, Math.abs(Number(p.amount))]));
+        if (refunds(body.payments) !== refunds(cur?.payments)) return res.status(403).json({ error: "Refunds are recorded by the owner. Message him." });
+      }
       await logStaff(me, "Edited " + Object.keys(body).filter((k) => k !== "id").join(", "), id);
       const changed = cleanFields(body);
       let row = await updateRequest(id, changed);
@@ -308,7 +324,7 @@ export default async function handler(req, res) {
       if (!Number.isInteger(id)) throw new Bad("Missing id");
       if (!(await deleteRequest(id))) return res.status(404).json({ error: "Not found" });
       // Their logo, photos and screenshots go too (privacy policy: deleted with the project).
-      await Promise.all([deleteFiles(`briefs/${id}/`), deleteFiles(`design-refs/${id}/`)]).catch((e) => console.error("file delete failed", id, e));
+      await Promise.all([deleteFiles(`briefs/${id}/`), deleteFiles(`design-refs/${id}/`), deleteFiles(`changes/${id}/`)]).catch((e) => console.error("file delete failed", id, e));
       return res.status(200).json({ ok: true });
     }
 
@@ -548,9 +564,87 @@ export default async function handler(req, res) {
         if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
         if (body.action === "shop_orders") return res.status(200).json({ orders: await listOrders(id, 20) });
         try {
-          const row = await setShopPayments(id, { secretKey: body.secretKey, deliveryFee: body.deliveryFee, notify: body.notify, remove: Boolean(body.remove) });
+          const row = await setShopPayments(id, { secretKey: body.secretKey, deliveryFee: body.deliveryFee, notify: body.notify, remove: Boolean(body.remove),
+            paystackOn: body.paystackOn, flwOn: body.flwOn, flwRemove: Boolean(body.flwRemove), transfer: body.transfer, delivery: body.delivery,
+            accounts: body.accounts, accountsOn: body.accountsOn, google: body.google, manageOn: body.manageOn });
           return res.status(200).json({ row, orders: await listOrders(id, 20) });
         } catch (e) { throw new Bad(e.message); }
+      }
+      // The store owner's own login for My store (/mystore): create, reset (temporary password), switch off/on, rename, remove.
+      if (body.action === "store_login") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
+        const sa = await import("./_lib/storeaccounts.mjs");
+        try {
+          if (body.do === "get") return res.status(200).json({ login: await sa.ownerLogin(id), suggest: sa.suggestOwnerUsername(await sa.storeRow(id)) });
+          if (body.do === "create") return res.status(200).json(await sa.createOwnerLogin(id, { username: body.username }));
+          if (body.do === "reset") return res.status(200).json(await sa.resetOwnerLogin(id));
+          if (body.do === "active") return res.status(200).json({ login: await sa.updateOwnerLogin(id, { active: Boolean(body.active) }) });
+          if (body.do === "username") return res.status(200).json({ login: await sa.updateOwnerLogin(id, { username: body.username }) });
+          if (body.do === "delete") { await sa.deleteOwnerLogin(id); return res.status(200).json({ login: null }); }
+        } catch (e) { throw new Bad(e.message); }
+        throw new Bad("Unknown");
+      }
+      // ---------- Owner tools the Playbook and staff guides send people to ----------
+      // White label: hide "Website by SIRRADDO · Get a website like this" on a client site (then update it live).
+      if (body.action === "site_credit") {
+        const id = Number(body.id);
+        if (!Number.isInteger(id)) throw new Bad("Missing id");
+        await saveHosting(id, { noCredit: !body.on });
+        const row = await getRequest(id);
+        if (row?.hosting?.publishedAt && !row.hosting.pausedAt) await publish(id, { force: true }).catch((e) => console.error("credit republish failed", e));
+        return res.status(200).json({ row: await getRequest(id) });
+      }
+      // Moved away / closed: no more renewal reminders, renewal invoices, auto-pause or service fees.
+      if (body.action === "stop_renewals") {
+        const id = Number(body.id);
+        const row = await getRequest(id);
+        if (!row) return res.status(404).json({ error: "Not found" });
+        const note = `Renewals and services stopped ${new Date().toISOString().slice(0, 10)}${body.reason ? ": " + text(body.reason, 200) : ""}.`;
+        const out = await updateRequest(id, { renewal_due: null, renewal_amount: null, services: (row.services || []).map((x) => ({ ...x, active: false })),
+          notes: [row.notes, note].filter(Boolean).join("\n") });
+        return res.status(200).json({ row: out });
+      }
+      // A store payment that didn't finish on the page (e.g. "I paid but got no order"): ask Paystack / Flutterwave again.
+      if (body.action === "shop_check") {
+        const { confirmOrder, orderByRef } = await import("./_lib/shop.mjs");
+        const o = await orderByRef(body.ref);
+        if (!o || o.request_id !== Number(body.id)) throw new Bad("Order not found");
+        const { order } = await confirmOrder(o.ref);
+        return res.status(200).json({ order });
+      }
+      // A buyer asked the store to delete their data: their account goes, and their details are removed from orders
+      // (the amounts stay for the store's accounts).
+      if (body.action === "shop_erase") {
+        const { eraseBuyer } = await import("./_lib/storeaccounts.mjs");
+        try { return res.status(200).json(await eraseBuyer(Number(body.id), { phone: body.phone })); } catch (e) { throw new Bad(e.message); }
+      }
+      // Delete one website chat (e.g. the person asked us to delete their data). Chats also go by themselves after 90 days.
+      if (body.action === "chat_delete") {
+        const sid = String(body.session_id || "");
+        if (!/^[\w-]{6,80}$/.test(sid)) throw new Bad("Missing chat");
+        const rows = await q(`DELETE FROM chat_logs WHERE session_id = $1 RETURNING created_at, updated_at`, [sid]);
+        for (const t of rows) for (const d of [t.created_at, t.updated_at]) await deleteFiles(`chats/${new Date(d).toISOString().slice(0, 7)}/${sid}/`).catch(() => {});
+        return res.status(200).json({ ok: rows.length > 0 });
+      }
+      // Company documents (CAC certificate, TIN, SCUML, letter of introduction…) ready to send to companies and tenders.
+      if (body.action === "company_docs" || body.action === "company_doc_add" || body.action === "company_doc_remove") {
+        let docs = [];
+        try { docs = JSON.parse((await getMeta(["company_docs"])).company_docs || "[]"); } catch { docs = []; }
+        if (body.action === "company_doc_remove") docs = docs.filter((d) => d.url !== body.url);
+        if (body.action === "company_doc_add") {
+          if (docs.length >= 12) throw new Bad("Up to 12 documents. Remove one first.");
+          const type = String(body.type || "");
+          if (!["application/pdf", "image/jpeg", "image/png"].includes(type)) throw new Bad("Upload a PDF or a photo (JPG/PNG)");
+          const buf = Buffer.from(String(body.data || ""), "base64");
+          if (!buf.length || buf.length > 4 * 1024 * 1024) throw new Bad("That file is too big (max 4 MB). Compress the PDF first.");
+          const title = text(body.title, 80) || "Document";
+          const ext = type === "application/pdf" ? "pdf" : type === "image/png" ? "png" : "jpg";
+          const { url } = await putFile(`company/${title.replace(/[^\w-]+/g, "-").toLowerCase()}.${ext}`, buf, { contentType: type });
+          docs.push({ title, url, type, at: new Date().toISOString() });
+        }
+        if (body.action !== "company_docs") await setMeta("company_docs", JSON.stringify(docs));
+        return res.status(200).json({ docs });
       }
       if (String(body.action || "").startsWith("host_")) {
         const id = Number(body.id);

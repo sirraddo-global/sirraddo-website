@@ -3,6 +3,7 @@
 // No AI here: it only lays out what is already written, so the result is predictable.
 import { kindFor } from "./brief-schema.mjs";
 import { SITE_URL } from "../../site.config.mjs";
+import { ACCOUNT_CSS, ACCOUNT_JS } from "./storejs.mjs";
 
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -175,10 +176,14 @@ function bizEmail(row) {
 }
 // Bump this whenever the look or layout of customer sites changes: the 7am job then republishes every live site
 // still built with an older version (text the owner hasn't published yet is never pushed).
-export const SITE_LOOK = "2026-11-17b";
+export const SITE_LOOK = "2026-11-20";
 // What the website owner sees in the "your website was improved" email: plain words, newest look first.
 // Add an entry here every time SITE_LOOK changes.
 export const SITE_LOOK_NOTES = {
+  "2026-11-20": [
+    "Online stores: more ways to pay, each one a switch you control in My store: online payment, bank transfer to your account, and pay on delivery.",
+    "Online stores with customer accounts: buyers can sign in, see their orders and receipts, order again and save their delivery addresses.",
+  ],
   "2026-11-17b": [
     "Your customers can now leave a star review on your website. Nothing shows until you approve it with your private Manage link.",
     "Products show as neat cards (photo, name and price). Tapping one opens the full description, with Add to cart for online stores.",
@@ -225,6 +230,8 @@ export function buildSiteModel(row) {
   return {
     kind,
     creditTag,
+    // White label (e.g. sites sold through an agency): no "Website by SIRRADDO" in the footer.
+    noCredit: Boolean(row.hosting?.noCredit),
     // Where the site lives (for Google: canonical links, sitemap, share previews). Empty until it has an address.
     baseUrl: domain ? `https://${domain}` : row.hosting?.pagesUrl || (/^https:\/\//.test(row.website_url || "") ? row.website_url.replace(/\/+$/, "") : ""),
     name: b.business_name || row.business || row.name,
@@ -492,7 +499,8 @@ const CART_CSS = `.cart-btn{position:fixed;left:16px;bottom:16px;z-index:60;back
 .cart label{display:block;font-weight:600;margin:10px 0 4px;font-size:.92rem}.cart input,.cart textarea{width:100%;box-sizing:border-box;border:1px solid var(--cart-line,#D1D5DB);border-radius:10px;padding:12px;font:inherit;font-size:16px;background:var(--cart-soft,#fff);color:inherit}
 .cart .acts{display:grid;gap:10px;margin:18px -20px 0;position:sticky;bottom:0;background:var(--cart-bg,#fff);padding:12px 20px 6px;border-top:1px solid var(--cart-line,#E5E7EB)}
 .cart .acts button{border:0;border-radius:12px;padding:15px;font:inherit;font-weight:800;font-size:16px;cursor:pointer}
-.cart .pay{background:var(--cart-acc,#0BA4DB);color:#fff}.cart .waorder{background:#25D366;color:#063B1C}.cart .acts button:disabled{opacity:.5;cursor:default}
+.cart .pay{background:var(--cart-acc,#0BA4DB);color:#fff}.cart .ptr,.cart .pod{background:transparent;color:inherit;border:2px solid var(--cart-acc,#0BA4DB)!important;padding:12px!important;font-size:15px!important}
+.cart .acts.two{grid-template-columns:1fr 1fr}.cart .acts.two>button{grid-column:1/-1}.cart .acts.two .ptr,.cart .acts.two .pod{grid-column:auto}.cart .waorder{background:#25D366;color:#063B1C}.cart .acts button:disabled{opacity:.5;cursor:default}
 .cart .empty{text-align:center;padding:40px 0;opacity:.75}
 .card .buy{margin-top:auto}.btn.add.added{background:#22C55E!important;color:#062E14!important}
 .buy .step{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}.buy .step[hidden],.buy .btn.add[hidden]{display:none!important}
@@ -505,16 +513,16 @@ function cartScript(site, mode) {
 <div class="cart" hidden role="dialog" aria-modal="true" aria-label="Your cart"><div class="panel">
 <h2><span>Your cart<small class="cnt"></small></span><button class="x" type="button" aria-label="Close">×</button></h2><div class="lines"></div>
 <div class="sumbox"><p class="tot"><span>Total</span><span class="sum"></span></p><p class="note dl"></p>
-<div class="who"><h3>Your details</h3>
+<div class="who"><h3>Your details</h3><p class="note signin" hidden>Have an account? <a href="#account">Sign in</a> to use your saved address.</p>
 <label for="cb-name">Your name</label><input id="cb-name" autocomplete="name">
 <label for="cb-phone">Phone number</label><input id="cb-phone" type="tel" autocomplete="tel">
-<label for="cb-email">Email (needed for the payment)</label><input id="cb-email" type="email" autocomplete="email">
-<label for="cb-addr">Delivery address</label><textarea id="cb-addr" rows="2" autocomplete="street-address"></textarea></div>
-<div class="acts"><button class="pay" type="button" hidden>Pay online now</button><button class="waorder" type="button">Order on WhatsApp</button></div>
+<label for="cb-email" class="em-l">Email (needed to pay online)</label><input id="cb-email" type="email" autocomplete="email">
+<label for="cb-addr">Delivery address</label><select id="cb-saved" hidden aria-label="Your saved addresses"></select><textarea id="cb-addr" rows="2" autocomplete="street-address"></textarea><p class="note dnote" hidden></p></div>
+<div class="acts"><button class="pay" type="button" hidden data-m="paystack">Pay online now</button><button class="pay pay2" type="button" hidden data-m="flutterwave">Pay online now</button><button class="pay ptr" type="button" hidden data-m="transfer">Pay by bank transfer</button><button class="pay pod" type="button" hidden data-m="delivery">Pay on delivery</button><button class="waorder" type="button">Order on WhatsApp</button></div>
 <p class="note msg" role="status"></p></div></div></div>
-<script>(function(){var C=${JSON.stringify(cfg).replace(/</g, "\\u003c")};
+<script>(function(){var C=${JSON.stringify(cfg).replace(/</g, "\\u003c")};window.__shopC=C;var M={};
 var B=[];try{B=JSON.parse(localStorage.getItem(C.key)||'[]')}catch(e){}
-var $=function(q){return document.querySelector(q)},btn=$('.cart-btn'),box=$('.cart'),msg=$('.cart .msg'),pay=$('.cart .pay'),online=false,fee=null;
+var $=function(q){return document.querySelector(q)},btn=$('.cart-btn'),box=$('.cart'),msg=$('.cart .msg'),pays=document.querySelectorAll('.cart .pay'),online=false,fee=null;
 function money(n){return '\u20a6'+Number(n).toLocaleString('en-NG')}
 function save(){try{localStorage.setItem(C.key,JSON.stringify(B))}catch(e){}}
 function count(){return B.reduce(function(s,l){return s+l.q},0)}
@@ -524,35 +532,51 @@ var e=function(t){return String(t).replace(/[&<>"]/g,function(c){return{'&':'&am
 $('.cart .lines').innerHTML=B.length?B.map(function(l,k){var im=l.u||(document.querySelector('.btn.add[data-i="'+l.i+'"]')||{getAttribute:function(){return''}}).getAttribute('data-img');return '<div class="line">'+(im?'<img src="'+e(im)+'" alt="">':'<span class="ph"></span>')+'<span><span class="n">'+e(l.n)+'</span><br><span class="each">'+money(l.p)+' each</span></span><span class="amt">'+money(l.p*l.q)+'</span><span class="qty"><button type="button" data-k="'+k+'" data-d="-1" aria-label="One less">\u2212</button><b>'+l.q+'</b><button type="button" data-k="'+k+'" data-d="1" aria-label="One more">+</button></span><button class="rm" type="button" data-k="'+k+'">Remove</button></div>'}).join(''):'<p class="empty">Your cart is empty.</p>';
 $('.cart .sumbox').hidden=!B.length;$('.cart .cnt').textContent=n?' ('+n+' item'+(n===1?'':'s')+')':'';
 document.querySelectorAll('.buy[data-i]').forEach(function(p){var i=+p.getAttribute('data-i'),l=B.filter(function(x){return x.i===i})[0],st=p.querySelector('.step');p.querySelector('.btn.add').hidden=!!l;st.hidden=!l;if(l)st.querySelector('b').textContent=l.q;});
-$('.cart .sum').textContent=money(sub()+(online&&fee?fee:0));
-$('.cart .dl').textContent=fee&&online?'Includes delivery: '+money(fee):'Delivery cost, if any, is confirmed by the store.';
-pay.hidden=!online;pay.disabled=!B.length;$('.cart .waorder').hidden=!C.wa;$('.cart .waorder').disabled=!B.length;}
+var any=M.paystack||M.flutterwave||M.transfer||M.delivery;
+$('.cart .sum').textContent=money(sub()+(any&&fee?fee:0));
+$('.cart .dl').textContent=fee&&any?'Includes delivery: '+money(fee):'Delivery cost, if any, is confirmed by the store.';
+Array.prototype.forEach.call(pays,function(b){b.hidden=!M[b.getAttribute('data-m')];b.disabled=!B.length});$('.cart .acts').classList.toggle('two',!!(M.transfer&&M.delivery));
+if(M.paystack&&M.flutterwave){$('.cart .pay2').textContent='Pay online (Flutterwave)'}
+$('.cart .em-l').textContent=(M.paystack||M.flutterwave)?'Email (needed to pay online)':'Email (optional)';
+$('.cart .waorder').hidden=!C.wa;$('.cart .waorder').disabled=!B.length;}
 function mx(i){var a=document.querySelector('.btn.add[data-i="'+i+'"]'),m=a&&a.getAttribute('data-max');return m===null||m===undefined||m===''?99:+m}
 function cap(l,d){var m=mx(l.i),q=l.q+d;if(q>m){q=m;msg.textContent='Only '+m+' '+l.n+' left.';}l.q=Math.min(99,q);}
 document.addEventListener('click',function(e){var s=e.target.closest('.buy .step button');if(s){var bi=+s.closest('.buy').getAttribute('data-i'),bl=B.filter(function(x){return x.i===bi})[0];if(bl){cap(bl,+s.getAttribute('data-d'));if(bl.q<1)B.splice(B.indexOf(bl),1);save();draw();}return}
 var a=e.target.closest('.btn.add');if(!a)return;var i=+a.getAttribute('data-i'),l=B.filter(function(x){return x.i===i})[0];
 if(l)cap(l,1);else if(mx(i)>0)B.push({i:i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:1,u:a.getAttribute('data-img')||''});save();draw();});
+// "Order again" from a buyer's account: put the same items back in the cart (if they're still on sale).
+window.__addToCart=function(i,q){var a=document.querySelector('.btn.add[data-i="'+i+'"]');if(!a||mx(i)<=0)return;var l=B.filter(function(x){return x.i===+i})[0];
+if(!l){l={i:+i,n:a.getAttribute('data-name'),p:+a.getAttribute('data-price'),q:0,u:a.getAttribute('data-img')||''};B.push(l)}cap(l,+q||1);save();draw();btn.click()};
 box.addEventListener('click',function(e){if(e.target===box||e.target.closest('.x')){box.hidden=true;document.body.style.overflow='';return}var r=e.target.closest('.rm');if(r){B.splice(+r.getAttribute('data-k'),1);save();draw();return}var q=e.target.closest('.qty button');if(!q)return;var l=B[+q.getAttribute('data-k')];cap(l,+q.getAttribute('data-d'));if(l.q<1)B.splice(B.indexOf(l),1);save();draw();});
 // The cart takes the website's own colours and font (light or dark design).
 function paint(){var bg='#fff',el=document.body;while(el){var c=getComputedStyle(el).backgroundColor;if(c&&c!=='transparent'&&!/rgba\\(.*,\\s*0\\)$/.test(c)){bg=c;break}el=el.parentElement}
 var m=bg.match(/\\d+/g)||[255,255,255],dark=(+m[0]*299+ +m[1]*587+ +m[2]*114)/1000<128,st=document.documentElement.style,acc=getComputedStyle(document.querySelector('.btn')||document.body).backgroundColor;
 st.setProperty('--cart-bg',bg);st.setProperty('--cart-ink',dark?'#F3F4F6':'#1F2933');st.setProperty('--cart-line',dark?'rgba(255,255,255,.16)':'#E5E7EB');st.setProperty('--cart-soft',dark?'rgba(255,255,255,.06)':'#F9FAFB');if(acc&&!/rgba\\(.*,\\s*0\\)$/.test(acc)&&acc!=='transparent')st.setProperty('--cart-acc',acc);}
-btn.addEventListener('click',function(){paint();box.hidden=false;document.body.style.overflow='hidden';msg.textContent='';});
+window.__paintCart=paint;
+btn.addEventListener('click',function(){paint();box.hidden=false;document.body.style.overflow='hidden';msg.textContent='';prefill()});
+// Signed in (Standard Store): fill in their details and offer their saved addresses.
+function prefill(){var A=window.SAcct&&window.SAcct.b(),sv=$('#cb-saved');if(A){if(!$('#cb-name').value)$('#cb-name').value=A.name;if(!$('#cb-phone').value)$('#cb-phone').value=A.phone;if(!$('#cb-email').value)$('#cb-email').value=A.email||'';
+var L=A.addresses||[];sv.hidden=!L.length;sv.innerHTML=L.map(function(x,k){return '<option value="'+k+'">'+x.label.replace(/[<&]/g,'')+': '+x.text.replace(/[<&]/g,'')+'</option>'}).join('')+'<option value="">A new address</option>';
+if(L.length&&!$('#cb-addr').value)$('#cb-addr').value=L[0].text;sv.onchange=function(){$('#cb-addr').value=sv.value===''?'':L[+sv.value].text}}else sv.hidden=true;}
+window.__cartPrefill=function(){if(!box.hidden){document.body.style.overflow='hidden';prefill()}};
 function buyer(){return{name:$('#cb-name').value.trim(),phone:$('#cb-phone').value.trim(),email:$('#cb-email').value.trim(),address:$('#cb-addr').value.trim()}}
 $('.cart .waorder').addEventListener('click',function(){var b=buyer(),t='Hello '+C.name+', I would like to order:\\n'+B.map(function(l){return '- '+l.n+' x'+l.q+' ('+money(l.p*l.q)+')'}).join('\\n')+'\\nItems total: '+money(sub())+(b.name?'\\nName: '+b.name:'')+(b.phone?'\\nPhone: '+b.phone:'')+(b.address?'\\nDeliver to: '+b.address:'');
 window.open('https://wa.me/'+C.wa+'?text='+encodeURIComponent(t),'_blank');});
-pay.addEventListener('click',function(){var b=buyer();if(C.preview){msg.textContent='This is a preview, so payment is switched off here.';return}
-if(!b.name||!b.phone||!/@/.test(b.email)){msg.innerHTML='<span class="err">Please enter your name, phone number and email.</span>';return}
-pay.disabled=true;msg.textContent='Opening secure payment\u2026';
-fetch(C.api+'/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s:C.s,items:B.map(function(l){return{i:l.i,q:l.q}}),buyer:b})})
+Array.prototype.forEach.call(pays,function(pay){pay.addEventListener('click',function(){var b=buyer(),m=pay.getAttribute('data-m'),onl=m==='paystack'||m==='flutterwave';if(C.preview){msg.textContent='This is a preview, so payment is switched off here.';return}
+if(!b.name||!b.phone||(onl&&!/@/.test(b.email))){msg.innerHTML='<span class="err">Please enter your name, phone number'+(onl?' and email':'')+'.</span>';return}
+if(m==='delivery'&&!b.address){msg.innerHTML='<span class="err">Please enter your delivery address.</span>';return}
+pay.disabled=true;msg.textContent=onl?'Opening secure payment\u2026':'Placing your order\u2026';
+var A=window.SAcct;fetch(C.api+'/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({s:C.s,method:m,t:A?A.t():'',items:B.map(function(l){return{i:l.i,q:l.q}}),buyer:b})})
 .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Error');return j})})
-.then(function(j){B=[];save();location.href=j.url}).catch(function(err){pay.disabled=false;msg.innerHTML='<span class="err">'+String(err.message).replace(/[&<>]/g,'')+'</span>'});});
-if(C.s&&!C.preview)fetch(C.api+'/api/shop?config=1&s='+encodeURIComponent(C.s)).then(function(r){return r.json()}).then(function(j){online=!!j.online;fee=j.deliveryFee;
+.then(function(j){if(A&&A.b()&&b.address)A.saveAddress(b.address);B=[];save();location.href=j.url}).catch(function(err){pay.disabled=false;msg.innerHTML='<span class="err">'+String(err.message).replace(/[&<>]/g,'')+'</span>'});});});
+if(C.s&&!C.preview)fetch(C.api+'/api/shop?config=1&s='+encodeURIComponent(C.s)).then(function(r){return r.json()}).then(function(j){M=j.methods||{paystack:!!j.online};online=!!(M.paystack||M.flutterwave);fee=j.deliveryFee;
+var dn=$('.cart .dnote');if(j.deliveryNote&&M.delivery){dn.hidden=false;dn.textContent='Pay on delivery: '+j.deliveryNote}
+window.__shopCfg=j;try{window.dispatchEvent(new CustomEvent('shopcfg',{detail:j}))}catch(x){}
 var st=j.stock||{};Object.keys(st).forEach(function(i){var n=+st[i];document.querySelectorAll('.btn.add[data-i="'+i+'"]').forEach(function(a){a.setAttribute('data-max',n);var bp=a.closest('.buy'),sl=bp.previousElementSibling;
 if(n<=0){bp.innerHTML='<span class="soldout">Sold out</span>';bp.removeAttribute('data-i');var c=bp.closest('.card');if(c)c.classList.add('is-soldout');if(sl&&sl.classList.contains('stock'))sl.remove();}
 else{if(!sl||!sl.classList.contains('stock')){sl=document.createElement('p');bp.parentNode.insertBefore(sl,bp)}sl.className='stock'+(n<=5?' low':'');sl.textContent=n<=5?'Only '+n+' left':n+' in stock';}});
 B.forEach(function(l){if(+l.i===+i&&l.q>n)l.q=n});});B=B.filter(function(l){return l.q>0});save();draw()}).catch(function(){});
-if(C.preview){online=true}
+if(C.preview){online=true;M={paystack:true}}
 draw();})();</script>`;
 }
 const gallery = (photos, img) => `<div class="gallery">${photos.map((p) => `<a href="${img(p.url)}"><img src="${img(p.url)}" alt="${esc(p.name || "Photo")}" loading="lazy" decoding="async"></a>`).join("")}</div>`;
@@ -700,7 +724,7 @@ function footer(site, link) {
   return `<footer><div class="wrap"><strong>${esc(site.name)}</strong>${site.tagline ? `<span>${esc(site.tagline)}</span>` : ""}
 <span>${[site.phone && esc(site.phone), site.email && `<a href="mailto:${esc(site.email)}">${esc(site.email)}</a>`, site.address && esc(site.address.split("\n")[0])].filter(Boolean).join(" · ")}</span>
 ${socials ? `<span>${socials}</span>` : ""}<span>© ${new Date().getFullYear()} ${esc(site.name)}</span>
-<span class="credit">Website by <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">SIRRADDO</a> · <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">Get a website like this</a></span></div></footer>
+${site.noCredit ? "" : `<span class="credit">Website by <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">SIRRADDO</a> · <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">Get a website like this</a></span>`}</div></footer>
 ${site.whatsapp ? `<a class="wa" href="${waLink(site)}" aria-label="Chat on WhatsApp">WhatsApp</a>` : ""}`;
 }
 
@@ -770,13 +794,13 @@ ${seoHead(site, page, { title, desc, img, preview, notFound })}
 ${preview || notFound ? '<meta name="robots" content="noindex, nofollow">' : ""}<meta name="theme-color" content="${site.theme.primary}">
 ${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}
 <style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}
-<style id="guard">${GUARD_CSS}${hasCart(site) ? CART_CSS : ""}</style></head>
+<style id="guard">${GUARD_CSS}${hasCart(site) ? CART_CSS + ACCOUNT_CSS : ""}</style></head>
 <body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">${top ?? `Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}`}</div>` : ""}
 ${site.notice ? `<div class="site-notice" role="status">${esc(site.notice)}</div>` : ""}${header(site, page, link, img)}
 <main>${notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
 ${preview ? panel ?? previewPanel(row, token, choice) : ""}
 ${footer(site, link)}
-${site.products && site.products.length ? PRODUCT_POP : ""}${hasCart(site) ? cartScript(site, mode) : ""}${mode === "export" && !notFound ? statsScript(site) : ""}
+${site.products && site.products.length ? PRODUCT_POP : ""}${hasCart(site) ? cartScript(site, mode) + (mode === "preview" ? "" : `<script>${ACCOUNT_JS}</script>`) : ""}${mode === "export" && !notFound ? statsScript(site) : ""}
 </body></html>`;
 }
 

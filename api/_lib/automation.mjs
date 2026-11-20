@@ -4,7 +4,7 @@ import tls from "node:tls";
 import {
   listRequests, updateRequest, ensureDocToken, getSettings, markSent, setSiteCheck, listUnansweredSince,
   sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta , emailUsage, countRefused, cleanupRefused, q } from "./store.mjs";
-import { paystackConfigured, payLink, amountDue } from "./paystack.mjs";
+import { paystackConfigured, payLink, amountDue, depositOf, depositPct } from "./paystack.mjs";
 import { dailyHosting, hostingRef } from "./golive.mjs";
 import { reconcileOrders } from "./shop.mjs";
 import { monthlyReports, cleanupStats } from "./stats.mjs";
@@ -44,7 +44,7 @@ const niceDate = (d) => new Date(d + "T12:00:00Z").toLocaleDateString("en-GB", {
 // ---------- Message templates (same defaults as the admin page; Settings can override) ----------
 export const TEMPLATES = {
   tpl_new: "Hello {name}, this is SIRRADDO GLOBAL LIMITED. Thank you for your interest in our {package} package. Could you tell us a bit more about your business so we can get started?",
-  tpl_quoted: "Hello {name}, following up on your {package} quote of {amount}. To start, we need a 70% deposit of {deposit}, and the balance when your site is ready. Any questions, just ask.",
+  tpl_quoted: "Hello {name}, following up on your {package} quote of {amount}. To start, we need a {deposit_pct} deposit of {deposit}, and the balance when your site is ready. Any questions, just ask.",
   tpl_brief: "Hello {name}, thank you for your deposit! Please fill in your project details here: {brief_link}\nIt takes about 10-15 minutes, and you can save and finish later with the same link.",
   tpl_invoice: "Hello {name}, here is your invoice for the {package} package. Total: {amount}. Paid: {paid}. Balance: {balance}. View or save it here: {doc_link}\nPay online: {pay_link}",
   tpl_preview: "Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.",
@@ -58,7 +58,7 @@ export function fill(text, r, extra = {}) {
   if (!pay && !extra.pay_link) text = text.split("\n").filter((l) => !l.includes("{pay_link}")).join("\n"); // no online payment yet
   const vals = {
     name: String(r.name || "").split(" ")[0], package: r.interest, amount: naira(q),
-    deposit: q ? naira(Math.round(q * 0.7)) : "-", paid: naira(projectPaid(r)), balance: naira(balance(r)),
+    deposit: q ? naira(depositOf(r)) : "-", deposit_pct: depositPct(r) + "%", paid: naira(projectPaid(r)), balance: naira(balance(r)),
     renewal_amount: naira(r.renewal_amount), renewal_due: r.renewal_due ? niceDate(r.renewal_due) : "-",
     brief_link: r.brief_token ? `${SITE}/brief?t=${r.brief_token}` : "", doc_link: "",
     preview_link: r.preview_token ? `${SITE}/preview?t=${r.preview_token}` : "", website: r.website_url || "", pay_link: pay, ...extra,
@@ -85,7 +85,7 @@ export function rulesAfterUpdate(row, changed) {
   // Deposit reaches 70% (or any payment without a quote) -> won, with the job's defaults.
   if ("payments" in changed && row.status !== "won" && row.status !== "lost") {
     const paid = projectPaid(row);
-    const reached = paid > 0 && (row.quote_amount ? paid >= Math.round(row.quote_amount * 0.7) : true);
+    const reached = paid > 0 && (row.quote_amount ? paid >= depositOf(row) : true);
     if (reached) {
       f.status = "won";
       if (row.renewal_amount == null && DEFAULT_RENEWAL[row.interest]) f.renewal_amount = DEFAULT_RENEWAL[row.interest];

@@ -1,0 +1,32 @@
+{
+  "id": "/mystore",
+  "name": "My store",
+  "short_name": "My store",
+  "description": "Orders, products, payments and customers for your online store.",
+  "start_url": "/mystore",
+  "scope": "/mystore",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F5F7FB",
+  "theme_color": "#13254F",
+  "icons": [
+    {
+      "src": "/assets/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/app-icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

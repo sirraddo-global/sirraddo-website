@@ -37,6 +37,18 @@
     Cache-Control = "no-store"
 
 [[headers]]
+  for = "/mystore"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-store"
+
+[[headers]]
+  for = "/mystore.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-store"
+
+[[headers]]
   for = "/staff"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"

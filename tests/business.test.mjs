@@ -574,6 +574,18 @@ test("daily run completes without errors", async () => {
   console.error = (...a) => { errors.push(a.join(" ")); orig(...a); };
   // A live site built with an older look is republished by the morning job (no unpublished edits on it).
   await h.sql(`UPDATE customer_requests SET hosting = hosting || '{"look":"old"}'::jsonb, draft_at = NULL, design_at = NULL WHERE id = $1`, [ada]);
+  // Store-only improvements: a business website is updated quietly (no email, even if they chose "Ask me first").
+  const sg = await import("../api/_lib/sitegen.mjs");
+  const notesNow = sg.SITE_LOOK_NOTES[sg.SITE_LOOK];
+  sg.SITE_LOOK_NOTES[sg.SITE_LOOK] = ["Online stores: a store-only improvement"];
+  await h.sql(`UPDATE customer_requests SET hosting = hosting || '{"lookMode":"ask"}'::jsonb WHERE id = $1`, [ada]);
+  const q0 = h.CF.deployments.length, m0 = h.sent.length;
+  try { await h.daily(); } finally { console.error = orig; }
+  assert.ok(h.CF.deployments.length > q0, "updated quietly");
+  assert.ok(!h.newMail(m0).some((m) => /improved|new version/i.test(m.subject)), "no email about store features");
+  sg.SITE_LOOK_NOTES[sg.SITE_LOOK] = [...notesNow, "A general improvement for every website"];
+  await h.sql(`DELETE FROM settings WHERE key LIKE '\_daily%'`).catch(() => {});
+  await h.sql(`UPDATE customer_requests SET hosting = hosting || '{"look":"old","lookMode":"auto"}'::jsonb WHERE id = $1`, [ada]);
   const before = h.CF.deployments.length;
   try { await h.daily(); } finally { console.error = orig; }
   assert.deepEqual(errors.filter((e) => /daily cron failed/.test(e)), []);
@@ -599,6 +611,7 @@ test("daily run completes without errors", async () => {
   const ha = rb.json.row.hosting;
   assert.equal(ha.deploymentId, hb.history[1].id);
   assert.equal(ha.lookMode, "ask", "7am won't undo it");
+  sg.SITE_LOOK_NOTES[sg.SITE_LOOK] = notesNow;
 });
 
 test("backup: download has every table; Monday's email goes once with the file attached", async () => {
@@ -663,7 +676,7 @@ test("festive greetings: banner during the festival, optional emails in batches,
 
 test("handover pack fills itself from Go live, Settings and the go-live date", async () => {
   await h.action({ action: "settings", settings: { default_registrar: "Whogohost" } });
-  await h.sql(`UPDATE customer_requests SET live_on = '2026-11-20', handover = '{}'::jsonb, hosting = hosting || $1::jsonb WHERE id = $2`,
+  await h.sql(`UPDATE customer_requests SET live_on = '2026-03-15', handover = '{}'::jsonb, hosting = hosting || $1::jsonb WHERE id = $2`,
     [JSON.stringify({ email: { locals: ["info", "sales"], to: "ada@gmail.com", status: "active" } }), ada]);
   const t = (await h.action({ action: "doc_link", id: ada })).json.doc_token;
   let page = (await h.call("GET", `/doc?t=${t}&type=handover`)).text;
@@ -671,14 +684,14 @@ test("handover pack fills itself from Go live, Settings and the go-live date", a
   assert.match(page, /info@adasalon\.com\.ng/);
   assert.match(page, /Whogohost/, "usual registrar");
   assert.match(page, /ada@gmail\.com/, "inbox shown");
-  assert.match(page, /20 November 2027|20 Nov 2027/, "registered until = go-live + 1 year");
+  assert.match(page, /15 March 2027|15 Mar 2027/, "registered until = go-live + 1 year");
   assert.match(page, /Home/, "pages listed");
   assert.match(page, /sitemap\.xml/);
   assert.match(page, /monthly report/i);
   await h.admin("PATCH", "/api/requests", { id: ada, handover: { domain_by: "customer", registrar: "Qservers" } });
   page = (await h.call("GET", `/doc?t=${t}&type=handover`)).text;
   assert.match(page, /Qservers/, "what you typed wins");
-  assert.doesNotMatch(page, /20 November 2027|20 Nov 2027/, "no guessed expiry for their own domain");
+  assert.doesNotMatch(page, /15 March 2027|15 Mar 2027/, "no guessed expiry for their own domain");
   // Everything the customer could ask for later is in the pack.
   assert.match(page, /You can have 3 more at no extra cost/, "Business includes 5 addresses, 2 set up");
   assert.match(page, /When you reply/);

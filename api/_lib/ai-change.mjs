@@ -27,7 +27,7 @@ const norm = (s) => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
 export const INFO_FIELDS = {
   tagline: ["Slogan", 100], phone: ["Phone", 30], whatsapp: ["WhatsApp", 30], email: ["Email", 80], address: ["Address", 200],
   hours: ["Opening hours", 120], site_notice: ["Notice on the website", 200], delivery_areas: ["Delivery areas", 300],
-  returns: ["Returns / refunds", 400], socials: ["Social media links", 400],
+  returns: ["Returns / refunds", 400], socials: ["Social media links", 400], colours: ["Brand colours", 100],
 };
 
 // ---------- The website text, split into blocks ----------
@@ -120,7 +120,7 @@ Rules:
 - A request can add AND remove AND change things at once: return an edit for each part.
 - Attached files are A1, A2…; match photos to products by what the request says, the file name and what the photo shows.
 - For wording changes use replace_text with the smallest exact piece of current text. Never invent facts (prices, years, awards).
-- Colours, fonts, layout or "a new design" can't be done with these edits: put them in not_done ("needs a new design").
+- New colours: {"op":"set_info","field":"colours","value":"<the colours they asked, e.g. navy and gold>"}. Fonts, layout or "a new design" can't be done with these edits: put them in not_done ("needs a new design").
 - If something is unclear (e.g. which product they mean), don't guess: put it in not_done.
 - If nothing can be done, return "ops": [].`;
 
@@ -294,7 +294,9 @@ export function applyOps(row, ops, attachments) {
         if ((o.field === "phone" || o.field === "whatsapp") && v && !/^\+?[\d\s()-]{7,20}$/.test(v)) { skip("that isn't a phone number"); continue; }
         if (o.field === "email" && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { skip("that isn't an email address"); continue; }
         brief[o.field] = v;
-        ok();
+        // A site with a custom AI design keeps that design's colours: say so, so you make a new design with them.
+        if (o.field === "colours" && row.design_css) ok("saved; this site has a custom AI design, so for the new colours make a new one: Website preview → Designs → Add another AI design, note the colours, choose it, then Update live site");
+        else ok();
       } else if (o.op === "replace_text") {
         const find = String(o.find || "");
         if (find.trim().length < 2) { skip("nothing to find"); continue; }

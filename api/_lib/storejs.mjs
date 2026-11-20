@@ -10,7 +10,7 @@ export const ACCOUNT_CSS = `.acct-link{cursor:pointer}.acct .tabs{display:flex;g
 .acct .st{display:inline-block;border-radius:999px;padding:2px 10px;font-size:.8rem;font-weight:700;background:var(--cart-soft,#F3F4F6)}.acct .st.ok{background:#DCFCE7;color:#14532D}.acct .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
 .acct .row a,.acct .row button{border:1px solid var(--cart-line,#D1D5DB);border-radius:10px;padding:8px 12px;font:inherit;font-size:.9rem;font-weight:700;color:inherit;background:transparent;text-decoration:none;cursor:pointer}
 .acct h3{margin:18px 0 6px;font-size:1.05rem}.acct .addr{display:flex;justify-content:space-between;gap:8px;align-items:center;border-bottom:1px solid var(--cart-line,#E5E7EB);padding:8px 0}
-.acct .gbtn{margin:12px 0;min-height:44px}.acct .gsi{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;border:1px solid #DADCE0;background:#fff;color:#3C4043;border-radius:999px;padding:12px 16px;font:inherit;font-weight:600;font-size:15px;cursor:pointer}.acct .gsi:hover{background:#F8F9FA}.acct .or{text-align:center;opacity:.6;font-size:.85rem;margin:6px 0}`;
+.acct .gbtn{margin:4px 0 12px;min-height:44px}.acct .gsi{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;border:1px solid #DADCE0;background:#fff;color:#3C4043;border-radius:999px;padding:12px 16px;font:inherit;font-weight:600;font-size:15px;cursor:pointer}.acct .gsi:hover{background:#F8F9FA}.acct .or{text-align:center;opacity:.6;font-size:.85rem;margin:6px 0}`;
 
 export const ACCOUNT_JS = String.raw`(function(){var C=window.__shopC;if(!C||!C.s||C.preview)return;
 var KEY='acct-'+C.s,tok='',me=null,cfg=null,view='in',fromCart=false;try{tok=localStorage.getItem(KEY)||''}catch(e){}
@@ -40,9 +40,8 @@ function draw(){var B=$('.body',box),t=$('.ttl',box);
 if(!me&&(view==='home'))view='in';
 if(view==='in'||view==='up'){t.textContent=view==='in'?'Sign in':'Create an account';
 B.innerHTML='<div class="tabs"><button type="button" data-v="in" aria-pressed="'+(view==='in')+'">Sign in</button><button type="button" data-v="up" aria-pressed="'+(view==='up')+'">Create account</button></div>'+
-(cfg&&cfg.google?'<div class="gbtn"></div><p class="or">or with your phone number</p>':'')+
 (view==='up'?field('ac-name','Your name','text','autocomplete="name" maxlength="80"'):'')+field('ac-phone','Phone number','tel','autocomplete="tel"')+field('ac-pw','Password'+(view==='up'?' (at least 6 characters)':''),'password','autocomplete="'+(view==='up'?'new':'current')+'-password"')+
-'<button class="go" type="button">'+(view==='in'?'Sign in':'Create my account')+'</button>'+(view==='in'?'<button class="lnk fp" type="button">Forgot password?</button>':'<p class="note">Your account keeps your orders, receipts and delivery addresses. You can still buy without one.</p>');
+'<button class="go" type="button">'+(view==='in'?'Sign in':'Create my account')+'</button>'+(view==='in'?'<button class="lnk fp" type="button">Forgot password?</button>':'<p class="note">Your account keeps your orders, receipts and delivery addresses. You can still buy without one.</p>')+(cfg&&cfg.google?'<p class="or">or</p><div class="gbtn"></div>':'');
 if(cfg&&cfg.google)google($('.gbtn',B));return}
 if(view==='forgot'){t.textContent='Forgot password';var wa=C.wa?'https://wa.me/'+C.wa+'?text='+encodeURIComponent('Hello '+C.name+', I forgot my password for your website. Please send me a reset code. My phone number on the account is: '):'';
 B.innerHTML='<p>Ask '+e(C.name)+' for a reset code on WhatsApp. Then enter it here with a new password.</p>'+(wa?'<div class="row"><a href="'+e(wa)+'" target="_blank" rel="noopener">Ask for a code on WhatsApp</a></div>':'')+

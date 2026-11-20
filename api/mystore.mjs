@@ -36,6 +36,7 @@ function storeInfo(r, sh) {
     flutterwave: { connected: Boolean(sh.flwKey), end: sh.flwKeyEnd || "", mode: sh.flwMode || null, on: m.flutterwave },
     transfer: sh.transfer || { on: false }, delivery: sh.delivery || { on: false }, deliveryFee: sh.deliveryFee ?? null, notify: sh.notify || "",
     accountsFeature: Boolean(sh.accounts), accountsOn: Boolean(sh.accounts && !sh.accountsOff), manageOn: !sh.manageOff,
+    googleFeature: Boolean(sh.accounts && sh.google && process.env.GOOGLE_SIGNIN_CLIENT_ID), googleOn: !sh.googleOff,
   };
 }
 // The owner's money at a glance: paid sales today and this month (Lagos time), orders still to deliver, items running low.
@@ -135,7 +136,7 @@ export default async function handler(req, res) {
       const p = body.payments || {};
       // The owner can connect their own Paystack / Flutterwave keys here (it's their own account) and switch every option.
       await setShopPayments(id, { secretKey: p.paystackKey, paystackOn: p.paystackOn, flwKey: p.flwKey, flwOn: p.flwOn, flwRemove: p.flwRemove,
-        transfer: p.transfer, delivery: p.delivery, deliveryFee: p.deliveryFee, notify: p.notify, accountsOn: sh.accounts ? p.accountsOn : undefined });
+        transfer: p.transfer, delivery: p.delivery, deliveryFee: p.deliveryFee, notify: p.notify, accountsOn: sh.accounts ? p.accountsOn : undefined, googleOn: sh.accounts && sh.google && typeof p.googleOn === "boolean" ? p.googleOn : undefined });
       const fresh = await getRequest(id);
       fresh.brief = r.brief;
       return res.status(200).json({ store: storeInfo(fresh, await rawShop(id)) });

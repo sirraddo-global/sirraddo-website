@@ -2971,7 +2971,7 @@
     var bank = el('input', { value: t.bank || '', placeholder: 'Bank' }), aname = el('input', { value: t.name || '', placeholder: 'Account name' }), anum = el('input', { value: t.number || '', placeholder: '10-digit account number', inputmode: 'numeric', maxlength: 10 });
     var dl = tg('Pay on delivery', d.on);
     var ac = tg('Customer accounts (Standard Store)', sh.accounts, '(buyers sign in, save addresses, see their orders; the owner can still switch it off on their site)');
-    var gg = tg('Google sign-in for buyers', sh.google, '(needs GOOGLE_SIGNIN_CLIENT_ID in Netlify, set up once: see Packages → Standard Store)');
+    var gg = tg('Google sign-in for buyers', sh.google, '(optional extra: phone number + password stays the main sign-in; the store owner can switch Google off in My store)' + (sh.googleOff ? ' · the owner has switched it off' : ''));
     var mg = tg('Manage link works (backup)', !sh.manageOff, '(switch off once they use My store, if you like)');
     [ps.row, fw.row, tr.row, el('div', { class: 'admin-grid' }, [field('Bank', bank), field('Account name', aname), field('Account number', anum)]), dl.row, ac.row, gg.row, mg.row].forEach(function (x) { box.appendChild(x); });
     if (sh.flwOnline) box.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Disconnect Flutterwave', onclick: function () {

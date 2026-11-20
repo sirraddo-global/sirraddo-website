@@ -299,6 +299,16 @@ test("Google sign-in, one time for every store: the shared sirraddo.com.ng/signi
   }
   for (const o of ["https://evil.com.ng", "http://hubshop.com.ng", "https://hubshop.com.ng.evil.com", "", "null"]) assert.equal((await hub(o)).status, 403, `refused: ${o}`);
   assert.equal((await shop({ s: "nope-not-a-store", action: "google_hub", o: "https://hubshop.com.ng" })).status, 404);
+  // The store owner can switch Google off in My store; phone number + password always stays.
+  const cr = (await h.action({ action: "store_login", id, do: "create" })).json;
+  const k = my((await my(ownerLogin(cr.login.username, cr.password))("my_password", { current: cr.password, password: "HubShop2026x" })).json.token);
+  assert.equal((await k("me")).json.store.googleFeature, true);
+  await k("payments", { payments: { googleOn: false } });
+  assert.equal((await h.call("GET", `/api/shop?config=1&s=${tok}`)).json.google, null, "owner switched Google off");
+  assert.equal((await hub("https://hubshop.com.ng")).status, 409);
+  assert.equal((await h.call("GET", `/api/shop?config=1&s=${tok}`)).json.accounts, true, "phone + password sign-in still on");
+  await k("payments", { payments: { googleOn: true } });
+  assert.equal((await hub("https://hubshop.com.ng")).status, 200, "and back on");
   // The store website opens the shared page and only listens to sirraddo.com.ng for the answer.
   const { ACCOUNT_JS } = await import("../api/_lib/storejs.mjs");
   assert.match(ACCOUNT_JS, /\/signin\?s=/); assert.match(ACCOUNT_JS, /ev\.origin!==hub/); assert.doesNotMatch(ACCOUNT_JS, /gsi\/client/, "Google's script now loads only on sirraddo.com.ng");

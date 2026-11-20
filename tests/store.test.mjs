@@ -341,3 +341,10 @@ test("Top of the home page: the products the owner ticks slide across the top; w
   const html = renderPage(site, site.pages[0].slug, { mode: "export", link: (x) => x });
   assert.match(html, /class="topcar"/); assert.match(html, /class="card prod[^"]*" data-pi="\d+"/);
 });
+
+test("Google Client ID: stray spaces, line breaks and quotes from copying are cleaned; the secret or junk is ignored", async () => {
+  const { googleClientId } = await import("../api/_lib/googleid.mjs");
+  const id = "123456789-abcDEF.apps.googleusercontent.com";
+  for (const v of [id, ` ${id} `, `${id}\n`, `"${id}"`, `'${id}'\r\n`]) assert.equal(googleClientId(v), id, JSON.stringify(v));
+  for (const v of ["GOCSPX-abc123", "", null, "123.apps.googleusercontent.com.evil.com", "hello world"]) assert.equal(googleClientId(v), null, String(v));
+});

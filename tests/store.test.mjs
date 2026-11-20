@@ -315,3 +315,10 @@ test("Google sign-in, one time for every store: the shared sirraddo.com.ng/signi
   const { readFileSync } = await import("node:fs");
   assert.match(readFileSync(new URL("../assets/signin.js", import.meta.url), "utf8"), /postMessage\(\{ sirraddoGoogle: cred \}, o\)/, "never sent to '*'");
 });
+
+test("Google Client ID: stray spaces, line breaks and quotes from copying are cleaned; the secret or junk is ignored", async () => {
+  const { googleClientId } = await import("../api/_lib/googleid.mjs");
+  const id = "123456789-abcDEF.apps.googleusercontent.com";
+  for (const v of [id, ` ${id} `, `${id}\n`, `"${id}"`, `'${id}'\r\n`]) assert.equal(googleClientId(v), id, JSON.stringify(v));
+  for (const v of ["GOCSPX-abc123", "", null, "123.apps.googleusercontent.com.evil.com", "hello world"]) assert.equal(googleClientId(v), null, String(v));
+});

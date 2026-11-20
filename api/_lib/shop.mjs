@@ -1,3 +1,4 @@
+import { googleClientId } from "./googleid.mjs";
 // Online Store checkout for customer websites.
 // Every store site has a cart. Buyers can order on WhatsApp (always) or pay online with Paystack (once you add
 // the store owner's own Paystack secret key in admin → Go live). Money goes straight to the store owner's Paystack
@@ -214,7 +215,7 @@ export async function shopConfig(token) {
   const stock = {};
   for (const p of shopProducts(r.brief)) if (p.stockLeft !== null || p.soldout) stock[p.i] = p.soldout ? 0 : p.stockLeft;
   const m = payMethods(r.shop || {});
-  const googleClient = r.shop?.accounts && !r.shop?.accountsOff && r.shop?.google && !r.shop?.googleOff && process.env.GOOGLE_SIGNIN_CLIENT_ID ? process.env.GOOGLE_SIGNIN_CLIENT_ID : null;
+  const googleClient = r.shop?.accounts && !r.shop?.accountsOff && r.shop?.google && !r.shop?.googleOff && googleClientId() ? googleClientId() : null;
   return { online: m.paystack || m.flutterwave, methods: m, mode: r.shop?.keyMode || null, deliveryFee: r.shop?.deliveryFee ?? null, name: storeName(r), stock,
     deliveryNote: m.delivery ? r.shop.delivery.note || "" : "", accounts: Boolean(r.shop?.accounts && !r.shop?.accountsOff), google: googleClient, id: r.id };
 }

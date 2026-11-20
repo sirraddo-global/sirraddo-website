@@ -1,3 +1,4 @@
+import { googleClientId } from "./_lib/googleid.mjs";
 // /api/mystore — the store owner's own admin (the page is /mystore). They log in with the username and password
 // SIRRADDO gave them (temporary at first; they must choose their own). Everything here is limited to their own store.
 //   POST { action, ... } with "Authorization: Bearer <ou.… login | o1.… session>"
@@ -36,7 +37,7 @@ function storeInfo(r, sh) {
     flutterwave: { connected: Boolean(sh.flwKey), end: sh.flwKeyEnd || "", mode: sh.flwMode || null, on: m.flutterwave },
     transfer: sh.transfer || { on: false }, delivery: sh.delivery || { on: false }, deliveryFee: sh.deliveryFee ?? null, notify: sh.notify || "",
     accountsFeature: Boolean(sh.accounts), accountsOn: Boolean(sh.accounts && !sh.accountsOff), manageOn: !sh.manageOff,
-    googleFeature: Boolean(sh.accounts && sh.google && process.env.GOOGLE_SIGNIN_CLIENT_ID), googleOn: !sh.googleOff,
+    googleFeature: Boolean(sh.accounts && sh.google && googleClientId()), googleOn: !sh.googleOff,
   };
 }
 // The owner's money at a glance: paid sales today and this month (Lagos time), orders still to deliver, items running low.

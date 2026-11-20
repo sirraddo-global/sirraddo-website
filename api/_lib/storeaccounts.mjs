@@ -1,3 +1,4 @@
+import { googleClientId } from "./googleid.mjs";
 // Logins for Online Stores:
 //  - Store owners: their own admin at /mystore (username + password). SIRRADDO creates the login with a temporary
 //    password (sent on WhatsApp, works 3 days); they must choose their own on first login and after every reset.
@@ -166,7 +167,7 @@ export async function buyerLogin(requestId, { phone, password }) {
 }
 // Google sign-in: the website sends Google's ID token; we check it with Google and that it was made for our app.
 export async function buyerGoogle(requestId, idToken, phone) {
-  const client = process.env.GOOGLE_SIGNIN_CLIENT_ID;
+  const client = googleClientId();
   if (!client) throw new Error("Google sign-in isn't set up for this store");
   const res = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(String(idToken || "")));
   const g = await res.json().catch(() => ({}));

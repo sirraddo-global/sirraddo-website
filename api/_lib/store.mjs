@@ -191,6 +191,24 @@ const SCHEMA = [
      who TEXT NOT NULL DEFAULT '',
      created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
   `CREATE INDEX IF NOT EXISTS site_reviews_req ON site_reviews (request_id, status)`,
+  // Store extras (api/_lib/storeplus.mjs): discount codes, delivery areas, tracking, pay small-small, product reviews,
+  // "tell me when it's back" lists and signed-in buyers' unfinished carts.
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS discount INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS code TEXT`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS zone TEXT`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS packed_at TIMESTAMPTZ`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS shipped_at TIMESTAMPTZ`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS paid_amount INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS payments JSONB NOT NULL DEFAULT '[]'::jsonb`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS product_i INTEGER`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS product TEXT`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS buyer_id INTEGER`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false`,
+  `CREATE TABLE IF NOT EXISTS stock_alerts (id SERIAL PRIMARY KEY, request_id INTEGER NOT NULL, product_i INTEGER NOT NULL, product TEXT NOT NULL DEFAULT '', variant TEXT NOT NULL DEFAULT '',
+     name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), done_at TIMESTAMPTZ)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS stock_alerts_one ON stock_alerts (request_id, product_i, variant, phone) WHERE done_at IS NULL`,
+  `CREATE TABLE IF NOT EXISTS buyer_carts (request_id INTEGER NOT NULL, buyer_id INTEGER NOT NULL, items JSONB NOT NULL DEFAULT '[]'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), nudged_at TIMESTAMPTZ,
+     PRIMARY KEY (request_id, buyer_id))`,
 ];
 let schemaReady = null;
 export async function ensureSchema() {
@@ -313,7 +331,7 @@ export async function updateRequest(id, fields) {
 // store login and their buyers' accounts (e.g. for a data-deletion request). Their files are removed by the caller.
 export async function deleteRequest(id) {
   await ensureSchema();
-  for (const t of ["change_requests", "site_stats", "site_visitors", "greeting_sends", "site_reviews", "store_orders", "store_users", "store_buyers"])
+  for (const t of ["change_requests", "site_stats", "site_visitors", "greeting_sends", "site_reviews", "store_orders", "store_users", "store_buyers", "stock_alerts", "buyer_carts"])
     await q(`DELETE FROM ${t} WHERE request_id = $1`, [id]).catch((e) => console.error("delete from", t, e.message));
   const rows = await q(`DELETE FROM customer_requests WHERE id = $1 RETURNING id`, [id]);
   return rows.length > 0;

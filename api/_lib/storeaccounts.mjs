@@ -265,5 +265,9 @@ export async function eraseBuyer(requestId, { buyerId, phone } = {}) {
   const ids = gone.map((g) => g.id).concat(buyerId ? [Number(buyerId)] : []);
   const orders = await q(`UPDATE store_orders SET buyer = jsonb_build_object('name', 'Removed (customer asked)', 'phone', '', 'email', '', 'address', '', 'note', ''), claim = NULL, buyer_id = NULL
     WHERE request_id = $1 AND (buyer_id = ANY($2::int[]) OR regexp_replace(COALESCE(buyer->>'phone', ''), '\\D', '', 'g') = ANY($3::text[])) RETURNING ref`, [id, ids, forms]);
+  // Their unfinished cart, "tell me when it's back" requests, and the link from their reviews to their account.
+  await q(`DELETE FROM buyer_carts WHERE request_id = $1 AND buyer_id = ANY($2::int[])`, [id, ids]).catch(() => {});
+  await q(`DELETE FROM stock_alerts WHERE request_id = $1 AND regexp_replace(phone, '\\D', '', 'g') = ANY($2::text[])`, [id, forms]).catch(() => {});
+  await q(`UPDATE site_reviews SET buyer_id = NULL WHERE request_id = $1 AND buyer_id = ANY($2::int[])`, [id, ids]).catch(() => {});
   return { account: gone.length > 0, orders: orders.length };
 }

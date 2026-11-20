@@ -35,7 +35,7 @@ export async function addReview(input, { ip, ua }) {
   return { ok: true, id: row.id };
 }
 
-async function tellOwner(id, rv) {
+export async function tellOwner(id, rv) {
   if (id === OUR_ID) {
     const { SITE_URL } = await import("../../site.config.mjs");
     return sendEmail(`New ${rv.stars}-star review for SIRRADDO from ${rv.name}`, `<p><b style="color:#B7791F">${starsText(rv.stars)}</b><br><b>${esc(rv.name)}</b>${rv.text ? `<br>${esc(rv.text)}` : ""}</p>
@@ -55,19 +55,42 @@ ${link ? `<p><a href="${esc(link)}" style="display:inline-block;background:#1325
   else await sendEmail(`New review for ${r.business || r.name} (${reference(id)}): ${rv.stars} stars`, html + "<p>(The customer has no email on file, so this came to you.)</p>");
 }
 
+// A review of one product from a signed-in buyer of a Standard Store. Only someone who bought it (paid, or paid on
+// delivery and delivered) can review it, so every product review is from a real customer ("Verified buyer").
+export async function addProductReview(requestId, buyer, input) {
+  await ensureSchema();
+  const i = Number(input?.i);
+  const stars = Number(input?.stars);
+  if (!Number.isInteger(stars) || stars < 1 || stars > 5) throw new Error("Please tap the stars to give a rating.");
+  const text = clean(input?.text, 600);
+  if (/https?:\/\/|www\./i.test(text)) throw new Error("Please leave out links.");
+  const [bought] = await q(`SELECT l->>'name' AS name FROM store_orders o, jsonb_array_elements(o.items) l WHERE o.request_id = $1 AND o.buyer_id = $2 AND (l->>'i')::int = $3
+    AND (o.status = 'paid' OR (o.status = 'cod' AND o.delivered_at IS NOT NULL)) LIMIT 1`, [requestId, buyer.id, i]);
+  if (!bought) throw new Error("Only customers who bought this product can review it. Thank you!");
+  const [dup] = await q(`SELECT id FROM site_reviews WHERE request_id = $1 AND buyer_id = $2 AND product_i = $3`, [requestId, buyer.id, i]);
+  if (dup) throw new Error("You've already reviewed this product. Thank you!");
+  const parts = String(buyer.name || "Customer").trim().split(/\s+/);
+  const name = clean(parts[0] + (parts[1] ? " " + parts[1][0] + "." : ""), 50);
+  const product = String(bought.name || "").replace(/\s*\([^)]*\)\s*$/, "");
+  const [row] = await q(`INSERT INTO site_reviews (request_id, name, stars, body, who, product_i, product, buyer_id, verified) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true) RETURNING id`,
+    [requestId, name, stars, text, "buyer:" + buyer.id, i, product, buyer.id]);
+  await tellOwner(requestId, { name: `${name} (verified buyer of ${product})`, stars, text }).catch((e) => console.error("review email failed", e));
+  return { ok: true, id: row.id };
+}
+
 // For Manage my store: newest first, waiting ones on top.
 export async function listReviews(id, limit = 40) {
   await ensureSchema();
-  return q(`SELECT id, name, stars, body, status, created_at FROM site_reviews WHERE request_id = $1
+  return q(`SELECT id, name, stars, body, status, created_at, product, verified FROM site_reviews WHERE request_id = $1
     ORDER BY (status = 'pending') DESC, created_at DESC LIMIT $2`, [id, limit]);
 }
 
 // What the website shows.
 export async function shownReviews(id) {
   await ensureSchema();
-  const rows = await q(`SELECT name, stars, body, created_at FROM site_reviews WHERE request_id = $1 AND status = 'shown' ORDER BY created_at DESC LIMIT $2`, [id, MAX_SHOWN]);
+  const rows = await q(`SELECT name, stars, body, created_at, product_i, product, verified FROM site_reviews WHERE request_id = $1 AND status = 'shown' ORDER BY created_at DESC LIMIT $2`, [id, MAX_SHOWN]);
   const [{ n, avg }] = await q(`SELECT count(*)::int AS n, COALESCE(avg(stars), 0)::float AS avg FROM site_reviews WHERE request_id = $1 AND status = 'shown'`, [id]);
-  return { list: rows.map((x) => ({ name: x.name, stars: x.stars, text: x.body, date: new Date(x.created_at).toISOString().slice(0, 10) })), count: n, average: Math.round(avg * 10) / 10 };
+  return { list: rows.map((x) => ({ name: x.name, stars: x.stars, text: x.body, date: new Date(x.created_at).toISOString().slice(0, 10), ...(x.product_i !== null && x.product_i !== undefined ? { i: x.product_i, product: x.product || "", verified: Boolean(x.verified) } : {}) })), count: n, average: Math.round(avg * 10) / 10 };
 }
 
 // Removes a review for good (e.g. the person asked us to). Returns true if one was removed.

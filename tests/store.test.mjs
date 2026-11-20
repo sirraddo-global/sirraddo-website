@@ -29,7 +29,7 @@ test("payment options: each is a switch; bank transfer and pay on delivery keep 
   const { id, tok } = await makeStore("Tola Fabrics", { paystack: true });
   const buyer = { name: "Bisi Ade", phone: "08030000001", email: "bisi@x.com", address: "12 Ring Road, Ibadan" };
   let cfg = (await h.call("GET", `/api/shop?config=1&s=${tok}`)).json;
-  assert.deepEqual(cfg.methods, { paystack: true, flutterwave: false, transfer: false, delivery: false });
+  assert.deepEqual(cfg.methods, { paystack: true, flutterwave: false, transfer: false, delivery: false, instalment: false });
   // Old store pages (no method) still pay online with Paystack.
   const old = await shop({ s: tok, items: [{ i: 1, q: 1 }], buyer });
   assert.equal(old.json.method, "paystack");
@@ -37,7 +37,7 @@ test("payment options: each is a switch; bank transfer and pay on delivery keep 
   assert.match((await h.action({ action: "shop_settings", id, transfer: { on: true, bank: "GTBank", name: "Tola Fabrics", number: "0123" } })).json.error, /10-digit/);
   assert.equal((await h.action({ action: "shop_settings", id, transfer: { on: true, bank: "GTBank", name: "Tola Fabrics", number: "0123456789" }, delivery: { on: true } })).status, 200);
   cfg = (await h.call("GET", `/api/shop?config=1&s=${tok}`)).json;
-  assert.deepEqual(cfg.methods, { paystack: true, flutterwave: false, transfer: true, delivery: true });
+  assert.deepEqual(cfg.methods, { paystack: true, flutterwave: false, transfer: true, delivery: true, instalment: false });
   assert.ok(!JSON.stringify(cfg).includes("0123456789"), "the account number isn't in the public settings");
   // Transfer: the order waits, stock is kept for the buyer, the owner is emailed, the page shows the bank details.
   const n = h.sent.length;
@@ -347,4 +347,163 @@ test("Google Client ID: stray spaces, line breaks and quotes from copying are cl
   const id = "123456789-abcDEF.apps.googleusercontent.com";
   for (const v of [id, ` ${id} `, `${id}\n`, `"${id}"`, `'${id}'\r\n`]) assert.equal(googleClientId(v), id, JSON.stringify(v));
   for (const v of ["GOCSPX-abc123", "", null, "123.apps.googleusercontent.com.evil.com", "hello world"]) assert.equal(googleClientId(v), null, String(v));
+});
+
+// ---------- Store extras (api/_lib/storeplus.mjs) ----------
+async function ownerOf(id, pw = "OwnerPass2026") {
+  const cr = (await h.action({ action: "store_login", id, do: "create" })).json;
+  return my((await my(ownerLogin(cr.login.username, cr.password))("my_password", { current: cr.password, password: pw })).json.token);
+}
+const buyer = { name: "Ada Obi", phone: "08030000077", address: "12 Ring Road, Ibadan" };
+
+test("sales: old price crossed out until the sale ends, then the old price is charged again", async () => {
+  const { id, tok } = await makeStore("Sale Shop");
+  await h.action({ action: "shop_settings", id, transfer: { on: true, bank: "GTBank", name: "Sale Shop", number: "0123456789" } });
+  const k = await ownerOf(id);
+  const future = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 16);
+  assert.equal((await k("save", { products: { 1: { was: "25000", saleEnds: future } } })).status, 200);
+  const p = (await k("products")).json.products[1];
+  assert.equal(p.was, "25000"); assert.match(p.saleEnds, /^\d{4}-\d{2}-\d{2}T/);
+  let o = (await shop({ s: tok, action: "quote", items: [{ i: 1, q: 1 }] })).json;
+  assert.equal(o.total, 20000, "sale price (₦20,000, was ₦25,000)");
+  await h.sql(`UPDATE customer_requests SET brief = jsonb_set(brief, '{products,1,saleEnds}', '"2020-01-01T00:00:00+01:00"') WHERE id = $1`, [id]);
+  o = (await shop({ s: tok, action: "quote", items: [{ i: 1, q: 1 }] })).json;
+  assert.equal(o.total, 25000, "sale over: the old price is back");
+});
+
+test("sizes and colours: the buyer must choose; stock is kept per choice", async () => {
+  const { id, tok } = await makeStore("Shoe Shop");
+  await h.action({ action: "shop_settings", id, transfer: { on: true, bank: "GTBank", name: "Shoe Shop", number: "0123456789" } });
+  const k = await ownerOf(id);
+  assert.equal((await k("save", { products: { 1: { options: "Size: 40, 41 | Colour: Black, Brown" } } })).status, 200);
+  assert.equal((await k("save", { products: { 1: { vstock: "41 / Black = 2\n40 / Brown = 0" } } })).status, 200);
+  const prod = (await k("products")).json.products[1];
+  assert.equal(prod.options, "Size: 40, 41 | Colour: Black, Brown"); assert.match(prod.vstock, /41 \/ Black = 2/);
+  const cfg = (await h.call("GET", `/api/shop?config=1&s=${tok}`)).json;
+  assert.deepEqual(cfg.vstock["1"], { "41 / Black": 2, "40 / Brown": 0 });
+  const go = (items) => shop({ s: tok, method: "transfer", items, buyer, zone: "" });
+  assert.match((await go([{ i: 1, q: 1 }])).json.error, /choose the size and colour/i);
+  assert.match((await go([{ i: 1, q: 1, v: "40 / Brown" }])).json.error, /sold out/i);
+  assert.match((await go([{ i: 1, q: 3, v: "41 / Black" }])).json.error, /Only 2/);
+  const ok = await go([{ i: 1, q: 2, v: "41 / Black" }]);
+  assert.equal(ok.status, 200, ok.text);
+  const [{ brief }] = await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]);
+  assert.equal(brief.products[1].vstock["41 / Black"], "0", "stock for that choice taken down");
+  const [o] = await h.sql(`SELECT items FROM store_orders WHERE ref = $1`, [ok.json.ref]);
+  assert.equal(o.items[0].name, "Lace (41 / Black)"); assert.equal(o.items[0].v, "41 / Black");
+});
+
+test("delivery fee by area, free delivery above an amount, and discount codes", async () => {
+  const { id, tok } = await makeStore("Area Shop");
+  await h.action({ action: "shop_settings", id, transfer: { on: true, bank: "GTBank", name: "Area Shop", number: "0123456789" } });
+  const k = await ownerOf(id);
+  const pay = (p) => k("payments", { payments: p });
+  assert.equal((await pay({ zones: [{ name: "Bodija", fee: 1500 }, { name: "Outside Ibadan", fee: "4000" }, { name: "", fee: 9 }], freeOver: "50000" })).status, 200);
+  const st = (await k("me")).json.store;
+  assert.deepEqual(st.zones, [{ name: "Bodija", fee: 1500 }, { name: "Outside Ibadan", fee: 4000 }]); assert.equal(st.freeOver, 50000);
+  const cfg = (await h.call("GET", `/api/shop?config=1&s=${tok}`)).json;
+  assert.equal(cfg.zones.length, 2); assert.equal(cfg.freeOver, 50000); assert.equal(cfg.codes, false);
+  let qo = (await shop({ s: tok, action: "quote", items: [{ i: 1, q: 1 }], zone: 1 })).json;
+  assert.deepEqual([qo.subtotal, qo.delivery, qo.total, qo.zone], [20000, 4000, 24000, "Outside Ibadan"]);
+  qo = (await shop({ s: tok, action: "quote", items: [{ i: 1, q: 3 }], zone: 1 })).json;
+  assert.equal(qo.delivery, 0, "₦60,000: free delivery");
+  assert.match((await shop({ s: tok, method: "transfer", items: [{ i: 1, q: 1 }], buyer, zone: "" })).json.error, /delivery area/);
+  // codes
+  assert.equal((await pay({ codes: [{ code: "sale10", pct: 10, min: 15000, max: 1 }, { code: "x", amount: 100 }] })).status, 200);
+  assert.deepEqual((await k("me")).json.store.codes.map((c) => c.code), ["SALE10"]);
+  assert.equal((await h.call("GET", `/api/shop?config=1&s=${tok}`)).json.codes, true);
+  assert.match((await shop({ s: tok, action: "quote", items: [{ i: 0, q: 1 }], zone: 0, code: "SALE10" })).json.error, /₦15,000 or more/);
+  qo = (await shop({ s: tok, action: "quote", items: [{ i: 1, q: 1 }], zone: 0, code: "sale10" })).json;
+  assert.deepEqual([qo.discount, qo.delivery, qo.total, qo.codeLabel], [2000, 1500, 19500, "10% off"]);
+  const placed = await shop({ s: tok, method: "transfer", items: [{ i: 1, q: 1 }], buyer, zone: 0, code: "SALE10" });
+  assert.equal(placed.status, 200, placed.text);
+  const [o] = await h.sql(`SELECT total, discount, code, zone, delivery FROM store_orders WHERE ref = $1`, [placed.json.ref]);
+  assert.deepEqual([o.total, o.discount, o.code, o.zone, o.delivery], [19500, 2000, "SALE10", "Bodija", 1500]);
+  assert.equal((await k("me")).json.store.codes[0].used, 1);
+  assert.match((await shop({ s: tok, action: "quote", items: [{ i: 1, q: 1 }], zone: 0, code: "SALE10" })).json.error, /isn't valid/, "used up (max 1)");
+  const page = (await h.call("GET", `/api/shop?ref=${placed.json.ref}`)).text;
+  assert.match(page, /Discount \(SALE10\)/); assert.match(page, /Delivery \(Bodija\)/);
+  // old store pages (no area sent) still work with the flat fee
+  assert.equal((await shop({ s: tok, method: "transfer", items: [{ i: 0, q: 1 }], buyer })).status, 200);
+});
+
+test("order tracking: packed → out for delivery → delivered shows on the buyer's order page", async () => {
+  const { id, tok } = await makeStore("Track Shop");
+  await h.action({ action: "shop_settings", id, delivery: { on: true } });
+  const k = await ownerOf(id);
+  const ref = (await shop({ s: tok, method: "delivery", items: [{ i: 0, q: 1 }], buyer })).json.ref;
+  let page = (await h.call("GET", `/api/shop?ref=${ref}`)).text;
+  assert.match(page, /Track your order/); assert.match(page, /<li class="d">Order received/); assert.match(page, /<li class="">Packed/);
+  for (const d of ["packed", "shipped"]) assert.equal((await k("order", { ref, do: d })).status, 200);
+  page = (await h.call("GET", `/api/shop?ref=${ref}`)).text;
+  assert.match(page, /<li class="d">Out for delivery/); assert.match(page, /Share on WhatsApp/);
+  const o = (await k("order", { ref, do: "delivered" })).json.order;
+  assert.ok(o.delivered_at && o.packed_at && o.shipped_at);
+});
+
+test("pay small-small: kept for the buyer, paid in parts by transfer, sent when fully paid", async () => {
+  const { id, tok } = await makeStore("Part Shop");
+  const k = await ownerOf(id);
+  assert.match((await k("payments", { payments: { instalments: { on: true } } })).json.error, /bank transfer details/);
+  assert.equal((await k("payments", { payments: { transfer: { on: true, bank: "GTBank", name: "Part Shop", number: "0123456789" }, instalments: { on: true, firstPct: 40 } } })).status, 200);
+  const cfg = (await h.call("GET", `/api/shop?config=1&s=${tok}`)).json;
+  assert.equal(cfg.methods.instalment, true); assert.equal(cfg.firstPct, 40);
+  const ref = (await shop({ s: tok, method: "instalment", items: [{ i: 0, q: 2 }], buyer, zone: "" })).json.ref;
+  assert.equal(await stockOf(id), "3", "kept for the buyer");
+  let page = (await h.call("GET", `/api/shop?ref=${ref}`)).text;
+  assert.match(page, /Pay small-small/); assert.match(page, /First payment: at least <b>₦8,000<\/b> \(40%\)/);
+  assert.match((await k("order", { ref, do: "packed" })).json.error, /fully paid/);
+  assert.match((await k("order", { ref, do: "payment", amount: "30000" })).json.error, /more than what's left/);
+  assert.equal((await k("order", { ref, do: "payment", amount: "8000" })).json.order.status, "part");
+  assert.match((await k("order", { ref, do: "cancel" })).json.error, /Refund them first/);
+  page = (await h.call("GET", `/api/shop?ref=${ref}`)).text;
+  assert.match(page, /Paid so far<\/td><td class="r"><b>₦8,000/); assert.match(page, /Left to pay<\/td><td class="r"><b style="font-size:1.15rem">₦12,000/);
+  const done = (await k("order", { ref, do: "payment", amount: "12,000" })).json.order;
+  assert.equal(done.status, "paid"); assert.equal(done.paid_amount, 20000); assert.equal(done.payments.length, 2);
+  assert.match((await h.call("GET", `/api/shop?ref=${ref}&receipt=1`)).text, /Paid small-small by bank transfer \(2 payments\)/);
+});
+
+test("tell me when it's back; verified-buyer reviews; unfinished carts; reports", async () => {
+  const { id, tok } = await makeStore("Extra Shop");
+  await h.action({ action: "shop_settings", id, accounts: true, transfer: { on: true, bank: "GTBank", name: "Extra Shop", number: "0123456789" } });
+  const k = await ownerOf(id);
+  // back in stock
+  await k("save", { products: { 0: { soldout: true } } });
+  assert.match((await shop({ s: tok, action: "notify_me", i: 0, name: "Bola", phone: "12" })).json.error, /phone number/);
+  assert.equal((await shop({ s: tok, action: "notify_me", i: 0, name: "Bola", phone: "0803 555 0101" })).status, 200);
+  await shop({ s: tok, action: "notify_me", i: 0, name: "Bola", phone: "0803 555 0101" }); // once only
+  let al = (await k("alerts")).json.alerts;
+  assert.equal(al.length, 1); assert.equal(al[0].product, "Ankara");
+  assert.equal((await k("products")).json.alerts.length, 1);
+  assert.equal((await k("alerts_done", { ids: [al[0].id] })).json.done, 1);
+  assert.equal((await k("alerts")).json.alerts.length, 0);
+  // buyer account
+  const t = (await shop({ s: tok, action: "signup", name: "Chika Eze", phone: "08035550202", password: "secret123" })).json.token;
+  assert.match((await shop({ s: tok, t, action: "review", i: 1, stars: 5, text: "Lovely" })).json.error, /Only customers who bought/);
+  // unfinished cart
+  await shop({ s: tok, t, action: "cart", items: [{ i: 1, q: 2, n: "Lace", p: 20000 }] });
+  assert.equal((await k("carts")).json.carts.length, 0, "not after only a few minutes");
+  await h.sql(`UPDATE buyer_carts SET updated_at = now() - interval '2 hours' WHERE request_id = $1`, [id]);
+  const carts = (await k("carts")).json.carts;
+  assert.equal(carts.length, 1); assert.equal(carts[0].name, "Chika Eze"); assert.equal(carts[0].items[0].q, 2);
+  // buys it: cart gone, review allowed once paid
+  const ref = (await shop({ s: tok, t, method: "transfer", items: [{ i: 1, q: 2 }], buyer: { ...buyer, name: "Chika Eze" }, zone: "" })).json.ref;
+  assert.equal((await k("carts")).json.carts.length, 0, "ordered: no longer unfinished");
+  assert.match((await shop({ s: tok, t, action: "review", i: 1, stars: 5 })).json.error, /Only customers who bought/, "not paid yet");
+  await k("order", { ref, do: "paid" });
+  assert.equal((await shop({ s: tok, t, action: "review", i: 1, stars: 5, text: "Lovely fabric" })).status, 200);
+  assert.match((await shop({ s: tok, t, action: "review", i: 1, stars: 4 })).json.error, /already reviewed/);
+  const rv = (await k("products")).json.reviews[0];
+  assert.deepEqual([rv.name, rv.product, rv.verified, rv.status], ["Chika E.", "Lace", true, "pending"]);
+  // orders in the account show where the order is
+  const mine = (await shop({ s: tok, t, action: "orders" })).json.orders[0];
+  assert.equal(mine.stage, "Order received"); assert.match(mine.track, /api\/shop\?ref=/);
+  // reports
+  const rep = (await k("reports")).json;
+  assert.equal(rep.best[0].name, "Lace"); assert.equal(rep.best[0].qty, 2); assert.equal(rep.last90.total, 40000);
+  // erasing the customer removes their cart and alerts
+  await shop({ s: tok, t, action: "cart", items: [{ i: 0, q: 1 }] });
+  const bid = (await h.sql(`SELECT id FROM store_buyers WHERE request_id = $1`, [id]))[0].id;
+  await k("customer_delete", { buyer_id: bid });
+  assert.equal((await h.sql(`SELECT count(*)::int AS n FROM buyer_carts WHERE request_id = $1`, [id]))[0].n, 0);
 });

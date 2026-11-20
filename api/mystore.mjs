@@ -1,10 +1,11 @@
+import { stockAlerts, doneStockAlerts, unfinishedCarts, markCartNudged, storeReports, parseOptions } from "./_lib/storeplus.mjs";
 import { googleClientId } from "./_lib/googleid.mjs";
 // /api/mystore — the store owner's own admin (the page is /mystore). They log in with the username and password
 // SIRRADDO gave them (temporary at first; they must choose their own). Everything here is limited to their own store.
 //   POST { action, ... } with "Authorization: Bearer <ou.… login | o1.… session>"
 import { dbConfigured, getRequest, getBriefById, q } from "./_lib/store.mjs";
 import { ownerFromCredential, ownerSessionToken, setOwnerPassword, listBuyers, buyerResetCode, setBuyerActive, eraseBuyer } from "./_lib/storeaccounts.mjs";
-import { setShopPayments, payMethods, storeOrders, ownerOrderAction, receiptLink, orderLink, METHOD_LABEL, confirmOrder, orderByRef, isSoldOut, stockOf } from "./_lib/shop.mjs";
+import { setShopPayments, payMethods, storeOrders, ownerOrderAction, receiptLink, orderLink, METHOD_LABEL, confirmOrder, orderByRef, isSoldOut, stockOf, recordInstalment } from "./_lib/shop.mjs";
 import { applyManage, afterManage, manageLink } from "./_lib/manage.mjs";
 import { listReviews } from "./_lib/reviews.mjs";
 
@@ -29,6 +30,9 @@ async function rawShop(id) {
   return row?.shop || {};
 }
 // What the owner sees about their store (never the payment keys themselves).
+// Sizes/colours as the owner types them ("Size: 40, 41 | Colour: Black, Brown") and stock per choice ("40 / Black = 3").
+const optionsText = (o) => parseOptions(o).map((g) => `${g.name}: ${g.values.join(", ")}`).join(" | ");
+const vstockText = (p) => Object.entries(p.vstock && typeof p.vstock === "object" ? p.vstock : {}).map(([k, v]) => `${k} = ${v}`).join("\n");
 function storeInfo(r, sh) {
   const m = payMethods(sh);
   return {
@@ -38,6 +42,7 @@ function storeInfo(r, sh) {
     transfer: sh.transfer || { on: false }, delivery: sh.delivery || { on: false }, deliveryFee: sh.deliveryFee ?? null, notify: sh.notify || "",
     accountsFeature: Boolean(sh.accounts), accountsOn: Boolean(sh.accounts && !sh.accountsOff), manageOn: !sh.manageOff,
     googleFeature: Boolean(sh.accounts && sh.google && googleClientId()), googleOn: !sh.googleOff,
+    zones: sh.zones || [], freeOver: sh.freeOver || "", codes: sh.codes || [], instalments: sh.instalments || { on: false, firstPct: 30 },
   };
 }
 // The owner's money at a glance: paid sales today and this month (Lagos time), orders still to deliver, items running low.
@@ -98,7 +103,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ orders: list.map((o) => ({ ...o, how: METHOD_LABEL[o.method] || o.method, link: o.status === "paid" ? receiptLink(o) : orderLink(o) })) });
     }
     if (action === "order") {
-      const row = await ownerOrderAction(id, body.ref, body.do);
+      const row = body.do === "payment" ? await recordInstalment(id, body.ref, body.amount) : await ownerOrderAction(id, body.ref, body.do);
       return res.status(200).json({ order: { ...row, how: METHOD_LABEL[row.method] || row.method, link: row.status === "paid" ? receiptLink(row) : orderLink(row) } });
     }
     // An online payment that didn't finish on the page ("I paid but got no order"): ask Paystack / Flutterwave again.
@@ -118,9 +123,11 @@ export default async function handler(req, res) {
     if (action === "products") {
       const br = r.brief || {};
       return res.status(200).json({
-        products: (br.products || []).map((p, i) => ({ i, name: p.name, category: p.category || "", price: p.price || "", stock: p.stock ?? "", soldout: Boolean(p.soldout), top: Boolean(p.top) })).filter((p) => p.name),
+        products: (br.products || []).map((p, i) => ({ i, name: p.name, category: p.category || "", price: p.price || "", stock: p.stock ?? "", soldout: Boolean(p.soldout), top: Boolean(p.top),
+          was: p.was || "", saleEnds: p.saleEnds || "", options: optionsText(p.options), vstock: vstockText(p) })).filter((p) => p.name),
+        alerts: await stockAlerts(id).catch(() => []),
         details: { tagline: br.tagline || "", hours: br.hours || "", phone: br.phone || "", whatsapp: br.whatsapp || "", site_notice: br.site_notice || "" },
-        reviews: (await listReviews(id).catch(() => [])).map((x) => ({ id: x.id, name: x.name, stars: x.stars, body: x.body, status: x.status, created_at: x.created_at })),
+        reviews: (await listReviews(id).catch(() => [])).map((x) => ({ id: x.id, name: x.name, stars: x.stars, body: x.body, status: x.status, created_at: x.created_at, product: x.product || "", verified: Boolean(x.verified) })),
       });
     }
     if (action === "save") {
@@ -137,7 +144,7 @@ export default async function handler(req, res) {
       const p = body.payments || {};
       // The owner can connect their own Paystack / Flutterwave keys here (it's their own account) and switch every option.
       await setShopPayments(id, { secretKey: p.paystackKey, paystackOn: p.paystackOn, flwKey: p.flwKey, flwOn: p.flwOn, flwRemove: p.flwRemove,
-        transfer: p.transfer, delivery: p.delivery, deliveryFee: p.deliveryFee, notify: p.notify, accountsOn: sh.accounts ? p.accountsOn : undefined, googleOn: sh.accounts && sh.google && typeof p.googleOn === "boolean" ? p.googleOn : undefined });
+        transfer: p.transfer, delivery: p.delivery, deliveryFee: p.deliveryFee, notify: p.notify, zones: p.zones, freeOver: p.freeOver, codes: p.codes, instalments: p.instalments, accountsOn: sh.accounts ? p.accountsOn : undefined, googleOn: sh.accounts && sh.google && typeof p.googleOn === "boolean" ? p.googleOn : undefined });
       const fresh = await getRequest(id);
       fresh.brief = r.brief;
       return res.status(200).json({ store: storeInfo(fresh, await rawShop(id)) });
@@ -164,6 +171,16 @@ export default async function handler(req, res) {
       }
       return res.status(200).json(out);
     }
+    // "Tell me when it's back" lists: the owner messages them from their own WhatsApp, then ticks them off.
+    if (action === "alerts") return res.status(200).json({ alerts: await stockAlerts(id) });
+    if (action === "alerts_done") return res.status(200).json({ done: await doneStockAlerts(id, body.ids) });
+    // Signed-in customers who left items in their cart (Standard Store).
+    if (action === "carts") {
+      if (!r.shop?.accounts) return res.status(409).json({ error: "Unfinished carts come with customer accounts (Standard Store)." });
+      return res.status(200).json({ carts: await unfinishedCarts(id) });
+    }
+    if (action === "cart_nudged") { await markCartNudged(id, body.buyer_id); return res.status(200).json({ ok: true }); }
+    if (action === "reports") return res.status(200).json(await storeReports(id));
     if (action === "manage_link") {
       if (r.shop?.manageOff) return res.status(409).json({ error: "Your Manage link is switched off. Everything is here in My store." });
       return res.status(200).json(await manageLink(id));

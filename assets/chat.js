@@ -4,7 +4,16 @@
   var STORE_KEY = 'sirraddo-chat-v1';
   var GREETING =
     "Hi! I'm the SIRRADDO assistant. I can help you choose a website package, tell you about ZAPPI PAY, or pass a request to our team. What do you need?";
-  var CHIPS = ['Website packages & prices', 'I need an app for my business', 'Tell me about ZAPPI PAY'];
+  var CHIPS = ['I need an app for my business', 'How long does a website take?', 'What do I need to get started?'];
+  // "Chat in": the assistant replies in the language picked (the server tells the AI).
+  var LANGS = [['en', 'English', 'Okay! Ask me anything.'], ['pcm', 'Pidgin', 'Oya, make we yarn for Pidgin. Wetin you need?'], ['yo', 'Yorùbá', 'Ẹ káàbọ̀! Ẹ lè kọ ọ̀rọ̀ yín ní Yorùbá. Kí ni ẹ nílò?'], ['ha', 'Hausa', 'Barka da zuwa! Ku rubuta da Hausa. Me kuke bukata?'], ['ig', 'Igbo', 'Nnọọ! Dee n\'Igbo. Gịnị ka ị chọrọ?']];
+  // Package picker: 2–3 taps → the right package, its price and "Start now".
+  var PKG = {
+    'Starter website': { price: 50000, renew: '₦25,000/year from year 2', inc: ['Up to 5 pages', 'Free .com.ng domain & hosting (1 year)', '1 business email', 'WhatsApp button & contact form'] },
+    'Business website': { price: 100000, renew: '₦40,000/year from year 2', inc: ['Up to 10 pages + blog', '.com.ng domain & hosting (1 year)', '5 business emails', 'Google Business Profile & Search Console setup'] },
+    'Online Store': { from: 150000, renew: 'Renewal quoted for your store', inc: ['Products with a shopping cart', 'Customers pay online, by transfer or on delivery', 'Your own store admin: orders, stock, payments', 'Everything in Business'] }
+  };
+  function naira(n) { return '₦' + Number(n).toLocaleString('en-NG'); }
 
   var state = load() || { sessionId: newId(), messages: [] };
   var busy = false;
@@ -71,7 +80,11 @@
   close.type = 'button';
   close.setAttribute('aria-label', 'Close chat');
   close.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  var priceBtn = el('button', 'chat-price-btn', '₦ Prices');
+  priceBtn.type = 'button';
+  priceBtn.setAttribute('aria-label', 'Find my package and price');
   head.appendChild(title);
+  head.appendChild(priceBtn);
   head.appendChild(close);
 
   var log = el('div', 'chat-log');
@@ -79,6 +92,10 @@
   log.setAttribute('aria-live', 'polite');
 
   var chips = el('div', 'chat-chips');
+  var pickChip = el('button', 'chat-chip chat-chip--gold', '💰 Find my package & price');
+  pickChip.type = 'button';
+  pickChip.addEventListener('click', function () { openPicker(); });
+  chips.appendChild(pickChip);
   CHIPS.forEach(function (c) {
     var b = el('button', 'chat-chip', c);
     b.type = 'button';
@@ -174,7 +191,21 @@
   pLink.href = '/privacy#assistant';
   foot.appendChild(pLink);
 
+  var langRow = el('div', 'chat-langs');
+  langRow.appendChild(el('span', null, 'Chat in:'));
+  LANGS.forEach(function (l) {
+    var b = el('button', 'chat-lang', l[1]); b.type = 'button'; b.setAttribute('data-lang', l[0]);
+    b.addEventListener('click', function () {
+      state.lang = l[0] === 'en' ? '' : l[0]; save(); markLang();
+      addBubble('assistant', l[2]); input.focus();
+    });
+    langRow.appendChild(b);
+  });
+  function markLang() { langRow.querySelectorAll('.chat-lang').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-lang') === (state.lang || 'en') ? 'true' : 'false'); }); }
+  markLang();
+
   panel.appendChild(head);
+  panel.appendChild(langRow);
   panel.appendChild(log);
   panel.appendChild(chips);
   panel.appendChild(tray);
@@ -207,6 +238,7 @@
     addBubble('assistant', GREETING);
     state.messages.forEach(function (m) { addBubble(m.role, m.content); });
     chips.hidden = state.messages.length > 0;
+    langRow.hidden = state.messages.length > 2;
   }
 
   function setOpen(open) {
@@ -248,7 +280,7 @@
     fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: state.sessionId, page: location.pathname, from: window.sirraddoFrom ? window.sirraddoFrom() : '', messages: state.messages })
+      body: JSON.stringify({ sessionId: state.sessionId, page: location.pathname, from: window.sirraddoFrom ? window.sirraddoFrom() : '', messages: state.messages, lang: state.lang || '' })
     })
       .then(function (r) { return r.json().catch(function () { return {}; }); })
       .then(function (data) {
@@ -308,6 +340,123 @@
     log.appendChild(box);
     log.scrollTop = log.scrollHeight;
   }
+
+
+  // ----- Package picker -----
+  function openPicker() {
+    var old = log.querySelector('.chat-pick'); if (old) old.remove();
+    chips.hidden = true;
+    var card = el('div', 'chat-msg chat-msg--bot chat-pick');
+    var answers = {};
+    function step(q, opts) {
+      card.textContent = '';
+      card.appendChild(el('p', 'chat-pick-q', q));
+      var box = el('div', 'chat-pick-opts');
+      opts.forEach(function (o) {
+        var b = el('button', 'chat-pick-opt'); b.type = 'button';
+        b.appendChild(el('span', 'chat-pick-ico', o[0])); b.appendChild(el('span', null, o[1]));
+        b.addEventListener('click', o[2]);
+        box.appendChild(b);
+      });
+      card.appendChild(box);
+      log.scrollTop = log.scrollHeight;
+    }
+    function q1() {
+      step('What should your website do for you?', [
+        ['📞', 'Show my business so customers call or WhatsApp me', function () { answers.kind = 'site'; q2site(); }],
+        ['🔎', 'Bring me customers from Google (blog, Google profile)', function () { answers.kind = 'grow'; result('Business website'); }],
+        ['🛒', 'Sell my products online', function () { answers.kind = 'store'; q2store(); }],
+        ['🧩', 'Something else: an app, bookings or a business system', function () { custom(); }]
+      ]);
+    }
+    function q2site() {
+      step('How many pages do you need? (Home, About, Services, Contact… each is a page)', [
+        ['5', 'Up to 5 pages', function () { q3emails(); }],
+        ['10', '6 to 10 pages', function () { result('Business website'); }],
+        ['?', 'Not sure', function () { q3emails(); }]
+      ]);
+    }
+    function q3emails() {
+      step('How many business email addresses (like info@yourbusiness.com.ng)?', [
+        ['1', 'Just one', function () { result('Starter website'); }],
+        ['5', '2 to 5', function () { result('Business website'); }]
+      ]);
+    }
+    function q2store() {
+      step('About how many products?', [
+        ['📦', 'Up to 100', function () { answers.products = 'Up to 100'; result('Online Store'); }],
+        ['📦', '101 to 500', function () { answers.products = '101–500'; result('Online Store'); }],
+        ['📦', 'More than 500', function () { answers.products = 'More than 500'; result('Online Store'); }]
+      ]);
+    }
+    function custom() {
+      card.textContent = '';
+      card.appendChild(el('p', 'chat-pick-q', 'We build those too, priced for what you need.'));
+      card.appendChild(el('p', null, 'Tell me in a few words what it should do, and I\'ll help you plan it.'));
+      card.appendChild(backBtn());
+      input.value = 'I need '; input.focus(); autosize();
+    }
+    function backBtn() {
+      var b = el('button', 'chat-pick-back', '← Change my answers'); b.type = 'button';
+      b.addEventListener('click', function () { answers = {}; q1(); });
+      return b;
+    }
+    function result(name) {
+      var p = PKG[name];
+      card.textContent = '';
+      var top = el('div', 'chat-pick-top');
+      top.appendChild(el('span', 'chat-pick-tag', 'Best for you'));
+      top.appendChild(el('strong', null, name.replace(' website', '')));
+      top.appendChild(el('span', 'chat-pick-price', (p.from ? 'from ' : '') + naira(p.price || p.from)));
+      top.appendChild(el('small', null, p.from ? 'Final price depends on your products' : 'One-off price, first year included'));
+      card.appendChild(top);
+      var ul = el('ul', 'chat-pick-inc');
+      p.inc.forEach(function (x) { ul.appendChild(el('li', null, x)); });
+      card.appendChild(ul);
+      card.appendChild(el('p', 'chat-pick-meta', (p.price ? 'Start with ' + naira(Math.round(p.price * 0.7)) + ' (70%), balance when your site is ready. ' : '') + 'Ready in about 7 working days. ' + p.renew + '.'));
+      var acts = el('div', 'chat-pick-acts');
+      var go = el('button', 'chat-pick-go', p.price ? 'Start now · pay ' + naira(Math.round(p.price * 0.7)) : 'Get my exact price'); go.type = 'button';
+      go.addEventListener('click', function () { startForm(name, p, acts); });
+      var ask = el('button', 'chat-pick-ask', 'Ask a question'); ask.type = 'button';
+      ask.addEventListener('click', function () { input.value = 'About the ' + name + ' (' + (p.from ? 'from ' : '') + naira(p.price || p.from) + '): '; input.focus(); autosize(); });
+      acts.appendChild(go); acts.appendChild(ask);
+      card.appendChild(acts);
+      card.appendChild(backBtn());
+      log.scrollTop = log.scrollHeight;
+    }
+    function startForm(name, p, acts) {
+      var f = el('form', 'chat-lead chat-pick-form');
+      f.appendChild(el('p', null, p.price ? 'Your details for the invoice. Next you pay the deposit securely with Paystack.' : 'Your details, and we\'ll send your exact price on WhatsApp.'));
+      var nm = el('input'); nm.placeholder = 'Your name'; nm.autocomplete = 'name'; nm.maxLength = 120; nm.setAttribute('aria-label', 'Your name');
+      var ph = el('input'); ph.placeholder = 'WhatsApp number'; ph.type = 'tel'; ph.inputMode = 'tel'; ph.maxLength = 40; ph.setAttribute('aria-label', 'WhatsApp number');
+      var em = el('input'); em.placeholder = p.price ? 'Email (for your receipt)' : 'Email (optional)'; em.type = 'email'; em.inputMode = 'email'; em.maxLength = 200; em.setAttribute('aria-label', 'Email');
+      var bz = el('input'); bz.placeholder = 'Business name (optional)'; bz.maxLength = 200; bz.setAttribute('aria-label', 'Business name');
+      var err = el('p', 'chat-lead-error'); err.setAttribute('role', 'alert');
+      var btn = el('button', 'chat-pick-go', p.price ? 'Continue to payment' : 'Send'); btn.type = 'submit';
+      [nm, ph, em, bz, err, btn].forEach(function (n) { f.appendChild(n); });
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (nm.value.trim().length < 2) { err.textContent = 'Please enter your name.'; nm.focus(); return; }
+        if (ph.value.replace(/\D/g, '').length < 10) { err.textContent = 'Please enter a valid WhatsApp number.'; ph.focus(); return; }
+        if (p.price && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em.value.trim())) { err.textContent = 'Please enter your email: Paystack sends the receipt there.'; em.focus(); return; }
+        btn.disabled = true; btn.textContent = 'Please wait…'; err.textContent = '';
+        var details = 'Package picker: ' + name + (answers.products ? ' · Products: ' + answers.products : '');
+        fetch('/api/lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: 'picker', start: !!p.price, from: window.sirraddoFrom ? window.sirraddoFrom() : '', name: nm.value.trim(), contact: ph.value.trim(), email: em.value.trim(), business: bz.value.trim(), interest: name, details: details, page: location.pathname }) })
+          .then(function (r) { return r.json(); }).then(function (j) {
+            if (!j.ok) throw new Error(j.error || 'failed');
+            state.detailsSent = true; save();
+            if (j.pay) { btn.textContent = 'Opening payment…'; location.href = j.pay; return; }
+            var msg = 'Thank you, ' + nm.value.trim().split(' ')[0] + '! We\'ll send your ' + (p.price ? 'invoice' : 'exact price') + ' on WhatsApp soon.' + (j.ref ? ' Your reference: ' + j.ref : '');
+            card.remove(); state.messages.push({ role: 'assistant', content: msg }); save(); addBubble('assistant', msg);
+          }).catch(function (e2) { btn.disabled = false; btn.textContent = p.price ? 'Continue to payment' : 'Send'; err.textContent = /valid|name|email/i.test(e2.message) ? e2.message : 'Could not send. Please message us on WhatsApp.'; });
+      });
+      acts.replaceWith(f); nm.focus();
+    }
+    q1();
+    log.appendChild(card);
+    log.scrollTop = log.scrollHeight;
+  }
+  priceBtn.addEventListener('click', function () { if (panel.hidden) setOpen(true); openPicker(); });
 
   function autosize() {
     input.style.height = 'auto';

@@ -1,8 +1,9 @@
+import { googleClientId } from "./googleid.mjs";
 // Admin → Setup status: which connections are set in Netlify, without ever showing a key's value.
 import { filesEnabled } from "./platform.mjs";
 import { googleSearchConfigured } from "./google-search.mjs";
 import { dbConfigured, emailConfigured, customerEmailConfigured, getMeta } from "./store.mjs";
-import { pickProvider } from "./providers.mjs";
+import { pickProvider, ensureAiBackup, chatProviders } from "./providers.mjs";
 import { paystackConfigured } from "./paystack.mjs";
 import { SITE } from "./automation.mjs";
 import { cloudflareConfigured } from "./cloudflare.mjs";
@@ -12,13 +13,16 @@ const HOST = "Netlify → your site → Site configuration → Environment varia
 export async function setupStatus() {
   const env = process.env;
   const meta = await getMeta(["daily_run", "paystack_webhook"]).catch(() => ({}));
+  const backupCfg = await ensureAiBackup().catch(() => null);
   const ai = pickProvider();
   const live = /^sk_live_/.test(env.PAYSTACK_SECRET_KEY || "");
   const ranHoursAgo = meta.daily_run ? (Date.now() - Date.parse(meta.daily_run)) / 3600000 : null;
   return [
     { label: "Database (requests, clients, chats)", ok: dbConfigured(), note: "Saved in Neon.", fix: `Add DATABASE_URL. ${HOST}` },
-    { label: "AI chat assistant and website text", ok: Boolean(ai), note: ai ? `Using ${ai.name === "anthropic" ? "Claude (Anthropic)" : "Gemini (Google)"}.` : "",
+    { label: "AI chat assistant and website text", ok: Boolean(ai), note: ai ? `Using ${chatProviders().map((p) => (p.name === "anthropic" ? "Claude" : p.name === "gemini" ? "Gemini" : "the backup AI")).join(", then ")}.` : "",
       fix: `Add GEMINI_API_KEY (free) or ANTHROPIC_API_KEY. ${HOST}` },
+    { label: "Backup AI (answers when Gemini and Claude can't)", ok: Boolean(backupCfg), note: backupCfg ? `On: ${backupCfg.model}.` : "",
+      fix: "Optional: Admin → Settings → AI backup. Paste a key from OpenRouter (recommended), OpenAI, Groq or DeepSeek." },
     { label: "Emails to you (new leads, morning summary)", ok: emailConfigured(), note: env.LEAD_EMAIL_TO ? `Sent to ${env.LEAD_EMAIL_TO}.` : "",
       fix: `Add RESEND_API_KEY and LEAD_EMAIL_TO. ${HOST}` },
     { label: "Emails to customers (receipts, forms, previews)", ok: customerEmailConfigured(), note: env.LEAD_EMAIL_FROM ? `From ${env.LEAD_EMAIL_FROM}.` : "",
@@ -35,8 +39,8 @@ export async function setupStatus() {
       fix: `Add GOOGLE_SERVICE_ACCOUNT (a Google Cloud service account key with the Site Verification API and Search Console API switched on): README → Google Search Console. ${HOST}` },
     { label: "Database usage watch (Neon, optional)", ok: true, warn: !env.NEON_API_KEY, note: env.NEON_API_KEY ? "Connected: admin shows this month's database use and emails you at 70% and 90% of the free plan." : "Not connected (optional): connect it so you're warned before the free database limit pauses the stores.",
       fix: `Optional: in Neon → Account settings → API keys → create a key, then add NEON_API_KEY (and NEON_PROJECT_ID if you have several Neon projects). ${HOST}` },
-    { label: "Google sign-in for Standard Store buyers (optional)", ok: true, warn: false,
-      note: env.GOOGLE_SIGNIN_CLIENT_ID ? "Set: tick \"Google sign-in for buyers\" on a Standard Store's client card. Nothing to add per store: buyers sign in through sirraddo.com.ng/signin." : "Not set (optional): buyers sign in with phone number + password, which works without it.",
+    { label: "Google sign-in for Standard Store buyers (optional)", ok: !(env.GOOGLE_SIGNIN_CLIENT_ID && !googleClientId(env.GOOGLE_SIGNIN_CLIENT_ID)), warn: false,
+      note: env.GOOGLE_SIGNIN_CLIENT_ID && !googleClientId(env.GOOGLE_SIGNIN_CLIENT_ID) ? "GOOGLE_SIGNIN_CLIENT_ID doesn't look like a Client ID (it must end in .apps.googleusercontent.com, and it is not the secret that starts GOCSPX-). Google buttons stay hidden until it is fixed and the site is redeployed." : env.GOOGLE_SIGNIN_CLIENT_ID ? "Set: tick \"Google sign-in for buyers\" on a Standard Store's client card. Nothing to add per store: buyers sign in through sirraddo.com.ng/signin." : "Not set (optional): buyers sign in with phone number + password, which works without it.",
       fix: `Google Cloud → APIs & Services → OAuth consent screen (External) → Credentials → Create OAuth client ID (Web application). Add https://www.sirraddo.com.ng and https://sirraddo.com.ng as Authorised JavaScript origins (once; every store signs in through sirraddo.com.ng/signin). Then add GOOGLE_SIGNIN_CLIENT_ID (the client ID, not the secret). ${HOST}` },
     { label: "Daily automation (reminders, morning email, site checks)", ok: (env.CRON_SECRET || "").length >= 16, warn: ranHoursAgo !== null && ranHoursAgo > 30,
       note: meta.daily_run ? `Last ran ${meta.daily_run}${ranHoursAgo > 30 ? ". That is over a day ago: check Netlify → Logs → Functions → daily." : "."}` : "Hasn't run yet. It runs every morning at 7am.",

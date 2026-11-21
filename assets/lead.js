@@ -21,7 +21,7 @@
       '<input id="lead-name" name="name" autocomplete="name" required maxlength="120">' +
       '<label for="lead-contact">WhatsApp number</label>' +
       '<input id="lead-contact" name="contact" type="tel" inputmode="tel" autocomplete="tel" placeholder="080..." required maxlength="40">' +
-      '<label for="lead-email">Email <span>(optional, for your invoice and receipts)</span></label>' +
+      '<label for="lead-email">Email <span>(for your invoice and receipts; needed to pay online)</span></label>' +
       '<input id="lead-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="200">' +
       '<label for="lead-business">Business name or type <span>(optional)</span></label>' +
       '<input id="lead-business" name="business" autocomplete="organization" maxlength="200">' +
@@ -32,6 +32,7 @@
       '<div class="lead-hp" aria-hidden="true"><label for="lead-website">Website</label><input id="lead-website" name="website" tabindex="-1" autocomplete="off"></div>' +
       '<p class="lead-error" role="alert"></p>' +
       '<button class="btn btn--gold btn--block lead-submit" type="submit">Continue to WhatsApp</button>' +
+      '<button class="btn btn--navy btn--block lead-pay" type="button" hidden>Or start now: pay the deposit online</button>' +
       '<p class="lead-note">We save these details to follow up on your request. See our <a href="/privacy">Privacy Policy</a>. ' +
       '<a class="lead-skip" href="#">Skip and open WhatsApp</a></p>' +
     '</form>';
@@ -41,6 +42,14 @@
   var err = dialog.querySelector('.lead-error');
   var submit = dialog.querySelector('.lead-submit');
   var skip = dialog.querySelector('.lead-skip');
+  var payBtn = dialog.querySelector('.lead-pay');
+  // Starter and Business have fixed prices: they can pay the 70% deposit straight away (Paystack).
+  var FIXED = { 'Starter website': 50000, 'Business website': 100000 };
+  function syncPay() {
+    var price = FIXED[f.package.value];
+    payBtn.hidden = !price;
+    if (price) payBtn.textContent = 'Or start now: pay ₦' + Math.round(price * 0.7).toLocaleString('en-NG') + ' deposit online';
+  }
   var current = null; // the button that opened the form
   var f = {};
   ['name', 'contact', 'email', 'business', 'package', 'details', 'website'].forEach(function (k) { f[k] = document.getElementById('lead-' + k); });
@@ -66,6 +75,7 @@
       err.textContent = '';
       submit.disabled = false;
       submit.textContent = 'Continue to WhatsApp';
+      payBtn.disabled = false; syncPay();
       dialog.showModal();
       (f.name.value ? f.business : f.name).focus();
     });
@@ -79,15 +89,36 @@
     if (current) window.location.href = current.href;
   });
 
+  f.package.addEventListener('change', syncPay);
+  function check(v, needEmail) {
+    if (v.name.length < 2) { err.textContent = 'Please enter your name.'; f.name.focus(); return false; }
+    if (v.contact.replace(/\D/g, '').length < 10) { err.textContent = 'Please enter your WhatsApp number, e.g. 08012345678.'; f.contact.focus(); return false; }
+    if (needEmail && !v.email) { err.textContent = 'Please add your email: Paystack sends your receipt there.'; f.email.focus(); return false; }
+    if (v.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) { err.textContent = 'Please check your email address.'; f.email.focus(); return false; }
+    return true;
+  }
+  payBtn.addEventListener('click', function () {
+    var v = { name: f.name.value.trim(), contact: f.contact.value.trim(), email: f.email.value.trim(), business: f.business.value.trim(), interest: f.package.value, details: f.details.value.trim() };
+    if (!check(v, true)) return;
+    err.textContent = ''; payBtn.disabled = true; payBtn.textContent = 'Please wait…';
+    remember({ name: v.name, contact: v.contact, email: v.email, business: v.business, interest: v.interest });
+    fetch('/api/lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ source: 'picker', start: true, page: location.pathname, website: f.website.value, from: window.sirraddoFrom ? window.sirraddoFrom() : '' }, v)) })
+      .then(function (r) { return r.json(); }).then(function (j) {
+        if (j.pay) { payBtn.textContent = 'Opening payment…'; window.location.href = j.pay; return; }
+        if (!j.ok) throw new Error(j.error || 'failed');
+        // No online start (e.g. an offer is running): carry on to WhatsApp with the reference.
+        dialog.close();
+        openWhatsApp('Hi, I\'m ' + v.name + (v.business ? ' (' + v.business + ')' : '') + '. I\'d like to start the ' + v.interest.replace(' website', '') + ' package.' + (j.ref ? '\nMy reference: ' + j.ref : ''));
+      }).catch(function (e2) { payBtn.disabled = false; syncPay(); err.textContent = /valid|name|email/i.test(e2.message) ? e2.message : 'Could not start the payment. Please continue on WhatsApp.'; });
+  });
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     var v = {
       name: f.name.value.trim(), contact: f.contact.value.trim(), email: f.email.value.trim(), business: f.business.value.trim(),
       interest: f.package.value, details: f.details.value.trim()
     };
-    if (v.name.length < 2) { err.textContent = 'Please enter your name.'; f.name.focus(); return; }
-    if (v.contact.replace(/\D/g, '').length < 10) { err.textContent = 'Please enter your WhatsApp number, e.g. 08012345678.'; f.contact.focus(); return; }
-    if (v.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)) { err.textContent = 'Please check your email address.'; f.email.focus(); return; }
+    if (!check(v, false)) return;
     err.textContent = '';
     submit.disabled = true;
     submit.textContent = 'Saving…';

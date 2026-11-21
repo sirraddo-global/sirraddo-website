@@ -4,7 +4,9 @@
 //   GET ?paid=1&ref=REF         -> Paystack sends the buyer back here: confirm, email the store owner, show the receipt to save
 //   GET ?ref=REF&receipt=1      -> the buyer's receipt to view, print or save as PDF
 import { dbConfigured, esc } from "./_lib/store.mjs";
-import { shopConfig, googleHub, startCheckout, confirmOrder, receiptHtml, receiptLink, receiptData, claimTransfer, storeOrders, orderLink, METHOD_LABEL } from "./_lib/shop.mjs";
+import { trackHtml, TRACK_CSS, addStockAlert, saveBuyerCart, firstPayment, trackSteps, trackStage } from "./_lib/storeplus.mjs";
+import { addProductReview } from "./_lib/reviews.mjs";
+import { shopConfig, googleHub, startCheckout, quoteOrder, storeProduct, confirmOrder, receiptHtml, receiptLink, receiptData, claimTransfer, storeOrders, orderLink, storePageBase, storeRow, METHOD_LABEL } from "./_lib/shop.mjs";
 import * as acct from "./_lib/storeaccounts.mjs";
 import { SITE_URL } from "../site.config.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
@@ -47,7 +49,7 @@ function page(res, code, title, body, back) {
 table{width:100%;border-collapse:collapse;margin:10px 0}.r{text-align:right}a.b{display:block;text-align:center;margin-top:16px;background:#111827;color:#fff;border-radius:12px;padding:14px;font-weight:700;text-decoration:none}
 .m{color:#4A5568;font-size:.9rem}label{display:block;font-weight:600;margin:10px 0 4px}input{width:100%;box-sizing:border-box;font:inherit;font-size:16px;padding:12px;border:1px solid #C9D1DE;border-radius:10px}
 .pb{width:100%;margin-top:12px;background:#13254F;color:#fff;border:0;border-radius:12px;padding:14px;font:inherit;font-weight:800;cursor:pointer}.cp{font:inherit;font-size:.8rem;border:1px solid #C9D1DE;background:#fff;border-radius:8px;padding:2px 8px;cursor:pointer;margin-left:6px}
-.okc{background:#E8F6EC;border-left:4px solid #1E8E3E;padding:10px 12px;border-radius:8px}${SAVE_CSS}${DARK_PAGE_CSS}</style><script src="/assets/theme.js"></script></head><body><div class="w"><div class="c">${body}${back ? `<a class="b" href="${esc(back)}">Back to the shop</a>` : ""}</div>
+.okc{background:#E8F6EC;border-left:4px solid #1E8E3E;padding:10px 12px;border-radius:8px}${SAVE_CSS}${TRACK_CSS}${DARK_PAGE_CSS}</style><script src="/assets/theme.js"></script></head><body><div class="w"><div class="c">${body}${back ? `<a class="b" href="${esc(back)}">Back to the shop</a>` : ""}</div>
 <p class="m" style="text-align:center">Website by <a href="${SITE_URL}">SIRRADDO</a></p></div></body></html>`);
 }
 
@@ -66,7 +68,8 @@ export default async function handler(req, res) {
       const c = await shopConfig(query.s);
       if (!c) return res.status(404).json({ error: "Store not found" });
       res.setHeader("Cache-Control", "no-store");
-      return res.status(200).json({ online: c.online, methods: c.methods, deliveryFee: c.deliveryFee, deliveryNote: c.deliveryNote, stock: c.stock, accounts: c.accounts, google: c.google });
+      return res.status(200).json({ online: c.online, methods: c.methods, deliveryFee: c.deliveryFee, deliveryNote: c.deliveryNote, stock: c.stock, accounts: c.accounts, google: c.google,
+        vstock: c.vstock, hideStock: c.hideStock, zones: c.zones, freeOver: c.freeOver, codes: c.codes, firstPct: c.firstPct });
     }
     if (req.method === "GET" && query.ref) {
       const r = await confirmOrder(query.ref);
@@ -74,6 +77,22 @@ export default async function handler(req, res) {
       const o = r.order, s = r.store || {};
       const name = s.brief?.business_name || s.business || "the store";
       const back = s.website_url || null;
+      // The store's own order page (…/order?ref=…) asks for the order here and shows it in the store's own design.
+      if (query.json) {
+        const t = s.shop?.transfer || {};
+        const owed = o.status === "awaiting" || o.status === "part";
+        return res.status(200).json({
+          store: { name, home: storePageBase(s) ? storePageBase(s) + "/" : back || "", credit: !s.hosting?.noCredit },
+          order: { ref: o.ref, status: o.status, method: o.method, how: METHOD_LABEL[o.method] || "", items: o.items.map((l) => ({ name: l.name, qty: l.qty, total: l.total })), discount: o.discount || 0, code: o.code || "",
+            zone: o.zone || "", delivery: o.delivery || 0, total: o.total, paid: o.paid_amount || 0, payments: (o.payments || []).map((x) => x.amount), claimed: Boolean(o.claim?.at), delivered: Boolean(o.delivered_at),
+            first: String(o.buyer?.name || "").split(" ")[0], phone: o.buyer?.phone || "", stage: trackStage(o) },
+          track: o.status === "cancelled" ? [] : trackSteps(o),
+          transfer: owed ? { bank: t.bank || "", name: t.name || "", number: t.number || "", note: t.note || "" } : null,
+          firstPayment: o.status === "part" ? firstPayment(s.shop, o.total) : null,
+          deliveryNote: o.status === "cod" ? s.shop?.delivery?.note || "" : "",
+          receipt: o.status === "paid" ? { html: receiptHtml(s, o), data: receiptData(s, o), link: receiptLink(o, s) } : null,
+        });
+      }
       if (o.status === "paid" && query.receipt) {
         res.statusCode = 200;
         res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -83,9 +102,25 @@ export default async function handler(req, res) {
 .bar button{background:#13254F;color:#fff}.bar a{background:#fff;color:#13254F;border:1px solid #C9D1DE}.doc{max-width:560px;margin:0 auto}@media print{body{background:#fff;padding:0}.bar{display:none}}</style></head>
 <body><div class="bar" style="display:block">${saveButtons(s, o)}<div style="display:flex;gap:10px;flex-wrap:wrap"><button type="button" onclick="print()">Print</button>${back ? `<a href="${esc(back)}">Back to the shop</a>` : ""}</div></div><div class="doc">${receiptHtml(s, o)}</div></body></html>`);
       }
-      const items = `<table>${o.items.map((l) => `<tr><td>${esc(l.name)} × ${l.qty}</td><td class="r">${naira(l.total)}</td></tr>`).join("")}${o.delivery ? `<tr><td>Delivery</td><td class="r">${naira(o.delivery)}</td></tr>` : ""}<tr><td><b>Total</b></td><td class="r"><b>${naira(o.total)}</b></td></tr></table>`;
+      const extras = `${o.discount ? `<tr><td>Discount${o.code ? ` (${esc(o.code)})` : ""}</td><td class="r">−${naira(o.discount)}</td></tr>` : ""}${o.delivery ? `<tr><td>Delivery${o.zone ? ` (${esc(o.zone)})` : ""}</td><td class="r">${naira(o.delivery)}</td></tr>` : ""}`;
+      const items = `<table>${o.items.map((l) => `<tr><td>${esc(l.name)} × ${l.qty}</td><td class="r">${naira(l.total)}</td></tr>`).join("")}${extras}<tr><td><b>Total</b></td><td class="r"><b>${naira(o.total)}</b></td></tr></table>`;
+      // Order tracking (received → paid → packed → out for delivery → delivered) on every order page.
+      const track = trackHtml(o, orderLink(o, s));
       const first = esc(String(o.buyer?.name || "").split(" ")[0]);
       if (o.status === "cancelled") return page(res, 200, "Order cancelled", `<h1>Order cancelled</h1><p>${esc(name)} cancelled order ${esc(o.ref)}. If you think this is a mistake, please contact the store.</p>${items}`, back);
+      if (o.status === "part") {
+        // Pay small-small: bank details, what's been paid and what's left. The items are sent once it's fully paid.
+        const t = s.shop?.transfer || {};
+        const left = o.total - (o.paid_amount || 0);
+        const first = firstPayment(s.shop, o.total);
+        return page(res, 200, "Pay small-small", `<h1>Pay small-small</h1><p>Your items are kept for you at <b>${esc(name)}</b>. Pay by bank transfer, in parts, any time; they're sent when the full amount is paid.</p>
+<table><tr><td>Bank</td><td class="r"><b>${esc(t.bank || "")}</b></td></tr><tr><td>Account name</td><td class="r"><b>${esc(t.name || "")}</b></td></tr><tr><td>Account number</td><td class="r"><b style="font-size:1.2rem;letter-spacing:1px">${esc(t.number || "")}</b> <button type="button" class="cp" data-c="${esc(t.number || "")}">Copy</button></td></tr>
+<tr><td>Narration / description</td><td class="r"><b>${esc(o.ref)}</b> <button type="button" class="cp" data-c="${esc(o.ref)}">Copy</button></td></tr></table>
+<table><tr><td>Total</td><td class="r"><b>${naira(o.total)}</b></td></tr><tr><td>Paid so far</td><td class="r"><b>${naira(o.paid_amount || 0)}</b></td></tr><tr><td>Left to pay</td><td class="r"><b style="font-size:1.15rem">${naira(left)}</b></td></tr></table>
+${!o.paid_amount ? `<p class="okc">First payment: at least <b>${naira(first.amount)}</b> (${first.pct}%).</p>` : ""}${(o.payments || []).length ? `<p class="m">Payments received: ${o.payments.map((x) => naira(x.amount)).join(", ")}.</p>` : ""}
+<h2 style="font-size:1.1rem;margin:18px 0 6px">Your order</h2>${items}${track}<p class="m">Order ${esc(o.ref)}. Save this page: it updates each time the store records a payment.</p>
+<script>document.addEventListener('click',function(e){var b=e.target.closest('.cp');if(b&&navigator.clipboard){navigator.clipboard.writeText(b.getAttribute('data-c'));b.textContent='Copied';}});</script>`, back);
+      }
       if (o.status === "awaiting") {
         const t = s.shop?.transfer || {};
         const claimed = o.claim?.at;
@@ -93,7 +128,7 @@ export default async function handler(req, res) {
 <table><tr><td>Bank</td><td class="r"><b>${esc(t.bank || "")}</b></td></tr><tr><td>Account name</td><td class="r"><b>${esc(t.name || "")}</b></td></tr><tr><td>Account number</td><td class="r"><b style="font-size:1.2rem;letter-spacing:1px">${esc(t.number || "")}</b> <button type="button" class="cp" data-c="${esc(t.number || "")}">Copy</button></td></tr>
 <tr><td>Amount</td><td class="r"><b>${naira(o.total)}</b></td></tr><tr><td>Narration / description</td><td class="r"><b>${esc(o.ref)}</b> <button type="button" class="cp" data-c="${esc(o.ref)}">Copy</button></td></tr></table>
 ${t.note ? `<p class="m">${esc(t.note)}</p>` : ""}<p class="m">Only pay into the account above, in the store's name. ${esc(name)} sends your items once they see the money.</p>
-<h2 style="font-size:1.1rem;margin:18px 0 6px">Your order</h2>${items}
+<h2 style="font-size:1.1rem;margin:18px 0 6px">Your order</h2>${items}${track}
 <div id="claim">${claimed ? `<p class="okc">Thanks! You told ${esc(name)} you've paid. They'll confirm once they see it in their bank app. Keep this page: it updates when they confirm.</p>`
   : `<h2 style="font-size:1.1rem;margin:18px 0 6px">Paid? Tell the store</h2><label for="cf">Name on the account you paid from</label><input id="cf" maxlength="100" autocomplete="name"><label for="cn">Anything else (optional)</label><input id="cn" maxlength="200" placeholder="e.g. paid at 2:15pm from my phone">
 <button type="button" class="pb" id="cb">I've paid</button><p class="m" id="cm" role="status"></p>`}</div>
@@ -101,13 +136,13 @@ ${t.note ? `<p class="m">${esc(t.note)}</p>` : ""}<p class="m">Only pay into the
 <script>document.addEventListener('click',function(e){var b=e.target.closest('.cp');if(b&&navigator.clipboard){navigator.clipboard.writeText(b.getAttribute('data-c'));b.textContent='Copied';}});
 var cb=document.getElementById('cb');if(cb)cb.addEventListener('click',function(){cb.disabled=true;fetch('/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'claim',ref:${JSON.stringify(o.ref)},from:document.getElementById('cf').value,note:document.getElementById('cn').value})}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Error');return j})}).then(function(){document.getElementById('claim').innerHTML='<p class="okc">Thanks! ${esc(name).replace(/'/g, "\\'")} will confirm once they see it in their bank app. Keep this page: it updates when they confirm.</p>'}).catch(function(err){cb.disabled=false;document.getElementById('cm').textContent=err.message})});</script>`, back);
       }
-      if (o.status === "cod") return page(res, 200, "Order placed", `<h1>Thank you, ${first}!</h1><p>Your order is placed with <b>${esc(name)}</b>. You'll <b>pay on delivery</b>: the store will contact you on ${esc(o.buyer?.phone || "your phone")} to arrange it.</p>${s.shop?.delivery?.note ? `<p class="m">${esc(s.shop.delivery.note)}</p>` : ""}${items}<p class="m">Order ${esc(o.ref)}. Save this page to come back to it. Your receipt appears here once you've paid.</p>`, back);
+      if (o.status === "cod") return page(res, 200, "Order placed", `<h1>Thank you, ${first}!</h1><p>Your order is placed with <b>${esc(name)}</b>. You'll <b>pay on delivery</b>: the store will contact you on ${esc(o.buyer?.phone || "your phone")} to arrange it.</p>${s.shop?.delivery?.note ? `<p class="m">${esc(s.shop.delivery.note)}</p>` : ""}${items}${track}<p class="m">Order ${esc(o.ref)}. Save this page to come back to it. Your receipt appears here once you've paid.</p>`, back);
       if (o.status === "paid") {
         return page(res, 200, "Order confirmed", `<h1>Thank you, ${esc(String(o.buyer?.name || "").split(" ")[0])}!</h1><p>Your payment went through and <b>${esc(name)}</b> has your order.</p>
-<table>${o.items.map((l) => `<tr><td>${esc(l.name)} × ${l.qty}</td><td class="r">${naira(l.total)}</td></tr>`).join("")}${o.delivery ? `<tr><td>Delivery</td><td class="r">${naira(o.delivery)}</td></tr>` : ""}<tr><td><b>Paid</b></td><td class="r"><b>${naira(o.total)}</b></td></tr></table>
-<p class="m">Order ${esc(o.ref)}. ${o.delivered_at ? "Delivered. Thank you!" : "The store will contact you about delivery."}</p>
+<table>${o.items.map((l) => `<tr><td>${esc(l.name)} × ${l.qty}</td><td class="r">${naira(l.total)}</td></tr>`).join("")}${extras}<tr><td><b>Paid</b></td><td class="r"><b>${naira(o.total)}</b></td></tr></table>
+${track}<p class="m">Order ${esc(o.ref)}. ${o.delivered_at ? "Delivered. Thank you!" : "The store will contact you about delivery."}</p>
 <p><b>Save your receipt</b> to your phone:</p>${saveButtons(s, o)}
-<p class="m">Need it again later? Use <b>Copy receipt link</b> or keep this link: <a href="${esc(receiptLink(o))}">${esc(receiptLink(o).replace(/^https?:\/\//, ""))}</a></p>`, back);
+<p class="m">Need it again later? Use <b>Copy receipt link</b> or keep this link: <a href="${esc(receiptLink(o, s))}">${esc(receiptLink(o, s).replace(/^https?:\/\//, ""))}</a></p>`, back);
       }
       return page(res, 200, "Payment not completed", `<h1>Payment not completed</h1><p>We couldn't confirm a payment for this order${o.status === "pending" ? " yet. If money left your account, it will be confirmed shortly: contact the store with your Paystack reference" : ""}. You can go back to the shop and try again, or order on WhatsApp.</p>`, back);
     }
@@ -124,8 +159,18 @@ var cb=document.getElementById('cb');if(cb)cb.addEventListener('click',function(
       }
       if (action === "checkout") {
         if (rateLimited(ip)) return res.status(429).json({ error: "Too many tries. Please order on WhatsApp." });
-        const out = await startCheckout(body.s, body.items, body.buyer, SITE_URL, { method: body.method, buyerToken: body.t });
+        const out = await startCheckout(body.s, body.items, body.buyer, SITE_URL, { method: body.method, buyerToken: body.t, zone: "zone" in body ? body.zone : undefined, code: body.code });
         return res.status(200).json(out);
+      }
+      // The cart's total with a discount code and the delivery area (nothing is saved).
+      if (action === "quote") return res.status(200).json(await quoteOrder(body.s, body.items, { zone: body.zone, code: body.code }));
+      // "Tell me when it's back": the owner sees the list in My store and messages them from their own WhatsApp.
+      if (action === "notify_me") {
+        if (rateLimited(ip)) return res.status(429).json({ error: "Too many tries. Please message the store on WhatsApp." });
+        const sp = await storeProduct(body.s, body.i);
+        if (!sp) return res.status(404).json({ error: "Store not found" });
+        if (!sp.product) return res.status(404).json({ error: "Product not found" });
+        return res.status(200).json(await addStockAlert(sp.id, sp.product, { name: body.name, phone: body.phone, variant: body.v }));
       }
       // Buyer accounts (Standard Store): only when the store has accounts switched on.
       const c = await shopConfig(body.s);
@@ -143,10 +188,15 @@ var cb=document.getElementById('cb');if(cb)cb.addEventListener('click',function(
         if (action === "me") return res.status(200).json({ buyer: acct.buyerPub(b) });
         if (action === "update") return res.status(200).json({ buyer: await acct.buyerUpdate(b, body) });
         if (action === "password") return res.status(200).json(await acct.buyerChangePassword(b, body.current, body.password));
+        // The signed-in buyer's cart is kept, so the owner can follow up on carts left unfinished.
+        if (action === "cart") return res.status(200).json(await saveBuyerCart(c.id, b.id, body.items));
+        // Reviews of a product, only from buyers who bought it ("Verified buyer"). The owner approves them in My store.
+        if (action === "review") return res.status(200).json(await addProductReview(c.id, b, body));
         if (action === "orders") {
           const list = await storeOrders(c.id, { buyerId: b.id, limit: 50 });
-          return res.status(200).json({ orders: list.map((o) => ({ ref: o.ref, items: o.items.map((l) => ({ i: l.i, name: l.name, qty: l.qty, total: l.total })), total: o.total, status: o.status, method: o.method,
-            how: METHOD_LABEL[o.method] || "", created_at: o.created_at, delivered: Boolean(o.delivered_at), link: o.status === "paid" ? receiptLink(o) : orderLink(o) })) });
+          const row = await storeRow(c.id);
+          return res.status(200).json({ orders: list.map((o) => ({ ref: o.ref, items: o.items.map((l) => ({ i: l.i, v: l.v || "", name: l.name, qty: l.qty, total: l.total })), total: o.total, status: o.status, method: o.method,
+            how: METHOD_LABEL[o.method] || "", created_at: o.created_at, delivered: Boolean(o.delivered_at), stage: trackStage(o), track: orderLink(o, row), link: o.status === "paid" ? receiptLink(o, row) : orderLink(o, row) })) });
         }
       } catch (e) { return res.status(400).json({ error: e.message }); }
       return res.status(400).json({ error: "Unknown action" });

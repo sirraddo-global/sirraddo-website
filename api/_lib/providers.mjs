@@ -172,6 +172,55 @@ const gemini = {
   },
 };
 
+// The backup AI (Admin → Settings → AI backup): any OpenAI-compatible service. Its settings come from the
+// database, so callers run `await ensureAiBackup()` first (cached for a minute).
+let backupCfg = null;
+export async function ensureAiBackup(force = false) {
+  try { backupCfg = await (await import("./aibackup.mjs")).loadAiBackup(force); } catch { backupCfg = null; }
+  return backupCfg;
+}
+const parseArgs = (a) => { if (a && typeof a === "object") return a; try { return JSON.parse(a || "{}"); } catch { return {}; } };
+const backup = {
+  name: "backup",
+  configured: () => Boolean(backupCfg?.key && backupCfg.base && backupCfg.model),
+  start: (messages) => messages.map((m) => {
+    const pics = (m.images || []).filter((i) => i.mime !== "application/pdf");
+    if (!pics.length || backupCfg?.noImages) return { role: m.role, content: m.content + (m.images?.length ? "\n(The visitor sent a file you can't open here. Ask them to describe it, or to send it on WhatsApp.)" : "") };
+    return { role: m.role, content: [{ type: "text", text: m.content }, ...pics.map((i) => ({ type: "image_url", image_url: { url: `data:${i.mime};base64,${i.data}` } }))] };
+  }),
+  async call(convo, system, tools, ms = 20000, opts = {}) {
+    const cfg = backupCfg;
+    if (!cfg) throw Object.assign(new Error("backup not set up"), { code: "backup_off" });
+    const res = await timedFetch(`${cfg.base}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cfg.key}`, "Content-Type": "application/json", "HTTP-Referer": "https://www.sirraddo.com.ng", "X-Title": "SIRRADDO" },
+      body: JSON.stringify({
+        model: cfg.model, max_tokens: opts.maxTokens || 700,
+        messages: [{ role: "system", content: system }, ...convo],
+        ...(tools.length ? { tools: tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })) } : {}),
+      }),
+    }, ms);
+    if (!res.ok) {
+      const err = httpError("backup", res.status, await res.text());
+      import("./aibackup.mjs").then((m) => m.noteBackup(false, "", err.message)).catch(() => {});
+      throw err;
+    }
+    const out = await res.json();
+    const msg = out.choices?.[0]?.message || {};
+    const text = typeof msg.content === "string" ? msg.content : Array.isArray(msg.content) ? msg.content.map((x) => x.text || "").join("") : "";
+    import("./aibackup.mjs").then((m) => m.noteBackup(true, opts.where || "")).catch(() => {});
+    return {
+      text: text.trim(),
+      toolCalls: (msg.tool_calls || []).map((tc, i) => ({ id: tc.id || `call-${i}`, name: tc.function?.name, input: parseArgs(tc.function?.arguments) })),
+      raw: msg,
+    };
+  },
+  addToolResults(convo, raw, results) {
+    convo.push({ role: "assistant", content: raw.content ?? null, ...(raw.tool_calls ? { tool_calls: raw.tool_calls } : {}) });
+    for (const r of results) convo.push({ role: "tool", tool_call_id: r.id, content: r.ok ? r.text : `Error: ${r.text}` });
+  },
+};
+
 const PROVIDERS = { anthropic, gemini };
 
 // A short, plain message for admin when the AI fails.
@@ -189,34 +238,45 @@ export function friendlyAiError(err) {
 export function chatProviders() {
   const wanted = (process.env.CHAT_PROVIDER || "").trim().toLowerCase();
   const order = wanted === "anthropic" ? [anthropic, gemini] : [gemini, anthropic];
-  return order.filter((p) => p.configured());
+  return [...order, backup].filter((p) => p.configured()); // the backup answers only when the others fail
 }
 export const CHAT_MODELS = { gemini: process.env.CHAT_GEMINI_MODEL || "gemini-flash-lite-latest,gemini-flash-latest", anthropic: process.env.CHAT_ANTHROPIC_MODEL || "claude-haiku-5-5" };
 
 export function pickProvider() {
   const wanted = (process.env.AI_PROVIDER || "").trim().toLowerCase();
-  if (wanted) return PROVIDERS[wanted]?.configured() ? PROVIDERS[wanted] : null;
-  if (anthropic.configured() && gemini.configured()) return withBackup(anthropic, gemini);
-  if (anthropic.configured()) return anthropic;
-  if (gemini.configured()) return gemini;
-  return null;
+  let list = wanted ? [PROVIDERS[wanted]].filter((p) => p?.configured()) : [anthropic, gemini].filter((p) => p.configured());
+  if (backup.configured()) list = [...list, backup];
+  if (!list.length) return null;
+  return list.length === 1 ? list[0] : withBackup(list);
 }
 
 // For one-off jobs (admin assistant, website text, designs): if the first AI's key is wrong or not allowed
 // (401/403), answer with the other one instead of failing. The reply says which one answered (out.provider).
-function withBackup(first, backup) {
+// One-off jobs (admin assistant, website text, designs): if an AI's key is refused, it's busy, out of quota or
+// too slow, the next one answers instead (Claude → Gemini → the backup AI). out.provider says which one answered.
+function withBackup(list) {
   return {
-    name: first.name,
+    name: list[0].name,
     configured: () => true,
     start: (messages) => ({ messages }),
-    async call(convo, system, tools, ms, opts = {}) {
-      try {
-        return { ...(await first.call(first.start(convo.messages), system, tools, ms, opts)), provider: first.name };
-      } catch (err) {
-        if (!/_40[13]$/.test(String(err.code || ""))) throw err;
-        console.error(`${first.name} key refused (${err.code}); using ${backup.name} instead. Fix or remove the ${first.name.toUpperCase()}_API_KEY setting.`);
-        return { ...(await backup.call(backup.start(convo.messages), system, tools, ms, { ...opts, model: undefined })), provider: backup.name };
+    async call(convo, system, tools, ms = 20000, opts = {}) {
+      const end = Date.now() + ms;
+      let lastErr;
+      for (let i = 0; i < list.length; i++) {
+        const p = list[i], left = end - Date.now();
+        if (i && left < 8000) break;
+        try {
+          return { ...(await p.call(p.start(convo.messages), system, tools, i ? left : ms, i ? { ...opts, model: undefined, models: undefined } : opts)), provider: p.name };
+        } catch (err) {
+          lastErr = err;
+          const code = String(err.code || "");
+          // Key refused (401/403) always moves on; busy, quota or too slow moves on only to the backup AI.
+          const next = list[i + 1];
+          if (!next || !(/_40[13]\b/.test(code) || (list.some((x) => x.name === "backup") && /_(429|5\d\d)\b|timeout/.test(code)))) throw err;
+          console.error(`${p.name} failed (${code}); ${next.name} answers instead.`);
+        }
       }
+      throw lastErr;
     },
   };
 }

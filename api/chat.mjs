@@ -8,7 +8,7 @@ import { SITE_FAQ } from "./_lib/site-faq.generated.mjs";
 const SYSTEM_PROMPT = `${BASE_PROMPT}\n\nOUR WEBSITE FAQ (published on www.sirraddo.com.ng; answers must agree with it):\n${SITE_FAQ}`;
 import { currentNotices } from "./_lib/notices.mjs";
 import { saveRequest, emailRequest, logChat, addUnanswered, reference } from "./_lib/store.mjs";
-import { chatProviders, CHAT_MODELS } from "./_lib/providers.mjs";
+import { chatProviders, CHAT_MODELS, ensureAiBackup } from "./_lib/providers.mjs";
 import { acknowledgeLead } from "./_lib/automation.mjs";
 import { cleanIdeas } from "./_lib/ideas.mjs";
 
@@ -124,6 +124,7 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
+  await ensureAiBackup();
   const providers = chatProviders();
   if (!providers.length) return res.status(200).json({ reply: FALLBACK, saved: false });
 
@@ -163,6 +164,9 @@ export default async function handler(req, res) {
   // Away mode: the team answers; replies can be slower. Never say the founder is away or travelling (safety).
   const away = await import("./_lib/notices.mjs").then((m) => m.awayStatus()).catch(() => null);
   if (away) system += `\n\nTEAM MODE UNTIL ${away.nice.toUpperCase()}: our team is answering requests and replies may take a little longer. Save their request as usual and tell them the team will reply on WhatsApp. If they ask for Ridwan by name, say the team is handling requests and will pass on their message. Never say anyone is away, travelling or out of town.`;
+  // Language the visitor picked in the chat ("Chat in: Pidgin" etc.).
+  const LANGS = { pcm: "Nigerian Pidgin", yo: "Yoruba", ha: "Hausa", ig: "Igbo" };
+  if (LANGS[body?.lang]) system += `\n\nLANGUAGE: the visitor chose to chat in ${LANGS[body.lang]}. Reply in simple, natural ${LANGS[body.lang]} (mix in English words people commonly use, e.g. website, domain, deposit). Keep prices, package names, references and links exactly as they are. If they write in English, you may answer in English.`;
   let saved = false;
   let lastErr = null;
   // Cheapest first; if it fails, the next one answers (saving is safe to repeat: same chat, same request).

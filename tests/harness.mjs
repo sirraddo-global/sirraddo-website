@@ -51,6 +51,18 @@ export async function startHarness() {
       return new Response("{}", { status: 404 });
     }
     if (url.includes("generativelanguage")) return geminiFake(JSON.parse(opts.body));
+    // The backup AI (any OpenAI-compatible service).
+    if (url.endsWith("/chat/completions")) {
+      const body = JSON.parse(opts.body); globalThis.__LAST_BACKUP__ = { url, body, auth: opts.headers?.Authorization };
+      if (globalThis.__BACKUP_FAIL__) return new Response('{"error":{"message":"Invalid API key"}}', { status: 401 });
+      const last = body.messages[body.messages.length - 1];
+      const text = typeof last.content === "string" ? last.content : (last.content || []).map((p) => p.text || "").join(" ");
+      const msg = last.role === "tool" ? { role: "assistant", content: "Backup: saved, the team will reach out." }
+        : body.tools && /save/i.test(text) ? { role: "assistant", content: null, tool_calls: [{ id: "tc1", type: "function", function: { name: "save_customer_request", arguments: JSON.stringify({ name: "Ngozi Eze", contact: "08039998888", business: "Ngozi Foods", interest: "Online Store", details: "Food store", recommended: "Online Store" }) } }] }
+        : /PRODUCT LISTING FROM A PHOTO/.test(text) ? { role: "assistant", content: '{"name":"Blue Sneakers","category":"Shoes","details":"Comfortable blue sneakers."}' }
+        : { role: "assistant", content: "Backup here: the Starter package is ₦50,000." };
+      return new Response(JSON.stringify({ choices: [{ message: msg }] }), { status: 200 });
+    }
     if (url.includes("oauth2.googleapis.com") || url.includes("www.googleapis.com")) return googleFake(url, opts);
     throw new Error("Test tried to reach the internet: " + url);
   };
@@ -104,6 +116,7 @@ export async function startHarness() {
       const p = parts0[parts0.length - 1].text;
       globalThis.__LAST_AI_PARTS__ = parts0;
       if (p.includes("short vertical video ad")) { globalThis.__LAST_AI_PROMPT__ = p; return reply([{ text: '```json\n{"hook":{"title":"Your shop never close","sub":"Sell online any time"},"scenes":[{"type":"points","title":"Your own store","points":["Photos and prices","Pay online","Orders on WhatsApp","x","y"]},{"type":"price","label":"Online Store","price":"from ₦150,000","points":["Live in 7 days"]},{"type":"bogus"}],"end":"Start today","tag":"Shop Never Close!","caption":"Sell any time 🛒 #Ibadan"}\n```' }]); }
+      if (p.includes("PRODUCT LISTING FROM A PHOTO")) { globalThis.__LAST_AI_PROMPT__ = p; return reply([{ text: '```json\n{"name":"Red Ankara Gown","category":"Fashion","details":"A flowing red Ankara gown with a fitted waist. Lovely for weddings and Sunday service."}\n```' }]); }
       if (p.includes("social media captions")) { globalThis.__LAST_AI_PROMPT__ = p; return reply([{ text: '["Caption one https://x", "Caption two", "Caption three"]' }]); }
       if (p.includes("CHANGE REQUEST FROM THE OWNER")) { globalThis.__LAST_AI_PROMPT__ = p; return reply([{ text: globalThis.__AI_CHANGE_REPLY__ || '{"understood":"nothing","ops":[],"not_done":[]}' }]); }
       if (p.includes("Write the CSS that gives")) return reply([{ text: "```css\n/* fonts: Playfair Display, Inter */\nbody{font-family:Inter,sans-serif;background:#FBF7F2}\nh1,h2,h3{font-family:'Playfair Display',serif;letter-spacing:-.5px}\n.top{background:#2B0F3A;border-bottom:3px solid #C9971C}\n.hero{background:radial-gradient(circle at 80% 20%,#5B2A86,#2B0F3A 70%);padding:72px 0}\n.hero h1{font-size:clamp(2.2rem,8vw,3.6rem)}\n.card{border:0;box-shadow:0 10px 30px rgba(43,15,58,.12);border-top:4px solid #C9971C}\n.btn{border-radius:999px;padding:14px 26px}\nsection.block:nth-of-type(even){background:#F3ECF7}\n.bad{background:url(https://evil.example/x.png)} </style><script>alert(1)</script>\n@import url(https://evil.example/a.css);\n.cta{background:linear-gradient(90deg,#C9971C,#E8B600)}\n```" }]);
@@ -121,7 +134,7 @@ export async function startHarness() {
   for (const [path, file] of Object.entries({
     "/api/chat": "chat", "/api/requests": "requests", "/api/cron-daily": "cron-daily", "/api/lead": "lead", "/api/brief": "brief",
     "/api/brief-upload": "brief-upload", "/doc": "doc", "/preview": "preview", "/api/preview": "preview", "/change": "site", "/api/site": "site",
-    "/pay": "pay", "/api/pay": "pay", "/api/paystack-webhook": "paystack-webhook", "/api/shop": "shop", "/connect": "connect", "/manage": "manage", "/api/mystore": "mystore", "/api/chat-upload": "chat-upload",
+    "/pay": "pay", "/api/pay": "pay", "/api/paystack-webhook": "paystack-webhook", "/api/shop": "shop", "/connect": "connect", "/manage": "manage", "/api/mystore": "mystore", "/api/chat-upload": "chat-upload", "/api/agent": "agent",
   })) handlers[path] = (await import(join(ROOT, "api", file + ".mjs"))).default;
 
   // Every API call goes through the same Netlify adapter the live site uses (netlify/lib/adapter.mjs).

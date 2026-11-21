@@ -151,14 +151,21 @@ function filesFor(row) {
   const { pages, images } = exportFiles(site);
   return { site, pages, images };
 }
-async function fetchImages(images) {
-  const out = [];
-  for (const im of images) {
-    const r = await fetch(im.url);
-    if (!r.ok) throw new Bad(`Couldn't fetch a photo (${r.status}). Try again.`);
-    out.push({ path: im.path, data: Buffer.from(await r.arrayBuffer()) });
-  }
-  return out;
+// Reads one of our stored photos (straight from storage on Netlify; no web request per photo).
+async function loadPhoto(url) {
+  const { readStoredFile } = await import("./platform.mjs");
+  const data = await readStoredFile(url);
+  if (!data) throw new Bad("Couldn't read a photo. Try again.");
+  return data;
+}
+// Photos not on Cloudflare yet are shown from our server until the next publish uploads them.
+function pointPending(pages, pending) {
+  if (!pending.length) return pages;
+  return pages.map((p) => {
+    let html = p.html;
+    for (const x of pending) html = html.split("/" + x.path).join(x.url).split(x.path).join(x.url);
+    return { path: p.name, data: html };
+  });
 }
 async function pickProject(row, h) {
   if (h.project) {
@@ -193,12 +200,16 @@ export async function publish(id, { force = false } = {}) {
   if (!force && owed) throw new Bad(`The balance (${balance(full)}) isn't paid yet.`);
   row.reviews = await shownReviews(id).catch(() => null);
   const { pages, images } = filesFor(row);
-  const files = [...pages.map((p) => ({ path: p.name, data: p.html })), ...(await fetchImages(images))];
   const project = await pickProject(row, h);
-  const dep = await deploy(project, files);
+  const dep = await deploy(project, pages.map((p) => ({ path: p.name, data: p.html })), {
+    list: images, known: h.photoHashes || {}, load: loadPhoto, budgetMs: Number(process.env.PUBLISH_PHOTO_MS) || 6000,
+    pages: (pending) => pointPending(pages, pending).map((p) => (p.data !== undefined ? p : { path: p.name, data: p.html })),
+  });
+  const ph = dep?.photos || { known: {}, pending: [] };
   // The last few versions, newest first, so "Restore previous version" can put one back.
   const history = dep?.id ? [{ id: dep.id, at: new Date().toISOString(), look: SITE_LOOK }, ...(h.history || []).filter((v) => v.id !== dep.id)].slice(0, 6) : h.history || [];
-  const patch = { project, pagesUrl: `https://${project}.pages.dev`, publishedAt: new Date().toISOString(), look: SITE_LOOK, deploymentId: dep?.id || null, history, pausedAt: null, pauseReason: null,
+  const patch = { photoHashes: ph.known, photosLeft: ph.pending.length, photosTotal: images.length,
+    project, pagesUrl: `https://${project}.pages.dev`, publishedAt: new Date().toISOString(), look: SITE_LOOK, orderPage: pages.some((p) => p.name === "order.html"), deploymentId: dep?.id || null, history, pausedAt: null, pauseReason: null,
     // When it first went online with money still owed (auto-pauses after BALANCE_GRACE_DAYS).
     owingSince: owed ? h.owingSince || new Date().toISOString() : null };
   let attached = h.attached && h.project === project;
@@ -217,7 +228,7 @@ export async function publish(id, { force = false } = {}) {
     await setRulesEnabled(h.zoneId, h.email.rules, true).catch(() => {});
     await saveHosting(id, { email: { ...h.email, status: "active" } });
   }
-  return { row: await getRequest(id), url: fields.website_url, firstTime: Boolean(fields.project_stage), waitingForDomain: Boolean(h.domain && !attached), owed };
+  return { row: await getRequest(id), url: fields.website_url, firstTime: Boolean(fields.project_stage), waitingForDomain: Boolean(h.domain && !attached), owed, photosLeft: ph.pending.length, photosTotal: images.length };
 }
 
 function holdingPage(name) {
@@ -306,7 +317,7 @@ export async function afterProjectPayment(id) {
 // ---------- Daily ----------
 // Returns lines for the morning email.
 export async function dailyHosting(all, now = new Date()) {
-  const out = { refreshed: [], lookAsked: [], activated: [], paused: [], balancePaused: [], restored: [], unpublished: [], ready: [], errors: [] };
+  const out = { photos: [], refreshed: [], lookAsked: [], activated: [], paused: [], balancePaused: [], restored: [], unpublished: [], ready: [], errors: [] };
   if (!cloudflareConfigured()) return out;
   const today = todayLagos(now);
   for (const r of all) {
@@ -331,6 +342,10 @@ export async function dailyHosting(all, now = new Date()) {
       }
       const unpublishedEdits = h.project && !h.pausedAt && h.publishedAt && [r.draft_at, r.design_at].some((t) => t && Date.parse(t) > Date.parse(h.publishedAt));
       if (unpublishedEdits) out.unpublished.push(r);
+      // A big store whose photos didn't all fit in one publish: carry on uploading (a few sites per morning).
+      else if (h.project && !h.pausedAt && h.publishedAt && h.photosLeft > 0 && h.look === SITE_LOOK && out.photos.length < 3) {
+        await publish(r.id, { force: true }); out.photos.push(r);
+      }
       // New look for customer sites (after an update of ours), a few per morning. Skipped when they have edits not yet
       // published. The owner is emailed what changed. If they chose "Ask me first", we only ask; they update it with
       // their Manage link (or it updates next time they save something there).

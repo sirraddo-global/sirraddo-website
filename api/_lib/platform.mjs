@@ -58,6 +58,23 @@ export async function deleteOldChatFiles(days = 90, now = new Date()) {
   return n;
 }
 
+// Reads one of our stored files (for publishing photos to a customer's site): Buffer, or null if not ours / missing.
+export async function readStoredFile(url) {
+  if (globalThis.__TEST_BLOB__ && /\/__blob\//.test(url)) {
+    const r = await fetch(url); return r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+  }
+  const m = String(url).match(/^https:\/\/([^/]+)\/files\/([\w./-]+)$/);
+  const hosts = [SITE_URL, process.env.URL, "https://sirraddo.com.ng", "https://www.sirraddo.com.ng", "https://sirraddo.netlify.app"].filter(Boolean).map((u) => new URL(u).host);
+  if (m && hosts.includes(m[1]) && !m[2].includes("..") && onNetlify()) {
+    const { getStore } = await import("@netlify/blobs");
+    const r = await getStore({ name: FILES_STORE }).get(m[2], { type: "arrayBuffer" });
+    return r ? Buffer.from(r) : null;
+  }
+  // Anywhere else (tests, local runs): only our own /files/ links.
+  if (!m || !hosts.includes(m[1])) return null;
+  const r = await fetch(url); return r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+}
+
 // Reads one of OUR uploaded pictures so the AI can look at it: { mime, data (base64) } or null.
 // Only files stored by this site (…/files/… or the test store); never fetches other websites.
 const AI_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"]; // PDFs too: both AIs read them

@@ -1,3 +1,4 @@
+import { googleClientId } from "./googleid.mjs";
 // Logins for Online Stores:
 //  - Store owners: their own admin at /mystore (username + password). SIRRADDO creates the login with a temporary
 //    password (sent on WhatsApp, works 3 days); they must choose their own on first login and after every reset.
@@ -18,6 +19,8 @@ const same = (a, b) => a.length === b.length && timingSafeEqual(Buffer.from(a), 
 const ownerPub = (u) => u && { id: u.id, request_id: u.request_id, name: u.name, username: u.username, active: u.active, must_change: u.must_change,
   temp_expires: u.temp_expires, last_seen_at: u.last_seen_at, password_changed_at: u.password_changed_at, created_at: u.created_at };
 
+// How many delivery addresses a buyer can keep (they pick one at checkout).
+export const MAX_ADDRESSES = 20;
 export async function ownerLogin(requestId) {
   await ensureSchema();
   const [u] = await q(`SELECT * FROM store_users WHERE request_id = $1 ORDER BY id LIMIT 1`, [Number(requestId)]);
@@ -166,7 +169,7 @@ export async function buyerLogin(requestId, { phone, password }) {
 }
 // Google sign-in: the website sends Google's ID token; we check it with Google and that it was made for our app.
 export async function buyerGoogle(requestId, idToken, phone) {
-  const client = process.env.GOOGLE_SIGNIN_CLIENT_ID;
+  const client = googleClientId();
   if (!client) throw new Error("Google sign-in isn't set up for this store");
   const res = await fetch("https://oauth2.googleapis.com/tokeninfo?id_token=" + encodeURIComponent(String(idToken || "")));
   const g = await res.json().catch(() => ({}));
@@ -195,7 +198,7 @@ export async function buyerUpdate(b, { name, email, addresses }) {
     vals.push(em || null); sets.push(`email = $${vals.length}`);
   }
   if (addresses !== undefined) {
-    const list = (Array.isArray(addresses) ? addresses : []).slice(0, 5).map((a) => ({ label: cleanText(a?.label, 30) || "Address", text: cleanText(a?.text, 300) })).filter((a) => a.text);
+    const list = (Array.isArray(addresses) ? addresses : []).slice(0, MAX_ADDRESSES).map((a) => ({ label: cleanText(a?.label, 30) || "Address", text: cleanText(a?.text, 300) })).filter((a) => a.text);
     vals.push(JSON.stringify(list)); sets.push(`addresses = $${vals.length}::jsonb`);
   }
   if (!sets.length) return buyerPub(b);
@@ -262,5 +265,9 @@ export async function eraseBuyer(requestId, { buyerId, phone } = {}) {
   const ids = gone.map((g) => g.id).concat(buyerId ? [Number(buyerId)] : []);
   const orders = await q(`UPDATE store_orders SET buyer = jsonb_build_object('name', 'Removed (customer asked)', 'phone', '', 'email', '', 'address', '', 'note', ''), claim = NULL, buyer_id = NULL
     WHERE request_id = $1 AND (buyer_id = ANY($2::int[]) OR regexp_replace(COALESCE(buyer->>'phone', ''), '\\D', '', 'g') = ANY($3::text[])) RETURNING ref`, [id, ids, forms]);
+  // Their unfinished cart, "tell me when it's back" requests, and the link from their reviews to their account.
+  await q(`DELETE FROM buyer_carts WHERE request_id = $1 AND buyer_id = ANY($2::int[])`, [id, ids]).catch(() => {});
+  await q(`DELETE FROM stock_alerts WHERE request_id = $1 AND regexp_replace(phone, '\\D', '', 'g') = ANY($2::text[])`, [id, forms]).catch(() => {});
+  await q(`UPDATE site_reviews SET buyer_id = NULL WHERE request_id = $1 AND buyer_id = ANY($2::int[])`, [id, ids]).catch(() => {});
   return { account: gone.length > 0, orders: orders.length };
 }

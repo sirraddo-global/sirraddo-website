@@ -36,7 +36,7 @@ import { PERMS, permFor, fieldPerms, can, staffFromCredential, staffSessionToken
 import { paystackConfigured, payButton, depositOf } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
-import { pickProvider, friendlyAiError } from "./_lib/providers.mjs";
+import { pickProvider, friendlyAiError, ensureAiBackup } from "./_lib/providers.mjs";
 import { generateDesign, changeDesignOptions } from "./_lib/design.mjs";
 import { addDomain, checkHosting, publish, pause, restore, setupEmail, afterProjectPayment, GoLiveError, restorePrevious } from "./_lib/golive.mjs";
 import { cloudflareConfigured } from "./_lib/cloudflare.mjs";
@@ -443,6 +443,7 @@ export default async function handler(req, res) {
         }
         while (msgs.length && msgs[0].role !== "user") msgs.shift();
         if (!msgs.length || msgs[msgs.length - 1].role !== "user") throw new Bad("Ask a question");
+        await ensureAiBackup();
         const provider = pickProvider();
         if (!provider) throw new Bad("No AI key is set in Netlify (GEMINI_API_KEY or ANTHROPIC_API_KEY)");
         const id = Number.isInteger(Number(body.id)) && Number(body.id) > 0 ? Number(body.id) : null;
@@ -697,6 +698,52 @@ export default async function handler(req, res) {
           You can also <a href="${link}">view, print or save it as a PDF</a>.</p>${body.type === "invoice" ? payButton(row) : body.type === "renewal" ? payButton(row, "renewal") : ""}${doc.html}`);
         if (body.type === "handover") await markSent(id, "handover");
         return res.status(200).json({ ok: true, to, row: body.type === "handover" ? await getRequest(id) : undefined });
+      }
+      // Admin → Marketing → Agents: applications, commission, payouts (list for marketing staff; the rest owner only).
+      if (/^agents?_/.test(String(body.action || ""))) {
+        const ag = await import("./_lib/agents.mjs");
+        if (body.action !== "agents_list" && !can(me, "owner")) return res.status(403).json({ error: NOT_ALLOWED });
+        try {
+          if (body.action === "agent_update") await ag.adminUpdate(body.id, body);
+          if (body.action === "agent_payout") await ag.adminPayout(body.id, body);
+          if (body.action === "agent_reset") return res.status(200).json(await ag.adminResetPassword(body.id));
+          if (body.action === "agents_settings") {
+            const rate = Number(body.rate), min = Number(body.min);
+            if (!(rate > 0 && rate <= 50)) throw new Bad("Commission must be between 1 and 50%.");
+            if (!(min >= 1000)) throw new Bad("The smallest payout must be at least ₦1,000.");
+            await saveSettings({ agent_rate: String(rate), agent_min: String(Math.round(min)) });
+          }
+          const out = await ag.adminList();
+          return res.status(200).json(can(me, "money") ? out : { ...out, agents: out.agents.map((a) => ({ ...a, bank: null, payouts: [], leads: a.leads.map((l) => ({ ...l, paid: null })) })) });
+        } catch (e) { if (e instanceof ag.AgentError) throw new Bad(e.message); throw e; }
+      }
+      // Settings → AI backup (owner only): the key is stored encrypted and never sent back.
+      if (String(body.action || "").startsWith("ai_backup")) {
+        if (!can(me, "owner")) return res.status(403).json({ error: NOT_ALLOWED });
+        const ab = await import("./_lib/aibackup.mjs");
+        try {
+          if (body.action === "ai_backup_save") return res.status(200).json(await ab.saveAiBackup(body));
+          if (body.action === "ai_backup_test") {
+            const { ensureAiBackup, chatProviders } = await import("./_lib/providers.mjs");
+            const cfg = await ensureAiBackup(true);
+            if (!cfg) throw new Bad("Save a key and switch the backup on first.");
+            const p = chatProviders().find((x) => x.name === "backup");
+            const t0 = Date.now();
+            try {
+              const out = await p.call(p.start([{ role: "user", content: "Reply with exactly: OK, backup ready." }]), "You are a test. Reply briefly.", [], 20000, { maxTokens: 30, where: "test" });
+              return res.status(200).json({ ok: true, ms: Date.now() - t0, reply: String(out.text || "").slice(0, 120), status: await ab.aiBackupStatus() });
+            } catch (e) {
+              const m = String(e.code || "") + " " + e.message;
+              const why = /_401|_403|invalid.*key|unauthor/i.test(m) ? "The key was refused. Copy it again from the service and save."
+                : /_402|credit|balance|insufficient/i.test(m) ? "The service says there's no credit on the account. Add a little credit, then test again."
+                : /_404|model/i.test(m) ? "The service doesn't know that model name. Check the model on its website."
+                : /_429/.test(m) ? "Too many requests right now (or the free limit is used up). Try again later."
+                : /timeout/i.test(m) ? "The service took too long. Try again." : "It didn't answer: " + e.message.slice(0, 160);
+              return res.status(200).json({ ok: false, error: why, status: await ab.aiBackupStatus() });
+            }
+          }
+          return res.status(200).json(await ab.aiBackupStatus());
+        } catch (e) { if (e.status === 400) throw new Bad(e.message); throw e; }
       }
       if (body.action === "settings") {
         return res.status(200).json({ settings: await saveSettings(body.settings || {}) });

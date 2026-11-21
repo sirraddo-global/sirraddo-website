@@ -469,6 +469,8 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
       ${sections.join("")}${weekly}<p style="margin-top:20px"><a href="${SITE}/admin">Open the admin page</a></p></div>`;
     report.emailed = Boolean(await sendEmail(`SIRRADDO ${monday ? "weekly + daily" : "daily"} summary${counts ? ": " + counts : ""}`, html, attachments));
   }
+  // Agents: an email when a business came through their link or a client they brought paid.
+  await import("./agents.mjs").then((m) => m.dailyAgentNews(report)).catch((e) => console.error("agent news failed", e));
   report.removed = await cleanup(90);
   report.chatFilesRemoved = await deleteOldChatFiles(90, now).catch((e) => { console.error("chat files clean-up failed", e); return 0; });
   report.counts = { fresh: fresh.length, due: due.length, formsWaiting: formsWaiting.length, owing: owing.length, renewals: renewals.length, briefs: briefs.length, siteProblems: siteProblems.length, stale: stale.length, questions: questions.length };

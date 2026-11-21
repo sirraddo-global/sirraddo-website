@@ -349,3 +349,12 @@ a.admin-btn--wa, a.admin-btn--wa:visited, a.admin-btn--wa:hover { color: #fff; t
 .admin-aib-res.is-bad { color: #B42318; }
 :root[data-theme="dark"] .admin-aib-res.is-ok { color: #8FE0B0; }
 :root[data-theme="dark"] .admin-aib-res.is-bad { color: #FF8A80; }
+/* Marketing → Agents */
+.admin-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.admin-grid2 input { width: 100%; box-sizing: border-box; }
+.admin-flag { background: #FFF4D6; border: 1px solid #F0D58A; color: #8A6410; border-radius: 10px; padding: 8px 12px; font-weight: 700; }
+.admin-agent { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-top: 10px; background: var(--surface); }
+.admin-agent > summary { cursor: pointer; line-height: 1.4; }
+.admin-agent[open] > summary { margin-bottom: 8px; }
+.admin-inline { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: .9rem; white-space: nowrap; }
+:root[data-theme="dark"] .admin-flag { background: #2E2510; border-color: #6B5418; color: #F2C14E; }

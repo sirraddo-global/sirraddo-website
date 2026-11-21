@@ -1239,7 +1239,7 @@
   // Tabs: Today (what to post), Ready ads, Showcase, Review cards, Festive, Offer, Referrals, Ad spend.
   // Pictures for Showcase / Review cards / Festive / Offer are drawn here in the browser (canvas), with a tagged QR.
   var MKC = { navy: '#13244F', deep: '#0C1733', gold: '#D9A21B', soft: '#C9D1E6', dim: '#AEB8D3' };
-  var MK_TABS = [['today', 'Today'], ['ads', 'Ready ads'], ['video', 'Video maker'], ['showcase', 'Showcase'], ['reviews', 'Review cards'], ['festive', 'Festive'], ['offer', 'Offer'], ['referrals', 'Referrals'], ['spend', 'Ad spend']];
+  var MK_TABS = [['today', 'Today'], ['ads', 'Ready ads'], ['video', 'Video maker'], ['showcase', 'Showcase'], ['reviews', 'Review cards'], ['festive', 'Festive'], ['offer', 'Offer'], ['referrals', 'Referrals'], ['agents', 'Agents'], ['spend', 'Ad spend']];
   var LINKS_URL = 'https://www.sirraddo.com.ng/links';
   var MK_PERM = { festive: 'owner', offer: 'owner', spend: 'money' };
   function renderMarketing(view) {
@@ -1249,7 +1249,7 @@
     view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Marketing' }, tabs.map(function (t) {
       return el('button', { type: 'button', 'aria-pressed': t[0] === tab ? 'true' : 'false', text: t[1], onclick: function () { state.mkTab = t[0]; render(); } });
     })));
-    ({ today: mkToday, ads: mkReadyAds, video: mkVideoMaker, showcase: mkShowcase, reviews: mkReviewCards, festive: mkFestive, offer: mkOffer, referrals: mkReferrals, spend: mkSpend })[tab](view);
+    ({ today: mkToday, ads: mkReadyAds, video: mkVideoMaker, showcase: mkShowcase, reviews: mkReviewCards, festive: mkFestive, offer: mkOffer, referrals: mkReferrals, agents: mkAgents, spend: mkSpend })[tab](view);
   }
 
   // ---------- Ready ads (pictures, videos, flyers) ----------
@@ -1683,6 +1683,84 @@
       })) : el('p', { class: 'admin-empty', text: 'No referrals yet. Remind happy customers about their link (it’s on their Manage page).' }));
     }).catch(fail);
   }
+
+  // ---------- Marketing → Agents: people who bring clients for a commission ----------
+  function mkAgents(view) {
+    var head = el('div', { class: 'admin-card' }, [el('h2', { text: 'Agents' }),
+      el('p', { class: 'admin-hint' }, ['People apply on ', el('a', { href: '/agents', target: '_blank', rel: 'noopener', text: 'sirraddo.com.ng/agents' }),
+        '. Approve them here and they get their own link. Requests that come through it are theirs (the request shows “agent:CODE” as where it came from; you can also set that by hand if a client mentions an agent code). They earn the commission on what that client pays for the build in the first 12 months, and see it all on their dashboard.'])]);
+    view.appendChild(head);
+    var box = el('div'); view.appendChild(box);
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Loading…' }));
+    var openId = null;
+    function draw(j) {
+      box.textContent = '';
+      if (isOwner()) {
+        var rate = el('input', { type: 'number', min: 1, max: 50, value: j.rate, inputmode: 'decimal' });
+        var min = el('input', { type: 'number', min: 1000, step: 500, value: j.min, inputmode: 'numeric' });
+        box.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Commission' }),
+          el('div', { class: 'admin-grid2' }, [field('Commission (% of what the client pays for the build)', rate), field('Smallest payout (₦)', min)]),
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Save', onclick: function () { api('POST', { action: 'agents_settings', rate: rate.value, min: min.value }).then(function (x) { flash('Saved'); draw(x); }).catch(fail); } })]));
+      }
+      var pending = j.agents.filter(function (a) { return a.status === 'pending'; });
+      var owed = j.agents.filter(function (a) { return a.payout_requested_at; });
+      var list = el('div', { class: 'admin-card' }, [el('h2', { text: 'Your agents (' + j.agents.filter(function (a) { return a.status === 'active'; }).length + ' active)' })]);
+      if (pending.length || owed.length) list.appendChild(el('p', { class: 'admin-flag', text: [pending.length ? pending.length + ' waiting for approval' : '', owed.length ? owed.length + ' asked for a payout' : ''].filter(Boolean).join(' · ') }));
+      if (!j.agents.length) list.appendChild(el('p', { class: 'admin-empty', text: 'No agents yet. Share sirraddo.com.ng/agents on your status and pages to find some.' }));
+      j.agents.forEach(function (a) { list.appendChild(agentRow(a, j)); });
+      box.appendChild(list);
+    }
+    function agentRow(a, j) {
+      var badge = { pending: 'Waiting for approval', active: 'Active', paused: 'Paused', declined: 'Declined' }[a.status] || a.status;
+      var d = el('details', { class: 'admin-agent', open: a.id === openId || a.status === 'pending' || a.payout_requested_at ? true : null });
+      d.addEventListener('toggle', function () { if (d.open) openId = a.id; });
+      d.appendChild(el('summary', null, [el('b', { text: a.name }), ' · ' + (a.code || 'no code yet') + ' · ' + badge + (a.status === 'active' ? ' · ' + a.count + ' sent · ' + a.clients + ' paying · balance ' + naira(a.balance) : '') + (a.payout_requested_at ? ' · 💰 payout requested' : '')]));
+      var num = waNumber(a.phone);
+      d.appendChild(el('p', { class: 'admin-meta', text: [a.phone, a.email, a.city, 'applied ' + new Date(a.created_at).toLocaleDateString('en-GB'), a.last_login_at ? 'last log in ' + new Date(a.last_login_at).toLocaleDateString('en-GB') : 'never logged in'].filter(Boolean).join(' · ') }));
+      if (a.pitch) d.appendChild(el('p', { class: 'admin-meta', text: 'How they’ll find clients: ' + a.pitch }));
+      if (a.link) d.appendChild(el('p', { class: 'admin-meta', text: 'Link: ' + a.link + ' · commission ' + a.rate + '%' + (a.own_rate != null ? ' (their own rate)' : '') }));
+      if (a.status === 'active') d.appendChild(el('p', { class: 'admin-meta', text: 'Earned ' + naira(a.earned) + ' · paid ' + naira(a.paidOut) + ' · balance ' + naira(a.balance) }));
+      var acts = el('div', { class: 'admin-actions' });
+      if (isOwner()) {
+        var set = function (status, ok) { return function () { api('POST', { action: 'agent_update', id: a.id, status: status }).then(function (x) { flash(ok); openId = a.id; draw(x); }).catch(fail); }; };
+        if (a.status !== 'active') acts.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: a.status === 'pending' ? 'Approve' : 'Make active', onclick: set('active', 'Approved') }));
+        if (a.status === 'pending') acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Decline', onclick: function () { if (window.confirm('Decline ' + a.name + '?')) set('declined', 'Declined')(); } }));
+        if (a.status === 'active') acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Pause', onclick: function () { if (window.confirm('Pause ' + a.name + '? They can’t log in while paused; their clients still count.')) set('paused', 'Paused')(); } }));
+        if (num && a.status === 'active') acts.appendChild(el('a', { class: 'admin-btn admin-btn--wa', target: '_blank', rel: 'noopener', text: 'Welcome on WhatsApp',
+          href: 'https://wa.me/' + num + '?text=' + encodeURIComponent('Hello ' + a.name.split(' ')[0] + ', welcome to SIRRADDO agents! 🎉 You’re approved. Your link: ' + a.link + '\nYou earn ' + a.rate + '% when a business you bring pays for their website. Log in to your dashboard at https://www.sirraddo.com.ng/agents#login with your WhatsApp number and password: it has ready messages to share.') }));
+        acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Reset password', onclick: function () {
+          if (!window.confirm('Give ' + a.name + ' a new temporary password?')) return;
+          api('POST', { action: 'agent_reset', id: a.id }).then(function (x) {
+            var msg = 'Hello ' + a.name.split(' ')[0] + ', your temporary SIRRADDO agent password is ' + x.password + ' . Log in at https://www.sirraddo.com.ng/agents#login and choose your own.';
+            window.prompt('Send this to them on WhatsApp (it’s shown once):', msg);
+            if (num) window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank', 'noopener');
+          }).catch(fail);
+        } }));
+        var own = el('input', { type: 'number', min: 1, max: 50, placeholder: String(j.rate), value: a.own_rate != null ? a.own_rate : '', style: 'max-width:90px' });
+        acts.appendChild(el('span', { class: 'admin-inline' }, ['Own %', own, el('button', { class: 'admin-btn', type: 'button', text: 'Set', onclick: function () { api('POST', { action: 'agent_update', id: a.id, rate: own.value }).then(function (x) { flash('Saved'); openId = a.id; draw(x); }).catch(fail); } })]));
+      }
+      d.appendChild(acts);
+      // Pay
+      if (isOwner() && a.status !== 'pending') {
+        var bank = a.bank ? a.bank.bank + ' · ' + a.bank.account_no + ' · ' + a.bank.account_name : 'No bank details yet';
+        var amt = el('input', { inputmode: 'numeric', value: a.balance > 0 ? a.balance : '', placeholder: 'Amount' });
+        var ref = el('input', { placeholder: 'Transfer reference (optional)', maxlength: 80 });
+        d.appendChild(el('div', { class: 'admin-golive' }, [el('span', { class: 'admin-label', text: 'Record a payout' }), el('p', { class: 'admin-meta', text: bank }),
+          el('div', { class: 'admin-grid2' }, [amt, ref]),
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'I’ve paid them', disabled: !a.bank, onclick: function () {
+            if (!window.confirm('Record ' + naira(amt.value) + ' paid to ' + a.name + '? They’ll get an email.')) return;
+            api('POST', { action: 'agent_payout', id: a.id, amount: amt.value, ref: ref.value }).then(function (x) { flash('Payout recorded'); openId = a.id; draw(x); }).catch(fail);
+          } })]));
+      }
+      if (a.leads.length) d.appendChild(el('ul', { class: 'admin-mini' }, a.leads.map(function (l) {
+        return el('li', null, [el('b', { text: l.business || l.name }), ' · ' + l.interest + ' · ' + l.status + (l.self ? ' · their own business (not counted)' : '') + (l.paid != null ? ' · paid ' + naira(l.paid) : '') + ' · earns ' + naira(l.earned)]);
+      })));
+      if (a.payouts.length) d.appendChild(el('p', { class: 'admin-meta', text: 'Payouts: ' + a.payouts.map(function (p) { return naira(p.amount) + ' on ' + new Date(p.created_at).toLocaleDateString('en-GB') + (p.ref ? ' (' + p.ref + ')' : ''); }).join(', ') }));
+      return d;
+    }
+    api('POST', { action: 'agents_list' }).then(draw).catch(function (e) { box.textContent = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
+  }
+
   // Client card → Referrals
   function referralBlock(r) {
     var box = el('div', { class: 'admin-golive' }, [el('span', { class: 'admin-label', text: 'Referrals' })]);

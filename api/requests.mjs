@@ -699,6 +699,24 @@ export default async function handler(req, res) {
         if (body.type === "handover") await markSent(id, "handover");
         return res.status(200).json({ ok: true, to, row: body.type === "handover" ? await getRequest(id) : undefined });
       }
+      // Admin → Marketing → Agents: applications, commission, payouts (list for marketing staff; the rest owner only).
+      if (/^agents?_/.test(String(body.action || ""))) {
+        const ag = await import("./_lib/agents.mjs");
+        if (body.action !== "agents_list" && !can(me, "owner")) return res.status(403).json({ error: NOT_ALLOWED });
+        try {
+          if (body.action === "agent_update") await ag.adminUpdate(body.id, body);
+          if (body.action === "agent_payout") await ag.adminPayout(body.id, body);
+          if (body.action === "agent_reset") return res.status(200).json(await ag.adminResetPassword(body.id));
+          if (body.action === "agents_settings") {
+            const rate = Number(body.rate), min = Number(body.min);
+            if (!(rate > 0 && rate <= 50)) throw new Bad("Commission must be between 1 and 50%.");
+            if (!(min >= 1000)) throw new Bad("The smallest payout must be at least ₦1,000.");
+            await saveSettings({ agent_rate: String(rate), agent_min: String(Math.round(min)) });
+          }
+          const out = await ag.adminList();
+          return res.status(200).json(can(me, "money") ? out : { ...out, agents: out.agents.map((a) => ({ ...a, bank: null, payouts: [], leads: a.leads.map((l) => ({ ...l, paid: null })) })) });
+        } catch (e) { if (e instanceof ag.AgentError) throw new Bad(e.message); throw e; }
+      }
       // Settings → AI backup (owner only): the key is stored encrypted and never sent back.
       if (String(body.action || "").startsWith("ai_backup")) {
         if (!can(me, "owner")) return res.status(403).json({ error: NOT_ALLOWED });

@@ -632,7 +632,7 @@ export async function deleteUnanswered(id) {
 export const SETTING_KEYS = [
   "bank_name", "account_name", "account_number", "invoice_note",
   "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief", "tpl_receipt", "tpl_invoice",
-  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward", "pkg_build", "pkg_addon", "pkg_renewal_addon", "pkg_rate", "custom_build_from", "custom_monthly", "neon_plan", "owner_whatsapp", "away_until", "away_web",
+  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward", "pkg_build", "pkg_addon", "pkg_renewal_addon", "pkg_rate", "custom_build_from", "custom_monthly", "neon_plan", "owner_whatsapp", "away_until", "away_web", "agent_rate", "agent_min",
 ];
 export async function getSettings() {
   await ensureSchema();

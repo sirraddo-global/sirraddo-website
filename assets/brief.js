@@ -851,7 +851,7 @@
     sheet.appendChild(el('div', { class: 'brief-pv-inner' }, [el('p', { class: 'brief-pv-note', text: '👀 A quick look from your answers so far. Our team designs the real website, with more pages and polish.' }), phone, close]));
     document.body.appendChild(sheet); document.documentElement.classList.add('brief-pv-open'); close.focus();
   }
-  var pvBtn = el('button', { type: 'button', class: 'brief-pv-fab', 'aria-label': 'Preview my website' }, [el('span', { 'aria-hidden': 'true', text: '👀' }), ' Preview']);
+  var pvBtn = el('button', { type: 'button', class: 'btn brief-pv-fab', 'aria-label': 'Preview my website', title: 'Preview my website' }, [el('span', { 'aria-hidden': 'true', text: '👀' }), el('span', { class: 'brief-pv-word', text: ' Preview' })]);
   pvBtn.addEventListener('click', openPreview);
 
   // ---------- One step per screen ----------
@@ -910,8 +910,8 @@
     answers = d.answers || {};
     files = d.files || {};
     $('brief-title').textContent = 'Let\'s build your ' + (d.kind === 'project' ? 'project' : 'website') + ', ' + String(d.name || '').split(' ')[0];
-    $('brief-lead').textContent = 'Thank you for your deposit. Please tell us about ' + (d.business || 'your business') +
-      ' so we can build your ' + d.kind_label + '. It takes about 10–15 minutes, and you can save and come back later with the same link. Questions marked * are required.';
+    $('brief-lead').textContent = 'Thank you for your deposit! Tell us about ' + (d.business || 'your business') + ' and we\'ll build your ' + d.kind_label +
+      '. About 10–15 minutes, one short step at a time. Everything saves as you go, so you can stop and come back with the same link. * = required.';
     var form = $('brief-form');
     var chatBox = null;
     if ((d.chat_ideas || []).length) {
@@ -940,7 +940,7 @@
     if (d.submitted_at) showSubmitted();
     progress();
     steps();
-    if (d.kind !== 'project') document.body.appendChild(pvBtn);
+    if (d.kind !== 'project') { var nav = document.querySelector('.brief-nav'); nav.insertBefore(pvBtn, nav.firstChild); }
   }).catch(function (e) { showError(e.message); });
 
   $('brief-save').addEventListener('click', function () { save(false); });

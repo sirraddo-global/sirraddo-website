@@ -493,6 +493,8 @@ p { margin: 0 0 1em; }
 }
 .lead-form input:focus, .lead-form select:focus, .lead-form textarea:focus { outline: 2px solid var(--gold); outline-offset: 0; border-color: var(--gold); }
 .lead-form .lead-submit { margin-top: 10px; }
+.lead-form .lead-pay { margin-top: 8px; }
+.lead-form .lead-pay[hidden] { display: none; }
 .lead-close {
   position: absolute; top: 12px; right: 12px; width: 40px; height: 40px; border: 0; border-radius: 10px;
   background: var(--bg-soft); color: var(--ink); font-size: 1.5rem; line-height: 1; cursor: pointer;

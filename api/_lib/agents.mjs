@@ -260,3 +260,13 @@ function agentMail(a, lines, btn) {
   ${btn ? `<p><a href="${btn.url}" style="display:inline-block;background:#D9A21B;color:#13254F;font-weight:700;text-decoration:none;border-radius:10px;padding:11px 18px">${btn.label}</a></p>` : ""}
   <p style="font-size:13px;color:#6B7280">SIRRADDO GLOBAL LIMITED · WhatsApp +234 816 755 0937</p></div></div>`;
 }
+
+// The QR code of an active agent's link, as SVG (navy on white, a quiet border so phones read it easily).
+export async function agentQr(code) {
+  await schema();
+  if (!/^[A-Za-z0-9]{3,20}$/.test(code)) return null;
+  const [a] = await q(`SELECT code FROM agents WHERE lower(code) = lower($1) AND status = 'active'`, [code]);
+  if (!a) return null;
+  const QRCode = (await import("qrcode")).default;
+  return QRCode.toString(linkFor(a), { type: "svg", errorCorrectionLevel: "M", margin: 2, color: { dark: "#13254F", light: "#FFFFFF" } });
+}

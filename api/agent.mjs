@@ -1,6 +1,6 @@
 // /api/agent: the SIRRADDO agents programme (apply, log in, dashboard, bank details, payout request).
 // The agent's login is their WhatsApp number + password; the session token is sent as "Authorization: Bearer ag.…".
-import { apply, login, agentFromToken, dashboard, saveBank, requestPayout, changePassword, programme, AgentError } from "./_lib/agents.mjs";
+import { apply, login, agentFromToken, dashboard, saveBank, requestPayout, changePassword, programme, AgentError, agentQr } from "./_lib/agents.mjs";
 
 const hits = new Map(); // ip -> [times]: applying and logging in are limited
 function limited(ip, max) {
@@ -11,10 +11,20 @@ function limited(ip, max) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Robots-Tag", "noindex");
+  if (!req.query?.qr) res.setHeader("Cache-Control", "no-store");
   try {
-    if (req.method === "GET") return res.status(200).json(await programme()); // commission % and smallest payout, for the page
+    if (req.method === "GET") {
+      // An agent's QR code (for their flyers and cards): /api/agent?qr=CODE → SVG of their link.
+      if (req.query?.qr) {
+        const svg = await agentQr(String(req.query.qr));
+        if (!svg) return res.status(404).json({ error: "Unknown agent code" });
+        res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+        res.setHeader("Cache-Control", "public, max-age=86400");
+        return res.status(200).send(svg);
+      }
+      return res.status(200).json(await programme()); // commission % and smallest payout, for the page
+    }
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
     const ip = String(req.headers["x-forwarded-for"] || req.headers["x-nf-client-connection-ip"] || "").split(",")[0].trim() || "?";

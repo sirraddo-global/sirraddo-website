@@ -93,6 +93,147 @@
       ['For churches, schools and groups', 'Give your church, school or association a proper website for announcements, events, photos and contact. SIRRADDO sets it all up: ' + link],
     ];
   }
+
+  // ----- Promo kit: personalised flyers, status images and QR card (drawn on the phone), and the videos -----
+  var NAVY = '#13254F', DEEP = '#0B1733', GOLD = '#D9A21B';
+  var FONT = 'Arial, Helvetica, sans-serif';
+  function xml(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]; }); }
+  function wordmark(x, y, size, anchor, light) {
+    var w = light ? '#FFFFFF' : NAVY;
+    return '<text x="' + x + '" y="' + y + '" font-family="' + FONT + '" font-weight="900" font-size="' + size + '" text-anchor="' + (anchor || 'start') + '" fill="' + w + '">SI<tspan fill="' + GOLD + '">RR</tspan>A<tspan fill="' + GOLD + '">DD</tspan>O</text>' +
+      '<text x="' + x + '" y="' + (y + size * 0.42) + '" font-family="' + FONT + '" font-weight="700" font-size="' + (size * 0.2) + '" letter-spacing="' + (size * 0.12) + '" text-anchor="' + (anchor || 'start') + '" fill="' + w + '" opacity=".85">GLOBAL LIMITED</text>';
+  }
+  function qrAt(svg, x, y, size) { return svg.replace(/<\?xml[^>]*>/, '').replace('<svg ', '<svg x="' + x + '" y="' + y + '" width="' + size + '" height="' + size + '" '); }
+  function ticks(list, x, y, size, gap, color) {
+    return list.map(function (t, i) { var yy = y + i * gap; return '<circle cx="' + (x + size * 0.45) + '" cy="' + (yy - size * 0.35) + '" r="' + size * 0.45 + '" fill="' + GOLD + '"/><path d="M' + (x + size * 0.22) + ' ' + (yy - size * 0.36) + ' l' + size * 0.16 + ' ' + size * 0.16 + ' l' + size * 0.3 + ' -' + size * 0.32 + '" stroke="' + NAVY + '" stroke-width="' + size * 0.12 + '" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text x="' + (x + size * 1.3) + '" y="' + yy + '" font-family="' + FONT + '" font-size="' + size + '" font-weight="600" fill="' + color + '">' + xml(t) + '</text>'; }).join('');
+  }
+  function shortLink(d) { return d.link.replace(/^https:\/\/(www\.)?/, ''); }
+  function phoneOf(d) { var p = String(d.agent.phone || ''); return p.length === 11 ? p.slice(0, 4) + ' ' + p.slice(4, 7) + ' ' + p.slice(7) : p; }
+  // A soft gold glow (a plain see-through circle looks muddy on navy).
+  function glow(id, cx, cy, r, op) { return '<defs><radialGradient id="' + id + '"><stop offset="0" stop-color="' + GOLD + '" stop-opacity="' + op + '"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></radialGradient></defs><circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="url(#' + id + ')"/>'; }
+  // Each design: [name, width, height, svg(d, qr)]
+  var DESIGNS = [
+    ['Status: websites', 1080, 1920, function (d, qr) {
+      return '<rect width="1080" height="1920" fill="' + NAVY + '"/>' + glow('g1', 980, 140, 620, 0.35) + '<circle cx="60" cy="1820" r="380" fill="#1E3A78" opacity=".7"/>' +
+        wordmark(90, 200, 92, 'start', true) +
+        '<text font-family="' + FONT + '" font-weight="900" fill="#FFFFFF" font-size="104"><tspan x="90" y="430">Get your</tspan><tspan x="90" y="550">business</tspan><tspan x="90" y="670" fill="' + GOLD + '">online</tspan></text>' +
+        '<text x="90" y="770" font-family="' + FONT + '" font-size="46" fill="#DCE3F1">Professional websites from <tspan font-weight="900" fill="' + GOLD + '">₦50,000</tspan></text>' +
+        ticks(['Your own .com.ng name', 'WhatsApp button & Google Maps', 'Online store & payments', 'Ready in about 7 days'], 90, 900, 46, 84, '#FFFFFF') +
+        '<rect x="300" y="1250" width="480" height="480" rx="36" fill="#FFFFFF"/>' + qrAt(qr, 330, 1280, 420) +
+        '<text x="540" y="1800" text-anchor="middle" font-family="' + FONT + '" font-size="44" font-weight="800" fill="' + GOLD + '">Scan to start</text>' +
+        '<text x="540" y="1862" text-anchor="middle" font-family="' + FONT + '" font-size="34" fill="#DCE3F1">' + xml(shortLink(d)) + '</text>';
+    }],
+    ['Status: online store', 1080, 1920, function (d, qr) {
+      return '<rect width="1080" height="1920" fill="' + DEEP + '"/>' + glow('g2', 1000, 1600, 640, 0.3) + '<rect x="0" y="0" width="1080" height="14" fill="' + GOLD + '"/>' +
+        wordmark(90, 200, 92, 'start', true) +
+        '<text font-family="' + FONT + '" font-weight="900" fill="#FFFFFF" font-size="112"><tspan x="90" y="440">Sell online</tspan><tspan x="90" y="565" fill="' + GOLD + '">24/7</tspan></text>' +
+        '<text font-family="' + FONT + '" font-size="46" fill="#DCE3F1"><tspan x="90" y="670">Your own online store: customers</tspan><tspan x="90" y="730">order and pay, you get it on WhatsApp.</tspan></text>' +
+        ticks(['Card, transfer or pay on delivery', 'Products with photos & prices', 'Delivery areas & discount codes', 'From ₦150,000'], 90, 860, 46, 84, '#FFFFFF') +
+        '<rect x="300" y="1250" width="480" height="480" rx="36" fill="#FFFFFF"/>' + qrAt(qr, 330, 1280, 420) +
+        '<text x="540" y="1800" text-anchor="middle" font-family="' + FONT + '" font-size="44" font-weight="800" fill="' + GOLD + '">Scan to start your store</text>' +
+        '<text x="540" y="1862" text-anchor="middle" font-family="' + FONT + '" font-size="34" fill="#DCE3F1">' + xml(shortLink(d)) + '</text>';
+    }],
+    ['Flyer to print (A5)', 1240, 1754, function (d, qr) {
+      var a = d.agent, row = function (y, name, price, note) { return '<rect x="80" y="' + y + '" width="1080" height="132" rx="20" fill="#F4F6FA" stroke="#E2E7F0"/><text x="120" y="' + (y + 62) + '" font-family="' + FONT + '" font-size="44" font-weight="800" fill="' + NAVY + '">' + name + '</text><text x="120" y="' + (y + 106) + '" font-family="' + FONT + '" font-size="30" fill="#4A5568">' + note + '</text><text x="1120" y="' + (y + 82) + '" text-anchor="end" font-family="' + FONT + '" font-size="54" font-weight="900" fill="#B07D0E">' + price + '</text>'; };
+      return '<rect width="1240" height="1754" fill="#FFFFFF"/><rect width="1240" height="420" fill="' + NAVY + '"/><rect y="420" width="1240" height="12" fill="' + GOLD + '"/>' +
+        wordmark(80, 150, 84, 'start', true) +
+        '<text font-family="' + FONT + '" font-weight="900" fill="#FFFFFF" font-size="76"><tspan x="80" y="290">Your business deserves</tspan><tspan x="80" y="380" fill="' + GOLD + '">a real website</tspan></text>' +
+        row(500, 'Starter website', '₦50,000', 'Up to 5 pages · .com.ng domain · 1 business email') +
+        row(656, 'Business website', '₦100,000', 'Up to 10 pages + blog · 5 emails · Google Maps setup') +
+        row(812, 'Online Store', 'from ₦150,000', 'Cart, online payments, your own store admin') +
+        '<text font-family="' + FONT + '" font-size="34" fill="#1B2433"><tspan x="80" y="1010">✓ See your website before you pay the balance</tspan><tspan x="80" y="1058">✓ Ready in about 7 working days</tspan></text>' +
+        '<rect x="80" y="1090" width="560" height="560" rx="28" fill="#FFFFFF" stroke="' + NAVY + '" stroke-width="6"/>' + qrAt(qr, 110, 1120, 500) +
+        '<text font-family="' + FONT + '" fill="' + NAVY + '"><tspan x="690" y="1170" font-size="48" font-weight="900">Scan to start</tspan><tspan x="690" y="1230" font-size="32">or visit</tspan><tspan x="690" y="1280" font-size="30" font-weight="700">' + xml(shortLink(d)) + '</tspan></text>' +
+        '<rect x="690" y="1340" width="470" height="300" rx="24" fill="#FFF8E6" stroke="#F0D58A"/>' +
+        '<text font-family="' + FONT + '" fill="' + NAVY + '"><tspan x="720" y="1400" font-size="30" font-weight="700" fill="#8A6410">ASK ME</tspan><tspan x="720" y="1460" font-size="44" font-weight="900">' + xml(a.name.split(/\s+/).slice(0, 2).join(' ')) + '</tspan><tspan x="720" y="1520" font-size="40" font-weight="700">' + xml(phoneOf(d)) + '</tspan><tspan x="720" y="1590" font-size="28">Agent code: ' + xml(a.code) + '</tspan></text>' +
+        '<text x="620" y="1715" text-anchor="middle" font-family="' + FONT + '" font-size="26" fill="#6B7280">SIRRADDO GLOBAL LIMITED · RC 9939920 · www.sirraddo.com.ng</text>';
+    }],
+    ['QR card', 1050, 600, function (d, qr) {
+      return '<defs><clipPath id="cc"><rect width="1050" height="600" rx="36"/></clipPath></defs><g clip-path="url(#cc)"><rect width="1050" height="600" fill="' + NAVY + '"/><rect x="600" y="0" width="450" height="600" fill="#FFFFFF"/><rect x="590" y="0" width="12" height="600" fill="' + GOLD + '"/></g>' +
+        wordmark(60, 150, 76, 'start', true) +
+        '<text font-family="' + FONT + '" fill="#FFFFFF"><tspan x="60" y="290" font-size="40" font-weight="800">Websites · Online stores</tspan><tspan x="60" y="345" font-size="40" font-weight="800">Business apps</tspan><tspan x="60" y="440" font-size="30" fill="' + GOLD + '" font-weight="700">' + xml(d.agent.name.split(/\s+/).slice(0, 2).join(' ')) + ' · ' + xml(d.agent.code) + '</tspan><tspan x="60" y="490" font-size="28" fill="#DCE3F1">' + xml(phoneOf(d)) + '</tspan></text>' +
+        qrAt(qr, 650, 70, 350) + '<text x="825" y="490" text-anchor="middle" font-family="' + FONT + '" font-size="38" font-weight="900" fill="' + NAVY + '">Scan me</text><text x="825" y="535" text-anchor="middle" font-family="' + FONT + '" font-size="22" fill="#4A5568">' + xml(shortLink(d)) + '</text>';
+    }],
+  ];
+  var VIDEOS = [
+    ['video-websites', 'Websites', 'Is your business on Google yet? 📍 Get a professional website from ₦50,000, ready in about 7 working days.'],
+    ['video-store', 'Online Store', 'Sell online and get paid straight to your account 🛒 Your own online store from ₦150,000.'],
+    ['video-why', 'Tired of "How much?"', 'Tired of answering the same questions on WhatsApp all day? 😅 A website shows your prices, photos and location 24/7. From ₦50,000.'],
+    ['video-see-first', 'See it first', 'See your website before you pay the balance, and pick your favourite design.'],
+    ['video-maps', 'Google Maps', 'When people search "near me", can they find your business? 📍 Business website with Google Maps setup.'],
+    ['video-manage', 'Update from your phone', 'Change prices, stock and opening hours from your phone in seconds 📱'],
+    ['video-pidgin', 'Pidgin', 'Your business dey Google? 👀 Make we build your website from ₦50,000, e go ready inside 7 working days.'],
+  ];
+  var qrSvg = null;
+  function getQr(d) {
+    if (qrSvg) return Promise.resolve(qrSvg);
+    return fetch('/api/agent?qr=' + encodeURIComponent(d.agent.code)).then(function (r) { if (!r.ok) throw new Error('qr'); return r.text(); }).then(function (t) { qrSvg = t; return t; });
+  }
+  function svgDoc(w, h, inner) { return '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' + inner + '</svg>'; }
+  function svgUrl(svg) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); }
+  function toPng(svg, w, h) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () { var c = document.createElement('canvas'); c.width = w; c.height = h; var x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(img, 0, 0, w, h); c.toBlob(function (b) { b ? resolve(b) : reject(new Error('png')); }, 'image/png'); };
+      img.onerror = function () { reject(new Error('Could not draw the picture')); };
+      img.src = svgUrl(svg);
+    });
+  }
+  function saveBlob(blob, name) { var u = URL.createObjectURL(blob), a = el('a', { href: u, download: name }); document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000); }
+  // Share sheet (WhatsApp, Status, Facebook…) where the phone supports sharing files; otherwise save it.
+  function shareFile(blob, name, text, btn) {
+    var file = new File([blob], name, { type: blob.type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) return navigator.share({ files: [file], text: text }).catch(function () {});
+    saveBlob(blob, name);
+    if (text) { copy(text, btn); }
+  }
+  function kit(d) {
+    var box = el('div', { class: 'ag-box ag-kit' }, [el('h3', { text: 'Promo kit' }), el('p', { class: 'ag-small', text: 'Flyers, status pictures and a QR card with YOUR link and code, plus short videos. Share them on WhatsApp Status, Facebook and Instagram, or print the flyer.' })]);
+    var tabs = el('div', { class: 'ag-kit-tabs', role: 'tablist' }), panes = {};
+    [['pics', 'Flyers & QR'], ['vids', 'Videos']].forEach(function (t, i) {
+      var b = el('button', { type: 'button', role: 'tab', 'aria-selected': i ? 'false' : 'true', text: t[1] });
+      b.addEventListener('click', function () { Array.prototype.forEach.call(tabs.children, function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); }); Object.keys(panes).forEach(function (k) { panes[k].hidden = k !== t[0]; }); });
+      tabs.appendChild(b);
+    });
+    box.appendChild(tabs);
+    // Flyers & QR
+    var pics = el('div', { class: 'ag-kit-grid' }); panes.pics = pics; box.appendChild(pics);
+    pics.appendChild(el('p', { class: 'ag-small', text: 'Making your pictures…' }));
+    getQr(d).then(function (qr) {
+      pics.textContent = '';
+      var caption = 'Get your business online with SIRRADDO 👉 ' + d.link;
+      DESIGNS.forEach(function (ds) {
+        var svg = svgDoc(ds[1], ds[2], ds[3](d, qr)), file = 'sirraddo-' + ds[0].toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-$/, '') + '-' + d.agent.code + '.png';
+        var dl = el('button', { type: 'button', class: 'btn btn--navy', text: 'Save' }), sh = el('button', { type: 'button', class: 'btn btn--gold', text: 'Share' });
+        dl.addEventListener('click', function () { dl.disabled = true; toPng(svg, ds[1], ds[2]).then(function (b) { saveBlob(b, file); }).catch(function (e) { alert(e.message); }).then(function () { dl.disabled = false; }); });
+        sh.addEventListener('click', function () { sh.disabled = true; toPng(svg, ds[1], ds[2]).then(function (b) { return shareFile(b, file, caption, sh); }).catch(function (e) { alert(e.message); }).then(function () { sh.disabled = false; }); });
+        pics.appendChild(el('figure', { class: 'ag-kit-item' }, [el('img', { src: svgUrl(svg), alt: ds[0] + ' with your QR code', loading: 'lazy', style: 'aspect-ratio:' + ds[1] + '/' + ds[2] }), el('figcaption', { text: ds[0] }), el('div', { class: 'ag-acts' }, [sh, dl])]));
+      });
+      // The QR code on its own
+      var q = svgDoc(600, 600, '<rect width="600" height="600" fill="#fff"/>' + qrAt(qr, 30, 30, 540));
+      var qd = el('button', { type: 'button', class: 'btn btn--navy', text: 'Save QR code' });
+      qd.addEventListener('click', function () { toPng(q, 1200, 1200).then(function (b) { saveBlob(b, 'sirraddo-qr-' + d.agent.code + '.png'); }); });
+      pics.appendChild(el('figure', { class: 'ag-kit-item' }, [el('img', { src: svgUrl(q), alt: 'Your QR code', style: 'aspect-ratio:1/1' }), el('figcaption', { text: 'Just the QR code' }), el('div', { class: 'ag-acts' }, [qd])]));
+    }).catch(function () { pics.textContent = ''; pics.appendChild(el('p', { class: 'ag-msg', text: 'Couldn\'t make your pictures just now. Please refresh the page.' })); });
+    // Videos
+    var vids = el('div', { class: 'ag-kit-grid', hidden: true }); panes.vids = vids; box.appendChild(vids);
+    vids.appendChild(el('p', { class: 'ag-small ag-kit-full', text: 'Post a video, and paste the ready caption with it: the caption carries your link, so clients who tap it are counted as yours.' }));
+    VIDEOS.forEach(function (v) {
+      var cap = v[2] + ' 👉 ' + d.link + (d.agent.code ? '\n(Agent code: ' + d.agent.code + ')' : '');
+      var src = '/assets/marketing/' + v[0] + '.mp4';
+      var sh = el('button', { type: 'button', class: 'btn btn--gold', text: 'Share' }), cp = el('button', { type: 'button', class: 'btn btn--outline', text: 'Copy caption' });
+      sh.addEventListener('click', function () {
+        sh.disabled = true; sh.textContent = 'Getting video…';
+        fetch(src).then(function (r) { return r.blob(); }).then(function (b) { return shareFile(new Blob([b], { type: 'video/mp4' }), 'sirraddo-' + v[0] + '.mp4', cap, cp); })
+          .catch(function () { window.open(src, '_blank'); }).then(function () { sh.disabled = false; sh.textContent = 'Share'; });
+      });
+      cp.addEventListener('click', function () { copy(cap, cp); });
+      vids.appendChild(el('figure', { class: 'ag-kit-item' }, [el('video', { src: src, poster: '/assets/marketing/' + v[0] + '.jpg', controls: true, preload: 'none', playsinline: true, style: 'aspect-ratio:9/16' }),
+        el('figcaption', { text: v[1] }), el('p', { class: 'ag-small ag-cap', text: cap }), el('div', { class: 'ag-acts' }, [sh, cp, el('a', { class: 'btn btn--outline', href: src, download: 'sirraddo-' + v[0] + '.mp4', text: 'Save' })])]));
+    });
+    return box;
+  }
+
   function stat(label, value, cls) { return el('div', { class: 'ag-stat' + (cls ? ' ' + cls : '') }, [el('span', { text: label }), el('b', { text: value })]); }
   function draw(d) {
     wrap.hidden = false; $('#join').hidden = true; $('.ag-hero .ag-cta').hidden = true;
@@ -114,6 +255,7 @@
         el('button', { type: 'button', class: 'btn btn--outline', text: 'Copy', onclick: function (e) { copy(m[1], e.currentTarget); } })])]));
     });
     dash.appendChild(share);
+    dash.appendChild(kit(d));
     // Payout
     var pay = el('div', { class: 'ag-box' }, [el('h3', { text: 'Get paid' })]);
     if (!a.bank) pay.appendChild(el('p', { class: 'ag-small', text: 'Add the bank account we should pay you into.' }));

@@ -8,7 +8,7 @@ import { SITE_FAQ } from "./_lib/site-faq.generated.mjs";
 const SYSTEM_PROMPT = `${BASE_PROMPT}\n\nOUR WEBSITE FAQ (published on www.sirraddo.com.ng; answers must agree with it):\n${SITE_FAQ}`;
 import { currentNotices } from "./_lib/notices.mjs";
 import { saveRequest, emailRequest, logChat, addUnanswered, reference } from "./_lib/store.mjs";
-import { chatProviders, CHAT_MODELS } from "./_lib/providers.mjs";
+import { chatProviders, CHAT_MODELS, ensureAiBackup } from "./_lib/providers.mjs";
 import { acknowledgeLead } from "./_lib/automation.mjs";
 import { cleanIdeas } from "./_lib/ideas.mjs";
 
@@ -124,6 +124,7 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
+  await ensureAiBackup();
   const providers = chatProviders();
   if (!providers.length) return res.status(200).json({ reply: FALLBACK, saved: false });
 

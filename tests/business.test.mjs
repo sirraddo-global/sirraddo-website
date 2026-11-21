@@ -640,6 +640,46 @@ test("project form reminders: how far they are and minutes left, twice at most; 
   assert.ok(view.prefilled.includes("hours"));
 });
 
+test("backup AI: added in Settings (key encrypted, never shown), answers by itself when Gemini fails, test button", async () => {
+  const chat = (text, sid) => h.call("POST", "/api/chat", { sessionId: sid, page: "/", messages: [{ role: "user", content: text }] });
+  // Without a backup, a Gemini failure gives the "chat on WhatsApp" message.
+  let r = await chat("please fail now", "s-ab-1");
+  assert.match(r.json.reply, /WhatsApp/);
+  // Owner saves an OpenRouter key.
+  let st = (await h.action({ action: "ai_backup" })).json;
+  assert.equal(st.service, "openrouter"); assert.equal(st.hasKey, false);
+  assert.match((await h.action({ action: "ai_backup_save", service: "openrouter", key: "short" })).json.error, /doesn't look right/);
+  st = (await h.action({ action: "ai_backup_save", service: "openrouter", key: "sk-or-v1-test-key-1234567890abcd", model: "" })).json;
+  assert.equal(st.hasKey, true); assert.equal(st.keyEnd, "abcd"); assert.equal(st.model, "openai/gpt-4.1-mini");
+  assert.ok(!JSON.stringify(st).includes("sk-or-v1-test"), "the key never comes back");
+  const [{ value }] = await h.sql(`SELECT value FROM settings WHERE key = '_ai_backup'`);
+  assert.ok(!value.includes("sk-or-v1-test"), "stored encrypted");
+  // Test button
+  const t = (await h.action({ action: "ai_backup_test" })).json;
+  assert.equal(t.ok, true); assert.match(t.reply, /Backup here/);
+  assert.equal(globalThis.__LAST_BACKUP__.auth, "Bearer sk-or-v1-test-key-1234567890abcd");
+  assert.match(globalThis.__LAST_BACKUP__.url, /^https:\/\/openrouter\.ai\/api\/v1\/chat\/completions$/);
+  // Gemini fails → the backup answers; the customer just gets an answer.
+  r = await chat("please fail now", "s-ab-2");
+  assert.match(r.json.reply, /Backup here/);
+  // It can save a request too (tool call), like the others.
+  r = await chat("fail and save my details", "s-ab-3");
+  assert.equal(r.json.saved, true);
+  assert.ok((await h.sql(`SELECT 1 FROM customer_requests WHERE contact = '08039998888'`)).length, "request saved by the backup");
+  // A refused key: Test says so in plain words; chat falls back to the WhatsApp message.
+  globalThis.__BACKUP_FAIL__ = true;
+  assert.match((await h.action({ action: "ai_backup_test" })).json.error, /key was refused/);
+  globalThis.__BACKUP_FAIL__ = false;
+  // Switched off: not used.
+  await h.action({ action: "ai_backup_save", service: "openrouter", on: false });
+  const { ensureAiBackup } = await import("../api/_lib/providers.mjs"); await ensureAiBackup(true);
+  r = await chat("please fail now", "s-ab-4");
+  assert.match(r.json.reply, /WhatsApp/);
+  st = (await h.action({ action: "ai_backup_save", remove: true })).json;
+  assert.equal(st.hasKey, false);
+  await ensureAiBackup(true);
+});
+
 test("daily run completes without errors", async () => {
   const errors = [];
   const orig = console.error;

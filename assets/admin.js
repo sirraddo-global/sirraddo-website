@@ -3632,7 +3632,7 @@
   // Settings are split into small sections (chips at the top) so there's no long scrolling.
   var SETTINGS_SECTIONS = [
     ['business', 'Bank & invoices'], ['messages', 'WhatsApp messages'], ['handover', 'Handover'],
-    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['docs', 'Company documents'], ['backup', 'Backup']
+    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['ai', 'AI backup'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['docs', 'Company documents'], ['backup', 'Backup']
   ];
   function renderSettings(view) {
     var s = state.settings;
@@ -3686,6 +3686,7 @@
     if (pick === 'reviews') view.appendChild(reviewsCard());
     if (pick === 'email') view.appendChild(emailUsageCard());
     if (pick === 'greetings') view.appendChild(greetingsCard());
+    if (pick === 'ai') view.appendChild(aiBackupCard());
     if (pick === 'staff') staffSettings(view);
     if (pick === 'docs') companyDocs(view);
     if (pick === 'backup') view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
@@ -3693,6 +3694,84 @@
       el('p', { class: 'admin-intro', text: 'Every Monday a backup of all your business data (customers, quotes, payments, website text, orders, change requests) is emailed to you as a file. Keep those emails. You can also download one now. It contains customer details, so keep it private.' }),
       el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Download backup now', onclick: function (e) { downloadFile('/api/requests?view=backup', 'sirraddo-backup.json.gz', e.currentTarget); } })])
     ]));
+  }
+
+
+  // ---------- Settings → AI backup: a third AI that answers when Gemini and Claude can't ----------
+  function aiBackupCard() {
+    var card = el('div', { class: 'admin-card admin-settings admin-aib' }, [el('h2', { text: 'AI backup' }),
+      el('p', { class: 'admin-intro', text: 'A third AI that answers by itself whenever Gemini and Claude are busy, out of their limit or not working, so the website chat, "Write it for me" and your admin AI tools keep going. Customers don\'t see any difference.' })]);
+    var box = el('div'); card.appendChild(box);
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Loading…' }));
+    function draw(st) {
+      box.textContent = '';
+      var svc = el('select', { 'aria-label': 'AI service' });
+      Object.keys(st.services).forEach(function (k) { svc.appendChild(el('option', { value: k, text: st.services[k].label })); });
+      svc.value = st.service;
+      var key = el('input', { type: 'password', autocomplete: 'off', placeholder: st.hasKey ? 'Saved (ends …' + st.keyEnd + '). Paste a new one to change it.' : 'Paste the API key here', spellcheck: 'false' });
+      var model = el('input', { value: st.model, placeholder: '', spellcheck: 'false', autocapitalize: 'none' });
+      var base = el('input', { value: st.base, placeholder: 'https://…/v1', spellcheck: 'false', autocapitalize: 'none' });
+      var baseF = field('Service address (only for "Other")', base);
+      var on = el('input', { type: 'checkbox' }); on.checked = st.hasKey ? st.on : true;
+      var how = el('div', { class: 'admin-aib-how' });
+      function sync() {
+        var d = st.services[svc.value];
+        model.placeholder = d.model || 'model name';
+        if (!st.hasKey || svc.value !== st.service) model.value = d.model || model.value;
+        baseF.hidden = svc.value !== 'custom';
+        how.textContent = '';
+        how.appendChild(el('b', { text: 'How to get the key' }));
+        var ol = el('ol');
+        if (d.keys) ol.appendChild(el('li', null, ['Open ', el('a', { href: d.keys, target: '_blank', rel: 'noopener', text: d.keys.replace(/^https:\/\//, '') }), ' and sign up or log in.']));
+        ol.appendChild(el('li', { text: 'Create a new API key (name it "SIRRADDO website") and copy it.' }));
+        ol.appendChild(el('li', { text: 'Paste it below, tap Save, then Test.' }));
+        how.appendChild(ol);
+        if (d.note) how.appendChild(el('p', { class: 'admin-hint', text: d.note }));
+      }
+      svc.addEventListener('change', sync);
+      box.appendChild(field('AI service', svc));
+      box.appendChild(how);
+      box.appendChild(field('API key', key, 'Stored encrypted. It is never shown again, not even to you here. Don\'t paste it in WhatsApp or chats.'));
+      box.appendChild(field('Model', model, 'Leave the suggested one unless you know you want another.'));
+      box.appendChild(baseF);
+      box.appendChild(el('label', { class: 'admin-check' }, [on, ' Use the backup when Gemini and Claude can\'t answer']));
+      sync();
+      var res = el('p', { class: 'admin-aib-res', role: 'status' });
+      var save = el('button', { class: 'btn btn--navy', type: 'button', text: 'Save' });
+      var test = el('button', { class: 'admin-btn', type: 'button', text: 'Test it', disabled: !st.hasKey });
+      save.addEventListener('click', function () {
+        save.disabled = true;
+        api('POST', { action: 'ai_backup_save', service: svc.value, key: key.value.trim(), model: model.value.trim(), base: base.value.trim(), on: on.checked })
+          .then(function (j) { flash('Saved'); draw(j); test2(); }).catch(function (e) { save.disabled = false; fail(e); });
+      });
+      function test2() {
+        var t = box.querySelector('.admin-aib-test'); if (t) t.click();
+      }
+      test.classList.add('admin-aib-test');
+      test.addEventListener('click', function () {
+        test.disabled = true; res.className = 'admin-aib-res'; res.textContent = 'Asking the backup AI…';
+        api('POST', { action: 'ai_backup_test' }).then(function (j) {
+          test.disabled = false;
+          res.className = 'admin-aib-res ' + (j.ok ? 'is-ok' : 'is-bad');
+          res.textContent = j.ok ? '✓ Working. It answered in ' + (j.ms / 1000).toFixed(1) + ' s: "' + j.reply + '"' : '✗ ' + j.error;
+        }).catch(function (e) { test.disabled = false; fail(e); });
+      });
+      box.appendChild(el('div', { class: 'admin-actions' }, [save, test]));
+      box.appendChild(res);
+      var u = st.used || {};
+      var lines = [];
+      if (st.hasKey) lines.push(st.on ? 'Status: on, ready to step in.' : 'Status: switched off.');
+      if (u.count) lines.push('Answered ' + u.count + ' time' + (u.count === 1 ? '' : 's') + ' this month' + (u.lastAt ? ' (last: ' + new Date(u.lastAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + ')' : '') + '.');
+      else if (st.hasKey) lines.push('It hasn\'t had to answer this month: Gemini and Claude handled everything.');
+      if (u.lastError && u.lastErrorAt && (!u.lastAt || u.lastErrorAt > u.lastAt)) lines.push('Last problem (' + new Date(u.lastErrorAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + '): ' + u.lastError);
+      lines.forEach(function (l) { box.appendChild(el('p', { class: 'admin-hint', text: l })); });
+      if (st.hasKey) box.appendChild(el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Remove the backup', onclick: function () {
+        if (!window.confirm('Remove the backup AI and its key?')) return;
+        api('POST', { action: 'ai_backup_save', remove: true }).then(function (j) { flash('Removed'); draw(j); }).catch(fail);
+      } }));
+    }
+    api('POST', { action: 'ai_backup' }).then(draw).catch(function (e) { box.textContent = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
+    return card;
   }
 
   // ---------- CSV export ----------

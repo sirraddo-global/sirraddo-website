@@ -12,7 +12,7 @@ import { randomBytes } from "node:crypto";
 import { q, ensureSchema, getPreviewById, sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, reference, esc } from "./store.mjs";
 import { SITE, customerHtml } from "./automation.mjs";
 import { shownReviews } from "./reviews.mjs";
-import { pickProvider, friendlyAiError } from "./providers.mjs";
+import { pickProvider, friendlyAiError, ensureAiBackup } from "./providers.mjs";
 import { kindFor } from "./brief-schema.mjs";
 import { FUNCTION_BUDGET_MS, readImageForAi } from "./platform.mjs";
 import { buildSiteModel, productPhotoFor } from "./sitegen.mjs";
@@ -174,6 +174,7 @@ export async function planChange(id, changeId, budgetMs = FUNCTION_BUDGET_MS() -
   const c = row && (await loadChange(id, changeId));
   if (!c) throw Object.assign(new Error("Not found"), { status: 404 });
   if (!row.draft_md) throw new Error("This website has no text yet. Write the website text first.");
+  await ensureAiBackup();
   const provider = pickProvider();
   if (!provider) throw new Error("No AI key is set in Netlify (GEMINI_API_KEY or ANTHROPIC_API_KEY).");
   const files = (c.files || []).filter((f) => f && f.url);

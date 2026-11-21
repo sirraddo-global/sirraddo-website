@@ -1,7 +1,7 @@
 // AI drafts of a customer's website text, written from their project form.
 // Runs when the form is sent (in the background), from admin ("Write website text"), or in the daily run.
 // The draft is for YOU to check and paste into the site; it is never shown to the customer directly.
-import { pickProvider, friendlyAiError } from "./providers.mjs";
+import { pickProvider, friendlyAiError, ensureAiBackup } from "./providers.mjs";
 import { ideasText } from "./ideas.mjs";
 import { getBriefById, saveDraft } from "./store.mjs";
 import { kindFor, schemaFor, KIND_LABEL } from "./brief-schema.mjs";
@@ -187,6 +187,7 @@ export async function generateDraft(id, budgetMs = FUNCTION_BUDGET_MS() - 2000, 
   const deadline = started + budgetMs;
   const row = await getBriefById(id);
   if (!row || !row.brief) return { ok: false, error: "No project form answers yet" };
+  await ensureAiBackup();
   const provider = pickProvider();
   if (!provider) {
     await saveDraft(id, null, "No AI key set");

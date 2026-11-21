@@ -3,7 +3,7 @@ import { googleClientId } from "./googleid.mjs";
 import { filesEnabled } from "./platform.mjs";
 import { googleSearchConfigured } from "./google-search.mjs";
 import { dbConfigured, emailConfigured, customerEmailConfigured, getMeta } from "./store.mjs";
-import { pickProvider } from "./providers.mjs";
+import { pickProvider, ensureAiBackup, chatProviders } from "./providers.mjs";
 import { paystackConfigured } from "./paystack.mjs";
 import { SITE } from "./automation.mjs";
 import { cloudflareConfigured } from "./cloudflare.mjs";
@@ -13,13 +13,16 @@ const HOST = "Netlify → your site → Site configuration → Environment varia
 export async function setupStatus() {
   const env = process.env;
   const meta = await getMeta(["daily_run", "paystack_webhook"]).catch(() => ({}));
+  const backupCfg = await ensureAiBackup().catch(() => null);
   const ai = pickProvider();
   const live = /^sk_live_/.test(env.PAYSTACK_SECRET_KEY || "");
   const ranHoursAgo = meta.daily_run ? (Date.now() - Date.parse(meta.daily_run)) / 3600000 : null;
   return [
     { label: "Database (requests, clients, chats)", ok: dbConfigured(), note: "Saved in Neon.", fix: `Add DATABASE_URL. ${HOST}` },
-    { label: "AI chat assistant and website text", ok: Boolean(ai), note: ai ? `Using ${ai.name === "anthropic" ? "Claude (Anthropic)" : "Gemini (Google)"}.` : "",
+    { label: "AI chat assistant and website text", ok: Boolean(ai), note: ai ? `Using ${chatProviders().map((p) => (p.name === "anthropic" ? "Claude" : p.name === "gemini" ? "Gemini" : "the backup AI")).join(", then ")}.` : "",
       fix: `Add GEMINI_API_KEY (free) or ANTHROPIC_API_KEY. ${HOST}` },
+    { label: "Backup AI (answers when Gemini and Claude can't)", ok: Boolean(backupCfg), note: backupCfg ? `On: ${backupCfg.model}.` : "",
+      fix: "Optional: Admin → Settings → AI backup. Paste a key from OpenRouter (recommended), OpenAI, Groq or DeepSeek." },
     { label: "Emails to you (new leads, morning summary)", ok: emailConfigured(), note: env.LEAD_EMAIL_TO ? `Sent to ${env.LEAD_EMAIL_TO}.` : "",
       fix: `Add RESEND_API_KEY and LEAD_EMAIL_TO. ${HOST}` },
     { label: "Emails to customers (receipts, forms, previews)", ok: customerEmailConfigured(), note: env.LEAD_EMAIL_FROM ? `From ${env.LEAD_EMAIL_FROM}.` : "",

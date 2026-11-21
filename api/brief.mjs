@@ -85,7 +85,8 @@ async function notify(row, kind) {
 const aiUses = new Map(); // per form link: a generous limit, so a slow phone can do a big shop, but no endless use
 async function writeProduct(row, input, req) {
   const { readImageForAi } = await import("./_lib/platform.mjs");
-  const { chatProviders, CHAT_MODELS, friendlyAiError } = await import("./_lib/providers.mjs");
+  const { chatProviders, CHAT_MODELS, friendlyAiError, ensureAiBackup } = await import("./_lib/providers.mjs");
+  await ensureAiBackup();
   const photo = String(input?.photo || "");
   const mine = (row.brief_files?.product_photos || []).some((f) => f.url === photo);
   if (!mine) throw Object.assign(new Error("Add the photo first."), { status: 400 });
@@ -125,6 +126,7 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       const row = await getBrief(String(query.t || ""));
       if (!row) return res.status(404).json({ error: "This link is not valid. Please ask us for a new one on WhatsApp." });
+      await (await import("./_lib/providers.mjs")).ensureAiBackup();
       return res.status(200).json(publicView(row));
     }
     if (req.method === "POST") {

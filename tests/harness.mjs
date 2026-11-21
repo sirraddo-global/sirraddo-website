@@ -51,6 +51,18 @@ export async function startHarness() {
       return new Response("{}", { status: 404 });
     }
     if (url.includes("generativelanguage")) return geminiFake(JSON.parse(opts.body));
+    // The backup AI (any OpenAI-compatible service).
+    if (url.endsWith("/chat/completions")) {
+      const body = JSON.parse(opts.body); globalThis.__LAST_BACKUP__ = { url, body, auth: opts.headers?.Authorization };
+      if (globalThis.__BACKUP_FAIL__) return new Response('{"error":{"message":"Invalid API key"}}', { status: 401 });
+      const last = body.messages[body.messages.length - 1];
+      const text = typeof last.content === "string" ? last.content : (last.content || []).map((p) => p.text || "").join(" ");
+      const msg = last.role === "tool" ? { role: "assistant", content: "Backup: saved, the team will reach out." }
+        : body.tools && /save/i.test(text) ? { role: "assistant", content: null, tool_calls: [{ id: "tc1", type: "function", function: { name: "save_customer_request", arguments: JSON.stringify({ name: "Ngozi Eze", contact: "08039998888", business: "Ngozi Foods", interest: "Online Store", details: "Food store", recommended: "Online Store" }) } }] }
+        : /PRODUCT LISTING FROM A PHOTO/.test(text) ? { role: "assistant", content: '{"name":"Blue Sneakers","category":"Shoes","details":"Comfortable blue sneakers."}' }
+        : { role: "assistant", content: "Backup here: the Starter package is ₦50,000." };
+      return new Response(JSON.stringify({ choices: [{ message: msg }] }), { status: 200 });
+    }
     if (url.includes("oauth2.googleapis.com") || url.includes("www.googleapis.com")) return googleFake(url, opts);
     throw new Error("Test tried to reach the internet: " + url);
   };

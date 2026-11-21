@@ -3,7 +3,7 @@
 // the browser (assets/admin.js) so nothing heavy runs here.
 import QRCode from "qrcode";
 import { q, ensureSchema, getMeta, setMeta, getRequest, updateRequest, getSettings, cleanFrom } from "./store.mjs";
-import { pickProvider, friendlyAiError } from "./providers.mjs";
+import { pickProvider, friendlyAiError, ensureAiBackup } from "./providers.mjs";
 import { themeFor, buildSiteModel, productPhotoFor } from "./sitegen.mjs";
 import { kindFor } from "./brief-schema.mjs";
 import { shownReviews, listReviews, OUR_ID } from "./reviews.mjs";
@@ -164,6 +164,7 @@ Every package: free .com.ng domain, hosting, SSL, business email address, works 
 Demo store anyone can try: sirraddodemo.com.ng. WhatsApp: 0816 755 0937. Website: sirraddo.com.ng`;
 export const CAPTION_LANGS = ["English", "Nigerian Pidgin", "Yoruba", "Hausa", "Igbo"];
 export async function writeCaptions({ topic, lang, platform, link }) {
+  await ensureAiBackup();
   const provider = pickProvider();
   if (!provider) throw new Error("No AI key is set in Netlify (GEMINI_API_KEY or ANTHROPIC_API_KEY).");
   const L = CAPTION_LANGS.includes(lang) ? lang : "English";
@@ -190,6 +191,7 @@ Return ONLY a JSON array of 3 strings.`;
 // ---------- Video maker: the AI writes the scenes; the admin's browser animates and records them ----------
 const clip = (v, n) => one(v, n);
 export async function videoScript({ idea, lang }) {
+  await ensureAiBackup();
   const provider = pickProvider();
   if (!provider) throw new Error("No AI key is set in Netlify (GEMINI_API_KEY or ANTHROPIC_API_KEY).");
   const L = CAPTION_LANGS.includes(lang) ? lang : "English";

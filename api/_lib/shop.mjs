@@ -44,7 +44,7 @@ export function sealKey(plain) {
   const data = Buffer.concat([c.update(plain, "utf8"), c.final()]);
   return [iv, c.getAuthTag(), data].map((b) => b.toString("base64url")).join(".");
 }
-function openKey(sealed) {
+export function openKey(sealed) {
   const [iv, tag, data] = String(sealed || "").split(".").map((s) => Buffer.from(s, "base64url"));
   const d = createDecipheriv("aes-256-gcm", cryptoKey(), iv);
   d.setAuthTag(tag);

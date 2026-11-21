@@ -85,13 +85,17 @@ console.log(`Built ${pages.length} pages into public/ for ${SITE_URL} (demo card
 writeFileSync(join(out, "version.txt"), (process.env.COMMIT_REF || "local") + "\n");
 
 // The website chat always knows the current FAQ: every question and answer on the Websites and Home pages is
-// copied into api/_lib/site-faq.generated.mjs on each build, so editing the FAQ updates the chat too.
+// (and the Agents page) copied into api/_lib/site-faq.generated.mjs on each build, so editing the FAQ updates the chat too.
 {
   const plain = (h) => h.replace(/<br\s*\/?>/g, " ").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").replace(/&#39;|&rsquo;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
   const faq = [];
-  for (const page of ["websites.html", "index.html"]) {
+  for (const page of ["websites.html", "index.html", "agents.html"]) {
     const html = readFileSync(join(root, page), "utf8");
-    for (const m of html.matchAll(/<details[^>]*>\s*<summary[^>]*>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g)) faq.push({ q: plain(m[1]), a: plain(m[2]), page });
+    for (const m of html.matchAll(/<details[^>]*>\s*<summary[^>]*>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/g)) {
+      const q = plain(m[1]), a = plain(m[2]);
+      if (/Your rating ★|Send review/.test(a)) continue; // the "Rate SIRRADDO" review box, not a question
+      faq.push({ q: page === "agents.html" ? "Agents: " + q : q, a, page });
+    }
   }
   const text = faq.map((f) => `Q: ${f.q}\nA: ${f.a}`).join("\n\n");
   writeFileSync(join(root, "api/_lib/site-faq.generated.mjs"),

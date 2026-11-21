@@ -662,10 +662,27 @@ test("backup AI: added in Settings (key encrypted, never shown), answers by itse
   // Gemini fails → the backup answers; the customer just gets an answer.
   r = await chat("please fail now", "s-ab-2");
   assert.match(r.json.reply, /Backup here/);
+  // The backup gets the same up-to-date instructions as Gemini and Claude (prices picker, form, agents FAQ).
+  const sys = globalThis.__LAST_BACKUP__.body.messages[0].content;
+  assert.match(sys, /₦ Prices/); assert.match(sys, /Write it for me/); assert.match(sys, /Agents: When do I get paid\?/); assert.match(sys, /sirraddo\.com\.ng\/agents/);
   // It can save a request too (tool call), like the others.
   r = await chat("fail and save my details", "s-ab-3");
   assert.equal(r.json.saved, true);
   assert.ok((await h.sql(`SELECT 1 FROM customer_requests WHERE contact = '08039998888'`)).length, "request saved by the backup");
+  // The admin assistant falls back to the backup too, with its full workflow knowledge.
+  const prov = await import("../api/_lib/providers.mjs");
+  await prov.ensureAiBackup(true);
+  const chain = prov.pickProvider();
+  const { assistantSystem } = await import("../api/_lib/assistant.mjs");
+  const asys = await assistantSystem(null, { role: "owner" });
+  assert.match(asys, /Marketing → Agents/); assert.match(asys, /Settings → AI backup/); assert.match(asys, /ONE STEP PER SCREEN/);
+  const gem = prov.chatProviders().find((p) => p.name === "gemini"), oldCall = gem.call;
+  gem.call = async () => { throw Object.assign(new Error("busy"), { code: "gemini_503" }); }; // Gemini down for the admin assistant
+  try {
+    const out = await chain.call(chain.start([{ role: "user", content: "How do agents get paid?" }]), asys, [], 20000, {});
+    assert.equal(out.provider, "backup");
+    assert.match(globalThis.__LAST_BACKUP__.body.messages[0].content, /Marketing → Agents/);
+  } finally { gem.call = oldCall; }
   // A refused key: Test says so in plain words; chat falls back to the WhatsApp message.
   globalThis.__BACKUP_FAIL__ = true;
   assert.match((await h.action({ action: "ai_backup_test" })).json.error, /key was refused/);

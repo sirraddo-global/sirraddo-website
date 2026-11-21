@@ -473,7 +473,7 @@
       el('p', { class: 'admin-hint', text: 'Your old private link still works as a backup for prices, stock and shop details. Keep it private.' }),
       btn('Open my Manage link', function () { api('manage_link').then(function (j) { window.open(j.url, '_blank'); }).catch(fail); })]));
     v.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Help' }),
-      el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/2348112999073?text=' + encodeURIComponent('Hello SIRRADDO, this is ' + state.store.name + '. I need help with my store: '), target: '_blank', rel: 'noopener', text: 'Message SIRRADDO' })]));
+      el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/2348167550937?text=' + encodeURIComponent('Hello SIRRADDO, this is ' + state.store.name + '. I need help with my store: '), target: '_blank', rel: 'noopener', text: 'Message SIRRADDO' })]));
   }
 
   if (token) load().catch(function () { /* the login form shows */ });

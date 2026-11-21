@@ -10,8 +10,11 @@ import { kindFor } from "./brief-schema.mjs";
 
 // The customer row plus their project form answers (the admin row leaves the answers out).
 async function load(id) {
-  const [r, b] = await Promise.all([getRequest(id), getBriefById(id)]);
-  return r ? { ...r, brief: b?.brief || {} } : null;
+  const [r, b, d] = await Promise.all([getRequest(id), getBriefById(id), q(`SELECT draft_md FROM customer_requests WHERE id = $1`, [id]).catch(() => [])]);
+  // The Google Business Profile description our AI wrote with the website text (for the Google guide).
+  const m = String(d?.[0]?.draft_md || "").match(/## Google Business Profile description\s*\n([\s\S]*?)(?=\n## |$)/);
+  const gbpText = m ? m[1].replace(/^\(.*\)\s*$/m, "").replace(/\[ADD:[^\]]*\]/g, "").trim() : "";
+  return r ? { ...r, brief: b?.brief || {}, gbpText: /wasn't written/.test(gbpText) ? "" : gbpText } : null;
 }
 import { cloudflareConfigured } from "./cloudflare.mjs";
 import { setReviewStatuses } from "./reviews.mjs";

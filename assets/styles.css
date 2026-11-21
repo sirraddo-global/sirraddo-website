@@ -600,3 +600,40 @@ p { margin: 0 0 1em; }
 .work-client-name { position: absolute; left: 14px; right: 14px; bottom: 12px; display: flex; align-items: center; gap: 10px; color: #fff; font-weight: 800; font-size: 1.15rem; text-shadow: 0 2px 10px rgba(0,0,0,.6); }
 .work-client-logo { height: 34px; width: auto; max-width: 90px; object-fit: contain; background: rgba(255,255,255,.9); border-radius: 6px; padding: 3px; }
 .work-body .work-stars { color: #B7860B; font-weight: 700; margin: 4px 0 6px; }
+
+/* Chat: "Chat in" languages, ₦ Prices button and the package picker */
+.chat-title { flex: 1; }
+.chat-price-btn { border: 1px solid var(--gold); background: transparent; color: var(--gold); font: inherit; font-weight: 800; font-size: .82rem; border-radius: 999px; padding: 7px 12px; cursor: pointer; white-space: nowrap; }
+.chat-price-btn:hover { background: var(--gold); color: var(--navy); }
+.chat-langs { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: .78rem; color: var(--muted); scrollbar-width: none; }
+.chat-langs[hidden] { display: none; }
+.chat-langs::-webkit-scrollbar { display: none; }
+.chat-langs > span { flex: none; white-space: nowrap; }
+.chat-lang { flex: none; border: 1px solid var(--line); background: var(--bg-soft); color: var(--text); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: .78rem; font-weight: 600; cursor: pointer; }
+.chat-lang[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+.chat-chip--gold { background: var(--gold); border-color: var(--gold); color: var(--navy); }
+.chat-chip--gold:hover { background: #E8B53A; color: var(--navy); }
+.chat-pick { max-width: 94%; width: 94%; white-space: normal; padding: 14px; display: grid; gap: 10px; }
+.chat-pick-q { font-weight: 700; margin: 0; color: var(--ink); }
+.chat-pick-opts { display: grid; gap: 8px; }
+.chat-pick-opt { display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--line); background: var(--bg-soft); color: var(--text); border-radius: 12px; padding: 10px 12px; font: inherit; font-size: .9rem; cursor: pointer; transition: border-color .15s, transform .15s; }
+.chat-pick-opt:hover, .chat-pick-opt:focus-visible { border-color: var(--gold); transform: translateY(-1px); }
+.chat-pick-ico { flex: none; width: 30px; height: 30px; border-radius: 9px; background: var(--navy); color: var(--gold); display: grid; place-items: center; font-weight: 800; font-size: .85rem; }
+.chat-pick-top { background: linear-gradient(135deg, var(--navy), #1E3A78); color: #fff; border-radius: 12px; padding: 14px; display: grid; gap: 2px; position: relative; overflow: hidden; }
+.chat-pick-top::after { content: ""; position: absolute; right: -30px; top: -30px; width: 110px; height: 110px; border-radius: 50%; background: radial-gradient(circle, rgba(217,162,27,.35), transparent 70%); }
+.chat-pick-tag { justify-self: start; background: var(--gold); color: var(--navy); font-size: .7rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; border-radius: 999px; padding: 2px 8px; margin-bottom: 4px; }
+.chat-pick-top strong { font-size: 1.15rem; }
+.chat-pick-price { font-size: 1.7rem; font-weight: 900; color: var(--gold); letter-spacing: -.5px; }
+.chat-pick-top small { opacity: .8; font-size: .78rem; }
+.chat-pick-inc { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: .88rem; }
+.chat-pick-inc li::before { content: "✓"; color: #127A3E; font-weight: 800; margin-right: 8px; }
+.chat-pick-meta { margin: 0; font-size: .82rem; color: var(--muted); }
+.chat-pick-acts { display: grid; gap: 8px; }
+.chat-pick-go { border: 0; background: var(--gold); color: var(--navy); font: inherit; font-weight: 800; border-radius: 12px; padding: 12px; cursor: pointer; box-shadow: 0 4px 14px rgba(217,162,27,.35); }
+.chat-pick-go:hover { background: #E8B53A; }
+.chat-pick-go:disabled { opacity: .7; cursor: wait; }
+.chat-pick-ask { border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; border-radius: 12px; padding: 10px; cursor: pointer; }
+.chat-pick-back { justify-self: start; border: 0; background: none; color: var(--muted); font: inherit; font-size: .82rem; cursor: pointer; padding: 4px 0; text-decoration: underline; }
+.chat-pick-form { display: grid; gap: 8px; }
+.chat-pick-form input { font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); }
+:root[data-theme="dark"] .chat-pick-ico { background: #0B1733; }

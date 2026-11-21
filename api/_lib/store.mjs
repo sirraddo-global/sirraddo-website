@@ -379,7 +379,7 @@ export async function getBrief(token) {
   if (!token || token.length < 20) return null;
   await ensureSchema();
   const rows = await q(
-    `SELECT id, name, business, contact, interest, status, project_stage, brief, brief_files, brief_saved_at, brief_submitted_at, chat_ideas,
+    `SELECT id, name, business, contact, email, interest, status, project_stage, brief, brief_files, brief_saved_at, brief_submitted_at, chat_ideas,
        (draft_md IS NOT NULL AND draft_md <> '') AS has_draft
      FROM customer_requests WHERE brief_token = $1`,
     [token]

@@ -668,6 +668,8 @@ const CART_CSS = `.cart-btn{position:fixed;left:16px;bottom:16px;z-index:60;back
 .cart .pay{background:var(--cart-acc,#0BA4DB);color:#fff}.cart .ptr,.cart .pod{background:transparent;color:inherit;border:2px solid var(--cart-acc,#0BA4DB)!important;padding:12px!important;font-size:15px!important}
 .cart .acts.two{grid-template-columns:1fr 1fr}.cart .acts.two>button{grid-column:1/-1}.cart .acts.two .ptr,.cart .acts.two .pod{grid-column:auto}.cart .waorder{background:#25D366;color:#063B1C}.cart .acts button:disabled{opacity:.5;cursor:default}
 .cart .empty{text-align:center;padding:40px 0;opacity:.75}
+.cart .trust{margin:14px 0 0;padding:10px 12px;border-radius:12px;background:rgba(21,128,61,.07);border:1px solid rgba(21,128,61,.22);display:grid;gap:6px;font-size:.86rem;line-height:1.4}
+.cart [hidden]{display:none!important}.cart .trust p{margin:0}.cart .trust a{color:inherit;font-weight:700}
 .cart select{width:100%;box-sizing:border-box;border:1px solid var(--cart-line,#D1D5DB);border-radius:10px;padding:12px;font:inherit;font-size:16px;background:var(--cart-soft,#fff);color:inherit}
 .cart .code{margin:12px 0 4px}.cart .cr{display:flex;gap:8px}.cart .cr input{text-transform:uppercase}.cart .cr button{border:2px solid var(--cart-acc,#0BA4DB);background:transparent;color:inherit;border-radius:10px;padding:0 16px;font:inherit;font-weight:800;cursor:pointer}
 .cart .brk{margin-top:10px;font-size:.95rem}.cart .brk p{display:flex;justify-content:space-between;margin:3px 0}.cart .brk .dc{color:#15803D;font-weight:700}.cart .free{color:#15803D;font-weight:700;opacity:1}
@@ -689,7 +691,9 @@ function cartScript(site, mode) {
 <label for="cb-phone">Phone number</label><input id="cb-phone" type="tel" autocomplete="tel">
 <label for="cb-email" class="em-l">Email (needed to pay online)</label><input id="cb-email" type="email" autocomplete="email">
 <label for="cb-addr">Delivery address</label><select id="cb-saved" hidden aria-label="Your saved addresses"></select><textarea id="cb-addr" rows="2" autocomplete="street-address"></textarea><label for="cb-zone" class="zl" hidden>Delivery area</label><select id="cb-zone" hidden></select><p class="note dnote" hidden></p></div>
-<div class="acts"><button class="pay" type="button" hidden data-m="paystack">Pay online now</button><button class="pay pay2" type="button" hidden data-m="flutterwave">Pay online now</button><button class="pay ptr" type="button" hidden data-m="transfer">Pay by bank transfer</button><button class="pay pod" type="button" hidden data-m="delivery">Pay on delivery</button><button class="pay pin" type="button" hidden data-m="instalment">Pay small-small</button><button class="waorder" type="button">Order on WhatsApp</button></div>
+${(() => { const cut = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, "") + "\u2026" : t; };
+  const help = waLink(site, `Hello ${site.name}, I need help with my order.`);
+  return `<div class="trust"><p class="tr-pay" hidden>\ud83d\udd12 <b>Safe checkout</b> \u00b7 online payments go through <span class="tr-by">Paystack</span>. Your card details are never seen by the store.</p>${site.delivery ? `<p>\ud83d\ude9a <b>Delivery</b> \u00b7 ${esc(cut(site.delivery, 110))}</p>` : ""}${site.returns ? `<p>\u21a9\ufe0f <b>Returns</b> \u00b7 ${esc(cut(site.returns, 110))}</p>` : ""}${help ? `<p>\ud83d\udcac <b>Need help?</b> <a href="${help}" target="_blank" rel="noopener">Chat with ${esc(site.name)} on WhatsApp</a></p>` : ""}</div>`; })()}<div class="acts"><button class="pay" type="button" hidden data-m="paystack">Pay online now</button><button class="pay pay2" type="button" hidden data-m="flutterwave">Pay online now</button><button class="pay ptr" type="button" hidden data-m="transfer">Pay by bank transfer</button><button class="pay pod" type="button" hidden data-m="delivery">Pay on delivery</button><button class="pay pin" type="button" hidden data-m="instalment">Pay small-small</button><button class="waorder" type="button">Order on WhatsApp</button></div>
 <p class="note msg" role="status"></p></div></div></div>
 <script>(function(){var C=${JSON.stringify(cfg).replace(/</g, "\\u003c")};window.__shopC=C;var M={};
 var B=[];try{B=JSON.parse(localStorage.getItem(C.key)||'[]')}catch(e){}
@@ -762,7 +766,7 @@ fetch(C.api+'/api/shop',{method:'POST',headers:{'Content-Type':'application/json
 // Kept on this phone for the Profile: the order (to follow it in My orders / Inbox), the details and the address.
 if(A&&A.prof){A.addOrder({ref:j.ref,url:j.url,at:Date.now()});var G=A.prof();G.name=b.name||G.name;G.phone=b.phone||G.phone;G.email=b.email||G.email;var GL=G.addresses||[];if(b.address&&!GL.some(function(x){return String(x.text).toLowerCase()===b.address.toLowerCase()})&&GL.length<20)GL.push({label:'Address '+(GL.length+1),text:b.address});G.addresses=GL;A.setProf(G)}
 B=[];save();location.href=j.url}).catch(function(err){pay.disabled=false;msg.innerHTML='<span class="err">'+String(err.message).replace(/[&<>]/g,'')+'</span>'});});});
-if(C.s)fetch(C.api+'/api/shop?config=1&s='+encodeURIComponent(C.s)).then(function(r){return r.json()}).then(function(j){M=j.methods||{paystack:!!j.online};online=!!(M.paystack||M.flutterwave);fee=j.deliveryFee;
+if(C.s)fetch(C.api+'/api/shop?config=1&s='+encodeURIComponent(C.s)).then(function(r){return r.json()}).then(function(j){M=j.methods||{paystack:!!j.online};online=!!(M.paystack||M.flutterwave);fee=j.deliveryFee;trust();
 var dn=$('.cart .dnote');if(j.deliveryNote&&M.delivery){dn.hidden=false;dn.textContent='Pay on delivery: '+j.deliveryNote}
 // Delivery areas (fee per area), free delivery above an amount, and the discount code box.
 Z=j.zones||[];FO=+j.freeOver||0;CODES=!!j.codes;var zs=$('#cb-zone');if(Z.length){zs.hidden=false;$('.cart .zl').hidden=false;zs.innerHTML='<option value="">Choose your area\u2026</option>'+Z.map(function(z,k){return '<option value="'+k+'">'+String(z.name).replace(/[<&]/g,'')+' \u2014 '+(z.fee?money(z.fee):'free')+'</option>'}).join('');
@@ -775,7 +779,8 @@ if(n<=0){bp.innerHTML='<span class="soldout">Sold out</span>';bp.removeAttribute
 else if(!j.hideStock){if(!sl||!sl.classList.contains('stock')){sl=document.createElement('p');bp.parentNode.insertBefore(sl,bp)}sl.className='stock'+(n<=5?' low':'');sl.textContent=n<=5?'Only '+n+' left':n+' in stock';}});
 B.forEach(function(l){if(+l.i===+i&&!l.v&&l.q>n)l.q=n});});var vs=j.vstock||{};B.forEach(function(l){if(l.v&&vs[l.i]&&vs[l.i][l.v]!==undefined&&l.q>vs[l.i][l.v])l.q=+vs[l.i][l.v]});B=B.filter(function(l){return l.q>0});save();draw()}).catch(function(){});
 if(C.preview&&!C.s){online=true;M={paystack:true}}
-draw();})();</script>`;
+function trust(){var tp=$('.cart .tr-pay');if(!tp)return;tp.hidden=!online;var by=tp.querySelector('.tr-by');if(by)by.textContent=M.paystack&&M.flutterwave?'Paystack and Flutterwave':M.flutterwave?'Flutterwave':'Paystack'}
+trust();draw();})();</script>`;
 }
 // The buyer's order / receipt page, on the store's OWN website (…/order?ref=…): it asks our API for the order and
 // shows it in the store's design (payment details, tracking, the receipt to save). Old links on our address still work.

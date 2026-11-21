@@ -217,3 +217,17 @@ export function fileField(kind, key) {
   for (const s of schemaFor(kind)) for (const f of s.fields) if (f.key === key && f.type === "files") return f;
   return null;
 }
+
+// How far a customer is with their form (the same count the form shows): for reminder emails.
+export function briefProgress(kind, answers = {}, files = {}) {
+  const fields = schemaFor(kind).flatMap((x) => x.fields);
+  const empty = (f) => {
+    const v = f.type === "files" ? files?.[f.key] || [] : answers?.[f.key];
+    if (f.type === "confirm") return v !== true;
+    if (Array.isArray(v)) return v.filter((x) => (x && typeof x === "object" ? Object.values(x).some((y) => String(y || "").trim()) : x)).length === 0;
+    return !String(v || "").trim();
+  };
+  const done = fields.filter((f) => !empty(f)).length, left = fields.length - done;
+  return { done, total: fields.length, pct: fields.length ? Math.round((100 * done) / fields.length) : 0,
+    requiredLeft: fields.filter((f) => f.required && empty(f)).length, minutes: Math.max(2, Math.round(left * 0.35)) };
+}

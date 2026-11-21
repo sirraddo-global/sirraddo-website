@@ -54,6 +54,7 @@
     var reqLeft = req.filter(isEmpty).length;
     $('brief-bar').style.width = Math.round(100 * done / all.length) + '%';
     $('brief-progress-text').textContent = done + ' of ' + all.length + ' answered' + (reqLeft ? ' · ' + reqLeft + ' required still empty' : ' · all required answers done');
+    if (typeof drawDots === 'function' && $('brief-steps') && $('brief-steps').children.length) drawDots();
   }
   function changed() {
     dirty = true;
@@ -319,6 +320,17 @@
       });
       var ex = (f.extra || []).filter(function (x) { return String(row[x.key] || '').trim(); }).map(function (x) { return x.label + ': ' + row[x.key]; });
       if (ex.length) body.appendChild(el('p', { class: 'brief-hint', text: ex.join(' · ') }));
+      // ✨ Write it for me: the AI looks at the photo and fills in the name, category and description.
+      if (pm.main && data.ai_writer !== false) {
+        var aiBtn = el('button', { type: 'button', class: 'brief-ai', text: '✨ Write it for me' });
+        aiBtn.addEventListener('click', function () {
+          var filled = String(row.details || '').trim();
+          if (filled && !window.confirm('Replace the description you typed with a new one?')) return;
+          aiBtn.disabled = true; aiBtn.textContent = '✨ Looking at your photo…';
+          aiWrite(row, pm.main.url).then(function () { draw(); }).catch(function (e) { aiBtn.disabled = false; aiBtn.textContent = '✨ Write it for me'; setStatus(e.message, true); });
+        });
+        body.appendChild(aiBtn);
+      }
       // More photos of the same product
       var strip = el('div', { class: 'brief-pcard-more' });
       pm.extra.forEach(function (x) {
@@ -346,6 +358,28 @@
       } }));
       return c;
     }
+    function cats0() { var seen = {}, out = []; rows.forEach(function (r) { var k = String(r.category || '').trim(); if (k && !seen[k.toLowerCase()]) { seen[k.toLowerCase()] = 1; out.push(k); } }); return out; }
+    function aiWrite(row, url) {
+      return api('POST', { t: token, ai_product: { photo: url, name: row.name || '', categories: cats0() } }).then(function (j) {
+        if (j.name && (!String(row.name || '').trim() || row.name.trim().toLowerCase() === j.name.trim().toLowerCase())) row.name = j.name;
+        if (j.category && !String(row.category || '').trim()) row.category = j.category;
+        if (j.details) row.details = j.details;
+        changed();
+      });
+    }
+    // ✨ for every product with a photo but no name or description yet, one after another.
+    var aiAll = el('button', { type: 'button', class: 'brief-ai brief-ai-all' });
+    function needAi() { return rows.filter(function (r) { return r.photo && (!String(r.name || '').trim() || !String(r.details || '').trim()); }); }
+    aiAll.addEventListener('click', function () {
+      var todo = needAi(); if (!todo.length || busy) return;
+      busy = true; var i = 0, bad = 0;
+      (function next() {
+        if (i >= todo.length) { busy = false; setStatus(bad ? bad + ' could not be written: type those yourself.' : 'Done! Check each one and add the prices.', !!bad); draw(); return; }
+        var r = todo[i++];
+        setStatus('✨ Writing product ' + i + ' of ' + todo.length + '…');
+        aiWrite(r, r.photo).catch(function () { bad++; }).then(function () { if (i % 5 === 0) draw(); next(); });
+      })();
+    });
     function fillCats() {
       var seen = {}; cats.textContent = '';
       rows.forEach(function (r) { var k = String(r.category || '').trim(); if (k && !seen[k.toLowerCase()]) { seen[k.toLowerCase()] = 1; cats.appendChild(el('option', { value: k })); } });
@@ -360,12 +394,18 @@
       count.textContent = rows.length ? n + ' product' + (n === 1 ? '' : 's') + (noName ? ' · ' + noName + (noName === 1 ? ' still needs a name' : ' still need a name') : '') : 'No products yet. Start with the big button above.';
       count.className = 'brief-pcard-count' + (noName ? ' is-warn' : '');
       blank.hidden = bulk.hidden = rows.length >= (f.max || 1000);
+      var na = data.ai_writer === false ? 0 : needAi().length;
+      aiAll.hidden = !na; aiAll.textContent = '✨ Write names & descriptions for me (' + na + ')';
     }
     redraws.push(draw);
     draw();
     wrap.appendChild(cats);
     if (data.uploads_enabled) { wrap.appendChild(bulk); wrap.appendChild(status); }
+    var tu = el('input', { type: 'checkbox', id: fieldId(f) + '-touch' }); tu.checked = touchUpOn();
+    tu.addEventListener('change', function () { try { localStorage.setItem('brief-touchup', tu.checked ? 'on' : 'off'); } catch (e) {} });
+    if (data.uploads_enabled) wrap.appendChild(el('label', { class: 'brief-touch', for: tu.id }, [tu, el('span', null, [el('b', { text: '✨ Make my photos neat' }), ' square, a little brighter and quicker to load'])]));
     wrap.appendChild(count);
+    wrap.appendChild(aiAll);
     wrap.appendChild(list);
     wrap.appendChild(blank);
     if (f.paste) wrap.appendChild(pasteBox(f, rows, function () { draw(); redrawAll(); }));
@@ -437,6 +477,91 @@
     box.appendChild(area);
     box.appendChild(el('button', { type: 'button', class: 'brief-add', text: 'Add these', onclick: function () { add(area.value, false); area.value = ''; } }));
     box.appendChild(msg);
+    return box;
+  }
+
+
+  // ---------- "I don't have a logo": a simple text logo from their name and colours ----------
+  var PALETTES = [['Navy & gold', '#13254F', '#D9A21B'], ['Black & gold', '#111111', '#C9A227'], ['Wine & gold', '#6B1730', '#D9A21B'], ['Green & lime', '#0F5132', '#8BC34A'],
+    ['Blue & orange', '#1D4ED8', '#F97316'], ['Purple & pink', '#5B21B6', '#EC4899'], ['Teal & coral', '#0F766E', '#FB7185'], ['Brown & cream', '#5C3A21', '#E9C46A']];
+  var FONTS = [['Bold', '900', 'Inter, "Arial Black", Arial, sans-serif'], ['Elegant', '700', 'Georgia, "Times New Roman", serif'], ['Friendly', '800', '"Trebuchet MS", Verdana, sans-serif']];
+  function guessPalette() {
+    var c = String(answers.colours || '').toLowerCase(), best = 0;
+    [['navy', 0], ['black', 1], ['wine', 2], ['maroon', 2], ['burgundy', 2], ['green', 3], ['blue', 4], ['orange', 4], ['purple', 5], ['pink', 5], ['teal', 6], ['brown', 7], ['cream', 7]].some(function (x) { if (c.indexOf(x[0]) >= 0) { best = x[1]; return true; } return false; });
+    return best;
+  }
+  function fitFont(ctx, text, weight, family, maxW, maxSize) {
+    var size = maxSize; ctx.font = weight + ' ' + size + 'px ' + family;
+    while (size > 10 && ctx.measureText(text).width > maxW) { size -= 2; ctx.font = weight + ' ' + size + 'px ' + family; }
+    return size;
+  }
+  function drawLogo(cv, v, name, tag, pal, font) {
+    var W = cv.width, H = cv.height, ctx = cv.getContext('2d'), main = pal[1], acc = pal[2];
+    ctx.clearRect(0, 0, W, H); ctx.textBaseline = 'alphabetic';
+    var words = name.trim().split(/\s+/), initials = (words[0] ? words[0][0] : '') + (words[1] ? words[1][0] : '');
+    if (v === 0) { // wordmark with a gold bar
+      ctx.textAlign = 'center';
+      var sz = fitFont(ctx, name, font[1], font[2], W * 0.9, H * 0.42);
+      ctx.fillStyle = main; ctx.fillText(name, W / 2, H * (tag ? 0.5 : 0.6));
+      var tw = ctx.measureText(name).width;
+      ctx.fillStyle = acc; ctx.fillRect(W / 2 - tw / 2, H * (tag ? 0.5 : 0.6) + sz * 0.18, tw, Math.max(4, sz * 0.08));
+      if (tag) { fitFont(ctx, tag.toUpperCase(), '600', font[2], W * 0.8, H * 0.12); ctx.fillStyle = main; ctx.fillText(tag.toUpperCase(), W / 2, H * 0.8); }
+    } else if (v === 1) { // initials badge + name
+      var r = H * 0.36, cx = r + H * 0.08, cy = H / 2;
+      ctx.fillStyle = main; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = acc; ctx.lineWidth = Math.max(3, r * 0.08); ctx.beginPath(); ctx.arc(cx, cy, r * 0.86, 0, Math.PI * 2); ctx.stroke();
+      ctx.textAlign = 'center'; fitFont(ctx, initials.toUpperCase(), font[1], font[2], r * 1.3, r * 0.95); ctx.fillStyle = acc; ctx.fillText(initials.toUpperCase(), cx, cy + r * 0.33);
+      ctx.textAlign = 'left'; var x = cx + r + H * 0.1, mw = W - x - H * 0.06;
+      fitFont(ctx, name, font[1], font[2], mw, H * 0.3); ctx.fillStyle = main; ctx.fillText(name, x, H * (tag ? 0.52 : 0.6));
+      if (tag) { fitFont(ctx, tag, '600', font[2], mw, H * 0.12); ctx.fillStyle = acc; ctx.fillText(tag, x, H * 0.74); }
+    } else { // name on a coloured block
+      var pad = H * 0.08, rr = H * 0.16;
+      ctx.fillStyle = main; ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(pad, pad, W - 2 * pad, H - 2 * pad, rr); else ctx.rect(pad, pad, W - 2 * pad, H - 2 * pad);
+      ctx.fill();
+      ctx.textAlign = 'center'; fitFont(ctx, name, font[1], font[2], W * 0.8, H * 0.36); ctx.fillStyle = '#FFFFFF'; ctx.fillText(name, W / 2, H * (tag ? 0.52 : 0.62));
+      ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(W / 2, H * (tag ? 0.64 : 0.76), H * 0.025, 0, Math.PI * 2); ctx.fill();
+      if (tag) { fitFont(ctx, tag.toUpperCase(), '600', font[2], W * 0.7, H * 0.1); ctx.fillStyle = acc; ctx.fillText(tag.toUpperCase(), W / 2, H * 0.8); }
+    }
+  }
+  function logoMaker(f, onDone) {
+    var box = el('div', { class: 'brief-logo-maker' });
+    var nameIn = el('input', { type: 'text', value: answers.business_name || data.business || '', placeholder: 'Business name', 'aria-label': 'Business name for the logo', maxlength: 40 });
+    var tagIn = el('input', { type: 'text', value: answers.tagline || '', placeholder: 'Slogan (optional)', 'aria-label': 'Slogan for the logo', maxlength: 50 });
+    var pi = guessPalette(), fi = 0, vi = 0;
+    var pals = el('div', { class: 'brief-logo-pals', role: 'radiogroup', 'aria-label': 'Colours' });
+    var fonts = el('div', { class: 'brief-logo-fonts', role: 'radiogroup', 'aria-label': 'Letter style' });
+    var opts = el('div', { class: 'brief-logo-opts' });
+    var cvs = [0, 1, 2].map(function (v) { var c = el('canvas', { width: 600, height: 200 }); var b = el('button', { type: 'button', class: 'brief-logo-opt', 'aria-label': 'Logo design ' + (v + 1) }, [c]); b.addEventListener('click', function () { vi = v; paint(); }); opts.appendChild(b); return c; });
+    PALETTES.forEach(function (p, i) { var b = el('button', { type: 'button', class: 'brief-logo-pal', role: 'radio', title: p[0], 'aria-label': p[0], style: 'background:linear-gradient(135deg,' + p[1] + ' 55%,' + p[2] + ' 55%)' }); b.addEventListener('click', function () { pi = i; paint(); }); pals.appendChild(b); });
+    FONTS.forEach(function (ft, i) { var b = el('button', { type: 'button', class: 'brief-logo-font', role: 'radio', style: 'font-family:' + ft[2] + ';font-weight:' + ft[1], text: ft[0] }); b.addEventListener('click', function () { fi = i; paint(); }); fonts.appendChild(b); });
+    function paint() {
+      var name = nameIn.value.trim() || 'Your Business', tag = tagIn.value.trim();
+      cvs.forEach(function (c, v) { drawLogo(c, v, name, tag, PALETTES[pi], FONTS[fi]); c.parentNode.setAttribute('aria-pressed', v === vi ? 'true' : 'false'); });
+      Array.prototype.forEach.call(pals.children, function (b, i) { b.setAttribute('aria-checked', i === pi ? 'true' : 'false'); });
+      Array.prototype.forEach.call(fonts.children, function (b, i) { b.setAttribute('aria-checked', i === fi ? 'true' : 'false'); });
+    }
+    nameIn.addEventListener('input', paint); tagIn.addEventListener('input', paint);
+    var use = el('button', { type: 'button', class: 'btn btn--gold brief-logo-use', text: 'Use this logo' });
+    var note = el('p', { class: 'brief-hint', text: 'A simple starter logo you can change any time. Want a designed logo? Ask us on WhatsApp.' });
+    use.addEventListener('click', function () {
+      var big = el('canvas', { width: 1200, height: 400 });
+      drawLogo(big, vi, nameIn.value.trim() || 'Your Business', tagIn.value.trim(), PALETTES[pi], FONTS[fi]);
+      use.disabled = true; use.textContent = 'Saving your logo…';
+      big.toBlob(function (blob) {
+        var file = new File([blob], 'logo-' + slug(nameIn.value || 'business') + '.png', { type: 'image/png' });
+        if (!String(answers.colours || '').trim()) { answers.colours = PALETTES[pi][0] + ' (' + PALETTES[pi][1] + ', ' + PALETTES[pi][2] + ')'; changed(); }
+        onDone(file, function () { use.disabled = false; use.textContent = 'Use this logo'; });
+      }, 'image/png');
+    });
+    box.appendChild(el('p', { class: 'brief-logo-title', text: 'Make a simple logo' }));
+    box.appendChild(nameIn); box.appendChild(tagIn);
+    box.appendChild(el('span', { class: 'brief-logo-label', text: 'Colours' })); box.appendChild(pals);
+    box.appendChild(el('span', { class: 'brief-logo-label', text: 'Letters' })); box.appendChild(fonts);
+    box.appendChild(el('span', { class: 'brief-logo-label', text: 'Pick a design' })); box.appendChild(opts);
+    box.appendChild(use); box.appendChild(note);
+    paint();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(paint);
     return box;
   }
 
@@ -525,24 +650,71 @@
     });
     wrap.appendChild(grid);
     if (data.uploads_enabled) { wrap.appendChild(pick); wrap.appendChild(status); }
+    // No logo yet? Make a simple one here.
+    if (f.key === 'logo' && data.uploads_enabled && window.HTMLCanvasElement) {
+      var mk = el('details', { class: 'brief-logo-details' }, [el('summary', { text: '✏️ I don\'t have a logo: make a simple one' })]);
+      var built = false;
+      mk.addEventListener('toggle', function () {
+        if (!mk.open || built) return; built = true;
+        mk.appendChild(logoMaker(f, function (file, reset) {
+          status.className = 'brief-file-status'; status.textContent = 'Saving your logo…';
+          var old = (files[f.key] || []).slice();
+          upload(f, file).then(function (j) {
+            files = j.files || files;
+            // One logo: the new one replaces the old.
+            return old.reduce(function (p, x) { return p.then(function () { return api('POST', { t: token, remove_file: { field: f.key, url: x.url } }).then(function (k) { files = k.files || files; }); }); }, Promise.resolve());
+          }).then(function () { draw(); progress(); mk.open = false; status.textContent = 'Your new logo is saved ✓'; reset(); })
+            .catch(function (e) { status.textContent = e.message; status.className = 'brief-file-status is-error'; reset(); });
+        }));
+      });
+      wrap.appendChild(mk);
+    }
     else wrap.appendChild(el('p', { class: 'brief-hint' }, ['Please send these on ', el('a', { href: 'https://wa.me/2348167550937', target: '_blank', rel: 'noopener', text: 'WhatsApp' }), ' instead.']));
     draw();
     return wrap;
   }
 
   // Shrink photos in the browser (max 1600 px) so uploads are quick on mobile data.
-  function shrink(file, keepPng) {
+  // Product photos are also touched up (unless switched off): made square on a background matching the photo's
+  // edges, brightened a little when dark, and saved as WebP (smaller) when the phone can.
+  var canWebp = (function () { try { var c = document.createElement('canvas'); c.width = c.height = 1; return c.toDataURL('image/webp').indexOf('data:image/webp') === 0; } catch (e) { return false; } })();
+  function touchUpOn() { try { return localStorage.getItem('brief-touchup') !== 'off'; } catch (e) { return true; } }
+  function shrink(file, keepPng, touch) {
     if (!/^image\/(jpeg|png|webp)$/.test(file.type) || !window.createImageBitmap) return Promise.resolve(file);
     return createImageBitmap(file).then(function (img) {
-      var scale = Math.min(1, 1600 / Math.max(img.width, img.height));
-      var canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
-      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      var type = keepPng && file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+      var canvas = document.createElement('canvas'), ctx;
+      var type = keepPng && file.type === 'image/png' ? 'image/png' : canWebp && touch ? 'image/webp' : 'image/jpeg';
+      if (touch) {
+        // Look at a tiny copy: average brightness and the colour around the edges.
+        var t = document.createElement('canvas'); t.width = t.height = 32; var tc = t.getContext('2d');
+        tc.drawImage(img, 0, 0, 32, 32);
+        var px = tc.getImageData(0, 0, 32, 32).data, lum = 0, er = 0, eg = 0, eb = 0, en = 0;
+        for (var y = 0; y < 32; y++) for (var x = 0; x < 32; x++) {
+          var k = (y * 32 + x) * 4, r = px[k], g = px[k + 1], b = px[k + 2];
+          lum += (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+          if (x === 0 || y === 0 || x === 31 || y === 31) { er += r; eg += g; eb += b; en++; }
+        }
+        lum /= 1024;
+        var side = Math.min(1200, Math.max(img.width, img.height));
+        canvas.width = canvas.height = side; ctx = canvas.getContext('2d');
+        // Background: the edge colour, a touch lighter, so the square looks like part of the photo.
+        var mix = function (v) { return Math.round(v / en + (255 - v / en) * 0.12); };
+        ctx.fillStyle = 'rgb(' + mix(er) + ',' + mix(eg) + ',' + mix(eb) + ')';
+        ctx.fillRect(0, 0, side, side);
+        var sc = side / Math.max(img.width, img.height), w = Math.round(img.width * sc), h = Math.round(img.height * sc);
+        if (lum < 0.45) ctx.filter = 'brightness(' + Math.min(1.35, 0.5 / Math.max(lum, 0.2)).toFixed(2) + ') contrast(1.04) saturate(1.06)';
+        else ctx.filter = 'contrast(1.03) saturate(1.04)';
+        ctx.drawImage(img, Math.round((side - w) / 2), Math.round((side - h) / 2), w, h);
+        ctx.filter = 'none';
+      } else {
+        var scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+        canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
       return new Promise(function (resolve) {
         canvas.toBlob(function (blob) {
-          if (!blob || blob.size >= file.size) return resolve(file);
-          var name = file.name.replace(/\.\w+$/, '') + (type === 'image/png' ? '.png' : '.jpg');
+          if (!blob || (!touch && blob.size >= file.size)) return resolve(file);
+          var name = file.name.replace(/\.\w+$/, '') + (type === 'image/png' ? '.png' : type === 'image/webp' ? '.webp' : '.jpg');
           resolve(new File([blob], name, { type: type }));
         }, type, 0.85);
       });
@@ -573,7 +745,7 @@
   function upload(f, file) {
     return productTag(file).then(function (tag) {
       if (tag) file = new File([file], tag.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.jpg', { type: file.type });
-      return shrink(file, f.key === 'logo');
+      return shrink(file, f.key === 'logo', f.key === 'product_photos' && touchUpOn());
     }).then(function (small) {
       if (small.size > 4 * 1024 * 1024) throw new Error('too big (max 4 MB). Please send it on WhatsApp.');
       var q = '?t=' + encodeURIComponent(token) + '&field=' + encodeURIComponent(f.key) + '&name=' + encodeURIComponent(small.name) + '&type=' + encodeURIComponent(small.type || 'application/octet-stream');
@@ -611,13 +783,124 @@
       if (target) target.setAttribute('aria-invalid', bad ? 'true' : 'false');
       if (bad && !first) first = node;
     }); });
-    if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (first.focus) first.focus({ preventScroll: true }); }
+    if (first) {
+      var sec = first.closest ? first.closest('.brief-step') : null;
+      if (sec && sec.hidden) show(Number(sec.getAttribute('data-step')), true);
+      first.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (first.focus) first.focus({ preventScroll: true });
+    }
   }
   function showSubmitted() {
     var s = $('brief-status');
     s.hidden = false;
     s.textContent = 'Sent on ' + new Date(data.submitted_at).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' }) + '. You can still update your answers and send again.';
     $('brief-submit').textContent = 'Send my updated details';
+  }
+
+
+
+  // ---------- Live preview: see the website take shape while filling ----------
+  function themeOf() {
+    var c = String(answers.colours || ''), hex = c.match(/#[0-9a-f]{6}/gi);
+    if (hex && hex.length) return [hex[0], hex[1] || '#D9A21B'];
+    return PALETTES[guessPalette()].slice(1);
+  }
+  function naira(v) { var n = Number(String(v || '').replace(/[^\d.]/g, '')); return n ? '₦' + n.toLocaleString('en-NG') : String(v || ''); }
+  function openPreview() {
+    var th = themeOf(), main = th[0], acc = th[1], isStore = data.kind === 'store';
+    var name = String(answers.business_name || data.business || 'Your business').trim();
+    var logo = (files.logo || []).filter(function (x) { return /^image\//.test(x.type || '') || /\.(png|jpe?g|webp|svg)$/i.test(x.name || ''); })[0];
+    var sheet = el('div', { class: 'brief-pv', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Preview of your website' });
+    var phone = el('div', { class: 'brief-pv-phone', style: '--pm:' + main + ';--pa:' + acc });
+    var top = el('div', { class: 'brief-pv-top' }, [logo ? el('img', { src: logo.url, alt: name }) : el('b', { text: name }), el('span', { class: 'brief-pv-menu', text: '☰' })]);
+    phone.appendChild(top);
+    var hero = el('div', { class: 'brief-pv-hero' }, [el('h3', { text: name }), answers.tagline ? el('p', { class: 'brief-pv-tag', text: answers.tagline }) : null,
+      answers.description ? el('p', { text: String(answers.description).slice(0, 140) + (String(answers.description).length > 140 ? '…' : '') }) : null,
+      el('span', { class: 'brief-pv-btn', text: isStore ? 'Shop now' : 'Contact us' })]);
+    phone.appendChild(hero);
+    if (isStore) {
+      var prods = (answers.products || []).filter(function (r) { return String(r.name || '').trim(); });
+      var pm = photoMap(prods, files.product_photos || []);
+      if (prods.length) phone.appendChild(el('div', { class: 'brief-pv-search', text: '🔍  Search ' + prods.length + ' products' }));
+      var cats = []; prods.forEach(function (r) { var k = String(r.category || '').trim(); if (k && cats.indexOf(k) < 0) cats.push(k); });
+      if (cats.length) phone.appendChild(el('div', { class: 'brief-pv-cats' }, cats.slice(0, 8).map(function (c, i) { return el('span', { class: i ? '' : 'on', text: c }); })));
+      var grid = el('div', { class: 'brief-pv-grid' });
+      prods.slice(0, 12).forEach(function (r, i) {
+        var ph = pm.of[i] && pm.of[i].main;
+        grid.appendChild(el('div', { class: 'brief-pv-card' }, [ph ? el('img', { src: ph.url, alt: '', loading: 'lazy' }) : el('div', { class: 'brief-pv-noimg', text: '📷' }),
+          el('b', { text: r.name }), r.price ? el('span', { class: 'brief-pv-price', text: naira(r.price) }) : null, el('span', { class: 'brief-pv-add', text: 'Add to cart' })]));
+      });
+      if (!prods.length) grid.appendChild(el('p', { class: 'brief-pv-empty', text: 'Your products will show here. Add them in the Products step.' }));
+      phone.appendChild(grid);
+      if (prods.length > 12) phone.appendChild(el('p', { class: 'brief-pv-more', text: '+ ' + (prods.length - 12) + ' more products' }));
+    } else {
+      var sv = (answers.services || []).filter(function (r) { return String(r.name || '').trim(); });
+      phone.appendChild(el('h4', { class: 'brief-pv-h', text: 'What we do' }));
+      var list = el('div', { class: 'brief-pv-svcs' });
+      sv.slice(0, 6).forEach(function (r) { list.appendChild(el('div', { class: 'brief-pv-svc' }, [el('b', { text: r.name }), r.details ? el('span', { text: r.details }) : null, r.price ? el('em', { text: naira(r.price) }) : null])); });
+      if (!sv.length) list.appendChild(el('p', { class: 'brief-pv-empty', text: 'Your services will show here.' }));
+      phone.appendChild(list);
+    }
+    var foot = [answers.phone ? '📞 ' + answers.phone : '', answers.hours ? '🕘 ' + answers.hours : '', answers.address ? '📍 ' + String(answers.address).split('\n')[0] : ''].filter(Boolean);
+    phone.appendChild(el('div', { class: 'brief-pv-foot' }, [el('b', { text: name })].concat(foot.map(function (x) { return el('span', { text: x }); }))));
+    phone.appendChild(el('span', { class: 'brief-pv-wa', text: 'WhatsApp' }));
+    var close = el('button', { type: 'button', class: 'brief-pv-close', 'aria-label': 'Close preview', text: 'Back to my form' });
+    function shut() { sheet.remove(); document.documentElement.classList.remove('brief-pv-open'); document.removeEventListener('keydown', esc); pvBtn.focus(); }
+    function esc(e) { if (e.key === 'Escape') shut(); }
+    close.addEventListener('click', shut); sheet.addEventListener('click', function (e) { if (e.target === sheet) shut(); });
+    document.addEventListener('keydown', esc);
+    sheet.appendChild(el('div', { class: 'brief-pv-inner' }, [el('p', { class: 'brief-pv-note', text: '👀 A quick look from your answers so far. Our team designs the real website, with more pages and polish.' }), phone, close]));
+    document.body.appendChild(sheet); document.documentElement.classList.add('brief-pv-open'); close.focus();
+  }
+  var pvBtn = el('button', { type: 'button', class: 'brief-pv-fab', 'aria-label': 'Preview my website' }, [el('span', { 'aria-hidden': 'true', text: '👀' }), ' Preview']);
+  pvBtn.addEventListener('click', openPreview);
+
+  // ---------- One step per screen ----------
+  var cur = 0;
+  function stepKey() { return 'brief-step-' + token.slice(0, 12); }
+  function sectionsEls() { return Array.prototype.slice.call(document.querySelectorAll('.brief-step')); }
+  function stepMissing(i) {
+    return (data.sections[i] ? data.sections[i].fields : []).filter(function (f) { return f.required && isEmpty(f); });
+  }
+  function drawDots() {
+    var nav = $('brief-steps'); if (!nav) return;
+    nav.textContent = '';
+    data.sections.forEach(function (s, i) {
+      var done = !data.sections[i].fields.some(function (f) { return f.required && isEmpty(f); }) && data.sections[i].fields.some(function (f) { return !isEmpty(f); });
+      var b = el('button', { type: 'button', class: 'brief-dot' + (i === cur ? ' is-on' : '') + (done ? ' is-done' : ''), 'aria-label': 'Step ' + (i + 1) + ': ' + s.title + (done ? ' (done)' : ''), 'aria-current': i === cur ? 'step' : null, 'data-step': String(i), title: s.title }, [el('span', { text: done && i !== cur ? '✓' : String(i + 1) })]);
+      b.addEventListener('click', function () { show(i); });
+      nav.appendChild(b);
+    });
+  }
+  function show(i, noScroll) {
+    var secs = sectionsEls(); if (!secs.length) return;
+    cur = Math.max(0, Math.min(secs.length - 1, i));
+    secs.forEach(function (sec, k) { sec.hidden = k !== cur; });
+    try { localStorage.setItem(stepKey(), String(cur)); } catch (e) {}
+    var last = cur === secs.length - 1;
+    $('brief-back').hidden = cur === 0;
+    $('brief-next').hidden = last;
+    $('brief-submit').hidden = !last;
+    if (!last) { var nt = data.sections[cur + 1].title.split(/ \(| and /)[0]; $('brief-next').textContent = nt.length <= 18 ? 'Next: ' + nt + ' →' : 'Next →'; $('brief-next').title = 'Next: ' + data.sections[cur + 1].title; }
+    $('brief-step-title').textContent = data.sections[cur].title;
+    drawDots();
+    if (!noScroll) window.scrollTo({ top: Math.max(0, $('brief-app').offsetTop - 70), behavior: 'smooth' });
+    redrawAll();
+  }
+  function steps() {
+    var start = 0;
+    try { start = Number(localStorage.getItem(stepKey())) || 0; } catch (e) {}
+    $('brief-next').addEventListener('click', function () {
+      var miss = stepMissing(cur);
+      if (miss.length) {
+        message('Please answer the questions marked * first.', 'error');
+        miss.forEach(function (f) { var n = $(fieldId(f)); if (n && n.matches('input, textarea, select')) n.setAttribute('aria-invalid', 'true'); });
+        var n0 = $(fieldId(miss[0])); if (n0) { n0.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (n0.focus) n0.focus({ preventScroll: true }); }
+        return;
+      }
+      message(''); save(false, true); show(cur + 1);
+    });
+    $('brief-back').addEventListener('click', function () { message(''); show(cur - 1); });
+    show(start, true);
   }
 
   // ---------- Start ----------
@@ -630,22 +913,34 @@
     $('brief-lead').textContent = 'Thank you for your deposit. Please tell us about ' + (d.business || 'your business') +
       ' so we can build your ' + d.kind_label + '. It takes about 10–15 minutes, and you can save and come back later with the same link. Questions marked * are required.';
     var form = $('brief-form');
+    var chatBox = null;
     if ((d.chat_ideas || []).length) {
-      form.appendChild(el('section', { class: 'brief-section brief-chat' }, [
+      chatBox = (el('div', { class: 'brief-chat' }, [
         el('h2', { text: 'What you told our assistant' }),
         el('p', { text: 'We\'ve kept these from your chat and will use them too, so you only need to add what\'s missing or changed.' }),
         el('ul', null, d.chat_ideas.map(function (x) { return el('li', null, [el('b', { text: x.label + ': ' }), x.value]); }))
       ]));
     }
-    d.sections.forEach(function (s) {
-      var sec = el('section', { class: 'brief-section' }, [el('h2', { text: s.title })]);
-      s.fields.forEach(function (f) { sec.appendChild(renderField(f)); });
+    var pre = d.prefilled || [];
+    d.sections.forEach(function (s, si) {
+      var sec = el('section', { class: 'brief-section brief-step', 'data-step': String(si) }, [
+        el('p', { class: 'brief-step-of', text: 'Step ' + (si + 1) + ' of ' + d.sections.length }), el('h2', { text: s.title })]);
+      if (si === 0 && chatBox) sec.appendChild(chatBox);
+      s.fields.forEach(function (f) {
+        var node = renderField(f);
+        // Typed in from their chat or first form: marked so they check it.
+        if (pre.indexOf(f.key) >= 0) { node.classList.add('is-prefilled'); node.insertBefore(el('span', { class: 'brief-pre', text: '✨ From your chat: please check' }), node.children[1] || null); }
+        sec.appendChild(node);
+      });
       form.appendChild(sec);
     });
+    if (pre.length) changed();
     $('brief-loading').hidden = true;
     $('brief-app').hidden = false;
     if (d.submitted_at) showSubmitted();
     progress();
+    steps();
+    if (d.kind !== 'project') document.body.appendChild(pvBtn);
   }).catch(function (e) { showError(e.message); });
 
   $('brief-save').addEventListener('click', function () { save(false); });

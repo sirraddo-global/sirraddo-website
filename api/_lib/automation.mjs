@@ -124,6 +124,28 @@ export function customerHtml(r, paragraphs, button) {
     <p style="color:#4A5568;font-size:12px">SIRRADDO GLOBAL LIMITED · RC 9939920 · Ibadan, Nigeria</p></div>`;
 }
 
+
+// The "finish your project details" reminder: progress bar, minutes left and the link.
+async function formReminder(r) {
+  const { getBrief } = await import("./store.mjs");
+  const { briefProgress, kindFor } = await import("./brief-schema.mjs");
+  const full = await getBrief(r.brief_token).catch(() => null);
+  const p = briefProgress(kindFor(r.interest), full?.brief || {}, full?.brief_files || {});
+  const url = `${SITE}/brief?t=${r.brief_token}`;
+  const bar = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:360px;margin:6px 0 4px"><tr><td style="background:#EEF1F6;border-radius:99px;height:12px;padding:0"><div style="width:${Math.max(4, p.pct)}%;background:#D9A21B;height:12px;border-radius:99px"></div></td></tr></table><div style="font-size:13px;color:#4A5568">${p.pct}% done · about ${p.minutes} minutes left</div>`;
+  if (r.brief_saved_at && p.done > 0) {
+    return [`You're ${p.pct}% done: about ${p.minutes} minutes to finish`, customerHtml(r, [
+      "Great start on your project details! Here's where you are:", bar,
+      "Your answers are saved: open the same link and carry on where you stopped. Tip: tap “Add products from photos” and let “✨ Write it for me” fill in names and descriptions.",
+      "As soon as you send it, we start building your website.",
+    ], { url, label: "Finish my details" })];
+  }
+  return ["Your website is waiting for your details", customerHtml(r, [
+    "We're ready to start your website as soon as we have your project details.",
+    `It takes about 10–15 minutes on your phone, one short step at a time. Anything you told our assistant is already filled in for you, and you can save and finish later.`,
+  ], { url, label: "Fill in my project details" })];
+}
+
 async function sendOnce(r, key, subject, html) {
   const to = customerEmail(r);
   if (!to || !customerEmailConfigured() || (r.auto_sent || {})[key]) return false;
@@ -236,11 +258,17 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
         // project form: link (if never emailed) and one reminder 2 days later
         if (waitingForm(r)) {
           if (await emailBriefLink(r)) report.customerEmails++;
+          // Friendly reminders, 2 and 6 days after the link (or after they last saved): how far they are and
+          // how long the rest takes. Two at most.
           const sentAt = (r.auto_sent || {})["brief-link"];
-          if (sentAt && !r.brief_saved_at && Date.parse(sentAt) < now.getTime() - 2 * 86400000 &&
-              await sendOnce(r, "brief-reminder", "Reminder: your project details", customerHtml(r, [
-                "Just a reminder: we are ready to start your website as soon as we have your project details.",
-              ], { url: `${SITE}/brief?t=${r.brief_token}`, label: "Fill in my project details" }))) report.customerEmails++;
+          const since = r.brief_saved_at || sentAt;
+          const days = since ? (now.getTime() - Date.parse(since)) / 86400000 : 0;
+          const first = (r.auto_sent || {})["brief-reminder"];
+          const key = !first && days >= 2 ? "brief-reminder"
+            : first && !(r.auto_sent || {})["brief-reminder-2"] && days >= 6 && now.getTime() - Date.parse(first) >= 3 * 86400000 ? "brief-reminder-2" : null;
+          if (sentAt && key) {
+            if (await sendOnce(r, key, ...(await formReminder(r)))) report.customerEmails++;
+          }
         }
         // renewal: 30 days, 7 days, due day, 3 days overdue
         if (r.status === "won" && r.renewal_due && r.renewal_amount) {

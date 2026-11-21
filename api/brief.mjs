@@ -5,6 +5,7 @@
 import { getBrief, saveBrief, removeBriefFile, sendEmail, emailConfigured, esc } from "./_lib/store.mjs";
 import { kindFor, KIND_LABEL, schemaFor, cleanAnswers, missingRequired, fileField } from "./_lib/brief-schema.mjs";
 import { IDEA_LABELS } from "./_lib/ideas.mjs";
+import { chatProviders as chatProvidersSync } from "./_lib/providers.mjs";
 import { waitUntil, filesEnabled, deleteFiles } from "./_lib/platform.mjs";
 import { generateDraft } from "./_lib/drafts.mjs";
 
@@ -13,18 +14,37 @@ import { SITE } from "./_lib/automation.mjs";
 
 function publicView(row) {
   const kind = kindFor(row.interest);
+  // First time the form opens: what they already told us (chat, package forms) is typed in for them to check.
+  const prefilled = [];
+  let answers = row.brief || {};
+  if (!row.brief_saved_at && !Object.keys(answers).length) {
+    const ideas = row.chat_ideas || {}, keys = new Set(schemaFor(kind).flatMap((x) => x.fields.map((f) => f.key)));
+    const phone = /\d{7,}/.test(String(row.contact || "").replace(/\D/g, "")) && !/@/.test(row.contact || "") ? String(row.contact).trim() : "";
+    const guess = {
+      business_name: ideas.business_name || row.business || "",
+      tagline: ideas.slogan || "",
+      description: [ideas.what_they_do, ideas.customers ? "Customers: " + ideas.customers : ""].filter(Boolean).join(". "),
+      phone, email: row.email || "", hours: ideas.hours || "", address: ideas.location || "",
+      colours: ideas.style || "", examples: ideas.examples || "", gbp_area: ideas.location || "",
+      project_summary: kind === "project" ? ideas.what_they_do || row.details || "" : "",
+    };
+    answers = {};
+    for (const [k, v] of Object.entries(guess)) if (v && keys.has(k)) { answers[k] = String(v).slice(0, 600); prefilled.push(k); }
+  }
   return {
+    prefilled,
     name: row.name,
     business: row.business,
     interest: row.interest,
     kind,
     kind_label: KIND_LABEL[kind],
     sections: schemaFor(kind),
-    answers: row.brief || {},
+    answers,
     files: row.brief_files || {},
     saved_at: row.brief_saved_at,
     submitted_at: row.brief_submitted_at,
     uploads_enabled: uploadsEnabled(),
+    ai_writer: chatProvidersSync().length > 0, // "✨ Write it for me" needs an AI key
     chat_ideas: Object.entries(IDEA_LABELS).filter(([k]) => k !== "recommended" && row.chat_ideas?.[k]).map(([k, label]) => ({ label, value: row.chat_ideas[k] })),
   };
 }
@@ -60,6 +80,43 @@ async function notify(row, kind) {
   );
 }
 
+
+// ---------- "✨ Write it for me" (product name, category and description from its photo) ----------
+const aiUses = new Map(); // per form link: a generous limit, so a slow phone can do a big shop, but no endless use
+async function writeProduct(row, input, req) {
+  const { readImageForAi } = await import("./_lib/platform.mjs");
+  const { chatProviders, CHAT_MODELS, friendlyAiError } = await import("./_lib/providers.mjs");
+  const photo = String(input?.photo || "");
+  const mine = (row.brief_files?.product_photos || []).some((f) => f.url === photo);
+  if (!mine) throw Object.assign(new Error("Add the photo first."), { status: 400 });
+  const used = (aiUses.get(row.id) || []).filter((t) => Date.now() - t < 3600_000);
+  if (used.length >= 400) throw Object.assign(new Error("That's a lot for one hour. Please try again a bit later."), { status: 429 });
+  used.push(Date.now()); aiUses.set(row.id, used);
+  if (aiUses.size > 2000) aiUses.clear();
+  const image = await readImageForAi(photo);
+  if (!image) throw Object.assign(new Error("Couldn't read that photo. Please type the details."), { status: 400 });
+  const clip = (v, n) => String(v || "").replace(/\s+/g, " ").trim().slice(0, n);
+  const cats = (Array.isArray(input.categories) ? input.categories : []).map((c) => clip(c, 40)).filter(Boolean).slice(0, 30);
+  const prompt = `PRODUCT LISTING FROM A PHOTO
+You write product listings for a Nigerian online shop${row.brief?.business_name ? ` called "${clip(row.brief.business_name, 80)}"` : ""}. Look at the photo of ONE product.
+${clip(input.name, 80) ? `The owner calls it: "${clip(input.name, 80)}". Keep their name (you may fix spelling or capital letters).` : "Give it a clear, short name a buyer would search for (2–6 words)."}
+${cats.length ? `Categories the shop already uses: ${cats.join(", ")}. Reuse one if it fits.` : "Pick one short category (1–2 words), e.g. Fashion, Shoes, Bags, Groceries, Beauty, Phones."}
+Description: 1–2 short, friendly sentences for buyers: what it is, and colour, material, size or pattern only if you can see them. Plain Nigerian English. No prices, no brand names unless printed clearly on the product, no promises you can't see (e.g. "original", "waterproof").
+Reply with JSON only: {"name":"...","category":"...","details":"..."}`;
+  let lastErr = null;
+  for (const provider of chatProviders()) {
+    try {
+      const opts = { maxTokens: 300, models: provider.name === "gemini" ? CHAT_MODELS.gemini : undefined, model: provider.name === "anthropic" ? CHAT_MODELS.anthropic : undefined };
+      const out = await provider.call(provider.start([{ role: "user", content: prompt, images: [image] }]), "You write short, honest product listings and reply with JSON only.", [], 20000, opts);
+      const m = String(out.text || "").match(/\{[\s\S]*\}/);
+      const j = m ? JSON.parse(m[0]) : {};
+      const res = { name: clip(j.name, 80), category: clip(j.category, 40), details: clip(j.details, 400) };
+      if (res.name || res.details) return res;
+    } catch (e) { lastErr = e; console.error("product writer failed", provider.name, e.message); }
+  }
+  throw Object.assign(new Error(lastErr ? friendlyAiError(lastErr) : "The writer isn't available right now. Please type the details."), { status: 503 });
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Robots-Tag", "noindex");
@@ -86,6 +143,9 @@ export default async function handler(req, res) {
         return res.status(200).json({ files });
       }
 
+      // "✨ Write it for me": the AI looks at a product photo and suggests its name, category and description.
+      if (body.ai_product) return res.status(200).json(await writeProduct(row, body.ai_product, req));
+
       const answers = cleanAnswers(kind, body.answers);
       // Keep what the owner set in their Manage link (stock counts, sold out) when the form is saved again
       // (e.g. you add products after launch). Matched by product name.
@@ -100,7 +160,7 @@ export default async function handler(req, res) {
           return { ...p, ...keep };
         });
       }
-      if (JSON.stringify(answers).length > 150_000) return res.status(413).json({ error: "That's too much text. Please shorten it or send it on WhatsApp." });
+      if (JSON.stringify(answers).length > 900_000) return res.status(413).json({ error: "That's too much text. Please shorten it or send it on WhatsApp." });
       if (body.submit) {
         const missing = missingRequired(kind, answers, row.brief_files);
         if (missing.length) return res.status(400).json({ error: "Please fill in: " + missing.join("; "), missing });
@@ -117,6 +177,7 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "GET, POST");
     return res.status(405).json({ error: "Method not allowed" });
   } catch (err) {
+    if (err.status && err.status < 600) return res.status(err.status).json({ error: err.message });
     console.error("brief failed", err);
     return res.status(500).json({ error: "Something went wrong. Please try again." });
   }

@@ -609,6 +609,37 @@ test("Online Store: basket checkout into the store's own Paystack, order emails,
   }
 });
 
+test("project form reminders: how far they are and minutes left, twice at most; chat answers filled in first", async () => {
+  const id = (await h.action({ action: "create", name: "Tolu Ade", contact: "08035550000", interest: "Business website" })).json.id;
+  const ago = (d) => new Date(Date.now() - d * 86400000).toISOString();
+  await h.sql(`UPDATE customer_requests SET status = 'won', email = 'tolu@example.com', brief_token = $2, brief_saved_at = $3, auto_sent = $4::jsonb,
+    brief = '{"business_name":"Tolu Prints","phone":"08035550000","description":"Printing"}'::jsonb, chat_ideas = '{"business_name":"Tolu Prints"}'::jsonb WHERE id = $1`,
+    [id, "remindtok-long-enough-" + id, ago(3), JSON.stringify({ "brief-link": ago(4) })]);
+  let n = h.sent.length;
+  await h.daily();
+  let mail = h.newMail(n).filter((m) => m.to.includes("tolu@example.com"));
+  assert.equal(mail.length, 1, "one reminder");
+  assert.match(mail[0].subject, /^You're \d+% done: about \d+ minutes to finish$/);
+  assert.match(mail[0].html, /remindtok-/);
+  n = h.sent.length; await h.daily();
+  assert.equal(h.newMail(n).filter((m) => m.to.includes("tolu@example.com")).length, 0, "not again the next day");
+  // 4 days later: the second and last one
+  await h.sql(`UPDATE customer_requests SET brief_saved_at = $2, auto_sent = jsonb_set(auto_sent, '{brief-reminder}', to_jsonb($3::text)) WHERE id = $1`, [id, ago(7), ago(4)]);
+  n = h.sent.length; await h.daily();
+  assert.equal(h.newMail(n).filter((m) => m.to.includes("tolu@example.com")).length, 1, "second reminder");
+  n = h.sent.length; await h.daily();
+  assert.equal(h.newMail(n).filter((m) => m.to.includes("tolu@example.com")).length, 0, "never a third");
+  // A fresh form opens with what they told us typed in, marked to check.
+  const id2 = (await h.action({ action: "create", name: "Musa Bello", contact: "08036660000", interest: "Starter website" })).json.id;
+  await h.sql(`UPDATE customer_requests SET status = 'won', email = 'musa@example.com', brief_token = $2, chat_ideas = '{"business_name":"Musa Tailors","hours":"Mon-Sat 8am-7pm","style":"black and gold"}'::jsonb WHERE id = $1`, [id2, "prefilltok-long-enough-" + id2]);
+  const view = (await h.call("GET", "/api/brief?t=prefilltok-long-enough-" + id2)).json;
+  assert.equal(view.answers.business_name, "Musa Tailors");
+  assert.equal(view.answers.phone, "08036660000");
+  assert.equal(view.answers.email, "musa@example.com");
+  assert.equal(view.answers.colours, "black and gold");
+  assert.ok(view.prefilled.includes("hours"));
+});
+
 test("daily run completes without errors", async () => {
   const errors = [];
   const orig = console.error;

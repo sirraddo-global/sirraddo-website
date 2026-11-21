@@ -131,7 +131,7 @@ export async function deployPhotos(jwt, { list, known = {}, load, budgetMs = 600
     await cf(`/pages/assets/upload`, { method: "POST", token: jwt, body: b.map((x) => x.item) });
     for (const x of b) { done[x.path] = x.item.key; kn[x.url] = x.item.key; }
   };
-  while (at < queue.length && Date.now() < until) {
+  while (at < queue.length && (at === 0 || Date.now() < until)) { // always at least one group, so every publish moves on
     const group = queue.slice(at, at + 6); at += group.length;
     const got = await Promise.all(group.map(async (p) => {
       const data = await load(p.url);

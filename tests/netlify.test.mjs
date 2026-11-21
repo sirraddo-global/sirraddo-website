@@ -394,7 +394,10 @@ test("Manage my website: non-store sites get the same private link (hours, numbe
   assert.match(await saved.text(), /Saved ✓/);
   assert.equal((await h.row(id)).hosting.lookMode, "ask");
   // Owner confirms their Google Business Profile: "Google profile done" ticks itself; the box then disappears.
-  assert.match(p2.text, /My Google Business Profile is verified/);
+  assert.match(p2.text, /Google says my business is verified/);
+  assert.match(p2.text, /Get found on Google Maps/);
+  assert.match(p2.text, /business\.google\.com\/create/);
+  assert.match(p2.text, /value="08035550000"|Copy/, "their details ready to copy");
   const g = await fetch(h.base + path, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ phone: "08035550000", gbp_verified: "1" }) });
   assert.match(await g.text(), /Saved ✓/);
   assert.equal((await h.row(id)).handover.gbp_done, true);

@@ -163,6 +163,9 @@ export default async function handler(req, res) {
   // Away mode: the team answers; replies can be slower. Never say the founder is away or travelling (safety).
   const away = await import("./_lib/notices.mjs").then((m) => m.awayStatus()).catch(() => null);
   if (away) system += `\n\nTEAM MODE UNTIL ${away.nice.toUpperCase()}: our team is answering requests and replies may take a little longer. Save their request as usual and tell them the team will reply on WhatsApp. If they ask for Ridwan by name, say the team is handling requests and will pass on their message. Never say anyone is away, travelling or out of town.`;
+  // Language the visitor picked in the chat ("Chat in: Pidgin" etc.).
+  const LANGS = { pcm: "Nigerian Pidgin", yo: "Yoruba", ha: "Hausa", ig: "Igbo" };
+  if (LANGS[body?.lang]) system += `\n\nLANGUAGE: the visitor chose to chat in ${LANGS[body.lang]}. Reply in simple, natural ${LANGS[body.lang]} (mix in English words people commonly use, e.g. website, domain, deposit). Keep prices, package names, references and links exactly as they are. If they write in English, you may answer in English.`;
   let saved = false;
   let lastErr = null;
   // Cheapest first; if it fails, the next one answers (saving is safe to repeat: same chat, same request).

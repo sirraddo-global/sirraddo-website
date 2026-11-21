@@ -76,9 +76,33 @@ ${items.length ? `<div class="c"><h2>Products (${items.length})</h2><p class="m"
 <label for="site_notice">Notice at the top of your website (optional)</label><textarea id="site_notice" name="site_notice" rows="2" maxlength="200" placeholder="e.g. Closed for Sallah, back on Monday. Leave empty to remove it.">${esc(b.site_notice || "")}</textarea></div>
 ${reviewsCard(r.reviews)}
 ${lookCard(r)}
-${gbpAsk(r) ? `<div class="c"><h2>Google Maps and Search</h2><p class="m">Once Google has verified your Google Business Profile (it says "Your business is verified" at business.google.com or in the Google Maps app), tick this and save so we know it's done.</p><label class="ck"><input type="checkbox" name="gbp_verified" value="1"> My Google Business Profile is verified</label></div>` : ""}
+${gbpAsk(r) ? gbpCard(r) : ""}
 <div class="bar"><button type="submit">Save changes</button></div></form>
 ${inviteCard(r)}`;
+}
+
+
+// Getting on Google Maps: their own details ready to copy, step by step. They own the profile themselves.
+function gbpCard(r) {
+  const b = r.brief || {};
+  const copy = (label, value, rows = 0) => value ? `<div class="cp"><span>${esc(label)}</span>${rows ? `<textarea readonly rows="${rows}">${esc(value)}</textarea>` : `<input type="text" readonly value="${esc(value)}">`}<button type="button" onclick="var f=this.previousElementSibling;f.select();try{navigator.clipboard.writeText(f.value)}catch(e){document.execCommand('copy')}this.textContent='Copied \u2713'">Copy</button></div>` : "";
+  const visit = /no|deliver|online|come to them/i.test(b.gbp_visit || "") ? "area" : "shop";
+  return `<div class="c gbp"><h2>Get found on Google Maps \ud83d\udccd</h2>
+<p class="m">When people search for what you sell near them, Google shows your business with your hours, photos, directions and reviews. It's free and takes about 15 minutes. Here's everything you need, ready to copy.</p>
+<ol class="gs">
+<li><b>Open Google Business Profile</b> and sign in${b.gbp_gmail ? ` with <b>${esc(b.gbp_gmail)}</b>` : " with the Gmail that should own it"}.<br><a class="go" href="https://business.google.com/create" target="_blank" rel="noopener">Open Google Business Profile \u2197</a></li>
+<li><b>Business name</b>: exactly as on your signboard.${copy("Name", b.gbp_name || b.business_name || r.business)}</li>
+<li><b>Category</b>: type it, then pick the closest one Google suggests.${copy("Category", b.gbp_category)}</li>
+<li><b>Location</b>: ${visit === "shop" ? "customers come to you, so add your address and put the pin on your shop." : "you deliver or visit customers, so choose “No” for a shop address and add the areas you serve."}${visit === "shop" ? copy("Address", b.address) : copy("Areas you serve", b.gbp_area)}</li>
+<li><b>Contact</b>: your phone number and website.${copy("Phone", b.phone)}${copy("Website", r.website_url)}</li>
+<li><b>Verify</b>: Google asks you to prove it's your business: usually a short video (show your signboard, your shop or tools, and you at work), or a phone code. Follow its steps; it can take a few days.</li>
+<li><b>Finish your profile</b>: add your opening hours, at least 5 bright photos, and this description.${copy("Hours", b.hours)}${copy("Description", r.gbpText, 5)}</li>
+</ol>
+<p class="m">Stuck on a step? Send us a screenshot on <a href="https://wa.me/2348167550937" target="_blank" rel="noopener">WhatsApp</a>.</p>
+<label class="ck"><input type="checkbox" name="gbp_verified" value="1"> Done! Google says my business is verified</label>
+<style>.gbp .gs{padding-left:20px;display:grid;gap:12px;margin:12px 0}.gbp .gs li{line-height:1.45}.gbp .go{display:inline-block;margin-top:6px;background:#13254F;color:#fff;font-weight:700;text-decoration:none;border-radius:10px;padding:9px 14px}
+.gbp .cp{display:grid;grid-template-columns:1fr auto;gap:4px 8px;margin-top:6px;align-items:end}.gbp .cp span{grid-column:1/-1;font-size:.78rem;font-weight:700;opacity:.7}.gbp .cp input,.gbp .cp textarea{margin:0}
+.gbp .cp button{border:1px solid #13254F;background:#fff;color:#13254F;font:inherit;font-weight:700;border-radius:10px;padding:9px 12px;cursor:pointer}</style></div>`;
 }
 
 // Referral: their own link; when a business they send pays for a website, they get the reward.

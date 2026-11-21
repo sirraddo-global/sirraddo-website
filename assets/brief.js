@@ -122,7 +122,53 @@
     return el('div');
   }
 
+  // ---------- Product photos (shared by the product cards and the "other photos" box) ----------
+  var redraws = [];
+  function redrawAll() { redraws.forEach(function (fn) { fn(); }); }
+  function slug(s) { return String(s || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+  function keyOf(file) { return slug(String(file.name || '').replace(/\.[a-z0-9]+$/i, '').replace(/-[0-9a-f]{16}$/, '')); }
+  // Same rules as the website: chosen → named after it → in order.
+  function autoFor(prods, list) {
+    var out = {}, taken = {};
+    prods.forEach(function (r) { if (r.photo && list.some(function (x) { return x.url === r.photo; })) { out[r.photo] = r; taken[r.photo] = 1; } });
+    var extra = {}; prods.forEach(function (r) { (Array.isArray(r.photos) ? r.photos : []).forEach(function (u) { extra[u] = 1; }); });
+    var free = list.filter(function (x) { return !taken[x.url] && !extra[x.url]; });
+    var restP = prods.filter(function (r) { return !(r.photo && taken[r.photo]); });
+    // "Ankara Gown 2.jpg" is another photo of "Ankara Gown" (unless a product is called exactly that).
+    var all = {}; prods.forEach(function (r) { all[slug(r.name)] = r; });
+    var owner = function (x) { var k = keyOf(x); if (all[k]) return all[k]; var b = k.replace(/-?\d{1,2}$/, ''); return b !== k && all[b] ? all[b] : null; };
+    free.forEach(function (x) { var o = owner(x); if (o && restP.indexOf(o) >= 0 && keyOf(x) === slug(o.name)) out[x.url] = o; });
+    var leftPh = free.filter(function (x) { return !owner(x); });
+    var leftP = restP.filter(function (r) { return !free.some(function (x) { return keyOf(x) === slug(r.name); }); });
+    leftPh.forEach(function (x, i) { if (leftP[i]) out[x.url] = leftP[i]; });
+    return out;
+  }
+  // What each product card shows: its main photo and its extra photos (chosen, or numbered after its name).
+  function photoMap(prods, list) {
+    var main = autoFor(prods, list), byUrl = {}, shown = {};
+    list.forEach(function (x) { byUrl[x.url] = x; });
+    var res = prods.map(function (r) {
+      var m = null; Object.keys(main).forEach(function (u) { if (main[u] === r && !m) m = byUrl[u]; });
+      var all = {}; prods.forEach(function (x) { all[slug(x.name)] = 1; });
+      var ex = (Array.isArray(r.photos) ? r.photos : []).map(function (u) { return byUrl[u]; }).filter(Boolean);
+      if (String(r.name || '').trim()) list.forEach(function (x) {
+        var mm = keyOf(x).match(/^(.*?)-?(\d{1,2})$/);
+        if (mm && mm[1] === slug(r.name) && !all[keyOf(x)] && x !== m && ex.indexOf(x) < 0) ex.push(x);
+      });
+      if (m) shown[m.url] = 1; ex.forEach(function (x) { shown[x.url] = 1; });
+      return { main: m, extra: ex };
+    });
+    return { of: res, shown: shown };
+  }
+  // A product name from the photo's file name, unless it is a phone's own name (IMG_1234, WhatsApp Image…).
+  function nameFromFile(n) {
+    var b = String(n || '').replace(/\.[a-z0-9]+$/i, '').replace(/-[0-9a-f]{16}$/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!b || /^(img|dsc|dcim|pxl|photo|image|images|pic|picture|whatsapp|screenshot|snapchat|camera|mvimg|received|fb img|imagen|foto)\b/i.test(b) || (b.replace(/\D/g, '').length >= b.replace(/\s/g, '').length * 0.5)) return '';
+    return b.charAt(0).toUpperCase() + b.slice(1);
+  }
+
   function renderRows(f) {
+    if (f.photoField) return renderProductCards(f);
     var rows = Array.isArray(answers[f.key]) && answers[f.key].length ? answers[f.key] : [{}];
     answers[f.key] = rows;
     var wrap = el('fieldset', { class: 'brief-field', id: fieldId(f) }, [el('legend', null, [f.label]), hint(f)]);
@@ -156,6 +202,170 @@
     wrap.appendChild(list);
     wrap.appendChild(add);
     if (f.paste) wrap.appendChild(pasteBox(f, rows, draw));
+    return wrap;
+  }
+
+  // Products as cards: a photo, then the name, price, category and description right under it.
+  // "Add products from photos" makes one card per photo, so customers only type next to each picture.
+  function renderProductCards(f) {
+    var rows = Array.isArray(answers[f.key]) ? answers[f.key].filter(function (r) { return r && Object.keys(r).some(function (k) { return String(r[k] || '').trim(); }); }) : [];
+    answers[f.key] = rows;
+    var pf = { key: f.photoField };
+    var maxPh = 100;
+    (data.sections || []).forEach(function (s) { s.fields.forEach(function (x) { if (x.key === f.photoField) maxPh = x.max || 100; }); });
+    var wrap = el('fieldset', { class: 'brief-field brief-products', id: fieldId(f) }, [el('legend', null, [f.label]), hint(f)]);
+    var status = el('p', { class: 'brief-file-status', role: 'status' });
+    var list = el('div', { class: 'brief-cards' });
+    var count = el('p', { class: 'brief-pcard-count' });
+    var cats = el('datalist', { id: fieldId(f) + '-cats' });
+    var busy = false;
+    function roomPh() { return maxPh - (files[pf.key] || []).length; }
+    function setStatus(t, bad) { status.textContent = t || ''; status.className = 'brief-file-status' + (bad ? ' is-error' : ''); }
+    function uploadNew(file) {
+      var before = (files[pf.key] || []).map(function (x) { return x.url; });
+      return upload(pf, file).then(function (j) {
+        files = j.files || files;
+        var nu = (files[pf.key] || []).filter(function (x) { return before.indexOf(x.url) < 0; })[0];
+        if (!nu) throw new Error('upload failed');
+        return nu;
+      });
+    }
+    function removeFile(url) {
+      return api('POST', { t: token, remove_file: { field: pf.key, url: url } }).then(function (j) { files = j.files || files; });
+    }
+    // Upload one after another and report progress; each() gets (uploaded file, original file).
+    function uploadAll(chosen, each, done) {
+      if (busy) return;
+      var room = roomPh();
+      if (chosen.length > room) { chosen = chosen.slice(0, Math.max(0, room)); if (!chosen.length) return setStatus('You have reached ' + maxPh + ' photos. Remove some to add more.', true); }
+      busy = true; var i = 0, bad = 0;
+      (function next() {
+        if (i >= chosen.length) { busy = false; if (!bad) setStatus(''); if (done) done(); changed(); redrawAll(); progress(); return; }
+        var file = chosen[i++];
+        setStatus('Uploading photo ' + i + ' of ' + chosen.length + '… please keep this page open.');
+        uploadNew(file).then(function (nu) { each(nu, file); next(); })
+          .catch(function (e) { bad++; setStatus(file.name + ': ' + e.message, true); next(); });
+      })();
+    }
+    function picker(multiple, cb) {
+      var inp = el('input', { type: 'file', accept: 'image/*', multiple: multiple || null, class: 'brief-hidden-input' });
+      inp.addEventListener('change', function () { var c = Array.prototype.slice.call(inp.files || []); inp.value = ''; if (c.length) cb(c); });
+      return inp;
+    }
+    function isBlank(r) { return !f.columns.some(function (c) { return String(r[c.key] || '').trim(); }) && !r.photo; }
+
+    // Big button: many photos → one product card each.
+    var bulkIn = picker(true, function (chosen) {
+      var room = (f.max || 100) - rows.length;
+      if (chosen.length > room) { setStatus('Your list holds up to ' + (f.max || 100) + ' products; adding the first ' + room + '.', true); chosen = chosen.slice(0, room); }
+      var first = rows.length;
+      uploadAll(chosen, function (nu, orig) {
+        var r = { photo: nu.url };
+        f.columns.forEach(function (c) { r[c.key] = ''; });
+        r.name = nameFromFile(orig.name) || nameFromFile(nu.name);
+        rows.push(r);
+        draw();
+      }, function () {
+        var card = list.children[first];
+        if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); var n = card.querySelector('.brief-pcard-body input'); if (n) n.focus({ preventScroll: true }); }
+      });
+    });
+    var bulk = el('label', { class: 'brief-upload brief-upload-big' }, [el('span', { class: 'brief-big-ico', 'aria-hidden': 'true', text: '📷' }),
+      el('span', null, [el('b', { text: 'Add products from photos' }), el('small', { text: 'Pick all your product photos at once. Each photo becomes a product: just type its name and price under it.' })]), bulkIn]);
+    var blank = el('button', { type: 'button', class: 'brief-add', text: '+ Add a product without a photo', onclick: function () {
+      var r = {}; f.columns.forEach(function (c) { r[c.key] = ''; }); rows.push(r); draw(); changed();
+      var card = list.lastChild; if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); card.querySelector('.brief-pcard-body input').focus({ preventScroll: true }); }
+    } });
+
+    function card(row, i, pm) {
+      var c = el('div', { class: 'brief-pcard' + (!String(row.name || '').trim() && (row.photo || pm.main) ? ' needs-name' : '') });
+      // Photo
+      var ph = el('div', { class: 'brief-pcard-photo' });
+      var oneIn = picker(false, function (chosen) {
+        var old = row.photo;
+        uploadAll(chosen, function (nu) {
+          row.photo = nu.url;
+          if (!String(row.name || '').trim()) row.name = nameFromFile(chosen[0].name);
+          if (old && old !== nu.url) removeFile(old).then(redrawAll);
+        });
+      });
+      if (pm.main) {
+        ph.appendChild(el('img', { src: pm.main.url, alt: row.name || 'Product photo', loading: 'lazy' }));
+        ph.appendChild(el('label', { class: 'brief-pcard-change' }, ['Change', oneIn]));
+        ph.appendChild(el('button', { type: 'button', class: 'brief-pcard-x', 'aria-label': 'Remove this photo', text: '×', onclick: function () {
+          var u = pm.main.url; if (row.photo === u) delete row.photo;
+          removeFile(u).then(function () { changed(); redrawAll(); progress(); }).catch(function (e) { setStatus(e.message, true); });
+        } }));
+      } else ph.appendChild(el('label', { class: 'brief-pcard-add' }, [el('span', { 'aria-hidden': 'true', text: '📷' }), el('span', { text: 'Add photo' }), oneIn]));
+      c.appendChild(ph);
+      // Words
+      var body = el('div', { class: 'brief-pcard-body' });
+      f.columns.forEach(function (col) {
+        var ph2 = { name: 'Product name', price: 'Price (₦)', category: 'Category', details: 'Description, sizes, colours' }[col.key] || col.label;
+        var inp = col.key === 'details' ? el('textarea', { rows: 2, placeholder: ph2, 'aria-label': col.label + ' ' + (i + 1) })
+          : el('input', { type: 'text', placeholder: ph2, 'aria-label': col.label + ' ' + (i + 1), inputmode: col.key === 'price' ? 'decimal' : null, list: col.key === 'category' ? cats.id : null, enterkeyhint: 'next' });
+        inp.value = row[col.key] || '';
+        inp.addEventListener('input', function () {
+          row[col.key] = inp.value; changed();
+          if (col.key === 'name') c.classList.toggle('needs-name', !inp.value.trim() && !!(row.photo || pm.main));
+        });
+        if (col.key === 'category') inp.addEventListener('change', fillCats);
+        if (col.key !== 'details') inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); var all = c.querySelectorAll('input,textarea'); var k = Array.prototype.indexOf.call(all, inp); if (all[k + 1]) all[k + 1].focus(); } });
+        var lab = col.key === 'name' ? el('span', { class: 'brief-pcard-need', text: 'Type the product name' }) : null;
+        body.appendChild(inp); if (lab) body.appendChild(lab);
+      });
+      var ex = (f.extra || []).filter(function (x) { return String(row[x.key] || '').trim(); }).map(function (x) { return x.label + ': ' + row[x.key]; });
+      if (ex.length) body.appendChild(el('p', { class: 'brief-hint', text: ex.join(' · ') }));
+      // More photos of the same product
+      var strip = el('div', { class: 'brief-pcard-more' });
+      pm.extra.forEach(function (x) {
+        strip.appendChild(el('span', { class: 'brief-pcard-thumb' }, [el('img', { src: x.url, alt: '', loading: 'lazy' }),
+          el('button', { type: 'button', 'aria-label': 'Remove this extra photo', text: '×', onclick: function () {
+            row.photos = (row.photos || []).filter(function (u) { return u !== x.url; }); if (!row.photos.length) delete row.photos;
+            removeFile(x.url).then(function () { changed(); redrawAll(); }).catch(function (e) { setStatus(e.message, true); });
+          } })]));
+      });
+      if (pm.main && pm.extra.length < 7) {
+        var moreIn = picker(true, function (chosen) {
+          chosen = chosen.slice(0, 7 - pm.extra.length);
+          uploadAll(chosen, function (nu) { row.photos = (Array.isArray(row.photos) ? row.photos : []).concat(nu.url); });
+        });
+        strip.appendChild(el('label', { class: 'brief-pcard-plus', title: 'More photos of this product' }, ['+ More photos', moreIn]));
+      }
+      if (strip.children.length) body.appendChild(strip);
+      c.appendChild(body);
+      c.appendChild(el('span', { class: 'brief-pcard-num', text: String(i + 1) }));
+      c.appendChild(el('button', { type: 'button', class: 'brief-row-remove', 'aria-label': 'Remove product ' + (i + 1), text: '×', onclick: function () {
+        if ((row.name || row.photo) && !window.confirm('Remove ' + (row.name ? '“' + row.name + '”' : 'this product') + '?')) return;
+        var gone = [row.photo].concat(row.photos || []).filter(Boolean);
+        rows.splice(i, 1); changed(); draw();
+        gone.forEach(function (u) { removeFile(u).then(redrawAll).catch(function () {}); });
+      } }));
+      return c;
+    }
+    function fillCats() {
+      var seen = {}; cats.textContent = '';
+      rows.forEach(function (r) { var k = String(r.category || '').trim(); if (k && !seen[k.toLowerCase()]) { seen[k.toLowerCase()] = 1; cats.appendChild(el('option', { value: k })); } });
+    }
+    function draw() {
+      var pm = photoMap(rows.filter(function (r) { return String(r.name || '').trim() || r.photo; }), files[pf.key] || []);
+      var named = rows.filter(function (r) { return String(r.name || '').trim() || r.photo; });
+      list.textContent = '';
+      rows.forEach(function (r, i) { var k = named.indexOf(r); list.appendChild(card(r, i, k >= 0 ? pm.of[k] : { main: null, extra: [] })); });
+      fillCats();
+      var n = rows.filter(function (r) { return String(r.name || '').trim(); }).length, noName = rows.filter(function (r) { return !String(r.name || '').trim() && !isBlank(r); }).length;
+      count.textContent = rows.length ? n + ' product' + (n === 1 ? '' : 's') + (noName ? ' · ' + noName + (noName === 1 ? ' still needs a name' : ' still need a name') : '') : 'No products yet. Start with the big button above.';
+      count.className = 'brief-pcard-count' + (noName ? ' is-warn' : '');
+      blank.hidden = bulk.hidden = rows.length >= (f.max || 100);
+    }
+    redraws.push(draw);
+    draw();
+    wrap.appendChild(cats);
+    if (data.uploads_enabled) { wrap.appendChild(bulk); wrap.appendChild(status); }
+    wrap.appendChild(count);
+    wrap.appendChild(list);
+    wrap.appendChild(blank);
+    if (f.paste) wrap.appendChild(pasteBox(f, rows, function () { draw(); redrawAll(); }));
     return wrap;
   }
 
@@ -235,28 +445,13 @@
     var input = el('input', { type: 'file', accept: f.accept || 'image/*', multiple: f.max > 1 });
     var pick = el('label', { class: 'brief-upload' }, ['+ Add ' + (f.max > 1 ? 'files' : 'file'), input]);
     // Product photos: "Which product?" under each photo, so photos with phone names (IMG_1234) still go to the right product.
-    var rowsOf = function () { return (answers[f.forRows] || []).filter(function (r) { return String(r.name || '').trim(); }); };
-    var slug = function (s) { return String(s || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); };
-    var keyOf = function (file) { return slug(String(file.name || '').replace(/\.[a-z0-9]+$/i, '').replace(/-[0-9a-f]{16}$/, '')); };
-    function autoFor(list) { // same rules as the website: chosen → named after it → in order
-      var prods = rowsOf(), out = {}, taken = {};
-      prods.forEach(function (r) { if (r.photo && list.some(function (x) { return x.url === r.photo; })) { out[r.photo] = r; taken[r.photo] = 1; } });
-      var free = list.filter(function (x) { return !taken[x.url]; });
-      var restP = prods.filter(function (r) { return !(r.photo && taken[r.photo]); });
-      var names = {}; restP.forEach(function (r) { names[slug(r.name)] = r; });
-      // "Ankara Gown 2.jpg" is another photo of "Ankara Gown" (unless a product is called exactly that).
-      var all = {}; prods.forEach(function (r) { all[slug(r.name)] = r; });
-      var owner = function (x) { var k = keyOf(x); if (all[k]) return all[k]; var b = k.replace(/-?\d{1,2}$/, ''); return b !== k && all[b] ? all[b] : null; };
-      free.forEach(function (x) { var o = owner(x); if (o && restP.indexOf(o) >= 0) out[x.url] = o; });
-      var leftPh = free.filter(function (x) { return !owner(x); });
-      var leftP = restP.filter(function (r) { return !free.some(function (x) { return keyOf(x) === slug(r.name); }); });
-      leftPh.forEach(function (x, i) { if (leftP[i]) out[x.url] = leftP[i]; });
-      return out;
-    }
+    var rowsOf = function () { return (answers[f.forRows] || []).filter(function (r) { return String(r.name || '').trim() || r.photo; }); };
     function draw() {
-      var list = files[f.key] || [];
+      var all = files[f.key] || [], list = all;
       grid.textContent = '';
-      var match = f.forRows ? autoFor(list) : {};
+      var match = f.forRows ? autoFor(rowsOf(), all) : {};
+      // Photos already showing on a product card are not repeated here.
+      if (f.forRows) { var shown = photoMap(rowsOf(), all).shown; list = all.filter(function (x) { return !shown[x.url]; }); }
       list.forEach(function (file) {
         var tile = el('div', { class: 'brief-file' }, [
           /^image\//.test(file.type || '') ? el('img', { src: file.url, alt: file.name, loading: 'lazy' }) : el('span', { text: file.name }),
@@ -264,7 +459,7 @@
             api('POST', { t: token, remove_file: { field: f.key, url: file.url } }).then(function (j) {
               files = j.files || files;
               if (f.forRows) rowsOf().forEach(function (r) { if (r.photo === file.url) { delete r.photo; changed(); } });
-              draw(); progress();
+              (f.forRows ? redrawAll : draw)(); progress();
             })
               .catch(function (e) { status.textContent = e.message; status.className = 'brief-file-status is-error'; });
           } })
@@ -281,28 +476,32 @@
             var r = prods[Number(sel.value)];
             if (sel.value !== '' && r) r.photo = file.url;
             // Pin every photo to what it shows now, so changing one doesn't move the others.
-            var now = autoFor(list);
+            var now = autoFor(rowsOf(), all);
             Object.keys(now).forEach(function (u) { if (u !== file.url && !now[u].photo) now[u].photo = u; });
-            changed(); draw();
+            changed(); redrawAll();
           });
           tile.appendChild(sel);
         }
         grid.appendChild(tile);
       });
       if (list.length > 1) {
-        var all = el('button', { type: 'button', class: 'brief-remove-all', text: 'Remove all ' + list.length, onclick: function () {
+        var allBtn = el('button', { type: 'button', class: 'brief-remove-all', text: 'Remove all ' + list.length, onclick: function () {
           if (!window.confirm('Remove all ' + list.length + ' photos here?')) return;
-          api('POST', { t: token, remove_file: { field: f.key, url: '*' } }).then(function (j) {
-            files = j.files || files;
-            if (f.forRows) rowsOf().forEach(function (r) { delete r.photo; });
-            changed(); draw(); progress();
+          // Product photos: only the ones shown here (photos on product cards stay).
+          var gone = f.forRows && list.length < all.length ? list.map(function (x) { return x.url; }) : ['*'];
+          var chain = Promise.resolve();
+          gone.forEach(function (u) { chain = chain.then(function () { return api('POST', { t: token, remove_file: { field: f.key, url: u } }).then(function (j) { files = j.files || files; }); }); });
+          chain.then(function () {
+            if (f.forRows) rowsOf().forEach(function (r) { if (gone[0] === '*' || gone.indexOf(r.photo) >= 0) delete r.photo; if (gone[0] === '*') delete r.photos; });
+            changed(); (f.forRows ? redrawAll : draw)(); progress();
           }).catch(function (e) { status.textContent = e.message; status.className = 'brief-file-status is-error'; });
         } });
-        grid.appendChild(all);
+        grid.appendChild(allBtn);
       }
-      pick.hidden = list.length >= f.max;
-      if (!status.classList.contains('is-error')) status.textContent = list.length ? list.length + ' of ' + f.max + ' uploaded' : '';
+      pick.hidden = all.length >= f.max;
+      if (!status.classList.contains('is-error')) status.textContent = all.length ? all.length + ' of ' + f.max + ' uploaded' + (list.length < all.length ? (list.length ? ' · ' + list.length + ' not on a product yet' : ' · all are on your products above') : '') : '';
     }
+    if (f.forRows) redraws.push(draw);
     input.addEventListener('change', function () {
       var chosen = Array.prototype.slice.call(input.files || []);
       input.value = '';
@@ -314,7 +513,7 @@
       } else status.className = 'brief-file-status';
       var i = 0;
       (function next() {
-        if (i >= chosen.length) { draw(); progress(); return; }
+        if (i >= chosen.length) { (f.forRows ? redrawAll : draw)(); progress(); return; }
         var file = chosen[i++];
         status.textContent = 'Uploading ' + i + ' of ' + chosen.length + '…';
         upload(f, file).then(function (j) { files = j.files || files; draw(); next(); })

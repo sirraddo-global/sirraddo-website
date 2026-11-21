@@ -117,9 +117,9 @@ export const SECTIONS = [
         // From a spreadsheet only (no boxes on the form): stock, old price (sale) and sizes/colours.
         extra: [{ key: "stock", label: "Stock" }, { key: "was", label: "Old price" }, { key: "options", label: "Sizes/colours" }],
         columns: [{ key: "name", label: "Product" }, { key: "price", label: "Price (₦)" }, { key: "category", label: "Category" }, { key: "details", label: "Description, sizes, colours" }],
-        hint: "Up to 100. The category groups them into sections on your shop page (e.g. Fabrics, Groceries). Long list? Tap 'Add from a spreadsheet' below: you can download a sample file to fill in." },
-      { key: "product_photos", label: "Product photos", type: "files", max: 100, accept: "image/*", forRows: "products",
-        hint: "Pick many at once. Name each photo exactly like the product and it goes to that product by itself, e.g. “Ofada Rice 5kg.jpg”. More photos of the same product: “Ofada Rice 5kg 2.jpg”, “Ofada Rice 5kg 3.jpg”. Or choose the product under each photo. Plain background works best." },
+        hint: "Easiest way: tap “Add products from photos”, pick all your product photos at once, then type the name, price and description under each one. Up to 100. The category groups them into sections on your shop page (e.g. Fabrics, Groceries). Already have a list in Excel? Use “Add from a spreadsheet” at the bottom." },
+      { key: "product_photos", label: "Other product photos (optional)", type: "files", max: 100, accept: "image/*", forRows: "products",
+        hint: "Most people don't need this: photos added above are already on their products. Added your list from a spreadsheet? Pick many photos at once here. Name each photo exactly like the product and it goes to that product by itself, e.g. “Ofada Rice 5kg.jpg”. More photos of the same product: “Ofada Rice 5kg 2.jpg”, “Ofada Rice 5kg 3.jpg”. Or choose the product under each photo. Plain background works best." },
     ],
   },
   {
@@ -184,9 +184,14 @@ export function cleanAnswers(kind, raw) {
             for (const c of f.columns) r[c.key] = typeof row?.[c.key] === "string" ? row[c.key].trim().slice(0, 500) : "";
             for (const c of f.extra || []) if (typeof row?.[c.key] === "string" && row[c.key].trim()) r[c.key] = row[c.key].trim().slice(0, 300);
             // The photo chosen for this product in the form ("Which product?" under each photo).
-            if (f.photoField && typeof row?.photo === "string" && /^https:\/\/[^\s"']+$/.test(row.photo)) r.photo = row.photo.slice(0, 400);
+            if (f.photoField && typeof row?.photo === "string" && /^https?:\/\/[^\s"']+$/.test(row.photo)) r.photo = row.photo.slice(0, 400);
+            // More photos of the same product ("+ More photos" on its card).
+            if (f.photoField && Array.isArray(row?.photos)) {
+              const more = row.photos.filter((u) => typeof u === "string" && /^https?:\/\/[^\s"']+$/.test(u) && u !== r.photo).map((u) => u.slice(0, 400)).slice(0, 7);
+              if (more.length) r.photos = [...new Set(more)];
+            }
             return r;
-          }).filter((r) => Object.entries(r).some(([k, x]) => k !== "photo" && x));
+          }).filter((r) => Object.entries(r).some(([k, x]) => (Array.isArray(x) ? x.length : x)));
         }
       } else if (typeof v === "string") out[f.key] = v.trim().slice(0, LIMITS[f.type] || 1000);
     }

@@ -264,7 +264,8 @@ export function buildSiteModel(row) {
     socials,
     logo: (files.logo || []).find(isImage) || null,
     photos: (files.photos || []).filter(isImage),
-    productPhotos: (files.product_photos || []).filter(isImage),
+    // Photos on a product card that has no name yet wait for that product (never shown on another one).
+    productPhotos: (files.product_photos || []).filter(isImage).filter((f) => !(b.products || []).some((p) => !String(p?.name || "").trim() && (p?.photo === f.url || (Array.isArray(p?.photos) && p.photos.includes(f.url))))),
     services: (b.services || []).filter((s) => s.name),
     // i = position in the form (the cart and checkout use it); amount = price as a number, if it is one.
     products: (b.products || []).map((p, i) => ({ ...p, i })).filter((p) => p.name).map((p, pos) => ({
@@ -424,7 +425,9 @@ export function productPhotoFor(site, p) {
   const chosen = p.photo && photos.find((f) => f.url === p.photo);
   if (chosen) return chosen;
   const taken = new Set(site.products.map((x) => x.photo).filter((u) => photos.some((f) => f.url === u)));
-  const free = photos.filter((f) => !taken.has(f.url));
+  // Extra photos chosen for a product ("+ More photos") are never another product's main photo.
+  const extras = new Set(site.products.flatMap((x) => (Array.isArray(x.photos) ? x.photos : [])));
+  const free = photos.filter((f) => !taken.has(f.url) && !extras.has(f.url));
   const byName = free.find((f) => photoKey(f) === slugify(p.name)) || numbered(site, p, free)[0];
   if (byName) return byName;
   // Photos named after any product (or numbered, "ankara-gown-2") are never handed to another product.

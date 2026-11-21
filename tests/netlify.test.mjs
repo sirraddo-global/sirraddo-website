@@ -160,8 +160,16 @@ test("big store: up to 100 products, sections per category, photos matched by fi
   assert.equal(productPhotoFor(site2, site2.products[0]), null);
   delete products[1].photo;
   const { cleanAnswers } = await import("../api/_lib/brief-schema.mjs");
-  const kept = cleanAnswers("store", { products: [{ name: "Rice", price: "100", photo: "https://www.sirraddo.com.ng/files/x.jpg" }, { photo: "https://evil" }] });
-  assert.deepEqual(kept.products, [{ name: "Rice", price: "100", category: "", details: "", photo: "https://www.sirraddo.com.ng/files/x.jpg" }], "photo kept; a row with only a photo dropped");
+  const kept = cleanAnswers("store", { products: [{ name: "Rice", price: "100", photo: "https://www.sirraddo.com.ng/files/x.jpg", photos: ["https://www.sirraddo.com.ng/files/y.jpg", "javascript:alert(1)", "https://www.sirraddo.com.ng/files/x.jpg"] }, { photo: "https://evil" }, { photo: "javascript:x" }, {}] });
+  assert.deepEqual(kept.products, [
+    { name: "Rice", price: "100", category: "", details: "", photo: "https://www.sirraddo.com.ng/files/x.jpg", photos: ["https://www.sirraddo.com.ng/files/y.jpg"] },
+    { name: "", price: "", category: "", details: "", photo: "https://evil" },
+  ], "photo and extra photos kept; a card with only a photo waits for its name; bad links and empty rows dropped");
+  // A card with a photo but no name yet is not on the website, and its photo is not given to another product.
+  const site3 = buildSiteModel({ ...row, brief: { ...row.brief, products: [{ name: "Rice", price: "100" }, { name: "", photo: row.brief_files.product_photos[0].url }] } });
+  assert.equal(site3.products.length, 1);
+  assert.equal(site3.productPhotos.length, 1, "the waiting photo is held back");
+  assert.notEqual(productPhotoFor(site3, site3.products[0])?.url, row.brief_files.product_photos[0].url);
   const { SECTIONS } = await import("../api/_lib/brief-schema.mjs");
   assert.equal(SECTIONS.flatMap((s) => s.fields).find((f) => f.key === "products").max, 100);
   const shop = site.pages.find((p) => p.kind === "shop");

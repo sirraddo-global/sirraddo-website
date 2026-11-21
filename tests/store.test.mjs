@@ -570,3 +570,20 @@ test("stores that source on order: hide stock numbers; products without a count 
   // "Lace" has no stock count: as many as they like
   assert.equal((await shop({ s: tok, action: "quote", items: [{ i: 1, q: 40 }] })).json.subtotal, 800000);
 });
+
+test("photos named after products: main photo, numbered extra photos, never given to another product; spreadsheet extras kept", async () => {
+  const { productPhotoFor, productPhotosAll } = await import("../api/_lib/sitegen.mjs");
+  const ph = (name) => ({ name, url: "https://x.test/" + name.replace(/\s/g, "_") });
+  const site = {
+    products: [{ name: "Ankara Gown" }, { name: "Ofada Rice 5kg" }, { name: "Lace" }, { name: "Shoe" }],
+    productPhotos: [ph("Ankara Gown 2.jpg"), ph("ankara-gown.jpg"), ph("Ankara Gown 3.png"), ph("ofada-rice-5kg-2.jpg"), ph("random-photo.jpg")],
+  };
+  assert.equal(productPhotoFor(site, site.products[0]).name, "ankara-gown.jpg");
+  assert.deepEqual(productPhotosAll(site, site.products[0]).map((f) => f.name), ["ankara-gown.jpg", "Ankara Gown 2.jpg", "Ankara Gown 3.png"]);
+  assert.equal(productPhotoFor(site, site.products[1]).name, "ofada-rice-5kg-2.jpg", "only a numbered one: it's the main photo");
+  assert.equal(productPhotoFor(site, site.products[2]).name, "random-photo.jpg", "an unnamed photo goes to a product without one");
+  assert.equal(productPhotoFor(site, site.products[3]), null, "named photos are never handed to another product");
+  const { cleanAnswers } = await import("../api/_lib/brief-schema.mjs");
+  const b = cleanAnswers("store", { products: [{ name: "Gown", price: "15000", category: "Fashion", details: "", stock: "4", was: "18000", options: "Size: S, M" }] });
+  assert.deepEqual(b.products[0], { name: "Gown", price: "15000", category: "Fashion", details: "", stock: "4", was: "18000", options: "Size: S, M" });
+});

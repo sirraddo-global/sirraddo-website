@@ -425,19 +425,26 @@ export function productPhotoFor(site, p) {
   if (chosen) return chosen;
   const taken = new Set(site.products.map((x) => x.photo).filter((u) => photos.some((f) => f.url === u)));
   const free = photos.filter((f) => !taken.has(f.url));
-  const byName = free.find((f) => photoKey(f) === slugify(p.name));
+  const byName = free.find((f) => photoKey(f) === slugify(p.name)) || numbered(site, p, free)[0];
   if (byName) return byName;
-  const names = new Set(site.products.filter((x) => !(x.photo && taken.has(x.photo))).map((x) => slugify(x.name)));
-  const leftPhotos = free.filter((f) => !names.has(photoKey(f)));
-  const leftProducts = site.products.filter((x) => !(x.photo && taken.has(x.photo)) && !free.some((f) => photoKey(f) === slugify(x.name)));
+  // Photos named after any product (or numbered, "ankara-gown-2") are never handed to another product.
+  const all = new Set(site.products.map((x) => slugify(x.name)));
+  const named = (f) => { const k = photoKey(f), b = k.replace(/-?\d{1,2}$/, ""); return all.has(k) || (b !== k && all.has(b)); };
+  const leftPhotos = free.filter((f) => !named(f));
+  const leftProducts = site.products.filter((x) => !(x.photo && taken.has(x.photo)) && !free.some((f) => photoKey(f) === slugify(x.name)) && !numbered(site, x, free).length);
   return leftPhotos[leftProducts.indexOf(p)] || null;
+}
+// "Ankara Gown 2.jpg", "ankara-gown-3.png": more photos of "Ankara Gown" (lowest number first), unless another product
+// is called exactly that.
+function numbered(site, p, list) {
+  const slug = slugify(p.name), all = new Set(site.products.map((x) => slugify(x.name)));
+  return list.map((f) => ({ f, m: photoKey(f).match(/^(.*?)-?(\d{1,2})$/) })).filter((x) => x.m && x.m[1] === slug && !all.has(photoKey(x.f)))
+    .sort((a, b) => Number(a.m[2]) - Number(b.m[2])).map((x) => x.f);
 }
 export function productPhotosAll(site, p) {
   const main = productPhotoFor(site, p);
-  const slug = slugify(p.name);
-  const re = new RegExp("^" + slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "-?\\d{1,2}$");
   const chosen = Array.isArray(p.photos) ? p.photos : [];
-  const extra = site.productPhotos.filter((f) => f !== main && f.url !== main?.url && (re.test(photoKey(f)) || chosen.includes(f.url)));
+  const extra = numbered(site, p, site.productPhotos).concat(site.productPhotos.filter((f) => chosen.includes(f.url))).filter((f, i, a) => f !== main && f.url !== main?.url && a.indexOf(f) === i);
   return [main, ...extra].filter(Boolean).slice(0, 8);
 }
 // Search box (filters as you type) and the category bar: it stays at the top while scrolling, with a solid

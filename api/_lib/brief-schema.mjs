@@ -114,10 +114,12 @@ export const SECTIONS = [
     fields: [
       { key: "product_count", label: "How many products to start with?", type: "select", required: true, options: ["Up to 20", "21–50", "51–100", "More than 100"] },
       { key: "products", label: "Products", type: "rows", max: 100, paste: true, photoField: "product_photos",
+        // From a spreadsheet only (no boxes on the form): stock, old price (sale) and sizes/colours.
+        extra: [{ key: "stock", label: "Stock" }, { key: "was", label: "Old price" }, { key: "options", label: "Sizes/colours" }],
         columns: [{ key: "name", label: "Product" }, { key: "price", label: "Price (₦)" }, { key: "category", label: "Category" }, { key: "details", label: "Description, sizes, colours" }],
-        hint: "Up to 100. The category groups them into sections on your shop page (e.g. Fabrics, Groceries). Long list? Tap 'Add from a spreadsheet' below." },
+        hint: "Up to 100. The category groups them into sections on your shop page (e.g. Fabrics, Groceries). Long list? Tap 'Add from a spreadsheet' below: you can download a sample file to fill in." },
       { key: "product_photos", label: "Product photos", type: "files", max: 100, accept: "image/*", forRows: "products",
-        hint: "You can pick many at once. Under each photo, choose which product it shows (photos named after a product, e.g. ofada-rice-5kg.jpg, are matched for you). Plain background works best." },
+        hint: "Pick many at once. Name each photo exactly like the product and it goes to that product by itself, e.g. “Ofada Rice 5kg.jpg”. More photos of the same product: “Ofada Rice 5kg 2.jpg”, “Ofada Rice 5kg 3.jpg”. Or choose the product under each photo. Plain background works best." },
     ],
   },
   {
@@ -180,6 +182,7 @@ export function cleanAnswers(kind, raw) {
           out[f.key] = v.slice(0, f.max || 50).map((row) => {
             const r = {};
             for (const c of f.columns) r[c.key] = typeof row?.[c.key] === "string" ? row[c.key].trim().slice(0, 500) : "";
+            for (const c of f.extra || []) if (typeof row?.[c.key] === "string" && row[c.key].trim()) r[c.key] = row[c.key].trim().slice(0, 300);
             // The photo chosen for this product in the form ("Which product?" under each photo).
             if (f.photoField && typeof row?.photo === "string" && /^https:\/\/[^\s"']+$/.test(row.photo)) r.photo = row.photo.slice(0, 400);
             return r;

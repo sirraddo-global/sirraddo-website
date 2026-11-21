@@ -137,6 +137,9 @@
           inp.addEventListener('input', function () { row[c.key] = inp.value; changed(); });
           box.appendChild(inp);
         });
+        // Stock, old price and sizes/colours from the spreadsheet (no boxes for them): shown so nothing is hidden.
+        var ex = (f.extra || []).filter(function (c) { return String(row[c.key] || '').trim(); }).map(function (c) { return c.label + ': ' + row[c.key]; });
+        if (ex.length) box.appendChild(el('p', { class: 'brief-hint', text: ex.join(' · ') }));
         if (rows.length > 1) box.appendChild(el('button', { type: 'button', class: 'brief-row-remove', 'aria-label': 'Remove row ' + (i + 1), text: '×', onclick: function () {
           rows.splice(i, 1); draw(); changed();
         } }));
@@ -178,13 +181,23 @@
     var area = el('textarea', { rows: 5, placeholder: 'One product per line: ' + cols + '\ne.g. Ofada Rice 5kg, 9500, Groceries, Stone-free' });
     var file = el('input', { type: 'file', accept: '.csv,text/csv,text/plain' });
     var msg = el('p', { class: 'brief-hint', text: '' });
+    // With a header row, the columns can be in any order (and Stock, Old price, Sizes/colours can be added).
+    var SYN = { name: /^(product|products|product name|name|item|items)$/, price: /^(price|price \(₦\)|amount|cost|₦)$/, category: /^(category|categories|section|type|group)$/,
+      details: /^(description|details|description, sizes, colours|desc|about)$/, stock: /^(stock|in stock|quantity|qty|available)$/, was: /^(old price|was|normal price|before)$/, options: /^(sizes\/colours|sizes|colours|colors|options|variants|sizes and colours|size|colour|color)$/ };
+    function headerMap(cells) {
+      var map = {}, hits = 0;
+      cells.forEach(function (c, i) { var h = String(c || '').trim().toLowerCase(); Object.keys(SYN).forEach(function (k) { if (map[k] === undefined && SYN[k].test(h)) { map[k] = i; hits++; } }); });
+      return map.name !== undefined && hits >= 2 ? map : null;
+    }
     function add(text, replace) {
-      var lines = parseTable(text);
-      if (lines.length && /product|name/i.test(lines[0][0] || '') && !/\d/.test(lines[0][1] || '')) lines.shift(); // header row
+      var lines = parseTable(text), hm = lines.length ? headerMap(lines[0]) : null;
+      if (hm) lines.shift();
+      else if (lines.length && /product|name/i.test(lines[0][0] || '') && !/\d/.test(lines[0][1] || '')) lines.shift(); // header row
       var room = (f.max || 50) - (replace ? 0 : rows.filter(function (r) { return Object.keys(r).some(function (k) { return String(r[k] || '').trim(); }); }).length);
       var fresh = lines.slice(0, room).map(function (cells) {
         var row = {};
-        f.columns.forEach(function (c, i) { row[c.key] = String(cells[i] || '').trim(); });
+        if (hm) { f.columns.concat(f.extra || []).forEach(function (c) { if (hm[c.key] !== undefined) row[c.key] = String(cells[hm[c.key]] || '').trim(); }); f.columns.forEach(function (c) { if (row[c.key] === undefined) row[c.key] = ''; }); }
+        else f.columns.forEach(function (c, i) { row[c.key] = String(cells[i] || '').trim(); });
         return row;
       }).filter(function (r) { return r[f.columns[0].key]; });
       if (!fresh.length) { msg.textContent = 'No products found. Put one per line, with commas between the columns.'; return; }
@@ -200,7 +213,13 @@
       r.onload = function () { add(r.result, window.confirm('Replace the products already in the list? (Cancel = add to them)')); file.value = ''; };
       r.readAsText(fl);
     });
-    box.appendChild(el('p', { class: 'brief-hint', text: 'Columns: ' + cols + '. Upload a CSV file (Excel or Google Sheets: Download → CSV), or paste rows below.' }));
+    box.appendChild(el('p', { class: 'brief-hint', text: 'Columns: ' + cols + (f.extra ? ' (and if you like: ' + f.extra.map(function (c) { return c.label; }).join(', ') + ')' : '') + '. Keep the first row as the column names. Fill it in Excel or Google Sheets, save or download it as CSV, then choose it here. Or paste rows below.' }));
+    // A ready-made file to fill in.
+    var head = f.columns.map(function (c) { return c.label; }).concat((f.extra || []).map(function (c) { return c.label; }));
+    var sample = [head, ['Ofada Rice 5kg', '9500', 'Groceries', 'Stone-free, locally grown', '20', '', ''], ['Ankara Gown', '15000', 'Fashion', 'Made with 100% cotton', '', '18000', 'Size: S, M, L | Colour: Blue, Red']];
+    var csv = sample.map(function (r) { return r.map(function (x) { return /[",\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x; }).join(','); }).join('\r\n');
+    var dl = el('a', { class: 'brief-add', text: 'Download a sample file', download: 'products.csv', href: 'data:text/csv;charset=utf-8,' + encodeURIComponent('\ufeff' + csv) });
+    box.appendChild(dl);
     box.appendChild(el('label', { class: 'brief-upload' }, ['Choose a CSV file', file]));
     box.appendChild(area);
     box.appendChild(el('button', { type: 'button', class: 'brief-add', text: 'Add these', onclick: function () { add(area.value, false); area.value = ''; } }));
@@ -225,8 +244,11 @@
       var free = list.filter(function (x) { return !taken[x.url]; });
       var restP = prods.filter(function (r) { return !(r.photo && taken[r.photo]); });
       var names = {}; restP.forEach(function (r) { names[slug(r.name)] = r; });
-      free.forEach(function (x) { if (names[keyOf(x)]) out[x.url] = names[keyOf(x)]; });
-      var leftPh = free.filter(function (x) { return !names[keyOf(x)]; });
+      // "Ankara Gown 2.jpg" is another photo of "Ankara Gown" (unless a product is called exactly that).
+      var all = {}; prods.forEach(function (r) { all[slug(r.name)] = r; });
+      var owner = function (x) { var k = keyOf(x); if (all[k]) return all[k]; var b = k.replace(/-?\d{1,2}$/, ''); return b !== k && all[b] ? all[b] : null; };
+      free.forEach(function (x) { var o = owner(x); if (o && restP.indexOf(o) >= 0) out[x.url] = o; });
+      var leftPh = free.filter(function (x) { return !owner(x); });
       var leftP = restP.filter(function (r) { return !free.some(function (x) { return keyOf(x) === slug(r.name); }); });
       leftPh.forEach(function (x, i) { if (leftP[i]) out[x.url] = leftP[i]; });
       return out;

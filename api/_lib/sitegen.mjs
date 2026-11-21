@@ -675,7 +675,9 @@ btn.addEventListener('click',function(){paint();box.hidden=false;document.body.s
 // Signed in (Standard Store): fill in their details and offer their saved addresses.
 function prefill(){var A=window.SAcct&&window.SAcct.b(),sv=$('#cb-saved');if(A){if(!$('#cb-name').value)$('#cb-name').value=A.name;if(!$('#cb-phone').value)$('#cb-phone').value=A.phone;if(!$('#cb-email').value)$('#cb-email').value=A.email||'';
 var L=A.addresses||[];sv.hidden=!L.length;sv.innerHTML=L.map(function(x,k){return '<option value="'+k+'">'+x.label.replace(/[<&]/g,'')+': '+x.text.replace(/[<&]/g,'')+'</option>'}).join('')+'<option value="">A new address</option>';
-if(L.length&&!$('#cb-addr').value)$('#cb-addr').value=L[0].text;sv.onchange=function(){$('#cb-addr').value=sv.value===''?'':L[+sv.value].text}}else sv.hidden=true;}
+if(L.length&&!$('#cb-addr').value)$('#cb-addr').value=L[0].text;sv.onchange=function(){$('#cb-addr').value=sv.value===''?'':L[+sv.value].text}}
+else{var G=window.SAcct&&window.SAcct.prof?window.SAcct.prof():{},GL=G.addresses||[];if(G.name&&!$('#cb-name').value)$('#cb-name').value=G.name;if(G.phone&&!$('#cb-phone').value)$('#cb-phone').value=G.phone;if(G.email&&!$('#cb-email').value)$('#cb-email').value=G.email;
+sv.hidden=!GL.length;sv.innerHTML=GL.map(function(x,k){return '<option value="'+k+'">'+String(x.label).replace(/[<&]/g,'')+': '+String(x.text).replace(/[<&]/g,'')+'</option>'}).join('')+'<option value="">A new address</option>';if(GL.length&&!$('#cb-addr').value)$('#cb-addr').value=GL[0].text;sv.onchange=function(){$('#cb-addr').value=sv.value===''?'':GL[+sv.value].text}}}
 window.__cartPrefill=function(){if(!box.hidden){document.body.style.overflow='hidden';prefill()}};
 function buyer(){return{name:$('#cb-name').value.trim(),phone:$('#cb-phone').value.trim(),email:$('#cb-email').value.trim(),address:$('#cb-addr').value.trim()}}
 $('.cart .waorder').addEventListener('click',function(){var b=buyer(),t='Hello '+C.name+', I would like to order:\\n'+B.map(function(l){return '- '+l.n+' x'+l.q+' ('+money(l.p*l.q)+')'}).join('\\n')+'\\nItems total: '+money(sub())+(b.name?'\\nName: '+b.name:'')+(b.phone?'\\nPhone: '+b.phone:'')+(b.address?'\\nDeliver to: '+b.address:'');
@@ -688,7 +690,10 @@ var zv=$('#cb-zone').value;if(Z.length&&zv===''){pay.disabled=false;msg.innerHTM
 var A=window.SAcct,body={s:C.s,method:m,t:A?A.t():'',items:B.map(function(l){return{i:l.i,q:l.q,v:l.v||''}}),buyer:b,code:code};if(Z.length)body.zone=+zv;else body.zone='';
 fetch(C.api+'/api/shop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
 .then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Error');return j})})
-.then(function(j){if(A&&A.b()&&b.address)A.saveAddress(b.address);B=[];save();location.href=j.url}).catch(function(err){pay.disabled=false;msg.innerHTML='<span class="err">'+String(err.message).replace(/[&<>]/g,'')+'</span>'});});});
+.then(function(j){if(A&&A.b()&&b.address)A.saveAddress(b.address);
+// Kept on this phone for the Profile: the order (to follow it in My orders / Inbox), the details and the address.
+if(A&&A.prof){A.addOrder({ref:j.ref,url:j.url,at:Date.now()});var G=A.prof();G.name=b.name||G.name;G.phone=b.phone||G.phone;G.email=b.email||G.email;var GL=G.addresses||[];if(b.address&&!GL.some(function(x){return String(x.text).toLowerCase()===b.address.toLowerCase()})&&GL.length<20)GL.push({label:'Address '+(GL.length+1),text:b.address});G.addresses=GL;A.setProf(G)}
+B=[];save();location.href=j.url}).catch(function(err){pay.disabled=false;msg.innerHTML='<span class="err">'+String(err.message).replace(/[&<>]/g,'')+'</span>'});});});
 if(C.s)fetch(C.api+'/api/shop?config=1&s='+encodeURIComponent(C.s)).then(function(r){return r.json()}).then(function(j){M=j.methods||{paystack:!!j.online};online=!!(M.paystack||M.flutterwave);fee=j.deliveryFee;
 var dn=$('.cart .dnote');if(j.deliveryNote&&M.delivery){dn.hidden=false;dn.textContent='Pay on delivery: '+j.deliveryNote}
 // Delivery areas (fee per area), free delivery above an amount, and the discount code box.

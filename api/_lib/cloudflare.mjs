@@ -73,8 +73,11 @@ export function fileHash(base64, path) {
 export async function rollbackDeployment(project, deploymentId) {
   return cf(`/accounts/${acct()}/pages/projects/${project}/deployments/${deploymentId}/rollback`, { method: "POST", body: {} });
 }
-export async function deploy(project, files) {
+export async function deploy(project, files, photos = null) {
   const { jwt } = await cf(`/accounts/${acct()}/pages/projects/${project}/upload-token`);
+  // Photos first (big stores have hundreds): see deployPhotos. Pages can then point at what got uploaded.
+  let ph = null;
+  if (photos) { ph = await deployPhotos(jwt, photos); files = photos.pages(ph.pending); }
   const items = files.map((f) => {
     const data = Buffer.isBuffer(f.data) ? f.data : Buffer.from(f.data);
     const base64 = data.toString("base64");
@@ -98,11 +101,55 @@ export async function deploy(project, files) {
     size += i.base64.length;
   }
   await flush();
-  await cf(`/pages/assets/upsert-hashes`, { method: "POST", token: jwt, body: { hashes } });
+  const photoHashes = ph ? Object.values(ph.done) : [];
+  await cf(`/pages/assets/upsert-hashes`, { method: "POST", token: jwt, body: { hashes: [...new Set([...hashes, ...photoHashes])] } });
+  const manifest = Object.fromEntries(items.map((i) => [i.path, i.hash]));
+  if (ph) for (const [path, hash] of Object.entries(ph.done)) manifest["/" + path] = hash;
   const form = new FormData();
-  form.append("manifest", JSON.stringify(Object.fromEntries(items.map((i) => [i.path, i.hash]))));
+  form.append("manifest", JSON.stringify(manifest));
   form.append("branch", "main");
-  return cf(`/accounts/${acct()}/pages/projects/${project}/deployments`, { method: "POST", form });
+  const dep = await cf(`/accounts/${acct()}/pages/projects/${project}/deployments`, { method: "POST", form });
+  return ph ? Object.assign({}, dep, { photos: ph }) : dep;
+}
+
+// Photos for a deployment: [{ path: "images/07.jpg", url }] plus known = { url: hash } from earlier publishes.
+// Known photos Cloudflare still has are not downloaded again. The rest are read 6 at a time and sent in
+// batches, until the time budget runs out; photos left over are "pending" (the pages show them from our
+// own server for now) and the next publish carries on. Returns { done: { path: hash }, known, pending }.
+export async function deployPhotos(jwt, { list, known = {}, load, budgetMs = 6000 }) {
+  const until = Date.now() + budgetMs;
+  const kn = { ...known };
+  const cached = list.filter((p) => kn[p.url]);
+  const gone = new Set(cached.length ? await cf(`/pages/assets/check-missing`, { method: "POST", token: jwt, body: { hashes: [...new Set(cached.map((p) => kn[p.url]))] } }) : []);
+  const done = {};
+  for (const p of cached) if (!gone.has(kn[p.url])) done[p.path] = kn[p.url];
+  const queue = list.filter((p) => !done[p.path]);
+  let batch = [], size = 0, at = 0;
+  const flush = async () => {
+    if (!batch.length) return;
+    const b = batch; batch = []; size = 0;
+    await cf(`/pages/assets/upload`, { method: "POST", token: jwt, body: b.map((x) => x.item) });
+    for (const x of b) { done[x.path] = x.item.key; kn[x.url] = x.item.key; }
+  };
+  while (at < queue.length && Date.now() < until) {
+    const group = queue.slice(at, at + 6); at += group.length;
+    const got = await Promise.all(group.map(async (p) => {
+      const data = await load(p.url);
+      if (!data) return null;
+      const base64 = Buffer.from(data).toString("base64");
+      return { path: p.path, url: p.url, item: { key: fileHash(base64, p.path), value: base64, metadata: { contentType: TYPES[ext(p.path)] || "image/jpeg" }, base64: true } };
+    }));
+    for (const x of got.filter(Boolean)) {
+      if (size + x.item.value.length > 8 * 1024 * 1024) await flush();
+      batch.push(x); size += x.item.value.length;
+    }
+    if (size > 6 * 1024 * 1024) await flush();
+  }
+  await flush();
+  // Forget hashes of photos no longer on the site, so the list doesn't grow forever.
+  const urls = new Set(list.map((p) => p.url));
+  for (const u of Object.keys(kn)) if (!urls.has(u)) delete kn[u];
+  return { done, known: kn, pending: list.filter((p) => !done[p.path]) };
 }
 
 // Connect domain (and www.domain) to the project: Pages custom domains + DNS records.

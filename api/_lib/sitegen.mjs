@@ -271,6 +271,7 @@ export function buildSiteModel(row) {
     products: (b.products || []).map((p, i) => ({ ...p, i })).filter((p) => p.name).map((p, pos) => ({
       ...p, pos, ...saleOf(p), options: parseOptions(p.options), text: noPrice((productText[p.name.toLowerCase()] || []).join(" ")),
     })),
+    get allProducts() { return this.products; },
     shopToken: row.shop_token || row.shop?.token || "",
     statsKey: row.hosting?.statsKey || "",
     reviews: row.reviews?.list?.length ? row.reviews : { list: [], count: 0, average: 0 }, // approved in Manage my store
@@ -342,7 +343,7 @@ section.block{padding:48px 0}section.block:nth-of-type(even){background:#F6F7F9}
 .cat-nav{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;padding:10px 0 6px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
 .cat-nav a{flex:0 0 auto;border:1px solid #D1D5DB;border-radius:999px;padding:9px 14px;text-decoration:none;color:#1F2933;background:#fff;font-weight:600;opacity:1;white-space:nowrap}
 .cat-nav a[aria-current]{background:${t.accent};border-color:${t.accent};color:#fff}.cat-nav a[aria-current] span{opacity:.85}.cat-nav a[hidden],.cat[hidden],.card[hidden],.shop-none[hidden]{display:none}
-.shop-none{padding:20px 0;font-weight:600}
+.shop-none{padding:20px 0;font-weight:600}.cat-more-row{text-align:center;margin:14px 0 4px}.cat-more-row[hidden]{display:none}.cat-more{background:transparent;color:inherit;border:1.5px solid currentColor}
 .map iframe{width:100%;height:360px;border:0;border-radius:${t.radius};display:block}
 details.faq{border:1px solid rgba(127,127,127,.3);border-radius:${t.radius};padding:4px 16px;margin:10px 0;background:rgba(127,127,127,.06)}
 details.faq summary{cursor:pointer;font-weight:700;padding:12px 0;list-style:none;display:flex;justify-content:space-between;gap:12px}
@@ -420,7 +421,58 @@ function serviceCards(site, showPrice) {
 // 1) the photo chosen for it in the form, 2) the photo named after it (ofada-rice-5kg.jpg), 3) the remaining
 // photos in list order for the remaining products.
 const photoKey = (f) => slugify(String(f.name || "").replace(/\.[a-z0-9]+$/i, "").replace(/-[0-9a-f]{16}$/, ""));
+// The main photo of every product, worked out once per site (a store can have 1,000 products and 3,000 photos;
+// matching each card on its own would take far too long). Same rules as before, over the whole product list.
+const photoCache = new WeakMap();
+function photoPlan(site) {
+  const photos = site.productPhotos || [], prods = site.allProducts || site.products;
+  const sig = prods.length + ":" + prods.map((x) => x.i + "/" + x.name + "/" + (x.photo || "") + "/" + (Array.isArray(x.photos) ? x.photos.length : 0)).join("|");
+  const hit = photoCache.get(photos);
+  if (hit && hit.sig === sig && hit.prods === prods) return hit;
+  const urls = new Set(photos.map((f) => f.url));
+  const taken = new Set(prods.map((x) => x.photo).filter((u) => urls.has(u)));
+  const extras = new Set(prods.flatMap((x) => (Array.isArray(x.photos) ? x.photos : [])));
+  const free = photos.filter((f) => !taken.has(f.url) && !extras.has(f.url));
+  const all = new Set(prods.map((x) => slugify(x.name)));
+  const byKey = new Map(), numbers = new Map();
+  for (const f of free) {
+    const k = photoKey(f);
+    if (!byKey.has(k)) byKey.set(k, f);
+    const m = k.match(/^(.*?)-?(\d{1,2})$/);
+    if (m && !all.has(k)) { if (!numbers.has(m[1])) numbers.set(m[1], []); numbers.get(m[1]).push({ f, n: Number(m[2]) }); }
+  }
+  for (const list of numbers.values()) list.sort((a, b) => a.n - b.n);
+  const named = (f) => { const k = photoKey(f), b = k.replace(/-?\d{1,2}$/, ""); return all.has(k) || (b !== k && all.has(b)); };
+  const leftPhotos = free.filter((f) => !named(f));
+  const map = new Map();
+  let k = 0;
+  for (const x of prods) {
+    const chosen = x.photo && urls.has(x.photo) ? photos.find((f) => f.url === x.photo) : null;
+    const slug = slugify(x.name);
+    const mine = chosen || byKey.get(slug) || numbers.get(slug)?.[0]?.f || null;
+    if (mine) { map.set(x, mine); continue; }
+    if (x.photo && taken.has(x.photo)) continue;
+    map.set(x, leftPhotos[k++] || null); // photos with phone names go to products without one, in order
+  }
+  // Numbered photos ("ankara-gown-2") of each product among all photos, for the extra photos in its pop-up.
+  const numAll = new Map();
+  for (const f of photos) {
+    const kk = photoKey(f), m = kk.match(/^(.*?)-?(\d{1,2})$/);
+    if (m && !all.has(kk)) { if (!numAll.has(m[1])) numAll.set(m[1], []); numAll.get(m[1]).push({ f, n: Number(m[2]) }); }
+  }
+  for (const list of numAll.values()) list.sort((a, b) => a.n - b.n);
+  const plan = { sig, prods, map, numAll };
+  photoCache.set(photos, plan);
+  return plan;
+}
 export function productPhotoFor(site, p) {
+  const { map } = photoPlan(site);
+  if (map.has(p)) return map.get(p);
+  const same = [...map.keys()].find((x) => x.i === p.i && x.name === p.name);
+  return same ? map.get(same) : null;
+}
+// The old one-product-at-a-time version (kept for the tests that check both agree).
+export function productPhotoForSlow(site, p) {
   const photos = site.productPhotos;
   const chosen = p.photo && photos.find((f) => f.url === p.photo);
   if (chosen) return chosen;
@@ -447,7 +499,7 @@ function numbered(site, p, list) {
 export function productPhotosAll(site, p) {
   const main = productPhotoFor(site, p);
   const chosen = Array.isArray(p.photos) ? p.photos : [];
-  const extra = numbered(site, p, site.productPhotos).concat(site.productPhotos.filter((f) => chosen.includes(f.url))).filter((f, i, a) => f !== main && f.url !== main?.url && a.indexOf(f) === i);
+  const extra = (photoPlan(site).numAll.get(slugify(p.name)) || []).map((x) => x.f).concat(site.productPhotos.filter((f) => chosen.includes(f.url))).filter((f, i, a) => f !== main && f.url !== main?.url && a.indexOf(f) === i);
   return [main, ...extra].filter(Boolean).slice(0, 8);
 }
 // Search box (filters as you type) and the category bar: it stays at the top while scrolling, with a solid
@@ -459,8 +511,10 @@ var links=[].slice.call(tools.querySelectorAll('.cat-nav a')),cats=[].slice.call
 function mark(id){links.forEach(function(a){var on=a.getAttribute('href')==='#'+id;if(on){a.setAttribute('aria-current','true');a.scrollIntoView({block:'nearest',inline:'nearest'})}else a.removeAttribute('aria-current')})}
 if(cats.length&&'IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)mark(e.target.id)})},{rootMargin:'-30% 0px -65% 0px'});cats.forEach(function(c){io.observe(c)})}
 var q=tools.querySelector('.shop-search'),none=document.querySelector('.shop-none');if(q)q.addEventListener('input',function(){var w=q.value.trim().toLowerCase(),n=0;
-document.querySelectorAll('.cards.products .card').forEach(function(c){var hit=!w||c.textContent.toLowerCase().indexOf(w)>=0;c.hidden=!hit;if(hit)n++});
+document.querySelectorAll('.cards.products .card').forEach(function(c){var hit=w?c.textContent.toLowerCase().indexOf(w)>=0:!(c.hasAttribute('data-more')&&!c.parentNode.classList.contains('open'));c.hidden=!hit;if(hit)n++});
+document.querySelectorAll('.cat-more-row').forEach(function(b){b.hidden=!!w||b.previousElementSibling.classList.contains('open')});
 cats.forEach(function(s){s.hidden=!!w&&!s.querySelector('.card:not([hidden])')});links.forEach(function(a){var s=document.querySelector(a.getAttribute('href'));a.hidden=!!s&&s.hidden});none.hidden=n>0;});}
+document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('.cat-more');if(!b)return;var row=b.parentNode,g=row.previousElementSibling;g.classList.add('open');g.querySelectorAll('[data-more]').forEach(function(c){c.hidden=false});row.hidden=true});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();})();</script>`;
 // The shop page: one section per category (with quick links at the top) when there are 2 or more.
 function shopSections(site, img) {
@@ -474,12 +528,15 @@ function shopSections(site, img) {
   const id = (c) => "cat-" + slugify(c.name);
   const search = site.products.length > 1 ? `<input class="shop-search" type="search" placeholder="Search ${site.products.length} products" aria-label="Search products" autocomplete="off">` : "";
   const tools = (nav) => search || nav ? `<div class="shop-tools" id="categories">${search}${nav}</div><p class="shop-none" hidden>No products match. Try another word.</p>${SHOP_JS}` : "";
-  if (cats.length < 2) return tools("") + productCards(site, img);
+  // Big stores: a few per category at first ("See all"), so the page opens fast; search still finds every product.
+  const big = site.products.length > 60;
+  if (cats.length < 2) return tools("") + productCards(site, img, big ? 48 : 0);
   return tools(`<nav class="cat-nav" aria-label="Product categories">${cats.map((c) => `<a href="#${id(c)}">${esc(c.name)} <span>(${c.products.length})</span></a>`).join("")}</nav>`) +
-    cats.map((c) => `<section class="cat" id="${id(c)}"><h2>${esc(c.name)} <a class="cat-top" href="#categories">\u2191 Categories</a></h2>${productCards({ ...site, products: c.products }, img)}</section>`).join("");
+    cats.map((c) => `<section class="cat" id="${id(c)}"><h2>${esc(c.name)} <a class="cat-top" href="#categories">\u2191 Categories</a></h2>${productCards({ ...site, products: c.products }, img, big ? 24 : 0)}</section>`).join("");
 }
-function productCards(site, img) {
+function productCards(site, img, limit = 0) {
   const shopOn = hasCart(site) && site.shopToken;
+  let shown = 0;
   const rvAll = (site.reviews?.list || []).filter((x) => x.i !== undefined);
   return `<div class="cards products">${site.products.map((p) => {
     const photo = productPhotoFor(site, p);
@@ -503,8 +560,9 @@ function productCards(site, img) {
       : p.price ? `<p class="price">${esc(p.amount ? naira(p.amount) : naira(p.price))}</p>` : "";
     const rate = rv.length ? `<p class="prate"><span aria-hidden="true">\u2605</span> ${avg.toFixed(1)} <small>(${rv.length} review${rv.length === 1 ? "" : "s"})</small></p>` : "";
     const data = `${photos.length > 1 ? ` data-photos="${esc(JSON.stringify(photos))}"` : ""}${rv.length ? ` data-rv="${esc(JSON.stringify(rv.slice(0, 6).map((x) => ({ n: x.name, s: x.stars, t: x.text, v: x.verified }))))}"` : ""}`;
-    return `<div class="card prod${sold ? " is-soldout" : ""}${p.onSale ? " on-sale" : ""}" data-pi="${p.i}"${data}>${p.onSale ? `<span class="sale-tag">\u2212${p.off}%</span>` : ""}${photo ? `<img class="pv-open" src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3><button class="pname pv-open" type="button" aria-haspopup="dialog">${esc(p.name)}</button></h3>${rate}${text ? `<div class="pdesc" hidden>${esc(text)}</div>` : ""}${price}${buy}</div>`;
-  }).join("")}</div>`;
+    const more = limit && ++shown > limit ? " hidden data-more" : "";
+    return `<div class="card prod${sold ? " is-soldout" : ""}${p.onSale ? " on-sale" : ""}" data-pi="${p.i}"${data}${more}>${p.onSale ? `<span class="sale-tag">\u2212${p.off}%</span>` : ""}${photo ? `<img class="pv-open" src="${img(photo.url)}" alt="${esc(p.name)}" loading="lazy" decoding="async">` : ""}<h3><button class="pname pv-open" type="button" aria-haspopup="dialog">${esc(p.name)}</button></h3>${rate}${text ? `<div class="pdesc" hidden>${esc(text)}</div>` : ""}${price}${buy}</div>`;
+  }).join("")}</div>${limit && site.products.length > limit ? `<p class="cat-more-row"><button class="btn cat-more" type="button">See all ${site.products.length}</button></p>` : ""}`;
 }
 
 // Product pop-up: photos (swipe, tap to zoom), the full description, sizes/colours, reviews from buyers, share,

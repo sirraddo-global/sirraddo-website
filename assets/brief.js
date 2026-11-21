@@ -211,8 +211,8 @@
     var rows = Array.isArray(answers[f.key]) ? answers[f.key].filter(function (r) { return r && Object.keys(r).some(function (k) { return String(r[k] || '').trim(); }); }) : [];
     answers[f.key] = rows;
     var pf = { key: f.photoField };
-    var maxPh = 100;
-    (data.sections || []).forEach(function (s) { s.fields.forEach(function (x) { if (x.key === f.photoField) maxPh = x.max || 100; }); });
+    var maxPh = 3000;
+    (data.sections || []).forEach(function (s) { s.fields.forEach(function (x) { if (x.key === f.photoField) maxPh = x.max || 3000; }); });
     var wrap = el('fieldset', { class: 'brief-field brief-products', id: fieldId(f) }, [el('legend', null, [f.label]), hint(f)]);
     var status = el('p', { class: 'brief-file-status', role: 'status' });
     var list = el('div', { class: 'brief-cards' });
@@ -256,15 +256,18 @@
 
     // Big button: many photos → one product card each.
     var bulkIn = picker(true, function (chosen) {
-      var room = (f.max || 100) - rows.length;
-      if (chosen.length > room) { setStatus('Your list holds up to ' + (f.max || 100) + ' products; adding the first ' + room + '.', true); chosen = chosen.slice(0, room); }
+      var room = (f.max || 1000) - rows.length;
+      if (chosen.length > room) { setStatus('Your list holds up to ' + (f.max || 1000) + ' products; adding the first ' + room + '.', true); chosen = chosen.slice(0, room); }
       var first = rows.length;
       uploadAll(chosen, function (nu, orig) {
         var r = { photo: nu.url };
         f.columns.forEach(function (c) { r[c.key] = ''; });
         r.name = nameFromFile(orig.name) || nameFromFile(nu.name);
         rows.push(r);
-        draw();
+        // Add just this card (redrawing hundreds of cards after every photo would make phones slow).
+        list.appendChild(card(r, rows.length - 1, { main: nu, extra: [] }));
+        count.textContent = rows.length + ' products so far…';
+        if (rows.length % 10 === 0) changed(); // saved as it goes, so nothing is lost if the page closes
       }, function () {
         var card = list.children[first];
         if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); var n = card.querySelector('.brief-pcard-body input'); if (n) n.focus({ preventScroll: true }); }
@@ -356,7 +359,7 @@
       var n = rows.filter(function (r) { return String(r.name || '').trim(); }).length, noName = rows.filter(function (r) { return !String(r.name || '').trim() && !isBlank(r); }).length;
       count.textContent = rows.length ? n + ' product' + (n === 1 ? '' : 's') + (noName ? ' · ' + noName + (noName === 1 ? ' still needs a name' : ' still need a name') : '') : 'No products yet. Start with the big button above.';
       count.className = 'brief-pcard-count' + (noName ? ' is-warn' : '');
-      blank.hidden = bulk.hidden = rows.length >= (f.max || 100);
+      blank.hidden = bulk.hidden = rows.length >= (f.max || 1000);
     }
     redraws.push(draw);
     draw();

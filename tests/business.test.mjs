@@ -139,6 +139,47 @@ test("go-live: publish to Cloudflare; domain only attached once the balance is p
   assert.equal(r.website_url, "https://adasalon.com.ng");
 });
 
+test("big store: photos upload over several publishes; pending ones show from our server, never broken", async () => {
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  const files = [], products = [];
+  for (let i = 0; i < 40; i++) {
+    const { url } = await globalThis.__TEST_BLOB__.put(`p${i}.png`, Buffer.concat([png, Buffer.from(String(i))]), { contentType: "image/png" });
+    files.push({ url, name: `item-${i + 1}.png`, type: "image/png" });
+    products.push({ name: `Item ${i + 1}`, price: "1000", category: i < 20 ? "Bags" : "Shoes" });
+  }
+  const [{ brief, brief_files }] = await h.sql(`SELECT brief, brief_files FROM customer_requests WHERE id = $1`, [ada]);
+  await h.sql(`UPDATE customer_requests SET brief = $2::jsonb, brief_files = $3::jsonb WHERE id = $1`, [ada, JSON.stringify({ ...brief, products }), JSON.stringify({ ...(brief_files || {}), product_photos: files })]);
+  process.env.PUBLISH_PHOTO_MS = "1"; // one group of photos per publish
+  const uploads = () => h.CF.calls.filter((c) => /assets\/upload/.test(c.path || c)).length;
+  let left = null, runs = 0;
+  try {
+    while (left !== 0 && runs < 20) {
+      const pub = await h.action({ action: "host_publish", id: ada, force: true });
+      assert.equal(pub.status, 200, pub.text);
+      runs++;
+      const dep = h.CF.deployments.at(-1), html = h.CF.assets.get(dep.manifest["/index.html"]);
+      const page = Buffer.from(html.value, "base64").toString();
+      const imgs = Object.keys(dep.manifest).filter((f) => f.startsWith("/images/"));
+      left = pub.json.photosLeft;
+      if (runs === 1) assert.ok(left > 0 && left < 40, "first publish goes live with some photos still to upload: " + left);
+      // Every product photo on the page is either uploaded to the site or shown from our server.
+      for (const m of page.matchAll(/src="([^"]+)"/g)) if (/\/__blob\/|images\//.test(m[1])) assert.ok(/^https?:\/\/.+\/__blob\//.test(m[1]) || imgs.includes("/" + m[1].replace(/^\//, "")), "photo link works: " + m[1]);
+    }
+    assert.equal(left, 0, "all photos uploaded after " + runs + " publishes");
+    assert.ok(runs > 2);
+    const page = Buffer.from(h.CF.assets.get(h.CF.deployments.at(-1).manifest["/index.html"]).value, "base64").toString();
+    assert.ok(!/__blob/.test(page), "finally every photo is on the site itself");
+    // Publishing again doesn't upload the photos again.
+    const before = h.CF.assets.size;
+    const again = await h.action({ action: "host_publish", id: ada, force: true });
+    assert.equal(again.json.photosLeft, 0);
+    assert.ok(h.CF.assets.size - before <= 3, "photos not uploaded twice");
+  } finally {
+    delete process.env.PUBLISH_PHOTO_MS;
+    await h.sql(`UPDATE customer_requests SET brief = $2::jsonb, brief_files = $3::jsonb WHERE id = $1`, [ada, JSON.stringify(brief), JSON.stringify(brief_files || {})]);
+  }
+});
+
 test("Do it with AI: a change request is read and applied to the live site (add, remove, change); Undo puts it back", async () => {
   const brief = { business_name: "Kemi Wears", phone: "08035550000", products: [{ name: "Ankara gown", price: "20000", stock: "4" }, { name: "Lace blouse", price: "12000" }, { name: "Gele", price: "5000" }] };
   const md = "# Website text\n## Page: Home\n### Hero\n**Headline:** Kemi Wears\n### Visit\n**Text:** Open Monday to Saturday in Bodija.\n## Page: About us\n### Story\n**Text:** We sew in Ibadan.\n## Product descriptions\n### Lace blouse\nSoft lace.\n### Gele\nBright gele.\n\n---\n*Draft written by AI from the project form on 2026-11-01. Check it.*";

@@ -112,13 +112,13 @@ export const SECTIONS = [
     title: "Products",
     only: ["store"],
     fields: [
-      { key: "product_count", label: "How many products to start with?", type: "select", required: true, options: ["Up to 20", "21–50", "51–100", "More than 100"] },
-      { key: "products", label: "Products", type: "rows", max: 100, paste: true, photoField: "product_photos",
+      { key: "product_count", label: "How many products to start with?", type: "select", required: true, options: ["Up to 20", "21–50", "51–100", "101–500", "More than 500"] },
+      { key: "products", label: "Products", type: "rows", max: 1000, paste: true, photoField: "product_photos",
         // From a spreadsheet only (no boxes on the form): stock, old price (sale) and sizes/colours.
         extra: [{ key: "stock", label: "Stock" }, { key: "was", label: "Old price" }, { key: "options", label: "Sizes/colours" }],
         columns: [{ key: "name", label: "Product" }, { key: "price", label: "Price (₦)" }, { key: "category", label: "Category" }, { key: "details", label: "Description, sizes, colours" }],
-        hint: "Easiest way: tap “Add products from photos”, pick all your product photos at once, then type the name, price and description under each one. Up to 100. The category groups them into sections on your shop page (e.g. Fabrics, Groceries). Already have a list in Excel? Use “Add from a spreadsheet” at the bottom." },
-      { key: "product_photos", label: "Other product photos (optional)", type: "files", max: 100, accept: "image/*", forRows: "products",
+        hint: "Easiest way: tap “Add products from photos”, pick all your product photos at once, then type the name, price and description under each one. Up to 1,000 products; you can add a few hundred photos at a time. The category groups them into sections on your shop page (e.g. Fabrics, Groceries). Already have a list in Excel? Use “Add from a spreadsheet” at the bottom." },
+      { key: "product_photos", label: "Other product photos (optional)", type: "files", max: 3000, accept: "image/*", forRows: "products",
         hint: "Most people don't need this: photos added above are already on their products. Added your list from a spreadsheet? Pick many photos at once here. Name each photo exactly like the product and it goes to that product by itself, e.g. “Ofada Rice 5kg.jpg”. More photos of the same product: “Ofada Rice 5kg 2.jpg”, “Ofada Rice 5kg 3.jpg”. Or choose the product under each photo. Plain background works best." },
     ],
   },

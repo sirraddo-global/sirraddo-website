@@ -2705,7 +2705,14 @@
     if (!h.pausedAt) pubActs.appendChild(el('button', { class: 'btn btn--navy admin-golive-btn', type: 'button', text: h.publishedAt ? 'Update live site' : '2. Publish website', onclick: function (e) {
       var force = false;
       if (owing) { if (!window.confirm('The balance (' + naira(bal) + ') isn\'t paid yet.\n\nThe site will go only on the free .pages.dev address, not their domain. Their domain connects by itself once the balance is paid. If it\'s still unpaid after 7 days, the site pauses itself.\n\nPublish on .pages.dev now?')) return; force = true; }
-      act({ action: 'host_publish', force: force }, function (j) { return (j.firstTime ? 'Live! Marked Live, renewal date set. ' : 'Updated. ') + (j.owed ? 'On ' + j.url + ' only until the balance is paid.' : j.waitingForDomain ? 'It\'s on ' + j.url + ' until the domain is active, then it connects by itself.' : j.url); }, e.currentTarget, 'Publishing… (up to a minute)');
+      var btn = e.currentTarget, first = null;
+      var msg = function (j) { return (first ? 'Live! Marked Live, renewal date set. ' : 'Updated. ') + (j.owed ? 'On ' + j.url + ' only until the balance is paid.' : j.waitingForDomain ? 'It\'s on ' + j.url + ' until the domain is active, then it connects by itself.' : j.url) + (j.photosLeft ? ' ' + j.photosLeft + ' photos are still uploading: they show from our server until then.' : ''); };
+      // Big stores: each publish uploads photos for a few seconds; keep going until all are on the site.
+      (function go(n) {
+        act({ action: 'host_publish', force: force }, function (j) { if (first === null) first = j.firstTime; return msg(j); }, btn, n ? 'Uploading photos… ' + n : 'Publishing… (up to a minute)').then(function (j) {
+          if (j && j.photosLeft > 0 && n < 60) { btn = document.querySelector('.admin-golive-btn') || btn; btn.disabled = true; btn.textContent = 'Uploading photos: ' + (j.photosTotal - j.photosLeft) + ' of ' + j.photosTotal + '…'; go(n + 1); }
+        });
+      })(0);
     } }));
     // Undo: put the version before the current one back live (e.g. the owner dislikes a new look). Cloudflare keeps them.
     var hist = h.history || [], ci = hist.map(function (v) { return v.id; }).indexOf(h.deploymentId), prevV = hist[ci >= 0 ? ci + 1 : 1];

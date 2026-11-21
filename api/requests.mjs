@@ -707,11 +707,25 @@ export default async function handler(req, res) {
           if (body.action === "agent_update") await ag.adminUpdate(body.id, body);
           if (body.action === "agent_payout") await ag.adminPayout(body.id, body);
           if (body.action === "agent_reset") return res.status(200).json(await ag.adminResetPassword(body.id));
+          if (body.action === "agent_bonus") await ag.adminBonus(body.id, body);
+          if (body.action === "agent_news") { const r2 = await ag.adminNews(body); const out2 = await ag.adminList(); return res.status(200).json({ ...out2, emailed: r2.emailed }); }
+          if (body.action === "agent_news_delete") await ag.adminNewsDelete(body.id);
           if (body.action === "agents_settings") {
             const rate = Number(body.rate), min = Number(body.min);
             if (!(rate > 0 && rate <= 50)) throw new Bad("Commission must be between 1 and 50%.");
             if (!(min >= 1000)) throw new Bad("The smallest payout must be at least ₦1,000.");
-            await saveSettings({ agent_rate: String(rate), agent_min: String(Math.round(min)) });
+            const set = { agent_rate: String(rate), agent_min: String(Math.round(min)) };
+            if ("tiers" in body) {
+              const t = String(body.tiers || "").trim();
+              if (t && !/^off$/i.test(t) && !ag.parseTiers(t).length) throw new Bad('Write levels like "5:12, 15:15" (from the 5th paying client 12%…), or "off".');
+              set.agent_tiers = /^off$/i.test(t) ? "off" : ag.parseTiers(t).map((x) => `${x.clients}:${x.rate}`).join(",");
+            }
+            if ("invite_bonus" in body) {
+              const ib = Math.round(Number(body.invite_bonus));
+              if (!(ib >= 0 && ib <= 100000)) throw new Bad("The invite bonus must be between ₦0 and ₦100,000.");
+              set.agent_invite_bonus = String(ib);
+            }
+            await saveSettings(set);
           }
           const out = await ag.adminList();
           return res.status(200).json(can(me, "money") ? out : { ...out, agents: out.agents.map((a) => ({ ...a, bank: null, payouts: [], leads: a.leads.map((l) => ({ ...l, paid: null })) })) });

@@ -1698,10 +1698,29 @@
       if (isOwner()) {
         var rate = el('input', { type: 'number', min: 1, max: 50, value: j.rate, inputmode: 'decimal' });
         var min = el('input', { type: 'number', min: 1000, step: 500, value: j.min, inputmode: 'numeric' });
+        var tiers = el('input', { value: j.tiers.length ? j.tiers.map(function (t) { return t.clients + ':' + t.rate; }).join(', ') : 'off', placeholder: '5:12, 15:15' });
+        var inv = el('input', { type: 'number', min: 0, step: 500, value: j.inviteBonus, inputmode: 'numeric' });
         box.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Commission' }),
-          el('div', { class: 'admin-grid2' }, [field('Commission (% of what the client pays for the build)', rate), field('Smallest payout (₦)', min)]),
-          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Save', onclick: function () { api('POST', { action: 'agents_settings', rate: rate.value, min: min.value }).then(function (x) { flash('Saved'); draw(x); }).catch(fail); } })]));
+          el('div', { class: 'admin-grid2' }, [field('Commission (% of what the client pays for the build)', rate), field('Smallest payout (₦)', min),
+            field('Levels (from the Nth paying client, this %)', tiers, '"5:12, 15:15" = from the 5th paying client 12% (Silver), from the 15th 15% (Gold). "off" = everyone at the base %.'),
+            field('Invite bonus (₦)', inv, 'Paid to an agent when someone they invited earns their first commission. 0 = none.')]),
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Save', onclick: function () { api('POST', { action: 'agents_settings', rate: rate.value, min: min.value, tiers: tiers.value, invite_bonus: inv.value }).then(function (x) { flash('Saved'); draw(x); }).catch(fail); } })]));
+        // Announcements
+        var nt = el('input', { placeholder: 'Title, e.g. December promo', maxlength: 120 }), nbody = el('textarea', { rows: 3, maxlength: 1500, placeholder: 'What agents should know' }), nlink = el('input', { placeholder: 'Link (optional), https://…' });
+        var nmail = el('input', { type: 'checkbox' });
+        var news = el('div', { class: 'admin-card' }, [el('h2', { text: 'Announcements to agents' }), el('p', { class: 'admin-hint', text: 'Shows at the top of every agent\'s dashboard. Tick email to also send it (up to 60 agents, from today\'s email allowance).' }),
+          nt, nbody, nlink, el('label', { class: 'admin-check' }, [nmail, ' Also email it to agents']),
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Post announcement', onclick: function () {
+            api('POST', { action: 'agent_news', title: nt.value, body: nbody.value, link: nlink.value, email: nmail.checked }).then(function (x) { flash(x.emailed ? 'Posted and emailed to ' + x.emailed : 'Posted'); draw(x); }).catch(fail);
+          } })]);
+        if (j.news.length) news.appendChild(el('ul', { class: 'admin-mini' }, j.news.map(function (n) {
+          return el('li', null, [el('b', { text: n.title }), ' · ' + new Date(n.created_at).toLocaleDateString('en-GB') + (n.emailed ? ' · emailed ' + n.emailed : '') + ' ',
+            el('button', { class: 'admin-btn', type: 'button', text: 'Delete', onclick: function () { if (window.confirm('Delete this announcement?')) api('POST', { action: 'agent_news_delete', id: n.id }).then(draw).catch(fail); } })]);
+        })));
+        box.appendChild(news);
       }
+      if (j.top && j.top.length) box.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: '🏆 Top agents this month' }), el('ol', { class: 'admin-mini' }, j.top.map(function (t) { return el('li', { text: t.name + (t.city ? ' (' + t.city + ')' : '') + ' · ' + t.clients + ' paying' }); })),
+        el('p', { class: 'admin-hint', text: 'Reward the top agent with "Add bonus" on their card below.' })]));
       var pending = j.agents.filter(function (a) { return a.status === 'pending'; });
       var owed = j.agents.filter(function (a) { return a.payout_requested_at; });
       var list = el('div', { class: 'admin-card' }, [el('h2', { text: 'Your agents (' + j.agents.filter(function (a) { return a.status === 'active'; }).length + ' active)' })]);
@@ -1719,7 +1738,8 @@
       d.appendChild(el('p', { class: 'admin-meta', text: [a.phone, a.email, a.city, 'applied ' + new Date(a.created_at).toLocaleDateString('en-GB'), a.last_login_at ? 'last log in ' + new Date(a.last_login_at).toLocaleDateString('en-GB') : 'never logged in'].filter(Boolean).join(' · ') }));
       if (a.pitch) d.appendChild(el('p', { class: 'admin-meta', text: 'How they’ll find clients: ' + a.pitch }));
       if (a.link) d.appendChild(el('p', { class: 'admin-meta', text: 'Link: ' + a.link + ' · commission ' + a.rate + '%' + (a.own_rate != null ? ' (their own rate)' : '') }));
-      if (a.status === 'active') d.appendChild(el('p', { class: 'admin-meta', text: 'Earned ' + naira(a.earned) + ' · paid ' + naira(a.paidOut) + ' · balance ' + naira(a.balance) }));
+      if (a.status === 'active') d.appendChild(el('p', { class: 'admin-meta', text: a.level + ' · commission ' + naira(a.earned) + (a.bonusTotal ? ' · bonuses ' + naira(a.bonusTotal) : '') + (a.inviteTotal ? ' · invite bonuses ' + naira(a.inviteTotal) : '') + ' · paid ' + naira(a.paidOut) + ' · balance ' + naira(a.balance) + (a.prospects ? ' · ' + a.prospects + ' registered prospect' + (a.prospects === 1 ? '' : 's') : '') + (a.invites ? ' · invited ' + a.invites + ' agent' + (a.invites === 1 ? '' : 's') : '') }));
+      if (a.invited_by) d.appendChild(el('p', { class: 'admin-meta', text: 'Invited by ' + a.invited_by }));
       var acts = el('div', { class: 'admin-actions' });
       if (isOwner()) {
         var set = function (status, ok) { return function () { api('POST', { action: 'agent_update', id: a.id, status: status }).then(function (x) { flash(ok); openId = a.id; draw(x); }).catch(fail); }; };
@@ -1739,6 +1759,13 @@
         var own = el('input', { type: 'number', min: 1, max: 50, placeholder: String(j.rate), value: a.own_rate != null ? a.own_rate : '', style: 'max-width:90px' });
         acts.appendChild(el('span', { class: 'admin-inline' }, ['Own %', own, el('button', { class: 'admin-btn', type: 'button', text: 'Set', onclick: function () { api('POST', { action: 'agent_update', id: a.id, rate: own.value }).then(function (x) { flash('Saved'); openId = a.id; draw(x); }).catch(fail); } })]));
       }
+      if (isOwner() && a.status === 'active') {
+        acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Add bonus', onclick: function () {
+          var amt = window.prompt('Bonus for ' + a.name + ' (₦):', '5000'); if (!amt) return;
+          var why = window.prompt('What is it for? (they see this)', 'Top agent of the month'); if (why == null) return;
+          api('POST', { action: 'agent_bonus', id: a.id, amount: amt, note: why }).then(function (x) { flash('Bonus added'); openId = a.id; draw(x); }).catch(fail);
+        } }));
+      }
       d.appendChild(acts);
       // Pay
       if (isOwner() && a.status !== 'pending') {
@@ -1753,7 +1780,7 @@
           } })]));
       }
       if (a.leads.length) d.appendChild(el('ul', { class: 'admin-mini' }, a.leads.map(function (l) {
-        return el('li', null, [el('b', { text: l.business || l.name }), ' · ' + l.interest + ' · ' + l.status + (l.self ? ' · their own business (not counted)' : '') + (l.paid != null ? ' · paid ' + naira(l.paid) : '') + ' · earns ' + naira(l.earned)]);
+        return el('li', null, [el('b', { text: l.business || l.name }), ' · ' + l.interest + ' · ' + l.status + (l.self ? ' · their own business (not counted)' : '') + (l.paid != null ? ' · paid ' + naira(l.paid) : '') + ' · earns ' + naira(l.earned) + (l.rate ? ' (' + l.rate + '%)' : '')]);
       })));
       if (a.payouts.length) d.appendChild(el('p', { class: 'admin-meta', text: 'Payouts: ' + a.payouts.map(function (p) { return naira(p.amount) + ' on ' + new Date(p.created_at).toLocaleDateString('en-GB') + (p.ref ? ' (' + p.ref + ')' : ''); }).join(', ') }));
       return d;

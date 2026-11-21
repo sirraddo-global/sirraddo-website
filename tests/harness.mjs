@@ -134,16 +134,16 @@ export async function startHarness() {
   for (const [path, file] of Object.entries({
     "/api/chat": "chat", "/api/requests": "requests", "/api/cron-daily": "cron-daily", "/api/lead": "lead", "/api/brief": "brief",
     "/api/brief-upload": "brief-upload", "/doc": "doc", "/preview": "preview", "/api/preview": "preview", "/change": "site", "/api/site": "site",
-    "/pay": "pay", "/api/pay": "pay", "/api/paystack-webhook": "paystack-webhook", "/api/shop": "shop", "/connect": "connect", "/manage": "manage", "/api/mystore": "mystore", "/api/chat-upload": "chat-upload", "/api/agent": "agent",
+    "/pay": "pay", "/api/pay": "pay", "/api/paystack-webhook": "paystack-webhook", "/api/shop": "shop", "/connect": "connect", "/manage": "manage", "/api/mystore": "mystore", "/api/chat-upload": "chat-upload", "/api/agent": "agent", "/demo": "demo",
   })) handlers[path] = (await import(join(ROOT, "api", file + ".mjs"))).default;
 
   // Every API call goes through the same Netlify adapter the live site uses (netlify/lib/adapter.mjs).
   for (const k of Object.keys(handlers)) handlers[k] = adapt(handlers[k]);
-  const TYPES = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".jpg": "image/jpeg", ".xml": "application/xml", ".txt": "text/plain" };
+  const TYPES = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".png": "image/png", ".jpg": "image/jpeg", ".xml": "application/xml", ".txt": "text/plain", ".svg": "image/svg+xml", ".mp4": "video/mp4" };
   server.on("request", async (req, res) => {
     const u = new URL(req.url, base);
     if (u.pathname.startsWith("/__blob/")) { const b = blobs.get(u.pathname.slice(8)); res.setHeader("content-type", b.type); return res.end(b.body); }
-    const h = handlers[u.pathname];
+    const h = handlers[u.pathname] || (u.pathname.startsWith("/demo/") ? handlers["/demo"] : null);
     if (h) {
       const chunks = []; for await (const c of req) chunks.push(c);
       const headers = new Headers(); for (const [k, v] of Object.entries(req.headers)) headers.set(k, Array.isArray(v) ? v.join(", ") : v);

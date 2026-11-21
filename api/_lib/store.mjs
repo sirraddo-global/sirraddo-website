@@ -264,7 +264,12 @@ export async function saveRequest(r) {
       JSON.stringify(r.transcript || []), r.email || null, JSON.stringify(r.ideas || {}), cleanFrom(r.cameFrom),
       ["customer_accounts", "custom_system"].includes(r.wants) ? r.wants : detectWants(r.details, r.ideas?.goals, r.ideas?.pages, r.ideas?.products_services)]
   );
+  // A business an agent registered as their prospect (within 90 days) stays theirs when it contacts us directly.
+  if (rows[0]?.inserted && !/^(agent|referral):/.test(cleanFrom(r.cameFrom) || "")) await claimForAgent(rows[0].id, r.contact);
   return rows[0] ? { id: rows[0].id, inserted: rows[0].inserted === true } : null;
+}
+async function claimForAgent(id, contact) {
+  try { await (await import("./agents.mjs")).claimProspect(id, contact); } catch (e) { console.error("agent prospect check failed", e.message); }
 }
 
 // What a lead asked for beyond our packages (so admin → Packages shows demand): buyer logins / saved addresses
@@ -290,6 +295,11 @@ export async function createRequest(f) {
      VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7, $8, (now() AT TIME ZONE 'Africa/Lagos')::date + 1) RETURNING ${REQUEST_COLUMNS}`,
     [sessionId, f.name, f.contact, f.business || null, f.interest, f.details || "", f.email || null, cleanFrom(f.came_from)]
   );
+  if (rows[0] && !/^(agent|referral):/.test(rows[0].came_from || "")) {
+    await claimForAgent(rows[0].id, f.contact);
+    const [again] = await q(`SELECT ${REQUEST_COLUMNS} FROM customer_requests WHERE id = $1`, [rows[0].id]);
+    return again || rows[0];
+  }
   return rows[0];
 }
 
@@ -632,7 +642,7 @@ export async function deleteUnanswered(id) {
 export const SETTING_KEYS = [
   "bank_name", "account_name", "account_number", "invoice_note",
   "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief", "tpl_receipt", "tpl_invoice",
-  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward", "pkg_build", "pkg_addon", "pkg_renewal_addon", "pkg_rate", "custom_build_from", "custom_monthly", "neon_plan", "owner_whatsapp", "away_until", "away_web", "agent_rate", "agent_min",
+  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward", "pkg_build", "pkg_addon", "pkg_renewal_addon", "pkg_rate", "custom_build_from", "custom_monthly", "neon_plan", "owner_whatsapp", "away_until", "away_web", "agent_rate", "agent_min", "agent_tiers", "agent_invite_bonus",
 ];
 export async function getSettings() {
   await ensureSchema();

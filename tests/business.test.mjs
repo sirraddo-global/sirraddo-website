@@ -700,7 +700,7 @@ test("backup AI: added in Settings (key encrypted, never shown), answers by itse
 test("agents: apply, approve, link brings leads, commission on build payments only, payout request and payout", async () => {
   const ag = (body, token) => h.call("POST", "/api/agent", body, { authorization: "Bearer " + (token || ""), "x-forwarded-for": "10.9.9." + Math.floor(Math.random() * 200) });
   const prog = (await h.call("GET", "/api/agent")).json;
-  assert.deepEqual(prog, { rate: 10, min: 5000 });
+  assert.deepEqual(prog, { rate: 10, min: 5000, tiers: [{ clients: 5, rate: 12 }, { clients: 15, rate: 15 }], inviteBonus: 2000 });
   // Apply
   assert.match((await ag({ action: "apply", name: "Tolu Ade", phone: "123", password: "secret123", agree: true })).json.error, /valid WhatsApp/);
   assert.match((await ag({ action: "apply", name: "Tolu Ade", phone: "08031987001", password: "secret123" })).json.error, /agree/);
@@ -782,6 +782,92 @@ test("agents: apply, approve, link brings leads, commission on build payments on
   const ch = await ag({ action: "password", current: temp, next: "newpass456" }, li.token);
   assert.equal(ch.status, 200, ch.text);
   await h.action({ action: "agents_settings", rate: 10, min: 5000 });
+});
+
+test("agents 2: prospects, levels, bonuses, invites, announcements, leaderboard, statement, demos", async () => {
+  const ag = (body, token) => h.call("POST", "/api/agent", body, { authorization: "Bearer " + (token || ""), "x-forwarded-for": "10.8.8." + Math.floor(Math.random() * 200) });
+  const mk = async (name, phone, by) => {
+    await ag({ action: "apply", name, phone, email: phone + "@example.com", password: "secret123", agree: true, by });
+    const a = (await h.action({ action: "agents_list" })).json.agents.find((x) => x.phone === phone);
+    const b = (await h.action({ action: "agent_update", id: a.id, status: "active" })).json.agents.find((x) => x.id === a.id);
+    return { ...b, token: (await ag({ action: "login", phone, password: "secret123" })).json.token };
+  };
+  const ada = await mk("Ada Okafor", "08061230001");
+  // Invite link: the apply form shows who invited them, and the new agent is linked
+  assert.equal((await h.call("GET", "/api/agent?by=" + ada.code)).json.invitedBy, "Ada");
+  const ben = await mk("Ben Musa", "08061230002", ada.code);
+  assert.equal((await h.action({ action: "agents_list" })).json.agents.find((x) => x.id === ben.id).invited_by, "Ada Okafor");
+
+  // Register a prospect → a request for the team, protected for 90 days
+  let d = (await ag({ action: "prospect", business: "Kola Pharmacy", name: "Kola", phone: "08069990001", interest: "Business website", note: "Wants a site before Christmas" }, ada.token)).json;
+  assert.equal(d.prospects.length, 1); assert.match(d.prospects[0].status, /Talking to us|Protected/);
+  const [req1] = await h.sql(`SELECT id, came_from, source, details FROM customer_requests WHERE contact = '08069990001'`);
+  assert.equal(req1.came_from, "agent:" + ada.code.toLowerCase()); assert.equal(req1.source, "agent"); assert.match(req1.details, /Wants a site/);
+  assert.match((await ag({ action: "prospect", business: "Kola Pharmacy", phone: "+234 806 999 0001" }, ben.token)).json.error, /already/i);
+  assert.match((await ag({ action: "prospect", business: "Me", phone: "08061230001" }, ada.token)).json.error, /own business/);
+  // Registered without asking us to contact them; later the owner chats with us directly → still Ada's
+  await ag({ action: "prospect", business: "Tunde Motors", phone: "08069990002", contact_us: false }, ada.token);
+  await h.call("POST", "/api/lead", { source: "form", name: "Tunde", contact: "0806 999 0002", interest: "Starter website", page: "/", from: "facebook / test" }, { "x-forwarded-for": "10.7.1.1" });
+  const [req2] = await h.sql(`SELECT came_from FROM customer_requests WHERE contact = '0806 999 0002'`);
+  assert.equal(req2.came_from, "agent:" + ada.code.toLowerCase(), "credited to the agent who registered them");
+  // A business already talking to us can't be registered
+  await h.call("POST", "/api/lead", { source: "form", name: "Old Client", contact: "08069990003", interest: "Starter website", page: "/" }, { "x-forwarded-for": "10.7.1.2" });
+  assert.match((await ag({ action: "prospect", business: "Old", phone: "08069990003" }, ben.token)).json.error, /already talking to us/);
+
+  // Levels: Ada's 5th paying client earns 12% (levels 5:12, 15:15)
+  const today = new Date().toISOString().slice(0, 10);
+  const pay = async (contact, amount) => { const [r] = await h.sql(`SELECT id FROM customer_requests WHERE contact = $1`, [contact]); await h.sql(`UPDATE customer_requests SET payments = $2::jsonb WHERE id = $1`, [r.id, JSON.stringify([{ date: today, amount, kind: "project" }])]); };
+  await pay("08069990001", 100000); await pay("0806 999 0002", 50000);
+  for (let i = 0; i < 3; i++) {
+    await h.call("POST", "/api/lead", { source: "form", name: "Client " + i, contact: "0806888000" + i, interest: "Business website", page: "/", from: "agent:" + ada.code.toLowerCase() }, { "x-forwarded-for": "10.7.2." + i });
+    await pay("0806888000" + i, 100000);
+  }
+  d = (await ag({ action: "me" }, ada.token)).json;
+  assert.equal(d.clients, 5);
+  assert.equal(d.earned, 10000 + 5000 + 10000 + 10000 + 12000, "1st–4th at 10%, the 5th at 12%");
+  assert.equal(d.level.name, "Silver agent"); assert.equal(d.level.rate, 12); assert.equal(d.level.next.need, 10);
+  // Ben earns his first commission → Ada gets the invite bonus
+  await h.call("POST", "/api/lead", { source: "form", name: "Ben client", contact: "08067770001", interest: "Starter website", page: "/", from: "agent:" + ben.code.toLowerCase() }, { "x-forwarded-for": "10.7.3.1" });
+  await pay("08067770001", 35000);
+  d = (await ag({ action: "me" }, ada.token)).json;
+  assert.equal(d.inviteTotal, 2000); assert.equal(d.invites[0].who, "Ben"); assert.equal(d.invites[0].earnedYet, true);
+  // Admin bonus (top agent of the month) → balance and email
+  let n = h.sent.length;
+  await h.action({ action: "agent_bonus", id: ada.id, amount: "5,000", note: "Top agent of November" });
+  assert.ok(h.newMail(n).some((m) => m.to.includes("08061230001@example.com") && /₦5,000 bonus/.test(m.subject)));
+  d = (await ag({ action: "me" }, ada.token)).json;
+  assert.equal(d.bonusTotal, 5000); assert.equal(d.balance, 47000 + 2000 + 5000);
+  // Leaderboard: Ada first with 5 paying clients this month
+  assert.equal(d.top[0].name, "Ada O."); assert.equal(d.top[0].clients, 5);
+  // Announcement: on dashboards (new), emailed, then marked seen
+  n = h.sent.length;
+  const nw = (await h.action({ action: "agent_news", title: "December promo", body: "10% off Business websites until 31 Dec.", email: true })).json;
+  assert.ok(nw.emailed >= 2); assert.ok(h.newMail(n).some((m) => /December promo/.test(m.subject)));
+  d = (await ag({ action: "me" }, ben.token)).json;
+  assert.equal(d.news[0].title, "December promo"); assert.equal(d.news[0].fresh, true);
+  await ag({ action: "news_seen" }, ben.token);
+  assert.equal((await ag({ action: "me" }, ben.token)).json.news[0].fresh, false);
+  // Statement for this month: commission lines, bonus, invite bonus, payout; totals add up
+  await h.action({ action: "agent_payout", id: ada.id, amount: "20000", ref: "TRF9" });
+  const st = (await ag({ action: "statement", month: today.slice(0, 7) }, ada.token)).json;
+  assert.equal(st.opening, 0);
+  assert.equal(st.earned, 47000 + 2000 + 5000); assert.equal(st.paid, 20000); assert.equal(st.closing, 34000);
+  assert.ok(st.rows.some((r) => r.kind === "Commission" && /12%/.test(r.what)));
+  assert.ok(st.rows.some((r) => r.kind === "Invite bonus") && st.rows.some((r) => r.kind === "Bonus") && st.rows.some((r) => r.kind === "Paid to you" && r.amount === -20000));
+  assert.match((await ag({ action: "statement", month: "nope" }, ada.token)).json.error, /month/);
+  // Settings: levels off → everyone at the base rate; invite bonus 0
+  await h.action({ action: "agents_settings", rate: 10, min: 5000, tiers: "off", invite_bonus: 0 });
+  d = (await ag({ action: "me" }, ada.token)).json;
+  assert.equal(d.earned, 47000 - 2000); assert.equal(d.inviteTotal, 0); assert.equal(d.level.next, null);
+  assert.equal((await h.action({ action: "agents_settings", rate: 10, min: 5000, tiers: "nonsense" })).status, 400);
+  await h.action({ action: "agents_settings", rate: 10, min: 5000, tiers: "5:12,15:15", invite_bonus: 2000 });
+  // Demo websites
+  const list = await h.call("GET", "/demo?a=" + ada.code);
+  assert.equal(list.status, 200); assert.match(list.text, /Hair &amp; beauty salon/); assert.match(list.text, new RegExp("/demo/salon\\?a=" + ada.code));
+  const salon = await h.call("GET", "/demo/salon/prices?a=" + ada.code);
+  assert.equal(salon.status, 200); assert.match(salon.text, /Get one like this/); assert.match(salon.text, new RegExp('href="/\\?a=' + ada.code + '"')); assert.match(salon.text, /Knotless braids/);
+  assert.match((await h.call("GET", "/demo/shop")).text, /Ankara Maxi Dress/);
+  assert.equal((await h.call("GET", "/demo/nothing")).status, 404);
 });
 
 test("daily run completes without errors", async () => {

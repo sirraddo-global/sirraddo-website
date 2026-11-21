@@ -31,7 +31,12 @@
     $$('[data-min]').forEach(function (n) { n.textContent = naira(p.min); });
     $$('[data-earn]').forEach(function (n) { var v = naira(Number(n.getAttribute('data-earn')) * p.rate / 100); n.textContent = n.hasAttribute('data-from') ? 'from ' + v : v; });
   }
-  fetch('/api/agent').then(function (r) { return r.json(); }).then(showProgramme).catch(function () {});
+  var by = (new URLSearchParams(location.search).get('by') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 20);
+  fetch('/api/agent' + (by ? '?by=' + encodeURIComponent(by) : '')).then(function (r) { return r.json(); }).then(function (p) {
+    showProgramme(p);
+    // Invited by another agent: say so on the form (and send their code with the application)
+    if (p.invitedBy && $('#apply')) { var f = $('#apply'); f.insertBefore(el('p', { class: 'ag-invited', text: '🤝 Invited by ' + p.invitedBy }), f.firstChild); }
+  }).catch(function () {});
 
   // ----- Tabs -----
   function tab(which) {
@@ -54,7 +59,7 @@
   $('#apply').addEventListener('submit', function (e) {
     e.preventDefault();
     var f = e.target, msg = $('.ag-msg', f), btn = $('button[type=submit]', f);
-    var v = { action: 'apply', name: f.name.value, phone: f.phone.value, email: f.email.value, city: f.city.value, pitch: f.pitch.value, password: f.password.value, agree: f.agree.checked };
+    var v = { action: 'apply', name: f.name.value, phone: f.phone.value, email: f.email.value, city: f.city.value, pitch: f.pitch.value, password: f.password.value, agree: f.agree.checked, by: by };
     if (v.name.trim().length < 3) { msg.textContent = 'Please enter your full name.'; f.name.focus(); return; }
     if (v.phone.replace(/\D/g, '').length < 10) { msg.textContent = 'Please enter your WhatsApp number, e.g. 08031234567.'; f.phone.focus(); return; }
     if (v.password.length < 8) { msg.textContent = 'Choose a password of at least 8 characters.'; f.password.focus(); return; }
@@ -234,6 +239,121 @@
     return box;
   }
 
+
+  // ----- Register a business you're talking to -----
+  function prospectBox(d) {
+    var box = el('details', { class: 'ag-box ag-more' }, [el('summary', null, [el('h3', { text: '📝 Register a business you\'re talking to' })])]);
+    box.appendChild(el('p', { class: 'ag-small', text: 'If the owner might call or WhatsApp us directly instead of using your link, register them here first: they count as yours for 90 days.' }));
+    var f = el('form', { class: 'ag-bank', novalidate: true }, [
+      el('label', null, ['Business name', el('input', { name: 'business', maxlength: 120, placeholder: 'e.g. Kola Pharmacy' })]),
+      el('label', null, ['Owner\'s name', el('input', { name: 'name', maxlength: 80 })]),
+      el('label', null, ['Owner\'s phone number', el('input', { name: 'phone', type: 'tel', inputmode: 'tel', placeholder: '08031234567', maxlength: 20 })]),
+      el('label', null, ['What they need', (function () { var sel = el('select', { name: 'interest' }); ['Not sure yet', 'Starter website', 'Business website', 'Online Store', 'Custom app'].forEach(function (o) { sel.appendChild(el('option', { value: o, text: o })); }); return sel; })()]),
+      el('label', null, ['Note for our team (optional)', el('textarea', { name: 'note', rows: 2, maxlength: 400, placeholder: 'e.g. Wants it before Christmas; best time to call is evening' })]),
+      el('label', { class: 'ag-check' }, [el('input', { type: 'checkbox', name: 'contact_us', checked: true }), ' Ask SIRRADDO to contact them']),
+      el('p', { class: 'ag-msg', role: 'alert' }), el('button', { type: 'submit', class: 'btn btn--gold', text: 'Register this business' })]);
+    f.addEventListener('submit', function (e) {
+      e.preventDefault(); var b = $('button', f); b.disabled = true;
+      api({ action: 'prospect', business: f.business.value, name: f.name.value, phone: f.phone.value, interest: f.interest.value, note: f.note.value, contact_us: f.contact_us.checked })
+        .then(function (j) { draw(j); var nb = $('.ag-more[data-k="pros"]'); if (nb) { nb.open = true; nb.scrollIntoView({ block: 'start' }); } })
+        .catch(function (err) { b.disabled = false; $('.ag-msg', f).textContent = err.message; });
+    });
+    box.appendChild(f);
+    if (d.prospects.length) box.appendChild(el('ul', { class: 'ag-list ag-leads' }, d.prospects.map(function (p) {
+      return el('li', null, [el('div', null, [el('b', { text: p.who }), el('small', { text: p.what + ' · registered ' + new Date(p.when).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) }),
+        el('span', { class: 'ag-stage', text: p.status === 'Protected' ? 'Yours until ' + new Date(p.until).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : p.status })])]);
+    })));
+    box.setAttribute('data-k', 'pros');
+    return box;
+  }
+  // ----- Demo websites by trade (opened with their link) -----
+  var DEMO_LIST = [['salon', '💇🏾‍♀️', 'Hair & beauty salon'], ['restaurant', '🍲', 'Restaurant & food'], ['church', '⛪', 'Church & ministry'], ['school', '🏫', 'School'], ['shop', '🛍️', 'Online store']];
+  function demoBox(d) {
+    var box = el('details', { class: 'ag-box ag-more' }, [el('summary', null, [el('h3', { text: '📱 Demo websites to show' })])]);
+    box.appendChild(el('p', { class: 'ag-small', text: 'Open one on your phone and show the business owner "a website like yours". "Get one like this" on the demo goes to your link.' }));
+    var grid = el('div', { class: 'ag-demos' });
+    DEMO_LIST.forEach(function (x) {
+      var url = d.demoLink.replace('/demo?', '/demo/' + x[0] + '?');
+      grid.appendChild(el('div', { class: 'ag-demo' }, [el('span', { class: 'ag-demo-ico', text: x[1] }), el('b', { text: x[2] }), el('div', { class: 'ag-acts' }, [
+        el('a', { class: 'btn btn--navy', href: url, target: '_blank', rel: 'noopener', text: 'Open' }),
+        el('a', { class: 'btn btn--outline', href: 'https://wa.me/?text=' + encodeURIComponent('See a sample ' + x[2].toLowerCase() + ' website by SIRRADDO: ' + url), target: '_blank', rel: 'noopener', text: 'Share' })])]));
+    });
+    box.appendChild(grid);
+    box.appendChild(el('p', { class: 'ag-small' }, ['All demos: ', el('a', { href: d.demoLink, target: '_blank', rel: 'noopener', text: d.demoLink.replace(/^https:\/\/(www\.)?/, '') })]));
+    return box;
+  }
+  // ----- Sales guide: how to talk to business owners, answers to common worries, price sheet -----
+  var OBJECTIONS = [
+    ['"It\'s too expensive."', 'A Starter website is ₦50,000 for the first year, with the domain and hosting included: less than ₦140 a day. One new customer from Google can pay for it. They can also start with 70% and pay the rest when they see the finished site.'],
+    ['"I already sell on Instagram / WhatsApp."', 'Keep them! The website brings people who search on Google, shows prices and photos 24/7 so they answer fewer "how much?" questions, and every page has a WhatsApp button. The online store lets customers pay without chatting.'],
+    ['"I\'m not good with computers."', 'They don\'t need to be. SIRRADDO builds everything, and they change prices or photos from their phone. Changes are free for the first month.'],
+    ['"What if I don\'t like it?"', 'They see their website (often 2–3 designs) before paying the balance, and ask for changes until they\'re happy.'],
+    ['"I\'ll do it later."', 'Ask what they\'re waiting for. Christmas, school resumption and festive seasons are when customers search most. It takes about 7 working days, so starting now means being ready in time.'],
+    ['"Can you show me an example?"', 'Open a demo website for their type of business (above), and the SIRRADDO demo store.'],
+  ];
+  function guideBox(d) {
+    var box = el('details', { class: 'ag-box ag-more' }, [el('summary', null, [el('h3', { text: '💡 Sales guide' })])]);
+    box.appendChild(el('ol', { class: 'ag-tips' }, [
+      el('li', { text: 'Start with people you know: shop owners, your church or mosque, school owners, your street, your old classmates.' }),
+      el('li', { text: 'Ask a question, don\'t sell: "Do your customers find you on Google?" or "How do people see your prices?"' }),
+      el('li', { text: 'Show, don\'t tell: open a demo website for their type of business on your phone.' }),
+      el('li', { text: 'Send your link or register them here, so they count as yours.' }),
+      el('li', { text: 'Follow up after 2–3 days. Most "yes" answers come on the second talk.' }),
+      el('li', { text: 'Never collect money: clients pay SIRRADDO directly by the invoice link or bank transfer.' }),
+    ]));
+    box.appendChild(el('h4', { text: 'When they say…' }));
+    OBJECTIONS.forEach(function (o) { box.appendChild(el('details', { class: 'ag-faq' }, [el('summary', { text: o[0] }), el('p', { text: o[1] })])); });
+    box.appendChild(el('h4', { text: 'Prices at a glance' }));
+    box.appendChild(el('ul', { class: 'ag-list' }, [['Starter website', '₦50,000', 'Up to 5 pages, .com.ng domain & hosting (1 year), 1 business email'], ['Business website', '₦100,000', 'Up to 10 pages + blog, 5 emails, Google Maps setup'], ['Online Store', 'from ₦150,000', 'Cart, online payments, own store admin'], ['Custom apps', 'quoted', 'Portals, bookings, school & clinic systems']].map(function (x) {
+      return el('li', null, [el('div', null, [el('b', { text: x[0] }), el('small', { text: x[2] })]), el('b', { text: x[1] })]);
+    })));
+    box.appendChild(el('p', { class: 'ag-small', text: '70% to start, the rest when the website is ready. Renewal from year 2: Starter ₦25,000, Business ₦40,000. The "Flyer to print" in your promo kit is also a one-page price sheet.' }));
+    return box;
+  }
+  // ----- Invite other agents -----
+  function inviteBox(d) {
+    var box = el('details', { class: 'ag-box ag-more' }, [el('summary', null, [el('h3', { text: '🤝 Invite other agents' })])]);
+    box.appendChild(el('p', { class: 'ag-small', text: d.inviteBonus ? 'Know someone who could do this too? When an agent you invite earns their first commission, you get a ' + naira(d.inviteBonus) + ' bonus.' : 'Know someone who could do this too? Send them your invite link.' }));
+    var msg = 'Earn money helping businesses get online: become a SIRRADDO agent. It\'s free: ' + d.inviteLink;
+    box.appendChild(el('div', { class: 'ag-linkrow' }, [el('input', { value: d.inviteLink, readonly: true, 'aria-label': 'Your invite link' }), el('button', { type: 'button', class: 'btn btn--navy', text: 'Copy', onclick: function (e) { copy(d.inviteLink, e.currentTarget); } })]));
+    box.appendChild(el('div', { class: 'ag-acts' }, [el('a', { class: 'btn btn--gold', href: 'https://wa.me/?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Invite on WhatsApp' })]));
+    if (d.invites.length) box.appendChild(el('ul', { class: 'ag-list' }, d.invites.map(function (x) {
+      return el('li', null, [el('span', { text: x.who + ' · joined ' + new Date(x.since).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) }), el('b', { class: x.bonus ? 'ag-earned' : 'ag-zero', text: x.bonus ? '+' + naira(x.bonus) : 'no client yet' })]);
+    })));
+    if (d.invites.length) box.open = true;
+    return box;
+  }
+  // ----- Monthly statement (opens a printable page: Print → Save as PDF) -----
+  function statementBox(d) {
+    var months = [], t = new Date(), since = new Date(d.agent.since);
+    for (var i = 0; i < 24; i++) { var m = new Date(t.getFullYear(), t.getMonth() - i, 1); if (m < new Date(since.getFullYear(), since.getMonth(), 1)) break; months.push(m); }
+    var sel = el('select', { 'aria-label': 'Month' });
+    months.forEach(function (m) { sel.appendChild(el('option', { value: m.getFullYear() + '-' + String(m.getMonth() + 1).padStart(2, '0'), text: m.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) })); });
+    var btn = el('button', { type: 'button', class: 'btn btn--outline', text: 'View statement' }), msg = el('p', { class: 'ag-msg', role: 'alert' });
+    btn.addEventListener('click', function () {
+      var w = window.open('', '_blank');
+      api({ action: 'statement', month: sel.value }).then(function (s) { if (w) { w.document.write(statementHtml(s)); w.document.close(); } })
+        .catch(function (e) { if (w) w.close(); msg.textContent = e.message; });
+    });
+    return el('div', { class: 'ag-statement' }, [el('h4', { text: 'Monthly statement' }), el('div', { class: 'ag-linkrow' }, [sel, btn]), msg]);
+  }
+  function statementHtml(s) {
+    var e = function (x) { return String(x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    var month = new Date(s.month + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    var rows = s.rows.map(function (r) { return '<tr><td>' + e(new Date(r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })) + '</td><td>' + e(r.kind) + '</td><td>' + e(r.what) + '</td><td class="n' + (r.amount < 0 ? ' neg' : '') + '">' + (r.amount < 0 ? '−' : '') + e(naira(Math.abs(r.amount))) + '</td></tr>'; }).join('') || '<tr><td colspan="4" class="none">Nothing this month.</td></tr>';
+    return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SIRRADDO agent statement · ' + e(month) + '</title><style>' +
+      'body{font-family:Arial,Helvetica,sans-serif;color:#1B2433;margin:0;padding:24px;max-width:760px;margin:auto}.hd{background:#13254F;color:#fff;border-bottom:5px solid #D9A21B;padding:18px 20px;border-radius:12px 12px 0 0}' +
+      '.wm{font-weight:900;font-size:26px}.wm b{color:#D9A21B}h1{font-size:20px;margin:6px 0 0}.box{border:1px solid #E2E7F0;border-top:0;border-radius:0 0 12px 12px;padding:18px 20px}' +
+      'table{width:100%;border-collapse:collapse;font-size:14px;margin-top:12px}td,th{padding:8px 6px;border-bottom:1px solid #EEF1F6;text-align:left;vertical-align:top}th{font-size:12px;text-transform:uppercase;color:#6B7280}.n{text-align:right;white-space:nowrap}.neg{color:#B42318}.none{color:#6B7280;text-align:center}' +
+      '.sum{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}.sum div{background:#F4F6FA;border-radius:10px;padding:10px}.sum span{display:block;font-size:12px;color:#6B7280}.sum b{font-size:16px}' +
+      '@media(max-width:520px){.sum{grid-template-columns:1fr 1fr}}.ft{font-size:12px;color:#6B7280;margin-top:16px}.pr{margin:16px 0;padding:10px 16px;border:0;border-radius:10px;background:#D9A21B;color:#13254F;font-weight:700;font-size:15px}@media print{.pr{display:none}body{padding:0}}' +
+      '</style></head><body><div class="hd"><div class="wm">SI<b>RR</b>A<b>DD</b>O</div><h1>Agent statement · ' + e(month) + '</h1></div><div class="box">' +
+      '<p><b>' + e(s.agent.name) + '</b> · Agent code ' + e(s.agent.code) + ' · ' + e(s.agent.phone) + (s.agent.bank ? '<br>Paid to: ' + e(s.agent.bank.bank) + ' · ' + e(s.agent.bank.account_no) + ' · ' + e(s.agent.bank.account_name) : '') + '</p>' +
+      '<div class="sum"><div><span>Brought forward</span><b>' + naira(s.opening) + '</b></div><div><span>Earned this month</span><b>' + naira(s.earned) + '</b></div><div><span>Paid to you</span><b>' + naira(s.paid) + '</b></div><div><span>Balance at month end</span><b>' + naira(s.closing) + '</b></div></div>' +
+      '<table><thead><tr><th>Date</th><th>Type</th><th>Details</th><th class="n">Amount</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<button class="pr" onclick="print()">Print or save as PDF</button><p class="ft">SIRRADDO GLOBAL LIMITED · RC 9939920 · www.sirraddo.com.ng · Commission is on what clients you introduced paid for their website build in their first 12 months.</p></div></body></html>';
+  }
+
   function stat(label, value, cls) { return el('div', { class: 'ag-stat' + (cls ? ' ' + cls : '') }, [el('span', { text: label }), el('b', { text: value })]); }
   function draw(d) {
     wrap.hidden = false; $('#join').hidden = true; $('.ag-hero .ag-cta').hidden = true;
@@ -242,8 +362,28 @@
     dash.appendChild(el('div', { class: 'ag-dash-head' }, [el('div', null, [el('p', { class: 'eyebrow eyebrow--dark', text: 'Your agent dashboard' }), el('h2', { text: 'Hello, ' + a.name.split(/\s+/)[0] + ' 👋' })]),
       el('div', { class: 'ag-code' }, [el('span', { text: 'Agent code' }), el('b', { text: a.code })])]));
     if (a.must_change) dash.appendChild(passwordBox(true));
+    // Announcements (new ones highlighted, then marked as seen)
+    if (d.news.length) {
+      var nb = el('div', { class: 'ag-box ag-news' }, [el('h3', { text: '📣 News from SIRRADDO' })]);
+      d.news.slice(0, 3).forEach(function (n) {
+        nb.appendChild(el('div', { class: 'ag-news-item' + (n.fresh ? ' is-new' : '') }, [n.fresh ? el('span', { class: 'ag-new', text: 'New' }) : null, el('b', { text: n.title }),
+          el('small', { text: new Date(n.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) }), n.body ? el('p', { text: n.body }) : null,
+          n.link ? el('a', { href: n.link, target: '_blank', rel: 'noopener', text: 'Open →' }) : null]));
+      });
+      dash.appendChild(nb);
+      if (d.news.some(function (n) { return n.fresh; })) api({ action: 'news_seen' }).catch(function () {});
+    }
     // Stats
-    dash.appendChild(el('div', { class: 'ag-stats' }, [stat('Businesses sent', String(d.count)), stat('Paying clients', String(d.clients)), stat('You\'ve earned', naira(d.earned)), stat('Paid to you', naira(d.paidOut)), stat('Balance', naira(d.balance), 'is-bal')]));
+    dash.appendChild(el('div', { class: 'ag-stats' }, [stat('Businesses sent', String(d.count)), stat('Paying clients', String(d.clients)), stat('Commission', naira(d.earned)),
+      d.bonusTotal + d.inviteTotal ? stat('Bonuses', naira(d.bonusTotal + d.inviteTotal)) : null, stat('Paid to you', naira(d.paidOut)), stat('Balance', naira(d.balance), 'is-bal')].filter(Boolean)));
+    // Level
+    var lv = d.level, lvBox = el('div', { class: 'ag-level' }, [el('div', null, [el('span', { class: 'ag-small', text: 'Your level' }), el('b', { text: lv.name + ' · ' + lv.rate + '%' })])]);
+    if (lv.next) {
+      var done = lv.next.clients - lv.next.need, pct = Math.max(4, Math.round(100 * done / lv.next.clients));
+      lvBox.appendChild(el('div', { class: 'ag-level-next' }, [el('div', { class: 'ag-bar' }, [el('i', { style: 'width:' + pct + '%' })]),
+        el('span', { class: 'ag-small', text: lv.next.need + ' more paying client' + (lv.next.need === 1 ? '' : 's') + ' → ' + lv.next.name + ', ' + lv.next.rate + '% on every client after that' })]));
+    }
+    dash.appendChild(lvBox);
     // Link + messages
     var link = el('input', { value: d.link, readonly: true, 'aria-label': 'Your link' });
     var share = el('div', { class: 'ag-box' }, [el('h3', { text: 'Your link' }), el('p', { class: 'ag-small', text: 'Everyone who contacts us through this link is counted as yours. You earn ' + d.rate + '% when they pay for their website.' }),
@@ -256,6 +396,9 @@
     });
     dash.appendChild(share);
     dash.appendChild(kit(d));
+    dash.appendChild(prospectBox(d));
+    dash.appendChild(demoBox(d));
+    dash.appendChild(guideBox(d));
     // Payout
     var pay = el('div', { class: 'ag-box' }, [el('h3', { text: 'Get paid' })]);
     if (!a.bank) pay.appendChild(el('p', { class: 'ag-small', text: 'Add the bank account we should pay you into.' }));
@@ -280,6 +423,11 @@
       pay.appendChild(el('h4', { text: 'Payouts' }));
       pay.appendChild(el('ul', { class: 'ag-list' }, d.payouts.map(function (p) { return el('li', null, [el('span', { text: new Date(p.when).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + (p.ref ? ' · ' + p.ref : '') }), el('b', { text: naira(p.amount) })]); })));
     }
+    if (d.bonuses.length) {
+      pay.appendChild(el('h4', { text: 'Bonuses' }));
+      pay.appendChild(el('ul', { class: 'ag-list' }, d.bonuses.map(function (x) { return el('li', null, [el('span', { text: new Date(x.when).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · ' + x.note }), el('b', { class: 'ag-earned', text: '+' + naira(x.amount) })]); })));
+    }
+    pay.appendChild(statementBox(d));
     dash.appendChild(pay);
     // Clients
     var cl = el('div', { class: 'ag-box' }, [el('h3', { text: 'Businesses you sent' })]);
@@ -289,6 +437,10 @@
         el('b', { class: l.earned ? 'ag-earned' : 'ag-zero', text: l.earned ? '+' + naira(l.earned) : '₦0' })]);
     })));
     dash.appendChild(cl);
+    dash.appendChild(inviteBox(d));
+    if (d.top.length) dash.appendChild(el('div', { class: 'ag-box' }, [el('h3', { text: '🏆 Top agents this month' }), el('ol', { class: 'ag-top' }, d.top.map(function (t) {
+      return el('li', null, [el('span', { text: t.name + (t.city ? ' · ' + t.city : '') }), el('b', { text: t.clients + ' paying client' + (t.clients === 1 ? '' : 's') })]);
+    }))]));
     // Account
     var acc = el('div', { class: 'ag-box ag-account' }, [el('details', null, [el('summary', { text: 'Change my password' }), passwordBox(false)]),
       el('p', { class: 'ag-small' }, ['Rules: ', el('a', { href: '#rules', text: 'how commission works' }), ' · Questions? ', el('a', { href: 'https://wa.me/2348167550937', target: '_blank', rel: 'noopener', text: 'WhatsApp us' })]),

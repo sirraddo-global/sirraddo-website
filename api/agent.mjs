@@ -1,6 +1,6 @@
 // /api/agent: the SIRRADDO agents programme (apply, log in, dashboard, bank details, payout request).
 // The agent's login is their WhatsApp number + password; the session token is sent as "Authorization: Bearer ag.…".
-import { apply, login, agentFromToken, dashboard, saveBank, requestPayout, changePassword, programme, AgentError, agentQr } from "./_lib/agents.mjs";
+import { apply, login, agentFromToken, dashboard, saveBank, requestPayout, changePassword, programme, AgentError, agentQr, registerProspect, statement, newsSeen } from "./_lib/agents.mjs";
 
 const hits = new Map(); // ip -> [times]: applying and logging in are limited
 function limited(ip, max) {
@@ -23,7 +23,12 @@ export default async function handler(req, res) {
         res.setHeader("Cache-Control", "public, max-age=86400");
         return res.status(200).send(svg);
       }
-      return res.status(200).json(await programme()); // commission % and smallest payout, for the page
+      const prog = await programme(); // commission %, smallest payout, levels, for the page
+      if (req.query?.by && /^[A-Za-z0-9]{3,20}$/.test(req.query.by)) {
+        const { inviterName } = await import("./_lib/agents.mjs");
+        return res.status(200).json({ ...prog, invitedBy: await inviterName(req.query.by) });
+      }
+      return res.status(200).json(prog);
     }
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
@@ -44,6 +49,9 @@ export default async function handler(req, res) {
       case "bank": await saveBank(a, body); return res.status(200).json(await dashboard(a));
       case "payout": await requestPayout(a); return res.status(200).json(await dashboard(a));
       case "password": return res.status(200).json(await changePassword(a, body.current, body.next));
+      case "prospect": return res.status(200).json(await registerProspect(a, body));
+      case "statement": return res.status(200).json(await statement(a, body.month));
+      case "news_seen": return res.status(200).json(await newsSeen(a));
       default: return res.status(400).json({ error: "Unknown action" });
     }
   } catch (err) {

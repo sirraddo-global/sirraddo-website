@@ -18,7 +18,13 @@
       var f = document.createElement('figure'); f.className = 'card rv-card';
       f.appendChild(stars(x.stars));
       if (x.text) { var q = document.createElement('blockquote'); q.textContent = x.text; f.appendChild(q); }
-      var c = document.createElement('figcaption'); c.textContent = x.name; f.appendChild(c);
+      var c = document.createElement('figcaption');
+      if (x.photo && /^https?:\/\//.test(x.photo)) { var im = document.createElement('img'); im.src = x.photo; im.alt = ''; im.loading = 'lazy'; im.className = 'rv-photo'; c.appendChild(im); }
+      var who = document.createElement('span'); who.className = 'rv-who';
+      var nm = document.createElement('b'); nm.textContent = x.name; who.appendChild(nm);
+      if (x.business) { var bz = document.createElement('span'); bz.className = 'rv-biz'; bz.textContent = x.business; who.appendChild(bz); }
+      if (x.client) { var v = document.createElement('span'); v.className = 'rv-verified'; v.textContent = '✓ Verified client'; who.appendChild(v); }
+      c.appendChild(who); f.appendChild(c);
       list.appendChild(f);
     });
   }).catch(function () {});

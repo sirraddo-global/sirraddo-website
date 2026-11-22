@@ -53,6 +53,20 @@
     Cross-Origin-Opener-Policy = "unsafe-none"
 
 [[headers]]
+  for = "/rate"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-store"
+    Referrer-Policy = "no-referrer"
+
+[[headers]]
+  for = "/rate.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-store"
+    Referrer-Policy = "no-referrer"
+
+[[headers]]
   for = "/mystore"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow"

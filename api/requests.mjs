@@ -11,6 +11,7 @@
 //   POST   { action: "send_preview", id }  email the preview link to the customer
 //   GET    ?view=export&id=123  the website as a .zip (pages + images) to upload to any host
 import { timingSafeEqual, createHash, createHmac } from "node:crypto";
+import { clientReviewUrl } from "./_lib/reviews.mjs";
 import { setMeta, getMeta, q, cleanFrom,
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
@@ -275,6 +276,7 @@ export default async function handler(req, res) {
       }
       const [requests, unanswered, settings, setup, totals] = await Promise.all([listRequests(), listUnanswered(), getSettings(), setupStatus(), dashboardTotals().catch(() => null)]);
       for (const r of requests) r.handover_check = handoverChecklist(r, settings);
+      for (const r of requests) if (r.status === "won") r.review_link = await clientReviewUrl(r.id);
       const email_usage = await emailUsage(14).catch(() => null);
       const meOut = { role: me.role, name: me.name, username: me.username, perms: me.perms };
       if (me.role === "staff") {

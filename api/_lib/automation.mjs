@@ -11,6 +11,7 @@ import { monthlyReports, cleanupStats } from "./stats.mjs";
 import { weeklyBackup } from "./backup.mjs";
 import { FUNCTION_BUDGET_MS, deleteOldChatFiles } from "./platform.mjs";
 import { handoverChecklist } from "./handover-check.mjs";
+import { clientReviewUrl } from "./reviews.mjs";
 import { sendBatch as sendGreetingBatch, occurrences, getConfig as getGreetingConfig } from "./greetings.mjs";
 const todayIso = () => new Date(Date.now() + 3600 * 1000).toISOString().slice(0, 10);
 const addDaysIso = (d, n) => { const t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
@@ -49,6 +50,7 @@ export const TEMPLATES = {
   tpl_invoice: "Hello {name}, here is your invoice for the {package} package. Total: {amount}. Paid: {paid}. Balance: {balance}. View or save it here: {doc_link}\nPay online: {pay_link}",
   tpl_preview: "Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.",
   tpl_renewal: "Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.\nPay online: {pay_link}",
+  tpl_review: "Hello {name}, thank you for choosing SIRRADDO! If you are happy with your website, would you rate us? It takes a minute, and you can add your photo or logo: {review_link}",
 };
 const projectPaid = (r) => (r.payments || []).filter((p) => !p.kind || p.kind === "project").reduce((s, p) => s + Number(p.amount || 0), 0);
 
@@ -286,6 +288,15 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
                 : { url: docLink(r, "renewal"), label: "View renewal invoice" }) +
                 (paystackConfigured() ? `<p style="font-family:Arial,sans-serif;font-size:13px"><a href="${docLink(r, "renewal")}">View the renewal invoice</a></p>` : ""))) report.customerEmails++;
           }
+        }
+        // review request: once, 7+ days after the site went live and the balance is paid (not for very old sites)
+        if (r.status === "won" && r.project_stage === "live" && r.live_on && balance(r) === 0) {
+          const since = daysBetween(r.live_on, today);
+          if (since >= 7 && since <= 60 && await sendOnce(r, "review-ask", "How did we do? A quick review for SIRRADDO",
+            customerHtml(r, [
+              `It's been a week since your website went live${r.website_url ? ` at <b>${esc(r.website_url)}</b>` : ""}. We hope it's already helping your business.`,
+              "Would you take a minute to rate us? A few honest words help other business owners choose with confidence. You can add your photo or logo too.",
+            ], { url: await clientReviewUrl(r.id), label: "Rate SIRRADDO" }))) report.customerEmails++;
         }
         // monthly / yearly services: 7 days before, due day, 3 days late
         for (const s of (r.status === "won" && Array.isArray(r.services) ? r.services : [])) {

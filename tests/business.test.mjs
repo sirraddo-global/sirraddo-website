@@ -1240,3 +1240,53 @@ test("the 7am email lists what staff did in the last 24 hours", async () => {
   assert.ok(mail, "staff section in the daily email");
   assert.match(mail.html, /Ada Helper/);
 });
+
+test("client reviews: emailed review link a week after launch, photo and business, verified client, approve to show", async () => {
+  const id = (await h.action({ action: "create", name: "Kemi Bello", contact: "08035550123", interest: "Starter website" })).json.id;
+  const day = (d) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+  await h.sql(`UPDATE customer_requests SET status = 'won', email = 'kemi@example.com', business = 'Kemi Bakes', project_stage = 'live', live_on = $2,
+    quote_amount = 50000, payments = $3::jsonb, website_url = 'kemibakes.com.ng', auto_sent = '{"handover":"x"}'::jsonb WHERE id = $1`,
+    [id, day(8), JSON.stringify([{ date: day(20), amount: 50000, kind: "project" }])]);
+  let n = h.sent.length;
+  await h.daily();
+  const mail = h.newMail(n).filter((m) => m.to.includes("kemi@example.com") && /How did we do/.test(m.subject));
+  assert.equal(mail.length, 1, "review request emailed once");
+  const t = /\/rate\?t=([\w.-]+)/.exec(mail[0].html)[1];
+  n = h.sent.length; await h.daily();
+  assert.equal(h.newMail(n).filter((m) => m.to.includes("kemi@example.com") && /How did we do/.test(m.subject)).length, 0, "not twice");
+
+  // Admin gets the same link for WhatsApp
+  assert.match((await h.row(id)).review_link, new RegExp(`/rate\\?t=${t.replace(".", "\\.")}$`));
+
+  // The page and its API
+  assert.equal((await h.call("GET", `/rate?t=${t}`)).status, 200);
+  const info = await h.call("GET", `/api/site?client_review=${t}`);
+  assert.equal(info.status, 200, info.text);
+  assert.equal(info.json.name, "Kemi"); assert.equal(info.json.business, "Kemi Bakes"); assert.equal(info.json.done, false);
+  assert.equal((await h.call("GET", `/api/site?client_review=${id}.AAAAAAAAAAAAAAAAAAAA`)).status, 404, "forged link refused");
+
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const noOk = await h.call("POST", `/api/site?client_review=${t}`, { stars: 5, text: "Great work, very fast.", name: "Kemi Bello", photo: png });
+  assert.equal(noOk.status, 400, "needs permission"); assert.match(noOk.json.error, /tick the box/);
+  n = h.sent.length;
+  const ok = await h.call("POST", `/api/site?client_review=${t}`, { stars: 5, text: "Great work, very fast. Orders come from Google now.", name: "Kemi Bello", business: "Kemi Bakes", photo: png, consent: true });
+  assert.equal(ok.status, 200, ok.text);
+  assert.ok(h.newMail(n).some((m) => /New 5-star review for SIRRADDO/.test(m.subject) && /your client/.test(m.subject)), "owner told");
+  // Sending again replaces it
+  await h.call("POST", `/api/site?client_review=${t}`, { stars: 4, text: "Great work, very fast. Orders come from Google now!", name: "Kemi Bello", business: "Kemi Bakes", consent: true, keepPhoto: true });
+  const rows = await h.sql(`SELECT stars, photo, verified, status FROM site_reviews WHERE client_id = $1`, [id]);
+  assert.equal(rows.length, 1); assert.equal(rows[0].stars, 4); assert.ok(rows[0].photo, "photo kept"); assert.equal(rows[0].verified, true);
+  assert.equal((await h.call("GET", `/api/site?client_review=${t}`)).json.done, true);
+
+  // Waits for approval, then shows as a verified client with photo and business
+  let pub = (await h.call("GET", "/api/site?reviews=sirraddo")).json;
+  assert.ok(!pub.list.some((x) => x.business === "Kemi Bakes"), "hidden until approved");
+  const list = (await h.action({ action: "reviews" })).json.reviews;
+  const mine = list.find((r) => r.client_id === id);
+  assert.ok(mine && mine.photo && mine.business === "Kemi Bakes");
+  await h.action({ action: "review_set", reviewId: mine.id, status: "shown" });
+  pub = (await h.call("GET", "/api/site?reviews=sirraddo")).json;
+  const shown = pub.list.find((x) => x.business === "Kemi Bakes");
+  assert.ok(shown && shown.client === true && shown.photo && shown.stars === 4);
+  assert.equal(pub.list[0].business, "Kemi Bakes", "client reviews first");
+});

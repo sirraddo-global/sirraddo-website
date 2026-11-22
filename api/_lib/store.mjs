@@ -204,6 +204,10 @@ const SCHEMA = [
   `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS product TEXT`,
   `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS buyer_id INTEGER`,
   `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false`,
+  // Testimonials from our own clients (request_id 0): which client, their business and an optional photo.
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS client_id INTEGER`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS business TEXT`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS photo TEXT`,
   `CREATE TABLE IF NOT EXISTS stock_alerts (id SERIAL PRIMARY KEY, request_id INTEGER NOT NULL, product_i INTEGER NOT NULL, product TEXT NOT NULL DEFAULT '', variant TEXT NOT NULL DEFAULT '',
      name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), done_at TIMESTAMPTZ)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS stock_alerts_one ON stock_alerts (request_id, product_i, variant, phone) WHERE done_at IS NULL`,

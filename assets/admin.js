@@ -37,7 +37,8 @@
     tpl_receipt: { label: 'Send receipt', text: 'Hello {name}, thank you for your payment of {last_payment}. Your receipt: {doc_link}' },
     tpl_preview: { label: 'Send website preview', text: 'Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.' },
     tpl_handover: { label: 'Website is live (handover)', text: 'Hello {name}, your website is now live at {website}! Here is your handover pack: your domain, email and renewal details, your private Manage link (change prices, opening hours, numbers and more yourself, and approve customer reviews) and how to get on Google Maps: {doc_link}' },
-    tpl_renewal: { label: 'Renewal reminder', text: 'Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.\nPay online: {pay_link}' }
+    tpl_renewal: { label: 'Renewal reminder', text: 'Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.\nPay online: {pay_link}' },
+    tpl_review: { label: 'Ask for a review', text: 'Hello {name}, thank you for choosing SIRRADDO! If you are happy with your website, would you rate us? It takes a minute, and you can add your photo or logo: {review_link}' }
   };
 
   var password = null;
@@ -132,7 +133,7 @@
     setError(err.message);
   }
   function replaceRequest(row) {
-    state.requests = state.requests.map(function (r) { return r.id === row.id ? row : r; });
+    state.requests = state.requests.map(function (r) { if (r.id === row.id && r.review_link && !row.review_link) row.review_link = r.review_link; return r.id === row.id ? row : r; });
   }
   function update(r, fields, msg) {
     fields.id = r.id;
@@ -388,7 +389,7 @@
   function reviewsCard() {
     var card = el('div', { class: 'admin-card admin-settings' }, [
       el('h2', { text: 'Reviews of SIRRADDO' }),
-      el('p', { class: 'admin-intro', text: 'Clients rate you on the Websites page of your website. New ones wait here (and you get an email). Choose Show on website for genuine reviews, Hide for fake or rude ones. Shown reviews appear on your website within about 5 minutes.' })
+      el('p', { class: 'admin-intro', text: 'Clients rate you on the Websites page of your website, or from their own review link (emailed 7 days after their site goes live; also under their client card → WhatsApp → Ask for a review). Those show as Verified client, with their business and photo. New ones wait here (and you get an email). Choose Show on website for genuine reviews, Hide for fake or rude ones. Shown reviews appear on your website within about 5 minutes.' })
     ]);
     var box = el('div', null, [el('p', { class: 'admin-hint', text: 'Loading…' })]);
     card.appendChild(box);
@@ -399,7 +400,8 @@
         var st = { pending: ['New', 'is-new'], shown: ['On website', 'is-won'], hidden: ['Hidden', ''] }[r.status] || ['', ''];
         var stars = new Array(r.stars + 1).join('\u2605') + new Array(6 - r.stars).join('\u2606');
         box.appendChild(el('div', { class: 'admin-golive' }, [
-          el('p', null, [el('b', { text: stars + '  ' + r.name }), ' ', badge(st[0], st[1])]),
+          r.photo ? el('img', { src: r.photo, alt: '', class: 'admin-rv-photo' }) : null,
+          el('p', null, [el('b', { text: stars + '  ' + r.name }), r.business ? ' · ' + r.business : '', ' ', badge(st[0], st[1]), r.client_id ? badge('Verified client', 'is-won') : null]),
           r.body ? el('p', { text: r.body }) : null,
           el('p', { class: 'admin-hint', text: new Date(r.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) }),
           el('div', { class: 'admin-actions' }, [
@@ -2394,7 +2396,8 @@
       doc_link: r._docType && r.doc_token ? docUrl(r, r._docType) : '',
       preview_link: r.preview_token ? previewUrl(r) : '(no preview link yet)',
       website: r.website_url || '(add their website address)',
-      pay_link: r.doc_token ? location.origin + '/pay?t=' + r.doc_token + (r._docType === 'renewal' ? '&for=renewal' : '') : ''
+      pay_link: r.doc_token ? location.origin + '/pay?t=' + r.doc_token + (r._docType === 'renewal' ? '&for=renewal' : '') : '',
+      review_link: r.review_link || '(reload admin to get their review link)'
     };
     return text.replace(/\{(\w+)\}/g, function (m, k) { return k in vals ? vals[k] : m; });
   }

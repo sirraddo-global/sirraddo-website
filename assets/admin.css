@@ -358,3 +358,4 @@ a.admin-btn--wa, a.admin-btn--wa:visited, a.admin-btn--wa:hover { color: #fff; t
 .admin-agent[open] > summary { margin-bottom: 8px; }
 .admin-inline { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: .9rem; white-space: nowrap; }
 :root[data-theme="dark"] .admin-flag { background: #2E2510; border-color: #6B5418; color: #F2C14E; }
+.admin-rv-photo { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid #D9A21B; }

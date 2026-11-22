@@ -771,3 +771,11 @@ p { margin: 0 0 1em; }
 .ag-bank select, .ag-bank textarea { font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); width: 100%; box-sizing: border-box; }
 :root[data-theme="dark"] .ag-news { background: #2A2410; border-color: #6B5418; }
 :root[data-theme="dark"] .ag-invited { background: #2E2510; border-color: #6B5418; color: #F2C14E; }
+/* Training */
+.ag-badge-trained { display: inline-block; margin-top: 4px; font-size: .78rem; font-weight: 700; color: #1B6B3A; background: #E5F4EA; border-radius: 999px; padding: 3px 10px; }
+.ag-quiz { margin-top: 12px; }
+.ag-q { border: 1px solid var(--line, #E3E8F0); border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; }
+.ag-q legend { font-weight: 700; padding: 0 4px; }
+.ag-q label { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
+.ag-q label input { margin-top: 3px; flex: none; }
+.ag-q.is-wrong { border-color: #B3261E; background: rgba(179, 38, 30, .05); }

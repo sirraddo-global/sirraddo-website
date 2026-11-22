@@ -1290,3 +1290,35 @@ test("client reviews: emailed review link a week after launch, photo and busines
   assert.ok(shown && shown.client === true && shown.photo && shown.stars === 4);
   assert.equal(pub.list[0].business, "Kemi Bakes", "client reviews first");
 });
+
+test("agents 3: training lessons and quiz, trained badge for admin", async () => {
+  const ag = (body, token) => h.call("POST", "/api/agent", body, { authorization: "Bearer " + (token || ""), "x-forwarded-for": "10.9.8." + Math.floor(Math.random() * 200) });
+  assert.equal((await ag({ action: "apply", name: "Bisi Train", phone: "08031987333", password: "secret123", agree: true })).status, 200);
+  let list = (await h.action({ action: "agents_list" })).json;
+  const me = list.agents.find((a) => a.phone === "08031987333");
+  await h.action({ action: "agent_update", id: me.id, status: "active" });
+  const tok = (await ag({ action: "login", phone: "08031987333", password: "secret123" })).json.token;
+  const d = (await ag({ action: "me" }, tok)).json;
+  assert.equal(d.agent.trained_at, null);
+  assert.equal(d.training.length, 6);
+  assert.ok(d.training.every((x) => x.q && x.options.length >= 3 && x.answer === undefined), "right answers never sent");
+  const bad = (await ag({ action: "training", answers: [0, 0, 0, 0, 0, 0] }, tok)).json;
+  assert.equal(bad.ok, false); assert.ok(bad.wrong.length > 0); assert.match(bad.message, /of 6 right/);
+  const good = (await ag({ action: "training", answers: [1, 0, 1, 2, 1, 2] }, tok)).json;
+  assert.equal(good.ok, true, JSON.stringify(good)); assert.ok(good.agent.trained_at);
+  list = (await h.action({ action: "agents_list" })).json;
+  assert.ok(list.agents.find((a) => a.id === me.id).trained_at, "admin sees it");
+  assert.equal((await ag({ action: "training", answers: [1, 0, 1, 2, 1, 2] })).status, 401, "needs login");
+});
+
+test("monthly report: change on the month before and a renewal heads-up", async () => {
+  const { reportHtml } = await import("../api/_lib/stats.mjs");
+  const s = { visitors: 150, views: 400, wa: 12, calls: 0, emails: 0, pages: [], sources: [], orders: 0, sales: 0 };
+  const r = { name: "Ada", website_url: "https://adasalon.com.ng", renewal_due: "2026-12-20", renewal_amount: 25000 };
+  const html = reportHtml(r, s, "November 2026", { visitors: 100, wa: 15 }, "October", "2026-12-01");
+  assert.match(html, /up 50% on October/);
+  assert.match(html, /down 20% on October/);
+  assert.match(html, /yearly renewal of ₦25,000 is due on 20 December 2026/);
+  const plain = reportHtml({ ...r, renewal_due: "2027-06-01" }, s, "November 2026");
+  assert.doesNotMatch(plain, /on October|renewal/, "no comparison or renewal note when not due");
+});

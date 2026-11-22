@@ -30,6 +30,7 @@ async function schema() {
     amount INTEGER NOT NULL, ref TEXT, note TEXT)`);
   await q(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS invited_by INTEGER`);
   await q(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS news_seen_at TIMESTAMPTZ`);
+  await q(`ALTER TABLE agents ADD COLUMN IF NOT EXISTS trained_at TIMESTAMPTZ`); // passed the training quiz in the dashboard
   // Businesses an agent is talking to: theirs for 90 days, even if the owner contacts us directly.
   await q(`CREATE TABLE IF NOT EXISTS agent_prospects (
     id SERIAL PRIMARY KEY, agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE, created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -206,7 +207,8 @@ export async function dashboard(a0) {
   const claimed = new Set(s.leads.map((r) => normPhone(r.contact)));
   return {
     agent: { name: a.name, phone: a.phone, email: a.email, city: a.city, code: a.code, bank: a.bank || null, must_change: a.must_change,
-      payout_requested_at: a.payout_requested_at, since: a.created_at },
+      payout_requested_at: a.payout_requested_at, since: a.created_at, trained_at: a.trained_at || null },
+    training: trainingQuiz(),
     link: linkFor(a), inviteLink: `${SITE_URL}/agents?by=${encodeURIComponent(a.code)}`, demoLink: `${SITE_URL}/demo?a=${encodeURIComponent(a.code)}`,
     rate: s.level.rate, level: s.level, tiers: a.rate != null && Number(a.rate) > 0 ? [] : prog.tiers, base: prog.rate, min: prog.min, inviteBonus: prog.inviteBonus,
     earned: s.earned, bonusTotal: s.bonusTotal, inviteTotal: s.inviteTotal, paidOut: s.paidOut, balance: s.balance, count: s.count, clients: s.clients,
@@ -223,6 +225,26 @@ export async function dashboard(a0) {
     top: await leaderboard(),
   };
 }
+// ----- Agent training: five short lessons in the dashboard, then a quiz checked here -----
+// Right answers stay on the server; the dashboard only gets the questions.
+const TRAINING_QUIZ = [
+  { q: "A business owner wants to pay. Where does the money go?", options: ["To you, then you pass it on", "Straight to SIRRADDO, by the invoice link or bank transfer", "Half to you, half to SIRRADDO"], answer: 1 },
+  { q: "What does a Starter website cost in the first year?", options: ["₦50,000, with the domain and hosting included", "₦50,000 plus hosting", "₦25,000 a month"], answer: 0 },
+  { q: "When do you earn commission?", options: ["When the business owner says yes", "When the client pays SIRRADDO for their website", "Every time you share your link"], answer: 1 },
+  { q: "You registered a business in your dashboard. How long is it counted as yours?", options: ["7 days", "30 days", "90 days"], answer: 2 },
+  { q: "An owner says \"What if I don't like it?\" What is true?", options: ["They must pay in full first", "They see their website before paying the balance, and can ask for changes", "There are no changes after the deposit"], answer: 1 },
+  { q: "Which of these is NOT allowed?", options: ["Showing a demo website on your phone", "Following up after 2–3 days", "Promising a price or discount SIRRADDO hasn't offered"], answer: 2 },
+];
+export const trainingQuiz = () => TRAINING_QUIZ.map((x) => ({ q: x.q, options: x.options }));
+export async function finishTraining(a, answers) {
+  await schema();
+  const got = Array.isArray(answers) ? answers.map(Number) : [];
+  const wrong = TRAINING_QUIZ.map((x, i) => (got[i] === x.answer ? -1 : i)).filter((i) => i >= 0);
+  if (wrong.length) return { ok: false, wrong, message: `${TRAINING_QUIZ.length - wrong.length} of ${TRAINING_QUIZ.length} right. Read the lessons again and try once more.` };
+  await q(`UPDATE agents SET trained_at = COALESCE(trained_at, now()) WHERE id = $1`, [a.id]);
+  return { ok: true, ...(await dashboard(a)) };
+}
+
 export async function newsSeen(a) { await q(`UPDATE agents SET news_seen_at = now() WHERE id = $1`, [a.id]); return { ok: true }; }
 
 // ---------- Register a prospect ----------
@@ -331,7 +353,7 @@ export async function adminList() {
     agents: agents.map((a) => {
       const s = a.code ? summarise(a, leads["agent:" + a.code.toLowerCase()], pays[a.id], prog, bons[a.id], invs[a.id]) : summarise(a, [], [], prog);
       return { id: a.id, created_at: a.created_at, name: a.name, phone: a.phone, email: a.email, city: a.city, pitch: a.pitch, code: a.code, status: a.status,
-        own_rate: a.rate != null ? Number(a.rate) : null, rate: s.level.rate, level: s.level.name, bank: a.bank, note: a.note, payout_requested_at: a.payout_requested_at, last_login_at: a.last_login_at,
+        own_rate: a.rate != null ? Number(a.rate) : null, rate: s.level.rate, level: s.level.name, bank: a.bank, note: a.note, payout_requested_at: a.payout_requested_at, last_login_at: a.last_login_at, trained_at: a.trained_at || null,
         invited_by: a.invited_by ? (byId[a.invited_by]?.name || "another agent") : null,
         link: a.code ? linkFor(a) : "", count: s.count, clients: s.clients, earned: s.earned, bonusTotal: s.bonusTotal, inviteTotal: s.inviteTotal, paidOut: s.paidOut, balance: s.balance,
         prospects: proBy[a.id]?.live || 0, invites: s.invites.length,

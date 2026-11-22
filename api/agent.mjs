@@ -1,6 +1,6 @@
 // /api/agent: the SIRRADDO agents programme (apply, log in, dashboard, bank details, payout request).
 // The agent's login is their WhatsApp number + password; the session token is sent as "Authorization: Bearer ag.…".
-import { apply, login, agentFromToken, dashboard, saveBank, requestPayout, changePassword, programme, AgentError, agentQr, registerProspect, statement, newsSeen } from "./_lib/agents.mjs";
+import { apply, login, agentFromToken, dashboard, saveBank, requestPayout, changePassword, programme, AgentError, agentQr, registerProspect, statement, newsSeen, finishTraining } from "./_lib/agents.mjs";
 
 const hits = new Map(); // ip -> [times]: applying and logging in are limited
 function limited(ip, max) {
@@ -52,6 +52,7 @@ export default async function handler(req, res) {
       case "prospect": return res.status(200).json(await registerProspect(a, body));
       case "statement": return res.status(200).json(await statement(a, body.month));
       case "news_seen": return res.status(200).json(await newsSeen(a));
+      case "training": return res.status(200).json(await finishTraining(a, body.answers));
       default: return res.status(400).json({ error: "Unknown action" });
     }
   } catch (err) {

@@ -310,6 +310,105 @@
     box.appendChild(el('p', { class: 'ag-small', text: '70% to start, the rest when the website is ready. Renewal from year 2: Starter ₦25,000, Business ₦40,000. The "Flyer to print" in your promo kit is also a one-page price sheet.' }));
     return box;
   }
+  // ----- Training: 5 short lessons, then a quiz (checked on the server). Passing shows a "Trained agent" badge. -----
+  function lessons(d) {
+    return [
+      ['1. How it works', [
+        'Share your link, or register a business in "Businesses I\'m talking to", so the client counts as yours (for 90 days).',
+        'When your client pays SIRRADDO for their website, you earn ' + d.base + '% of what they pay in their first 12 months. More paying clients move you up a level and a higher rate.',
+        'Ask for your money from "Get paid" once you have ' + naira(d.min) + ' or more. We pay into your bank account.']],
+      ['2. Who to talk to', [
+        'Start with people who already trust you: shops on your street, your church or mosque, school owners, hairdressers, caterers, old classmates.',
+        'Good signs: they sell on WhatsApp or Instagram, they get asked "how much?" a lot, or customers struggle to find them.',
+        'Aim for 5 good conversations a week, not 50 broadcast messages. Never spam groups.']],
+      ['3. The first talk', [
+        'Ask, don\'t sell: "Do customers find you on Google?" or "How do people see your prices?"',
+        'Show, don\'t tell: open the demo website for their type of business on your phone.',
+        'Explain simply: about 7 working days, from ₦50,000 for the first year with the domain and hosting, they see it before paying the balance, and they update prices from their phone.']],
+      ['4. When they hesitate', [
+        'Most people say "later" the first time. That\'s normal.',
+        'Use the answers in the Sales guide below for "too expensive", "I already use Instagram" and "I\'m not good with computers".',
+        'Never promise a price, discount, date or feature SIRRADDO hasn\'t offered. If you don\'t know, say "I\'ll check" and ask us on WhatsApp.']],
+      ['5. Closing and after', [
+        'When they\'re ready, send your link or register them, and tell them SIRRADDO will contact them with the form and invoice.',
+        'They pay SIRRADDO directly by the invoice link or bank transfer. Never collect money yourself.',
+        'Follow up after 2–3 days. After their website is live, ask happy clients to recommend you to one more business.']],
+    ];
+  }
+  function trainingBox(d) {
+    var a = d.agent, box = el('details', { class: 'ag-box ag-more ag-train' }, [el('summary', null, [el('h3', { text: a.trained_at ? '🎓 Training (completed)' : '🎓 Start here: 10-minute training' })])]);
+    if (!a.trained_at) box.open = true;
+    box.appendChild(el('p', { class: 'ag-small', text: a.trained_at ? 'You passed on ' + new Date(a.trained_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + '. Read it again any time.' : 'Read the five short lessons, then answer six questions. Agents who pass get a "Trained agent" badge.' }));
+    lessons(d).forEach(function (l, i) {
+      box.appendChild(el('details', { class: 'ag-faq', open: !a.trained_at && i === 0 ? true : null }, [el('summary', { text: l[0] }), el('ul', { class: 'ag-tips' }, l[1].map(function (t) { return el('li', { text: t }); }))]));
+    });
+    if (a.trained_at || !d.training) return box;
+    var f = el('form', { class: 'ag-quiz', novalidate: true }, [el('h4', { text: 'Quick quiz' })]);
+    d.training.forEach(function (x, i) {
+      f.appendChild(el('fieldset', { class: 'ag-q' }, [el('legend', { text: (i + 1) + '. ' + x.q })].concat(x.options.map(function (o, k) {
+        return el('label', null, [el('input', { type: 'radio', name: 'q' + i, value: String(k) }), ' ' + o]);
+      }))));
+    });
+    var msg = el('p', { class: 'ag-msg', role: 'alert' }), btn = el('button', { type: 'submit', class: 'btn btn--gold', text: 'Check my answers' });
+    f.appendChild(msg); f.appendChild(btn);
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var answers = d.training.map(function (_, i) { var c = $('input[name="q' + i + '"]:checked', f); return c ? Number(c.value) : -1; });
+      if (answers.indexOf(-1) >= 0) { msg.textContent = 'Please answer every question.'; return; }
+      btn.disabled = true; msg.textContent = '';
+      $$('.ag-q', f).forEach(function (q) { q.classList.remove('is-wrong'); });
+      api({ action: 'training', answers: answers }).then(function (j) {
+        btn.disabled = false;
+        if (j.ok) { draw(j); var t = $('.ag-train'); if (t) t.scrollIntoView({ block: 'start' }); return; }
+        (j.wrong || []).forEach(function (i) { var q = $$('.ag-q', f)[i]; if (q) q.classList.add('is-wrong'); });
+        msg.textContent = j.message || 'Not quite. Try again.';
+      }).catch(function (err) { btn.disabled = false; msg.textContent = err.message; });
+    });
+    box.appendChild(f);
+    return box;
+  }
+  // ----- WhatsApp scripts for each step of a conversation, in English and Pidgin -----
+  function scripts(d) {
+    var link = d.link;
+    return [
+      ['First message to someone you know',
+        'Good afternoon [name]! I\'m now working with SIRRADDO, we build websites for businesses like yours so customers can find you on Google and see your prices. Can I show you a sample for your type of business? It takes 2 minutes.',
+        'Good afternoon [name]! I don dey work with SIRRADDO, we dey build website for business like your own so customers fit find you for Google and see your prices. Make I show you sample for your kind business? E no go pass 2 minutes.'],
+      ['After showing a demo',
+        'Thanks for your time today! Here\'s the sample again, and you can start here when you\'re ready: ' + link + ' It\'s about 7 working days, and you see your website before paying the balance.',
+        'Thank you for your time today! See the sample again, and you fit start here anytime: ' + link + ' E go take like 7 working days, and you go see your website before you pay the balance.'],
+      ['Follow-up after 2–3 days',
+        'Hello [name], just checking in about the website. Any questions I can answer? Many businesses are getting ready for the festive season now, so it\'s a good time to start.',
+        'Hello [name], I just wan check about the website matter. Any question wey I fit answer? Plenty business dey prepare for festive season now, so na good time to start.'],
+      ['When they say yes',
+        'Great decision! Please start here: ' + link + ' SIRRADDO will send you a short form and the invoice. Payment goes straight to SIRRADDO by the invoice link or bank transfer.',
+        'Correct decision! Abeg start here: ' + link + ' SIRRADDO go send you small form and the invoice. Payment go straight to SIRRADDO through the invoice link or bank transfer.'],
+      ['After their website is live',
+        'Congratulations on your new website! If you\'re happy with it, could you recommend me to one more business owner you know? It really helps me.',
+        'Congrats on your new website! If you happy with am, abeg recommend me to one more business owner wey you know. E go help me well well.'],
+    ];
+  }
+  function scriptsBox(d) {
+    var box = el('details', { class: 'ag-box ag-more' }, [el('summary', null, [el('h3', { text: '💬 WhatsApp scripts for each step' })])]);
+    var pidgin = false, list = el('div');
+    var toggle = el('div', { class: 'ag-acts', role: 'group', 'aria-label': 'Language' }, [
+      el('button', { type: 'button', class: 'btn btn--navy', text: 'English', 'aria-pressed': 'true' }),
+      el('button', { type: 'button', class: 'btn btn--outline', text: 'Pidgin', 'aria-pressed': 'false' })]);
+    function render() {
+      list.textContent = '';
+      $$('button', toggle).forEach(function (b, i) { var on = (i === 1) === pidgin; b.className = 'btn ' + (on ? 'btn--navy' : 'btn--outline'); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+      scripts(d).forEach(function (s) {
+        var text = pidgin ? s[2] : s[1];
+        list.appendChild(el('div', { class: 'ag-msgcard' }, [el('b', { text: s[0] }), el('p', { text: text }), el('div', { class: 'ag-acts' }, [
+          el('a', { class: 'btn btn--gold', href: 'https://wa.me/?text=' + encodeURIComponent(text), target: '_blank', rel: 'noopener', text: 'Send on WhatsApp' }),
+          el('button', { type: 'button', class: 'btn btn--outline', text: 'Copy', onclick: function (e) { copy(text, e.currentTarget); } })])]));
+      });
+    }
+    $$('button', toggle).forEach(function (b, i) { b.addEventListener('click', function () { pidgin = i === 1; render(); }); });
+    box.appendChild(el('p', { class: 'ag-small', text: 'Replace [name] with their name before sending. Personal messages work far better than broadcasts.' }));
+    box.appendChild(toggle); box.appendChild(list); render();
+    return box;
+  }
   // ----- Invite other agents -----
   function inviteBox(d) {
     var box = el('details', { class: 'ag-box ag-more' }, [el('summary', null, [el('h3', { text: '🤝 Invite other agents' })])]);
@@ -359,7 +458,7 @@
     wrap.hidden = false; $('#join').hidden = true; $('.ag-hero .ag-cta').hidden = true;
     dash.textContent = '';
     var a = d.agent;
-    dash.appendChild(el('div', { class: 'ag-dash-head' }, [el('div', null, [el('p', { class: 'eyebrow eyebrow--dark', text: 'Your agent dashboard' }), el('h2', { text: 'Hello, ' + a.name.split(/\s+/)[0] + ' 👋' })]),
+    dash.appendChild(el('div', { class: 'ag-dash-head' }, [el('div', null, [el('p', { class: 'eyebrow eyebrow--dark', text: 'Your agent dashboard' }), el('h2', { text: 'Hello, ' + a.name.split(/\s+/)[0] + ' 👋' }), a.trained_at ? el('span', { class: 'ag-badge-trained', text: '🎓 Trained agent' }) : null]),
       el('div', { class: 'ag-code' }, [el('span', { text: 'Agent code' }), el('b', { text: a.code })])]));
     if (a.must_change) dash.appendChild(passwordBox(true));
     // Announcements (new ones highlighted, then marked as seen)
@@ -395,10 +494,13 @@
         el('button', { type: 'button', class: 'btn btn--outline', text: 'Copy', onclick: function (e) { copy(m[1], e.currentTarget); } })])]));
     });
     dash.appendChild(share);
+    if (!a.trained_at) dash.appendChild(trainingBox(d));
     dash.appendChild(kit(d));
     dash.appendChild(prospectBox(d));
     dash.appendChild(demoBox(d));
+    dash.appendChild(scriptsBox(d));
     dash.appendChild(guideBox(d));
+    if (a.trained_at) dash.appendChild(trainingBox(d));
     // Payout
     var pay = el('div', { class: 'ag-box' }, [el('h3', { text: 'Get paid' })]);
     if (!a.bank) pay.appendChild(el('p', { class: 'ag-small', text: 'Add the bank account we should pay you into.' }));

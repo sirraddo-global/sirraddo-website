@@ -10,7 +10,7 @@
   var session = 'design-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   var files = []; // [{ url, name }]
   var uploading = 0;
-  var MAX = 4;
+  var MAX = 6;
 
   // "Order …" buttons on the price cards pick that design in the form.
   document.querySelectorAll('[data-design]').forEach(function (a) {
@@ -29,7 +29,7 @@
     var ask = o && o.getAttribute('data-ask'), ph = o && o.getAttribute('data-ph'), fl = o && o.getAttribute('data-files');
     if (wordsLabel) wordsLabel.textContent = ask || firstAsk;
     $('ds-words').placeholder = ph || firstPh;
-    if (filesLabel && fl) filesLabel.textContent = /up to 4/.test(fl) ? fl : /\)$/.test(fl) ? fl.replace(/\)$/, ', up to 4)') : fl + ' (up to 4)';
+    if (filesLabel && fl) filesLabel.textContent = /up to 6/.test(fl) ? fl : /\)$/.test(fl) ? fl.replace(/\)$/, ', up to 6)') : fl + ' (up to 6)';
     drawExtras();
   }
 
@@ -168,7 +168,7 @@
       .then(function (j) {
         // Remember the brand for next time, and this order for the tracker.
         try {
-          if (files.length || body.colours) localStorage.setItem('sirraddo-brand', JSON.stringify({ colours: body.colours, style: body.style, files: files.slice(0, 4), at: Date.now() }));
+          if (files.length || body.colours) localStorage.setItem('sirraddo-brand', JSON.stringify({ colours: body.colours, style: body.style, files: files.slice(0, 6), at: Date.now() }));
           if (j.track) { var past = JSON.parse(localStorage.getItem('sirraddo-orders') || '[]'); past.unshift({ ref: j.ref, service: body.service, track: j.track }); localStorage.setItem('sirraddo-orders', JSON.stringify(past.slice(0, 10))); }
         } catch (_) { /* ignore */ }
         if (j.pay) { say('Order saved (' + (j.ref || '') + '). Taking you to payment…'); location.href = j.pay; return; }

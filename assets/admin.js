@@ -547,6 +547,7 @@
   function quickGuide(q, extras) {
     var kids = [el('summary', null, [el('span', { class: 'admin-fold-title', text: '📋 How to do it, step by step' })]),
       el('ol', { class: 'admin-mini' }, q.guide.map(function (t) { return el('li', { text: t }); }))];
+    if (q.design || q.key === 'qrmenu') kids.splice(1, 0, el('p', { class: 'admin-hint', text: '⚡ Fast way (no Canva needed): tap “Instant draft” on the request. It makes 3 finished designs from their photos, words and colours; change the words or colours if needed, download, put them through the Mockup maker and send as Option 1, 2, 3. Logos and brand kits still need your own ideas.' }));
     (extras || q.extras || []).forEach(function (x) {
       if (state.extraGuides[x]) kids.push(el('p', { class: 'admin-hint', text: '➕ ' + state.extraGuides[x] }));
     });
@@ -600,10 +601,24 @@
         box.appendChild(el('p', { class: 'admin-meta', text: '🗂️ Returning customer: ' + past.length + ' earlier request(s): ' + past.slice(0, 4).map(function (x) { return 'SGL-' + String(x.id).padStart(4, '0') + ' ' + x.interest; }).join(', ') + '. Reuse their logo and colours from those orders.' }));
         if (owed) box.appendChild(el('p', { class: 'admin-meta' }, [badge('Owed 20% off this order (we were late last time)', 'is-due')]));
       }
+      if ((q.design || q.key === 'qrmenu') && window.SirStudio) {
+        box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '🎨 Instant draft: 3 designs from their photos', onclick: function () { openStudio(r); } })]));
+      }
       box.appendChild(quickGuide(q, extras.length ? extras : []));
     }
     draw();
     return box;
+  }
+
+  // Design studio from an order: their uploaded files, words, colours and contacts.
+  function orderField(details, label) {
+    var m = String(details || '').match(new RegExp('^' + label + ':\\s*(.+)$', 'm')); return m ? m[1].trim() : '';
+  }
+  function openStudio(r) {
+    var details = String(r.details || '');
+    var files = []; details.replace(/^• (.+?): (https?:\/\/\S+)$/gm, function (_, name, url) { files.push({ name: name, url: url }); return _; });
+    var words = (details.split(/\n\n/).filter(function (b) { return /:\s*$/.test(b.split('\n')[0]) && !/^Files \(/.test(b); })[0] || '').split('\n').slice(1).join('\n');
+    window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, words: words, business: r.business || '', contact: r.contact || '', colours: orderField(details, 'Colours') });
   }
 
   // Mockup maker: drop a design in, get it on a phone, a wall poster and a printed card, ready to send as options.
@@ -691,6 +706,11 @@
       el('h2', { text: 'Side services' }),
       el('p', { class: 'admin-hint', text: 'Small fixed-price jobs people order and pay for online: flyers and designs on sirraddo.com.ng/design, the rest on sirraddo.com.ng/services. Switch each one on when you are ready to do it; switched-off ones disappear from the website, the order form and the chat. Each order arrives in Requests with the customer’s details and files, and this guide shows on its card. Yearly and monthly ones add their renewal by themselves once paid.' }),
       el('p', { class: 'admin-meta', text: vis.length + ' of ' + list.length + ' switched on' })
+    ]));
+    if (window.SirStudio) view.appendChild(el('div', { class: 'admin-card' }, [
+      el('h2', { text: '🎨 Design studio' }),
+      el('p', { class: 'admin-hint', text: 'Make a flyer from scratch: add photos from your phone, type the words, pick colours, download. For an order, use “Instant draft” on the request instead: it fills everything in from what the customer sent.' }),
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Open design studio', onclick: function () { window.SirStudio.open({ title: 'New design' }); } })
     ]));
     view.appendChild(mockupMaker());
     var boxes = {};

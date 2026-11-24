@@ -343,7 +343,7 @@ export function cleanOrder(body = {}, allowed = QUICK_KEYS) {
   const colours = svc.design ? str(body.colours, 200) : "";
   const style = svc.design ? str(body.style, 300) : "";
   const deadline = ISO.test(String(body.deadline || "")) ? body.deadline : "";
-  const files = (Array.isArray(body.files) ? body.files : []).slice(0, 4)
+  const files = (Array.isArray(body.files) ? body.files : []).slice(0, 6)
     .map((f) => ({ url: str(f?.url, 400), name: str(f?.name, 60) || "file" }))
     .filter((f) => /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)/.test(f.url));
   const { chosen, total } = orderTotal(svc, body.extras);

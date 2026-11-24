@@ -822,3 +822,4 @@ p { margin: 0 0 1em; }
 .ds-promise { text-align: center; font-size: 13px; color: var(--muted); margin: 10px 0 0; }
 .price-was { font-size: .5em; color: var(--muted); font-weight: 600; margin-left: 6px; }
 .ds-brandfile[hidden], .ds-extras[hidden] { display: none; }
+.ds-tip { margin: 6px 0 0; font-size: 13px; color: var(--muted); }

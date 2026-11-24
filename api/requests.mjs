@@ -39,6 +39,7 @@ import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
 import { pickProvider, friendlyAiError, ensureAiBackup } from "./_lib/providers.mjs";
 import { generateDesign, changeDesignOptions } from "./_lib/design.mjs";
+import { QUICK_SERVICES } from "./_lib/graphics.mjs";
 import { addDomain, checkHosting, publish, pause, restore, setupEmail, afterProjectPayment, GoLiveError, restorePrevious } from "./_lib/golive.mjs";
 import { cloudflareConfigured } from "./_lib/cloudflare.mjs";
 import { todayLagos } from "./_lib/automation.mjs";
@@ -282,10 +283,10 @@ export default async function handler(req, res) {
       if (me.role === "staff") {
         // Staff see customers and jobs, not the money totals, setup details or email usage unless they have Money.
         return res.status(200).json({ me: meOut, requests: can(me, "money") ? requests : requests.map((r) => ({ ...r, payments: [], quote_amount: null, renewal_amount: null, services: [] })),
-          unanswered, settings: Object.fromEntries(Object.entries(settings).filter(([k]) => !/^(pkg_|custom_|neon_plan|vercel_pro_at)/.test(k) && (can(me, "money") || !/^(bank_name|account_name|account_number)$/.test(k)))), setup: [], totals: can(me, "money") ? totals : null, email_usage: null, statuses: STATUSES, stages: STAGES,
+          quick: QUICK_SERVICES, unanswered, settings: Object.fromEntries(Object.entries(settings).filter(([k]) => !/^(pkg_|custom_|neon_plan|vercel_pro_at)/.test(k) && (can(me, "money") || !/^(bank_name|account_name|account_number)$/.test(k)))), setup: [], totals: can(me, "money") ? totals : null, email_usage: null, statuses: STATUSES, stages: STAGES,
           can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
       }
-      return res.status(200).json({ me: meOut, requests, unanswered, settings, setup, totals, email_usage, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
+      return res.status(200).json({ me: meOut, requests, quick: QUICK_SERVICES, unanswered, settings, setup, totals, email_usage, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
     }
 
     if (req.method === "PATCH") {

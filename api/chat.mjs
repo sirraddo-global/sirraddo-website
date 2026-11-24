@@ -158,6 +158,14 @@ export default async function handler(req, res) {
   // Service notices showing now (planned upgrade, service problem, holiday): the assistant can mention them.
   const notices = await currentNotices().catch(() => []);
   let system = notices.length ? `${SYSTEM_PROMPT}\n\nSERVICE NOTICES SHOWING ON THE WEBSITE NOW (mention them when relevant, e.g. if someone asks about delays, payments or availability):\n${notices.map((n) => `- ${n.title}: ${n.message}`).join("\n")}` : SYSTEM_PROMPT;
+  // Side services switched on in admin (Packages → Side services): only these may be offered.
+  try {
+    const g = await import("./_lib/graphics.mjs");
+    const { getSettings } = await import("./_lib/store.mjs");
+    const on = new Set(g.visibleKeys(await getSettings()));
+    const lines = g.QUICK_SERVICES.filter((x) => on.has(x.key)).map((x) => `- ${x.interest}: ₦${x.price.toLocaleString("en-NG")}${x.recurring ? `, then ₦${x.recurring.amount.toLocaleString("en-NG")} ${x.recurring.period === "monthly" ? "a month" : "a year"}` : ""} (${x.what}; ${x.days}). Order at sirraddo.com.ng/${x.page === "design" ? "design" : "services"}`);
+    system += `\n\nSIDE SERVICES AVAILABLE NOW:\n${lines.length ? lines.join("\n") : "(none right now)"}`;
+  } catch { /* the chat still works without the list */ }
   // A special offer running now (Admin → Marketing → Offer): the assistant mentions it when it fits.
   const offer = await import("./_lib/marketing.mjs").then((m) => m.currentOffer()).catch(() => null);
   if (offer) system += `\n\nSPECIAL OFFER RUNNING NOW (mention it when someone asks about prices or is deciding; the team applies it on the quote; don't invent other discounts): ${offer.title}${offer.text ? ` (${offer.text})` : ""}. Last day: ${offer.until}.`;

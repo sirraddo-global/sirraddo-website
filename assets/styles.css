@@ -786,3 +786,6 @@ p { margin: 0 0 1em; }
 .field input[type="file"] { padding: 10px; min-height: 0; }
 .ds-done { background: var(--surface); border-radius: var(--radius); padding: 22px; text-align: center; }
 .ds-done h3 { margin-top: 0; }
+
+/* Quick services switched off in admin */
+.package[hidden], .ds-none[hidden], .section[hidden], .btn[hidden], [data-svc-page][hidden] { display: none; }

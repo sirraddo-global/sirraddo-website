@@ -81,7 +81,7 @@
     </section>
 
     <!-- ===== Prices =====
-         To change a price: edit it here AND in api/_lib/design.mjs (a test checks they match). -->
+         To change a price: edit it here AND in api/_lib/graphics.mjs (a test checks they match). -->
     <section class="section section--grey" id="prices" aria-labelledby="prices-title">
       <div class="container">
         <div class="section-head">
@@ -89,8 +89,9 @@
           <h2 id="prices-title">Pick what you need</h2>
           <p>Paid once, in full, before we start. Bigger jobs (banners, menus, packaging, many designs) are <a href="https://wa.me/2348167550937?text=Hi%2C%20I%20need%20a%20quote%20for%20a%20design%20job." target="_blank" rel="noopener">quoted on WhatsApp<span class="visually-hidden"> (opens in a new tab)</span></a>.</p>
         </div>
+        <p class="ds-none" id="ds-none" hidden>Design orders are paused for now. Please <a href="https://wa.me/2348167550937?text=Hi%2C%20I%20need%20a%20design." target="_blank" rel="noopener">message us on WhatsApp</a>.</p>
         <div class="grid grid--3 packages">
-          <article class="card package" aria-labelledby="ds-flyer">
+          <article class="card package" aria-labelledby="ds-flyer" data-svc="flyer">
             <h3 id="ds-flyer">Flyer design</h3>
             <p class="price">₦5,000</p>
             <p class="price-note">Ready in 1–2 working days</p>
@@ -102,7 +103,7 @@
             </ul>
             <a class="btn btn--navy btn--block" href="#order" data-design="Flyer design">Order flyer</a>
           </article>
-          <article class="card package package--featured" aria-labelledby="ds-social">
+          <article class="card package package--featured" aria-labelledby="ds-social" data-svc="social">
             <p class="package-flag">Popular</p>
             <h3 id="ds-social">Social media pack</h3>
             <p class="price">₦15,000</p>
@@ -115,7 +116,7 @@
             </ul>
             <a class="btn btn--gold btn--block" href="#order" data-design="Social media designs">Order social media pack</a>
           </article>
-          <article class="card package" aria-labelledby="ds-card">
+          <article class="card package" aria-labelledby="ds-card" data-svc="card">
             <h3 id="ds-card">Business card design</h3>
             <p class="price">₦5,000</p>
             <p class="price-note">Ready in 1–2 working days</p>
@@ -127,7 +128,7 @@
             </ul>
             <a class="btn btn--navy btn--block" href="#order" data-design="Business card design">Order business card</a>
           </article>
-          <article class="card package" aria-labelledby="ds-logo">
+          <article class="card package" aria-labelledby="ds-logo" data-svc="logo">
             <h3 id="ds-logo">Logo design</h3>
             <p class="price">₦20,000</p>
             <p class="price-note">Ready in 3–5 working days</p>
@@ -139,7 +140,7 @@
             </ul>
             <a class="btn btn--navy btn--block" href="#order" data-design="Logo design">Order logo</a>
           </article>
-          <article class="card package" aria-labelledby="ds-brand">
+          <article class="card package" aria-labelledby="ds-brand" data-svc="brand">
             <h3 id="ds-brand">Brand kit</h3>
             <p class="price">₦45,000</p>
             <p class="price-note">Ready in 5–7 working days</p>
@@ -150,6 +151,18 @@
               <li>Colours and fonts guide</li>
             </ul>
             <a class="btn btn--navy btn--block" href="#order" data-design="Brand kit">Order brand kit</a>
+          </article>
+          <article class="card package" aria-labelledby="ds-invite" data-svc="invite">
+            <h3 id="ds-invite">Invitation design</h3>
+            <p class="price">₦5,000</p>
+            <p class="price-note">Ready in 1–2 working days</p>
+            <ul class="ticks">
+              <li>Weddings, birthdays, naming, burials, events</li>
+              <li>WhatsApp e-invite + print-ready card</li>
+              <li>2 rounds of changes</li>
+              <li>PNG for WhatsApp, PDF for print</li>
+            </ul>
+            <a class="btn btn--navy btn--block" href="#order" data-design="Invitation design">Order invitation</a>
           </article>
         </div>
       </div>
@@ -185,15 +198,16 @@
             <label for="ds-service">What do you want designed?</label>
             <select id="ds-service" required>
               <option value="">Choose…</option>
-              <option value="Flyer design">Flyer design (₦5,000)</option>
-              <option value="Social media designs">Social media pack: 5 designs (₦15,000)</option>
-              <option value="Business card design">Business card design (₦5,000)</option>
-              <option value="Logo design">Logo design (₦20,000)</option>
-              <option value="Brand kit">Brand kit (₦45,000)</option>
+              <option value="Flyer design" data-svc="flyer" data-ask="Words to put on it" data-ph="e.g. Business name, the offer or event, prices, date and venue, phone/WhatsApp, address, Instagram handle">Flyer design (₦5,000)</option>
+              <option value="Social media designs" data-svc="social" data-ask="What should the 5 designs say?" data-ph="e.g. Post 1: our new menu… Post 2: weekend offer… (or tell us the topics and we'll write the words)">Social media pack: 5 designs (₦15,000)</option>
+              <option value="Business card design" data-svc="card" data-ask="What goes on the card?" data-ph="e.g. Name, job title, business name, phone/WhatsApp, email, address, website, Instagram">Business card design (₦5,000)</option>
+              <option value="Logo design" data-svc="logo" data-ask="Tell us about the business" data-ph="e.g. Business name, what you sell, who your customers are, colours you like or hate, logos you like the style of">Logo design (₦20,000)</option>
+              <option value="Brand kit" data-svc="brand" data-ask="Tell us about the business" data-ph="e.g. Business name, what you sell, customers, colours you like, contacts for the card and letterhead">Brand kit (₦45,000)</option>
+              <option value="Invitation design" data-svc="invite" data-ask="Event details" data-ph="e.g. Type of event, names, date and time, venue, dress code / colours, RSVP numbers, a Bible verse or quote">Invitation design (₦5,000)</option>
             </select>
           </div>
           <div class="field">
-            <label for="ds-words">Words to put on it</label>
+            <label for="ds-words" id="ds-words-label">Words to put on it</label>
             <textarea id="ds-words" maxlength="1200" rows="5" required placeholder="e.g. Business name, the offer or event, prices, date and venue, phone/WhatsApp, address, Instagram handle"></textarea>
           </div>
           <div class="field">
@@ -259,7 +273,7 @@
         <div class="faq">
           <details>
             <summary>How long does it take?</summary>
-            <p>Flyers and business cards: usually 1–2 working days after payment. Social media packs 2–3, logos 3–5 and brand kits 5–7 working days. Need it faster? Message us on WhatsApp before you order.</p>
+            <p>Flyers, business cards and invitations: usually 1–2 working days after payment. Social media packs 2–3, logos 3–5 and brand kits 5–7 working days. Need it faster? Message us on WhatsApp before you order.</p>
           </details>
           <details>
             <summary>Can I ask for changes?</summary>
@@ -288,7 +302,7 @@
     <section class="cta-band" aria-labelledby="cta-title">
       <div class="container">
         <h2 id="cta-title">Need something else designed?</h2>
-        <p>Banners, menus, price lists, invitations, packaging: tell us what you need and we'll quote it.</p>
+        <p>Banners, menus, price lists, packaging: tell us what you need and we'll quote it.</p>
         <div class="btn-row">
           <a class="btn btn--gold" href="https://wa.me/2348167550937?text=Hi%2C%20I%20need%20a%20design%20for%20my%20business." target="_blank" rel="noopener">Chat on WhatsApp<span class="visually-hidden"> (opens WhatsApp in a new tab)</span></a>
           <a class="btn btn--outline-light" href="/websites">Need a website too?</a>
@@ -311,6 +325,7 @@
         <ul class="footer-links">
           <li><a href="/websites">Websites</a></li>
           <li><a href="/design">Flyers &amp; graphics</a></li>
+          <li data-svc-page="services" hidden><a href="/services">Quick services</a></li>
           <li><a href="/agents">Earn as an agent</a></li>
           <li><a href="/privacy">Privacy Policy</a></li>
           <li><a href="/terms">Terms</a></li>

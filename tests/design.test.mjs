@@ -16,7 +16,7 @@ const naira = (n) => "₦" + n.toLocaleString("en-NG");
 test("design page shows the same prices as the order API, and is linked from the site", async () => {
   const page = readFileSync(join(ROOT, "design.html"), "utf8");
   for (const d of DESIGN_SERVICES) {
-    assert.ok(page.includes(`<option value="${d.interest}">`), `${d.interest} in the form`);
+    assert.ok(page.includes(`<option value="${d.interest}" data-svc="${d.key}"`), `${d.interest} in the form`);
     assert.ok(page.includes(`(${naira(d.price)})`), `${d.interest} price ${naira(d.price)} in the form`);
     assert.ok(page.includes(`<p class="price">${naira(d.price)}</p>`), `${d.interest} price card`);
   }

@@ -13,8 +13,8 @@
     address: 'PLT 106/107 Agbaakin Layout, Iwo Road, Olowotinfiowosanu Area, Ibadan, Oyo State, Nigeria',
     phone: '+234 816 755 0937', email: 'info@sirraddo.com.ng'
   };
-  var PACKAGES = ['Starter website', 'Business website', 'Online Store', 'Custom app', 'Business software', 'ZAPPI PAY', 'Flyer design', 'Social media designs', 'Business card design', 'Logo design', 'Brand kit', 'Other'];
-  var DEFAULT_QUOTE = { 'Starter website': 50000, 'Business website': 100000, 'Online Store': 150000, 'Flyer design': 5000, 'Social media designs': 15000, 'Business card design': 5000, 'Logo design': 20000, 'Brand kit': 45000 };
+  var PACKAGES = ['Starter website', 'Business website', 'Online Store', 'Custom app', 'Business software', 'ZAPPI PAY', 'Flyer design', 'Social media designs', 'Business card design', 'Logo design', 'Brand kit', 'Invitation design', 'Google Maps listing', 'WhatsApp Business setup', 'CV design', 'CV + cover letter', 'Mini website', 'Domain + business email', 'QR menu / price list', 'Monthly social media posts', 'Other'];
+  var DEFAULT_QUOTE = { 'Starter website': 50000, 'Business website': 100000, 'Online Store': 150000, 'Flyer design': 5000, 'Social media designs': 15000, 'Business card design': 5000, 'Logo design': 20000, 'Brand kit': 45000, 'Invitation design': 5000, 'Google Maps listing': 7000, 'WhatsApp Business setup': 5000, 'CV design': 3000, 'CV + cover letter': 5000, 'Mini website': 10000, 'Domain + business email': 15000, 'QR menu / price list': 10000, 'Monthly social media posts': 20000 };
   // "Business: wants Google Maps…" (from the chat assistant) -> 'Business website'
   function recommendedPackage(text) {
     var t = String(text || '').split(':')[0].toLowerCase();
@@ -149,6 +149,7 @@
       state.requests = j.requests || [];
       state.unanswered = j.unanswered || [];
       state.settings = j.settings || {};
+      state.quick = j.quick || [];
       state.me = j.me || { role: 'owner', perms: [] };
       if (STAFF_PAGE !== (state.me.role === 'staff')) {
         logout();
@@ -524,14 +525,61 @@
     PKG.custom = { build: Number(pkgSetting('custom_build_from')), monthly: Number(pkgSetting('custom_monthly')) };
   }
   function nN(n) { return '₦' + Math.round(n).toLocaleString('en-NG'); }
-  var PKG_TABS = [['standard', 'Standard Store'], ['custom', 'Custom system'], ['database', 'Database'], ['demand', 'Who\u2019s asking'], ['prices', 'Prices']];
+  var PKG_TABS = [['quick', 'Side services'], ['standard', 'Standard Store'], ['custom', 'Custom system'], ['database', 'Database'], ['demand', 'Who\u2019s asking'], ['prices', 'Prices']];
   function renderPackages(view) {
     loadPkg();
-    var tab = state.pkgTab || 'standard';
+    var tab = state.pkgTab || 'quick';
     view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Packages' }, PKG_TABS.map(function (t) {
       return el('button', { type: 'button', 'aria-pressed': t[0] === tab ? 'true' : 'false', text: t[1], onclick: function () { state.pkgTab = t[0]; render(); } });
     })));
-    ({ standard: pkgStandard, custom: pkgCustom, database: pkgDatabase, demand: pkgDemand, prices: pkgPrices })[tab](view);
+    ({ quick: pkgQuick, standard: pkgStandard, custom: pkgCustom, database: pkgDatabase, demand: pkgDemand, prices: pkgPrices })[tab](view);
+  }
+
+  // ---------- Packages → Side services: on/off switch + step-by-step guide for each quick service ----------
+  function quickVisible() {
+    var raw = (state.settings || {}).svc_visible;
+    if (raw == null || raw === '') return (state.quick || []).filter(function (q) { return q.on; }).map(function (q) { return q.key; });
+    if (raw === 'none') return [];
+    return raw.split(',');
+  }
+  function quickPeriod(q) { return q.recurring ? ', then ' + nN(q.recurring.amount) + (q.recurring.period === 'monthly' ? ' a month' : ' a year') : ''; }
+  function quickGuide(q) {
+    return el('details', { class: 'admin-fold' }, [
+      el('summary', null, [el('span', { class: 'admin-fold-title', text: '📋 How to do it, step by step' })]),
+      el('ol', { class: 'admin-mini' }, q.guide.map(function (t) { return el('li', { text: t }); }))
+    ]);
+  }
+  function pkgQuick(view) {
+    var list = state.quick || [];
+    var vis = quickVisible();
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('h2', { text: 'Side services' }),
+      el('p', { class: 'admin-hint', text: 'Small fixed-price jobs people order and pay for online: flyers and designs on sirraddo.com.ng/design, the rest on sirraddo.com.ng/services. Switch each one on when you are ready to do it; switched-off ones disappear from the website, the order form and the chat. Each order arrives in Requests with the customer’s details and files, and this guide shows on its card. Yearly and monthly ones add their renewal by themselves once paid.' }),
+      el('p', { class: 'admin-meta', text: vis.length + ' of ' + list.length + ' showing on the website' })
+    ]));
+    var boxes = {};
+    [['design', 'Flyers & graphics (/design)'], ['services', 'Quick services (/services)']].forEach(function (g) {
+      view.appendChild(el('h2', { class: 'admin-h2', text: g[1] }));
+      list.filter(function (q) { return q.page === g[0]; }).forEach(function (q) {
+        var on = el('input', { type: 'checkbox' }); on.checked = vis.indexOf(q.key) !== -1; boxes[q.key] = on;
+        var orders = (state.requests || []).filter(function (r) { return r.interest === q.interest; });
+        var paid = orders.filter(function (r) { return r.status === 'won'; }).length;
+        view.appendChild(el('div', { class: 'admin-card' }, [
+          el('div', { class: 'admin-card-top' }, [el('h3', { text: q.interest }), badge(on.checked ? 'Showing' : 'Hidden', on.checked ? 'is-won' : '')]),
+          el('p', { class: 'admin-meta', text: nN(q.price) + quickPeriod(q) + ' · ' + q.days + ' · ' + q.what }),
+          el('p', { class: 'admin-meta', text: orders.length ? orders.length + ' order(s), ' + paid + ' paid' : 'No orders yet' }),
+          el('label', { class: 'admin-check' }, [on, ' Show on my website']),
+          quickGuide(q)
+        ]));
+      });
+    });
+    view.appendChild(el('div', { class: 'admin-actions' }, [
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Save switches', onclick: function () {
+        var keys = list.filter(function (q) { return boxes[q.key].checked; }).map(function (q) { return q.key; });
+        api('POST', { action: 'settings', settings: { svc_visible: keys.length ? keys.join(',') : 'none' } })
+          .then(function (j) { state.settings = j.settings; flash('Saved: ' + keys.length + ' showing on the website (it updates within a minute)'); render(); }).catch(fail);
+      } })
+    ]));
   }
   function pkgStandard(view) {
     view.appendChild(el('div', { class: 'admin-card' }, [
@@ -2337,9 +2385,12 @@
     var card = el('article', { class: 'admin-card admin-card--' + r.status });
     var top = el('div', { class: 'admin-card-top' }, [el('h2', { text: r.name }), el('span', { class: 'admin-tag', text: r.interest })]);
     card.appendChild(top);
+    var quick = (state.quick || []).filter(function (q) { return q.interest === r.interest; })[0];
+    if (quick) card.appendChild(el('div', { class: 'admin-hint' }, [
+      el('b', { text: 'Side service: ' + nN(quick.price) + quickPeriod(quick) + ' · ' + quick.days }), quickGuide(quick)]));
 
     var badges = el('div', { class: 'admin-badges' }, [badge(cap(r.status), 'is-' + r.status)]);
-    var SOURCE = { manual: 'Added by hand', form: 'Package form', contact: 'Contact form', 'chat-form': 'Chat (no AI reply)' };
+    var SOURCE = { manual: 'Added by hand', design: 'Design order', service: 'Service order', form: 'Package form', contact: 'Contact form', 'chat-form': 'Chat (no AI reply)' };
     if (SOURCE[r.source]) badges.appendChild(badge(SOURCE[r.source]));
     if (r.came_from && r.came_from !== 'direct') badges.appendChild(badge('From: ' + r.came_from, 'is-from'));
     if (r.wants) badges.appendChild(badge(r.wants === 'customer_accounts' ? 'Wants customer accounts' : 'Wants a custom system', 'is-due'));

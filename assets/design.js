@@ -1,5 +1,6 @@
-// Flyers & graphics order form (/design): uploads the customer's logo/photos, sends the order to /api/design,
-// then goes to the payment page (with an email) or shows the reference and a WhatsApp link.
+// Order form for quick services (/design and /services): hides services switched off in admin, changes the
+// question for the chosen service, uploads files, sends the order to /api/order, then goes to the payment page
+// (with an email) or shows the reference and a WhatsApp link.
 (function () {
   'use strict';
   var form = document.getElementById('ds-form');
@@ -16,8 +17,41 @@
     a.addEventListener('click', function () { $('ds-service').value = a.getAttribute('data-design'); });
   });
   try { var sv = JSON.parse(localStorage.getItem('sirraddo-lead') || '{}'); ['name', 'business', 'contact', 'email'].forEach(function (k) { if (sv[k] && !$('ds-' + k).value) $('ds-' + k).value = sv[k]; }); } catch (_) { /* ignore */ }
+  var sel = $('ds-service');
   var pre = new URLSearchParams(location.search).get('d');
-  if (pre) Array.prototype.forEach.call($('ds-service').options, function (o) { if (o.value === pre) $('ds-service').value = pre; });
+  if (pre) Array.prototype.forEach.call(sel.options, function (o) { if (o.value === pre) sel.value = pre; });
+
+  // The question and file hint follow the chosen service.
+  var wordsLabel = $('ds-words-label'), filesLabel = $('ds-files-label');
+  var firstAsk = wordsLabel ? wordsLabel.textContent : '', firstPh = $('ds-words').placeholder;
+  function fit() {
+    var o = sel.options[sel.selectedIndex];
+    var ask = o && o.getAttribute('data-ask'), ph = o && o.getAttribute('data-ph'), fl = o && o.getAttribute('data-files');
+    if (wordsLabel) wordsLabel.textContent = ask || firstAsk;
+    $('ds-words').placeholder = ph || firstPh;
+    if (filesLabel && fl) filesLabel.textContent = fl + (/up to 4/.test(fl) ? '' : ' (up to 4)');
+  }
+  sel.addEventListener('change', fit);
+  document.querySelectorAll('[data-design]').forEach(function (a) { a.addEventListener('click', function () { setTimeout(fit, 0); }); });
+  fit();
+
+  // Hide services switched off in admin (Packages → Side services).
+  fetch('/api/order').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    if (!j || !Array.isArray(j.visible)) return;
+    var on = {}; j.visible.forEach(function (k) { on[k] = 1; });
+    var shown = 0;
+    document.querySelectorAll('article[data-svc]').forEach(function (c) { var v = !!on[c.getAttribute('data-svc')]; c.hidden = !v; if (v) shown++; });
+    Array.prototype.slice.call(sel.options).forEach(function (o) {
+      var k = o.getAttribute('data-svc'); if (!k) return;
+      if (!on[k]) { if (sel.value === o.value) sel.value = ''; o.remove(); }
+    });
+    fit();
+    if (!shown) {
+      if ($('ds-none')) $('ds-none').hidden = false;
+      var order = $('order'); if (order) order.hidden = true;
+      document.querySelectorAll('a[href="#order"]').forEach(function (a) { a.hidden = true; });
+    }
+  }).catch(function () { /* keep everything showing */ });
 
   function say(text, bad) { msg.textContent = text; msg.style.color = bad ? '#B42318' : ''; }
   function showFiles() {
@@ -64,19 +98,19 @@
     e.preventDefault();
     if (uploading) return say('Please wait: your files are still uploading.', true);
     var body = {
-      service: $('ds-service').value, words: $('ds-words').value, size: $('ds-size').value,
-      colours: $('ds-colours').value, style: $('ds-style').value, deadline: $('ds-deadline').value,
+      service: sel.value, words: $('ds-words').value, size: $('ds-size') ? $('ds-size').value : '',
+      colours: $('ds-colours') ? $('ds-colours').value : '', style: $('ds-style') ? $('ds-style').value : '', deadline: $('ds-deadline').value,
       name: $('ds-name').value, business: $('ds-business').value, contact: $('ds-contact').value,
       email: $('ds-email').value, files: files, website: $('ds-hp').value,
       from: window.sirraddoFrom ? window.sirraddoFrom() : '',
     };
-    if (!body.service) { $('ds-service').focus(); return say('Please choose what you want designed.', true); }
+    if (!body.service) { $('ds-service').focus(); return say('Please choose a service.', true); }
     btn.disabled = true; say('Sending your order…');
-    fetch('/api/design', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+    fetch('/api/order', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Something went wrong'); return j; }); })
       .then(function (j) {
         if (j.pay) { say('Order saved (' + (j.ref || '') + '). Taking you to payment…'); location.href = j.pay; return; }
-        var wa = 'https://wa.me/2348167550937?text=' + encodeURIComponent('Hi, I just ordered a ' + body.service + (j.ref ? ' (ref ' + j.ref + ')' : '') + ' on your website.');
+        var wa = 'https://wa.me/2348167550937?text=' + encodeURIComponent('Hi, I just ordered: ' + body.service + (j.ref ? ' (ref ' + j.ref + ')' : '') + ' on your website.');
         form.innerHTML = '<div class="ds-done"><h3>Order received 🎉</h3><p>' + (j.ref ? 'Your reference is <b>' + j.ref + '</b>. ' : '') +
           'We will message you on WhatsApp to confirm and send your payment link.</p><a class="btn btn--gold" target="_blank" rel="noopener" href="' + wa + '">Message us on WhatsApp now</a></div>';
       })

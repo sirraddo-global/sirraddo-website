@@ -217,12 +217,12 @@ p { margin: 0 0 1em; }
 .form { background: var(--bg-soft); border-radius: var(--radius); padding: 26px; display: grid; gap: 18px; }
 .field { display: grid; gap: 6px; }
 .field label { font-weight: 700; color: var(--ink); }
-.field input, .field textarea {
+.field input, .field textarea, .field select {
   font: inherit; color: var(--text); background: var(--surface);
   border: 1.5px solid #B8C2D3; border-radius: 10px; padding: 12px 14px; width: 100%; min-height: 48px;
 }
 .field textarea { min-height: 140px; resize: vertical; }
-.field input:focus, .field textarea:focus { outline: 3px solid var(--gold); outline-offset: 1px; border-color: var(--ink); }
+.field input:focus, .field textarea:focus, .field select:focus { outline: 3px solid var(--gold); outline-offset: 1px; border-color: var(--ink); }
 .field input[aria-invalid="true"], .field textarea[aria-invalid="true"] { border-color: #B42318; }
 .form-hint { font-size: .9rem; color: var(--muted); margin: 0; }
 .form-error { color: #B42318; font-weight: 600; margin: 0; }
@@ -779,3 +779,10 @@ p { margin: 0 0 1em; }
 .ag-q label { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
 .ag-q label input { margin-top: 3px; flex: none; }
 .ag-q.is-wrong { border-color: #B3261E; background: rgba(179, 38, 30, .05); }
+
+/* ---- Flyers & graphics order form (/design) ---- */
+.ds-files-list { margin: 0; font-size: 14px; color: var(--muted, #4A5568); }
+.ds-files-list:empty { display: none; }
+.field input[type="file"] { padding: 10px; min-height: 0; }
+.ds-done { background: var(--surface); border-radius: var(--radius); padding: 22px; text-align: center; }
+.ds-done h3 { margin-top: 0; }

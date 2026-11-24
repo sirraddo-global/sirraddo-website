@@ -7,12 +7,13 @@ import { acknowledgeLead, applyRules } from "./_lib/automation.mjs";
 import { getRequest, updateRequest, ensureDocToken } from "./_lib/store.mjs";
 import { payLink } from "./_lib/paystack.mjs";
 import { currentOffer } from "./_lib/marketing.mjs";
+import { DESIGN_NAMES } from "./_lib/graphics.mjs";
 
 // Fixed-price packages the price picker can start straight away (quote set, deposit paid online).
 export const FIXED_PRICES = { "Starter website": 50000, "Business website": 100000 };
 
 const SOURCES = ["form", "contact", "chat-form", "picker"];
-const PACKAGES = ["Starter website", "Business website", "Online Store", "Custom app", "Business software", "ZAPPI PAY", "Other"];
+const PACKAGES = ["Starter website", "Business website", "Online Store", "Custom app", "Business software", "ZAPPI PAY", ...DESIGN_NAMES, "Other"];
 
 const hits = new Map();
 function rateLimited(ip) {

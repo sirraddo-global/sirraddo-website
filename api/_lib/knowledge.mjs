@@ -57,6 +57,7 @@ Products and services
 - Business software (in development): point-of-sale and record-keeping apps for shops, gas stations and property managers. Interested businesses can register interest; the team will follow up.
 - Custom apps: web and mobile apps built for a business. Price depends on the project; the team gives a quote after understanding the requirements.
 - Websites for businesses (available): see packages below.
+- Flyers & graphics (available): fixed prices, paid in full online before we start, ordered at sirraddo.com.ng/design (the customer types the words, picks the size, uploads their logo or photos, then pays with Paystack). Flyer design ₦5,000 (1–2 working days); Social media designs, 5 matching post or status designs ₦15,000 (2–3 working days); Business card design, front and back, print-ready ₦5,000 (1–2 working days); Logo design ₦20,000 (3 ideas, then the favourite refined, 3–5 working days); Brand kit ₦45,000 (logo, business card, letterhead and 3 social templates, 5–7 working days). Every design includes 2 rounds of changes and is delivered on WhatsApp as print-ready PDF and PNG files. We don't print; customers can print the files anywhere. Bigger or unusual jobs (banners, menus, packaging, many designs) are quoted on WhatsApp. Never use other brands' logos, characters or photos in a design; designs are original, in the customer's own brand.
 
 Website packages (one-off price, first year included)
 - Domains: every package includes a .com.ng domain. A .com costs more each year, so it is an extra on the quote and renewal; never promise a free .com.
@@ -122,7 +123,7 @@ export const SAVE_TOOL = {
       business: { type: "string", description: "Type or name of the visitor's business, if given" },
       interest: {
         type: "string",
-        enum: ["Starter website", "Business website", "Online Store", "Custom app", "Business software", "ZAPPI PAY", "Other"],
+        enum: ["Starter website", "Business website", "Online Store", "Custom app", "Business software", "ZAPPI PAY", "Flyer design", "Social media designs", "Business card design", "Logo design", "Brand kit", "Other"],
         description: "What the visitor is most interested in",
       },
       details: {

@@ -13,8 +13,8 @@
     address: 'PLT 106/107 Agbaakin Layout, Iwo Road, Olowotinfiowosanu Area, Ibadan, Oyo State, Nigeria',
     phone: '+234 816 755 0937', email: 'info@sirraddo.com.ng'
   };
-  var PACKAGES = ['Starter website', 'Business website', 'Online Store', 'Custom app', 'Business software', 'ZAPPI PAY', 'Other'];
-  var DEFAULT_QUOTE = { 'Starter website': 50000, 'Business website': 100000, 'Online Store': 150000 };
+  var PACKAGES = ['Starter website', 'Business website', 'Online Store', 'Custom app', 'Business software', 'ZAPPI PAY', 'Flyer design', 'Social media designs', 'Business card design', 'Logo design', 'Brand kit', 'Other'];
+  var DEFAULT_QUOTE = { 'Starter website': 50000, 'Business website': 100000, 'Online Store': 150000, 'Flyer design': 5000, 'Social media designs': 15000, 'Business card design': 5000, 'Logo design': 20000, 'Brand kit': 45000 };
   // "Business: wants Google Maps…" (from the chat assistant) -> 'Business website'
   function recommendedPackage(text) {
     var t = String(text || '').split(':')[0].toLowerCase();

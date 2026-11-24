@@ -1,6 +1,7 @@
 // Everything that runs by itself: status rules on every change, customer emails, and the daily run
 // (morning summary with one-tap WhatsApp links, reminders, client site checks, Monday report + backup).
 import tls from "node:tls";
+import { isDesign } from "./graphics.mjs";
 import {
   listRequests, updateRequest, ensureDocToken, getSettings, markSent, setSiteCheck, listUnansweredSince,
   sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta , emailUsage, countRefused, cleanupRefused, q } from "./store.mjs";
@@ -91,8 +92,12 @@ export function rulesAfterUpdate(row, changed) {
     if (reached) {
       f.status = "won";
       if (row.renewal_amount == null && DEFAULT_RENEWAL[row.interest]) f.renewal_amount = DEFAULT_RENEWAL[row.interest];
-      if (!row.project_stage) f.project_stage = "content";
-      f.follow_up_on = row.brief_submitted_at ? null : addDays(today, 2); // chase the project form
+      if (isDesign(row.interest)) {
+        f.follow_up_on = today; // design job: its details came with the order, so it's ready to start today
+      } else {
+        if (!row.project_stage) f.project_stage = "content";
+        f.follow_up_on = row.brief_submitted_at ? null : addDays(today, 2); // chase the project form
+      }
     }
   }
   // Marked won or lost by hand -> no more lead follow-ups.

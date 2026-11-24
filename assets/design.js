@@ -1,0 +1,85 @@
+// Flyers & graphics order form (/design): uploads the customer's logo/photos, sends the order to /api/design,
+// then goes to the payment page (with an email) or shows the reference and a WhatsApp link.
+(function () {
+  'use strict';
+  var form = document.getElementById('ds-form');
+  if (!form) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var msg = $('ds-msg'), btn = $('ds-submit'), list = $('ds-files-list'), input = $('ds-files');
+  var session = 'design-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  var files = []; // [{ url, name }]
+  var uploading = 0;
+  var MAX = 4;
+
+  // "Order …" buttons on the price cards pick that design in the form.
+  document.querySelectorAll('[data-design]').forEach(function (a) {
+    a.addEventListener('click', function () { $('ds-service').value = a.getAttribute('data-design'); });
+  });
+  try { var sv = JSON.parse(localStorage.getItem('sirraddo-lead') || '{}'); ['name', 'business', 'contact', 'email'].forEach(function (k) { if (sv[k] && !$('ds-' + k).value) $('ds-' + k).value = sv[k]; }); } catch (_) { /* ignore */ }
+  var pre = new URLSearchParams(location.search).get('d');
+  if (pre) Array.prototype.forEach.call($('ds-service').options, function (o) { if (o.value === pre) $('ds-service').value = pre; });
+
+  function say(text, bad) { msg.textContent = text; msg.style.color = bad ? '#B42318' : ''; }
+  function showFiles() {
+    list.textContent = files.length ? '📎 ' + files.map(function (f) { return f.name; }).join(', ') + (uploading ? ' · uploading…' : '') : (uploading ? 'Uploading…' : '');
+  }
+
+  // Big photos are shrunk before upload (logos in PNG keep their see-through background).
+  function shrink(file) {
+    return new Promise(function (resolve) {
+      if (!/^image\/(jpeg|webp)$/.test(file.type) && !(file.type === 'image/png' && file.size > 3.5e6)) return resolve(file);
+      if (file.size < 1.2e6) return resolve(file);
+      var img = new Image(), url = URL.createObjectURL(file);
+      img.onload = function () {
+        var s = Math.min(1, 2400 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { resolve(b || file); }, 'image/jpeg', 0.88);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+
+  input.addEventListener('change', function () {
+    var picked = Array.prototype.slice.call(input.files || []);
+    input.value = '';
+    if (files.length + picked.length > MAX) { say('You can add up to ' + MAX + ' files. Send more on WhatsApp after ordering.', true); picked = picked.slice(0, MAX - files.length); }
+    picked.forEach(function (file) {
+      uploading++; showFiles();
+      shrink(file).then(function (blob) {
+        var type = blob.type || file.type;
+        var name = file.name.replace(/[^\w.\- ]+/g, '_').slice(0, 60);
+        if (type === 'image/jpeg' && !/\.jpe?g$/i.test(name)) name = name.replace(/\.\w+$/, '') + '.jpg';
+        return fetch('/api/chat-upload?s=' + encodeURIComponent(session) + '&name=' + encodeURIComponent(name) + '&type=' + encodeURIComponent(type), { method: 'POST', body: blob })
+          .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Upload failed'); return j; }); });
+      }).then(function (j) { files.push({ url: j.url, name: j.name }); say(''); })
+        .catch(function (e) { say(e.message || 'Upload failed. You can send it on WhatsApp instead.', true); })
+        .then(function () { uploading--; showFiles(); });
+    });
+  });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (uploading) return say('Please wait: your files are still uploading.', true);
+    var body = {
+      service: $('ds-service').value, words: $('ds-words').value, size: $('ds-size').value,
+      colours: $('ds-colours').value, style: $('ds-style').value, deadline: $('ds-deadline').value,
+      name: $('ds-name').value, business: $('ds-business').value, contact: $('ds-contact').value,
+      email: $('ds-email').value, files: files, website: $('ds-hp').value,
+      from: window.sirraddoFrom ? window.sirraddoFrom() : '',
+    };
+    if (!body.service) { $('ds-service').focus(); return say('Please choose what you want designed.', true); }
+    btn.disabled = true; say('Sending your order…');
+    fetch('/api/design', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Something went wrong'); return j; }); })
+      .then(function (j) {
+        if (j.pay) { say('Order saved (' + (j.ref || '') + '). Taking you to payment…'); location.href = j.pay; return; }
+        var wa = 'https://wa.me/2348167550937?text=' + encodeURIComponent('Hi, I just ordered a ' + body.service + (j.ref ? ' (ref ' + j.ref + ')' : '') + ' on your website.');
+        form.innerHTML = '<div class="ds-done"><h3>Order received 🎉</h3><p>' + (j.ref ? 'Your reference is <b>' + j.ref + '</b>. ' : '') +
+          'We will message you on WhatsApp to confirm and send your payment link.</p><a class="btn btn--gold" target="_blank" rel="noopener" href="' + wa + '">Message us on WhatsApp now</a></div>';
+      })
+      .catch(function (err) { btn.disabled = false; say(err.message, true); });
+  });
+})();

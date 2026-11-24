@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="600" height="750">
+  <rect width="600" height="750" fill="#FFFFFF"/>
+  <rect y="460" width="600" height="290" fill="#0E3B43"/>
+  <g transform="translate(300 230)">
+    <circle r="110" fill="#0E3B43"/>
+    <path d="M-50 40 C-50 -30 -10 -70 50 -78 C46 -20 20 30 -50 40Z" fill="#F4B740"/>
+    <path d="M-50 40 C-10 4 14 -26 30 -56" stroke="#0E3B43" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <path d="M-60 58 H60" stroke="#F4B740" stroke-width="8" stroke-linecap="round"/>
+  </g>
+  <text x="300" y="400" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="54" letter-spacing="2" fill="#0E3B43">KORA FARMS</text>
+  <text x="300" y="436" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" letter-spacing="8" fill="#5B7F84">FRESH FROM OYO</text>
+  <g transform="translate(150 560)">
+    <circle r="44" fill="#F4B740"/>
+    <path d="M-20 14 C-20 -12 -4 -26 20 -30 C18 -8 8 10 -20 14Z" fill="#0E3B43"/>
+  </g>
+  <text x="220" y="552" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="34" fill="#FFFFFF">KORA</text>
+  <text x="220" y="584" font-family="Arial, sans-serif" font-size="14" letter-spacing="6" fill="#F4B740">FARMS</text>
+  <g transform="translate(150 670)"><rect x="-44" y="-30" width="88" height="44" rx="6" fill="#FFFFFF"/><rect x="-44" y="-30" width="30" height="44" fill="#0E3B43"/><rect x="-14" y="-30" width="30" height="44" fill="#F4B740"/><rect x="16" y="-30" width="28" height="44" fill="#5B7F84"/></g>
+  <text x="220" y="660" font-family="Arial, sans-serif" font-size="15" fill="#B9CFD2">#0E3B43 · #F4B740 · #5B7F84</text>
+</svg>

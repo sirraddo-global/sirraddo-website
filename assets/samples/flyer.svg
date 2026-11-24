@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="600" height="750">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C2410C"/><stop offset="1" stop-color="#7C2D12"/></linearGradient>
+    <radialGradient id="plate" cx=".5" cy=".45" r=".55"><stop offset="0" stop-color="#F97316"/><stop offset=".7" stop-color="#C2410C"/><stop offset="1" stop-color="#9A3412"/></radialGradient>
+  </defs>
+  <rect width="600" height="750" fill="url(#bg)"/>
+  <g opacity=".12" fill="#FFF7ED"><circle cx="560" cy="40" r="120"/><circle cx="40" cy="720" r="90"/></g>
+  <text x="44" y="78" font-family="Arial, sans-serif" font-weight="700" font-size="20" letter-spacing="5" fill="#FED7AA">BOLA'S KITCHEN · IBADAN</text>
+  <text x="44" y="160" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="74" fill="#FFF7ED">Weekend</text>
+  <text x="44" y="236" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="74" fill="#FDE047">Jollof Deal</text>
+  <circle cx="300" cy="430" r="150" fill="#7C2D12" opacity=".5"/>
+  <circle cx="300" cy="420" r="140" fill="#FFF7ED"/>
+  <circle cx="300" cy="420" r="112" fill="url(#plate)"/>
+  <g fill="#FDBA74"><circle cx="262" cy="392" r="9"/><circle cx="330" cy="380" r="8"/><circle cx="300" cy="440" r="10"/><circle cx="345" cy="450" r="7"/><circle cx="250" cy="452" r="8"/></g>
+  <g fill="#16A34A"><circle cx="285" cy="410" r="6"/><circle cx="322" cy="418" r="5"/><circle cx="270" cy="430" r="5"/></g>
+  <ellipse cx="350" cy="372" rx="34" ry="22" fill="#92400E" transform="rotate(-20 350 372)"/>
+  <circle cx="478" cy="318" r="66" fill="#FDE047"/>
+  <text x="478" y="312" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="40" fill="#7C2D12">20%</text>
+  <text x="478" y="342" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="20" fill="#7C2D12">OFF</text>
+  <text x="300" y="620" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="24" fill="#FFF7ED">Jollof rice + chicken + plantain</text>
+  <text x="300" y="652" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#FED7AA">Fri – Sun · Free delivery in Bodija</text>
+  <rect x="150" y="678" width="300" height="46" rx="23" fill="#FDE047"/>
+  <text x="300" y="708" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="20" fill="#7C2D12">Order: 0800 000 0000</text>
+</svg>

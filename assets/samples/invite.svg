@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="600" height="750">
+  <rect width="600" height="750" fill="#FBF6EC"/>
+  <rect x="26" y="26" width="548" height="698" fill="none" stroke="#B8893A" stroke-width="2"/>
+  <rect x="38" y="38" width="524" height="674" fill="none" stroke="#B8893A" stroke-width="1"/>
+  <g fill="#7A8F5C" opacity=".85">
+    <path d="M300 92 c-30 -6 -60 4 -80 24 c26 -4 54 -2 80 -24Z"/><path d="M300 92 c30 -6 60 4 80 24 c-26 -4 -54 -2 -80 -24Z"/>
+    <path d="M300 680 c-30 6 -60 -4 -80 -24 c26 4 54 2 80 24Z"/><path d="M300 680 c30 6 60 -4 80 -24 c-26 4 -54 2 -80 24Z"/>
+  </g>
+  <circle cx="300" cy="96" r="7" fill="#B8893A"/><circle cx="300" cy="676" r="7" fill="#B8893A"/>
+  <text x="300" y="170" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" letter-spacing="6" fill="#8A6A35">TOGETHER WITH THEIR FAMILIES</text>
+  <text x="300" y="276" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="82" fill="#3B2F1E">Tolu</text>
+  <text x="300" y="330" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="40" fill="#B8893A">&amp;</text>
+  <text x="300" y="414" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="82" fill="#3B2F1E">Femi</text>
+  <text x="300" y="474" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" letter-spacing="4" fill="#8A6A35">INVITE YOU TO THEIR WEDDING</text>
+  <line x1="170" y1="508" x2="430" y2="508" stroke="#B8893A"/>
+  <text x="300" y="552" text-anchor="middle" font-family="Georgia, serif" font-size="30" fill="#3B2F1E">Saturday, 12 December</text>
+  <text x="300" y="590" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#6B5A40">11 am · Event Centre, Ibadan</text>
+  <text x="300" y="626" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" letter-spacing="3" fill="#8A6A35">COLOURS: SAGE &amp; GOLD</text>
+</svg>

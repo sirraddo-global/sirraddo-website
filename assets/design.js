@@ -29,7 +29,7 @@
     var ask = o && o.getAttribute('data-ask'), ph = o && o.getAttribute('data-ph'), fl = o && o.getAttribute('data-files');
     if (wordsLabel) wordsLabel.textContent = ask || firstAsk;
     $('ds-words').placeholder = ph || firstPh;
-    if (filesLabel && fl) filesLabel.textContent = fl + (/up to 4/.test(fl) ? '' : ' (up to 4)');
+    if (filesLabel && fl) filesLabel.textContent = /up to 4/.test(fl) ? fl : /\)$/.test(fl) ? fl.replace(/\)$/, ', up to 4)') : fl + ' (up to 4)';
   }
   sel.addEventListener('change', fit);
   document.querySelectorAll('[data-design]').forEach(function (a) { a.addEventListener('click', function () { setTimeout(fit, 0); }); });
@@ -41,6 +41,7 @@
     var on = {}; j.visible.forEach(function (k) { on[k] = 1; });
     var shown = 0;
     document.querySelectorAll('article[data-svc]').forEach(function (c) { var v = !!on[c.getAttribute('data-svc')]; c.hidden = !v; if (v) shown++; });
+    document.querySelectorAll('[data-svc-block]').forEach(function (b) { b.hidden = !on[b.getAttribute('data-svc-block')]; });
     Array.prototype.slice.call(sel.options).forEach(function (o) {
       var k = o.getAttribute('data-svc'); if (!k) return;
       if (!on[k]) { if (sel.value === o.value) sel.value = ''; o.remove(); }

@@ -783,9 +783,28 @@ p { margin: 0 0 1em; }
 /* ---- Flyers & graphics order form (/design) ---- */
 .ds-files-list { margin: 0; font-size: 14px; color: var(--muted, #4A5568); }
 .ds-files-list:empty { display: none; }
-.field input[type="file"] { padding: 10px; min-height: 0; }
 .ds-done { background: var(--surface); border-radius: var(--radius); padding: 22px; text-align: center; }
 .ds-done h3 { margin-top: 0; }
 
 /* Quick services switched off in admin */
 .package[hidden], .ds-none[hidden], .section[hidden], .btn[hidden], [data-svc-page][hidden] { display: none; }
+
+/* Sample design gallery (/design, /services) */
+.ds-gallery { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; }
+.ds-sample { margin: 0; }
+.ds-sample img { display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: 0 10px 30px rgba(19, 37, 79, .14); border: 1px solid var(--line); }
+.ds-sample figcaption { margin-top: 10px; font-weight: 700; font-size: 14px; color: var(--ink); text-align: center; }
+@media (max-width: 900px) { .ds-gallery { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 600px) {
+  .ds-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 14px; padding-bottom: 8px; margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
+  .ds-gallery .ds-sample { flex: 0 0 68%; scroll-snap-align: start; }
+}
+.ds-feature { display: grid; grid-template-columns: 300px 1fr; gap: 48px; align-items: center; }
+.ds-feature h2 { margin-top: 6px; }
+@media (max-width: 700px) { .ds-feature { grid-template-columns: 1fr; gap: 24px; } .ds-feature .ds-sample { max-width: 260px; } }
+[data-svc-block][hidden] { display: none; }
+
+/* Upload field: a tidy drop area instead of the browser's plain button */
+.field input[type="file"] { padding: 14px; min-height: 0; border: 1.5px dashed #B9C3D6; background: var(--bg-soft); border-radius: 12px; cursor: pointer; font-size: 14px; color: var(--muted); width: 100%; }
+.field input[type="file"]:hover { border-color: var(--gold); }
+.field input[type="file"]::file-selector-button { background: var(--navy); color: #fff; border: 0; border-radius: 8px; padding: 9px 16px; margin-right: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }

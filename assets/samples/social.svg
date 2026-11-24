@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="600" height="750">
+  <rect width="600" height="750" fill="#0F172A"/>
+  <path d="M0 520 L600 300 L600 750 L0 750Z" fill="#22C55E"/>
+  <path d="M0 560 L600 340 L600 360 L0 580Z" fill="#BBF7D0" opacity=".6"/>
+  <text x="44" y="76" font-family="Arial, sans-serif" font-weight="700" font-size="20" letter-spacing="5" fill="#22C55E">FRESHFIT GYM</text>
+  <text x="44" y="170" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="80" fill="#FFFFFF">NEW YEAR</text>
+  <text x="44" y="254" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="80" fill="#22C55E">NEW YOU.</text>
+  <text x="44" y="306" font-family="Arial, sans-serif" font-size="24" fill="#CBD5E1">3 months membership for the price of 2</text>
+  <g transform="translate(330 360)">
+    <rect x="0" y="70" width="210" height="26" rx="8" fill="#E2E8F0"/>
+    <rect x="-18" y="38" width="34" height="90" rx="8" fill="#FFFFFF"/><rect x="194" y="38" width="34" height="90" rx="8" fill="#FFFFFF"/>
+    <rect x="-44" y="54" width="24" height="58" rx="6" fill="#CBD5E1"/><rect x="230" y="54" width="24" height="58" rx="6" fill="#CBD5E1"/>
+  </g>
+  <rect x="44" y="590" width="250" height="110" rx="18" fill="#0F172A"/>
+  <text x="66" y="636" font-family="Arial, sans-serif" font-size="18" fill="#94A3B8">Only</text>
+  <text x="66" y="682" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="42" fill="#FFFFFF">₦30,000</text>
+  <text x="556" y="690" text-anchor="end" font-family="Arial, sans-serif" font-weight="700" font-size="22" fill="#0F172A">Join this week →</text>
+</svg>

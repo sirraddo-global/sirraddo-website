@@ -8,41 +8,46 @@
 //   design     true = the order form also asks size, colours, style and deadline
 //   recurring  { amount, period: "yearly" | "monthly" } added as a renewal once the first payment is in
 //   on         shown on the website when the owner hasn't chosen yet
+//
+// House rule for every design: the customer gets 2–3 options to choose from (3 logo ideas), then 2 rounds of
+// changes on the one they pick. The guides below say how many options to make for each.
 export const QUICK_SERVICES = [
   // ---------- Flyers & graphics (/design) ----------
   {
     key: "flyer", interest: "Flyer design", page: "design", design: true, on: true, price: 5000, days: "1–2 working days",
-    what: "One flyer for WhatsApp, Instagram or print",
+    what: "2 flyer designs to choose from, for WhatsApp, Instagram or print",
     ask: ["Words to put on it", "e.g. Business name, the offer or event, prices, date and venue, phone/WhatsApp, address, Instagram handle"],
     guide: [
       "Read the order on the request card: words, size, colours, deadline, and open the uploaded logo/photos.",
       "Pick the size: square 1080×1080 for posts, 1080×1920 for status, A4/A5 at 300 dpi with 3 mm bleed for print.",
       "Design it (Canva, Adobe Express or Photopea). Use only their logo/photos or free stock photos: never other brands' logos or characters.",
-      "Send the first version on WhatsApp as a picture (watermark it 'PREVIEW' if they haven't paid).",
-      "Make up to 2 rounds of changes. Bigger new ideas after that: quote first.",
+      "Make 2 different designs (different layout and style, same words). A third is a nice bonus when you have time.",
+      "Send the options together on WhatsApp as pictures marked Option 1, 2 (3) and ask them to pick one (watermark 'PREVIEW' if they haven't paid).",
+      "Make up to 2 rounds of changes on the one they pick. Bigger new ideas after that: quote first.",
       "Send the final PNG (and PDF for print). Mark the request Done in admin and ask them for a review.",
     ],
   },
   {
     key: "social", interest: "Social media designs", page: "design", design: true, on: true, price: 15000, days: "2–3 working days",
-    what: "5 matching post or status designs",
+    what: "2 looks to choose from, then 5 matching designs",
     ask: ["What should the 5 designs say?", "e.g. Post 1: our new menu… Post 2: weekend offer… (or tell us the topics and we'll write the words)"],
     guide: [
       "Read the order and files. Agree the 5 topics with them on WhatsApp if they only gave ideas.",
-      "Make one template in their colours/logo, then the 5 designs from it so they match.",
-      "Write a short caption for each (they can copy and paste it).",
+      "Design post 1 in 2 different looks (Option 1 and Option 2) and send both; they pick one.",
+      "Make all 5 designs in the chosen look so they match, and write a short caption for each.",
       "Send all 5 as previews; up to 2 rounds of changes.",
       "Send the finals (PNG, right sizes for post/status) and the captions. Mark Done; offer the monthly posts plan.",
     ],
   },
   {
     key: "card", interest: "Business card design", page: "design", design: true, on: true, price: 5000, days: "1–2 working days",
-    what: "Front and back, print-ready",
+    what: "2 designs to choose from, front and back, print-ready",
     ask: ["What goes on the card?", "e.g. Name, job title, business name, phone/WhatsApp, email, address, website, Instagram"],
     guide: [
       "Size 3.5 × 2 inches (89 × 51 mm) + 3 mm bleed, 300 dpi, keep text 4 mm inside the edge.",
       "Front: logo and name. Back: contacts (add a WhatsApp QR code if they like).",
-      "Send previews of both sides; up to 2 rounds of changes.",
+      "Make 2 different designs (both sides each) and send them as Option 1 and Option 2; they pick one.",
+      "Up to 2 rounds of changes on the chosen one.",
       "Send a print-ready PDF (with bleed) and PNG. Tell them any printer can use the PDF. Mark Done.",
     ],
   },
@@ -52,7 +57,7 @@ export const QUICK_SERVICES = [
     ask: ["Tell us about the business", "e.g. Business name, what you sell, who your customers are, colours you like or hate, logos you like the style of"],
     guide: [
       "Ask 3 questions on WhatsApp if needed: who are the customers, which colours, any style they like.",
-      "Make 3 different ideas (no copying any brand). Send them together.",
+      "Make 3 different ideas (no copying any brand). Send them together as Option 1, 2, 3; they pick one.",
       "Refine their favourite; up to 2 rounds of changes.",
       "Deliver: colour, white and black versions as PNG (transparent), PDF and SVG, plus the colour codes. Mark Done.",
       "Offer the business card or brand kit next.",
@@ -63,21 +68,22 @@ export const QUICK_SERVICES = [
     what: "Logo, business card, letterhead and 3 social templates",
     ask: ["Tell us about the business", "e.g. Business name, what you sell, customers, colours you like, contacts for the card and letterhead"],
     guide: [
-      "Do the logo first (see Logo design) and get it approved.",
+      "Do the logo first: 3 ideas to choose from (see Logo design), then get the chosen one approved.",
       "Then the business card and letterhead (A4, Word/Google Docs so they can type in it, plus PDF).",
-      "Then 3 social media templates in their colours (post, status, announcement).",
+      "Then 3 social media templates in their colours (post, status, announcement). Show 2 looks for the first template and let them pick.",
       "Write a one-page guide: colours (codes), fonts, how to use the logo.",
       "Send everything in one folder (Google Drive link or zip). Up to 2 rounds of changes. Mark Done.",
     ],
   },
   {
     key: "invite", interest: "Invitation design", page: "design", design: true, on: false, price: 5000, days: "1–2 working days",
-    what: "WhatsApp e-invite + print-ready card",
+    what: "2 designs to choose from, WhatsApp e-invite + print-ready card",
     ask: ["Event details", "e.g. Type of event, names, date and time, venue, dress code / colours, RSVP numbers, a Bible verse or quote"],
     guide: [
       "Check every name, date, time and venue twice: mistakes on invitations are the most common complaint.",
       "Make the WhatsApp e-invite (1080×1920 or 1080×1350) and the print card (A5 or 5×7 in, 3 mm bleed) in the same design.",
-      "Send previews; up to 2 rounds of changes.",
+      "Make 2 different designs and send them as Option 1 and Option 2; they pick one.",
+      "Up to 2 rounds of changes on the chosen one.",
       "Send PNG for WhatsApp and PDF for print. Video invites: quote separately on WhatsApp. Mark Done.",
     ],
   },
@@ -112,14 +118,15 @@ export const QUICK_SERVICES = [
   },
   {
     key: "cv", interest: "CV design", page: "services", on: false, price: 3000, days: "1–2 working days",
-    what: "A clean, professional CV",
+    what: "A clean, professional CV, 2 layouts to choose from",
     ask: ["About you", "e.g. The job you want, education, work experience (company, role, dates, what you did), skills, phone and email"],
     files: "Your old CV (optional)",
     guide: [
       "Read their old CV/details. Ask on WhatsApp about anything missing (dates, results, the job they want).",
       "Use a simple one-column layout (2 pages at most): no photos or tables, so company screening software can read it.",
       "Write strong lines with results ('Grew sales by 20%'). AI can help draft; check every fact with them.",
-      "Send a PDF preview; up to 2 rounds of changes.",
+      "Put it in 2 different clean layouts and send both as PDF previews (Option 1, Option 2); they pick one.",
+      "Up to 2 rounds of changes on the chosen one.",
       "Send the final as Word (so they can update it) and PDF. Mark Done.",
     ],
   },
@@ -131,7 +138,7 @@ export const QUICK_SERVICES = [
     guide: [
       "Do the CV as in 'CV design'.",
       "Write a one-page cover letter for that job: why them, 2–3 matching achievements, a polite close.",
-      "Send both as PDF previews; up to 2 rounds of changes.",
+      "Send both in 2 layouts to choose from (matching CV and letter); up to 2 rounds of changes on the chosen one.",
       "Send the finals as Word and PDF, and tip them to change the company name for each new job. Mark Done.",
     ],
   },
@@ -143,7 +150,7 @@ export const QUICK_SERVICES = [
     guide: [
       "Create it in Admin as a client site like a Starter website, but one page only: logo, about, price list, photos, WhatsApp/call buttons, map, socials.",
       "Address: theirname.sirraddo.com.ng (add the record in Cloudflare), or their own domain if they also buy 'Domain + business email'.",
-      "Send the preview link; up to 2 rounds of changes.",
+      "Show them 2 looks for the page (e.g. different colours/layout from the client-site designs) and let them pick; up to 2 rounds of changes.",
       "Publish (Go live). The yearly ₦5,000 renewal is added by itself and reminded by email.",
       "Mark Done. In 2–3 months, offer the full Business website (count what they paid towards it if you like).",
     ],
@@ -168,7 +175,7 @@ export const QUICK_SERVICES = [
     guide: [
       "Make a one-page menu site (same as a Mini website) with categories, items, prices and photos, at theirname.sirraddo.com.ng/menu or their own domain.",
       "Give the owner a way to update prices: My store / Manage link, or they send changes on WhatsApp and you update (agree which).",
-      "Make the QR poster (A5/A6) in their colours: 'Scan to see our menu' + logo. Send the print-ready PDF.",
+      "Make 2 QR poster designs (A5/A6) in their colours: 'Scan to see our menu' + logo. They pick one; send the print-ready PDF.",
       "Test the QR code on 2 phones before sending.",
       "The yearly ₦5,000 renewal is added by itself. Mark Done.",
     ],
@@ -179,7 +186,7 @@ export const QUICK_SERVICES = [
     ask: ["About the business and what to post", "e.g. What you sell, offers coming up, your Instagram/Facebook, colours, how often you want to post"],
     files: "Logo and product photos (optional)",
     guide: [
-      "Agree a simple plan on WhatsApp: 8 posts a month (2 a week), topics (products, offers, tips, reviews), their colours.",
+      "Agree a simple plan on WhatsApp: 8 posts a month (2 a week), topics (products, offers, tips, reviews), their colours. First month: show 2 looks and let them pick the style.",
       "Make the month's posts in one go with captions, and send them all for approval at the start of the month.",
       "They post them (or you post if they give access; agree it in writing).",
       "Ask them each month for new photos and offers. Keep a folder per customer.",

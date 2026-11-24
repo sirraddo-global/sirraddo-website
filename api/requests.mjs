@@ -39,6 +39,7 @@ import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
 import { pickProvider, friendlyAiError, ensureAiBackup } from "./_lib/providers.mjs";
 import { generateDesign, changeDesignOptions } from "./_lib/design.mjs";
+import { logoIdeas } from "./_lib/logos.mjs";
 import { QUICK_SERVICES, EXTRAS, EXTRA_GUIDES, QUALITY_CHECKS } from "./_lib/graphics.mjs";
 import { JOB_STAGES, STAGE_KEYS } from "./_lib/track.mjs";
 import { addDomain, checkHosting, publish, pause, restore, setupEmail, afterProjectPayment, GoLiveError, restorePrevious } from "./_lib/golive.mjs";
@@ -386,6 +387,12 @@ export default async function handler(req, res) {
         const result = await generateDraft(id, FUNCTION_BUDGET_MS() - 2000, { missingOnly: body.missingOnly === true });
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(await getRequest(id));
+      }
+      // Logo ideas for the Design studio: 3 original SVG logos from a short brief (nothing is saved).
+      if (body.action === "logo_ideas") {
+        const result = await logoIdeas(body.brief || {}, FUNCTION_BUDGET_MS() - 2000);
+        if (!result.ok) throw new Bad(result.error);
+        return res.status(200).json(result);
       }
       if (body.action === "design") {
         const id = Number(body.id);

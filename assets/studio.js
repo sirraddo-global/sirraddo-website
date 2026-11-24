@@ -133,8 +133,16 @@
   }
 
   // ---------- the 3 layouts ----------
-  function logoBadge(c, logo, x, y, r) {
+  function logoBadge(c, logo, x, y, r, alignLeft) {
     if (!logo) return;
+    var ar = logo.width / logo.height;
+    if (ar > 1.3) { // wide logo (name beside the icon): a rounded white plate, right edge where the circle's was
+      var w = r * 3.6, h = Math.max(r * 1.3, w / ar + r * 0.3), left = alignLeft ? x - r : x + r - w, top = y - h / 2;
+      c.save(); c.shadowColor = 'rgba(0,0,0,.25)'; c.shadowBlur = r * 0.3; c.fillStyle = '#fff'; rr(c, left, top, w, h, r * 0.3); c.fill(); c.restore();
+      var sw = Math.min((w - r * 0.3) / logo.width, (h - r * 0.2) / logo.height);
+      c.drawImage(logo, left + (w - logo.width * sw) / 2, top + (h - logo.height * sw) / 2, logo.width * sw, logo.height * sw);
+      return;
+    }
     c.save(); c.shadowColor = 'rgba(0,0,0,.25)'; c.shadowBlur = r * 0.3; c.fillStyle = '#fff'; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); c.restore();
     var s = Math.min((r * 1.5) / logo.width, (r * 1.5) / logo.height);
     c.drawImage(logo, x - logo.width * s / 2, y - logo.height * s / 2, logo.width * s, logo.height * s);
@@ -163,7 +171,7 @@
       var g = c.createLinearGradient(0, photoH - 300 * u, 0, photoH); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, t.bg);
       c.fillStyle = g; c.fillRect(0, photoH - 300 * u, W, 302 * u);
       var tg = c.createLinearGradient(0, 0, 0, 220 * u); tg.addColorStop(0, 'rgba(0,0,0,.55)'); tg.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = tg; c.fillRect(0, 0, W, 220 * u);
-      if (d.business) { c.font = '800 ' + 30 * u + 'px ' + FONT; c.fillStyle = '#fff'; c.fillText(d.business.toUpperCase(), pad, 92 * u, W - (d.logo ? 260 : 120) * u); }
+      if (d.business && !d.logoWide) { c.font = '800 ' + 30 * u + 'px ' + FONT; c.fillStyle = '#fff'; c.fillText(d.business.toUpperCase(), pad, 92 * u, W - (d.logo ? 260 : 120) * u); }
       logoBadge(c, d.logo, W - 110 * u, 110 * u, 66 * u);
       var pillTop = H - (d.contact ? 150 : 60) * u, textW = W - pad * 2 - (d.offer && !tall ? 200 * u : 0);
       var top = photoH + 20 * u, room = pillTop - 30 * u - top, hf, df, block, k = 1;
@@ -189,7 +197,7 @@
       else { pw = W * 0.46; ph = H * 0.62; px = W - pw - pad * 0.7; py = H * 0.16; }
       c.save(); c.translate(18 * u, 18 * u); c.fillStyle = t.accent; rr(c, px, py, pw, ph, pw / 2 > 0 ? Math.min(pw / 2, 280 * u) : 0); c.fill(); c.restore();
       c.save(); rr(c, px, py, pw, ph, Math.min(pw / 2, 280 * u)); c.clip(); cover(c, d.photo, px, py, pw, ph, 0.4); c.restore();
-      if (d.business) { c.font = '800 ' + 28 * u + 'px ' + FONT; c.fillStyle = t.accent; c.fillText(d.business.toUpperCase(), pad, 110 * u, W - pad * 2 - (d.logo ? 140 * u : 0)); }
+      if (d.business && !d.logoWide) { c.font = '800 ' + 28 * u + 'px ' + FONT; c.fillStyle = t.accent; c.fillText(d.business.toUpperCase(), pad, 110 * u, W - pad * 2 - (d.logo ? 140 * u : 0)); }
       logoBadge(c, d.logo, W - 100 * u, 100 * u, 56 * u);
       var x = pad, tw = tall ? W - pad * 2 : W - pw - pad * 2.2, y = tall ? py + ph + 50 * u : 190 * u;
       var hf = fit(c, d.headline, tw, tall ? 3 : 5, tall ? 110 * u : 96 * u, 44 * u, 900);
@@ -209,8 +217,8 @@
       var u = W / 1080, pad = 60 * u, photos = d.photos.filter(Boolean);
       c.fillStyle = t.light; c.fillRect(0, 0, W, H);
       c.fillStyle = t.bg; c.fillRect(0, 0, W, 16 * u);
-      var hx = pad; if (d.logo) { logoBadge(c, d.logo, pad + 44 * u, 108 * u, 44 * u); hx = pad + 110 * u; }
-      if (d.business) { c.font = '900 ' + 34 * u + 'px ' + FONT; c.fillStyle = t.bg; c.fillText(d.business.toUpperCase(), hx, 120 * u, W - hx - pad); }
+      var hx = pad; if (d.logo) { logoBadge(c, d.logo, pad + 44 * u, 100 * u, d.logoWide ? 60 * u : 44 * u, true); hx = pad + 110 * u; }
+      if (d.business && !d.logoWide) { c.font = '900 ' + 34 * u + 'px ' + FONT; c.fillStyle = t.bg; c.fillText(d.business.toUpperCase(), hx, 120 * u, W - hx - pad); }
       var top = 180 * u, bottomBar = 140 * u, avail = H - top - bottomBar;
       var tallC = H / W > 1.5, ph = avail * (tallC ? 0.58 : 0.5);
       if (photos.length >= 2 && W / H > 0.6) {
@@ -276,6 +284,85 @@
     var c1 = el('input', { type: 'color', value: state.theme.bg, title: 'Main colour' }), c2 = el('input', { type: 'color', value: state.theme.accent, title: 'Accent colour' });
     var status = el('p', { class: 'admin-hint', text: 'Loading photos…' });
 
+    // ---------- Logo ideas (AI draws 3 original SVG logos; you edit name, tagline and colours) ----------
+    var lg = {
+      tagline: el('input', { maxlength: '50', placeholder: 'Optional, e.g. Fresh from the oven' }),
+      what: el('textarea', { rows: '2', maxlength: '300', placeholder: 'What they sell / do, e.g. cakes and small chops for parties' }),
+      style: el('input', { maxlength: '200', placeholder: 'e.g. elegant, playful, bold, traditional' }),
+    };
+    lg.what.value = (o.words || '').replace(/\s+/g, ' ').slice(0, 300);
+    lg.style.value = o.style || '';
+    var logoOut = el('div', { class: 'st-logos' }), logoMsg = el('p', { class: 'admin-hint' });
+    var logos = [];
+    var logoBtn = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '✨ Make 3 logo ideas', onclick: function () { makeLogos(); } });
+    var logoBox = el('details', { class: 'st-logobox' }, [
+      el('summary', { text: '✨ Logo ideas (AI)' }),
+      el('p', { class: 'admin-hint', text: 'Uses the business name above and the colours you picked. You get 3 original logos to choose from; change the name, tagline or colours and they update. Download as SVG (sharp at any size) or PNG.' }),
+      lab('Tagline', lg.tagline), lab('What they do', lg.what), lab('Style', lg.style), logoBtn, logoMsg,
+    ]);
+    // onDark: the reversed version for dark backgrounds (main colour becomes white, accent stays).
+    function logoSvg(l, onDark) {
+      var svg = l.svg.split(l.primary).join(onDark ? '#ffffff' : state.theme.bg.toLowerCase()).split(l.accent).join(state.theme.accent.toLowerCase());
+      var doc = new DOMParser().parseFromString(svg, 'image/svg+xml'), root = doc.documentElement;
+      if (root.nodeName.toLowerCase() !== 'svg') return '';
+      var n = doc.getElementById('name'); if (n) n.textContent = f.business.value.trim() || n.textContent;
+      var t = doc.getElementById('tagline'); if (t) { if (lg.tagline.value.trim()) t.textContent = lg.tagline.value.trim(); else t.parentNode.removeChild(t); }
+      root.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      return new XMLSerializer().serializeToString(root);
+    }
+    function svgToPng(svg, W, cb) {
+      var img = new Image(), url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+      img.onload = function () { var cv = document.createElement('canvas'); cv.width = W; cv.height = Math.round(W * 2 / 3); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url); cb(cv); };
+      img.src = url;
+    }
+    // Cut away the empty space around a logo so it fills its spot on the flyer.
+    function trim(cv) {
+      var c = cv.getContext('2d'), d = c.getImageData(0, 0, cv.width, cv.height).data, x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
+      for (var y = 0; y < cv.height; y += 2) for (var x = 0; x < cv.width; x += 2) {
+        if (d[(y * cv.width + x) * 4 + 3] > 10) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      }
+      if (x1 <= x0 || y1 <= y0) return cv;
+      var pad = 12, out = document.createElement('canvas'); out.width = x1 - x0 + pad * 2; out.height = y1 - y0 + pad * 2;
+      out.getContext('2d').drawImage(cv, x0 - pad, y0 - pad, out.width, out.height, 0, 0, out.width, out.height);
+      return out;
+    }
+    function save(blob, name) { var a = el('a', { href: URL.createObjectURL(blob), download: name }); document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+    function drawLogos() {
+      logoOut.innerHTML = '';
+      logos.forEach(function (l, i) {
+        var svg = logoSvg(l); if (!svg) return;
+        var light = el('div', { class: 'st-logo st-logo--light' }), dark = el('div', { class: 'st-logo', style: 'background:' + state.theme.bg });
+        light.innerHTML = svg; dark.innerHTML = logoSvg(l, true);
+        var slug = (f.business.value || 'logo').replace(/\W+/g, '-').toLowerCase() + '-logo-option-' + (i + 1);
+        logoOut.appendChild(el('figure', { class: 'st-logocard' }, [el('div', { class: 'st-logopair' }, [light, dark]),
+          el('figcaption', { text: 'Option ' + (i + 1) + ': ' + l.name }),
+          el('div', { class: 'admin-actions' }, [
+            el('button', { class: 'admin-btn', type: 'button', text: 'SVG', onclick: function () { save(new Blob([logoSvg(l)], { type: 'image/svg+xml' }), slug + '.svg'); } }),
+            el('button', { class: 'admin-btn', type: 'button', text: 'PNG', onclick: function () { svgToPng(logoSvg(l), 1800, function (cv) { trim(cv).toBlob(function (b) { save(b, slug + '.png'); }, 'image/png'); }); } }),
+            el('button', { class: 'admin-btn', type: 'button', text: 'White PNG', title: 'For dark backgrounds', onclick: function () { svgToPng(logoSvg(l, true), 1800, function (cv) { trim(cv).toBlob(function (b) { save(b, slug + '-white.png'); }, 'image/png'); }); } }),
+            el('button', { class: 'admin-btn', type: 'button', text: 'Use on flyer', onclick: function () {
+              svgToPng(logoSvg(l), 900, function (cv) { trim(cv).toBlob(function (b) { srcs.push({ url: URL.createObjectURL(b), name: 'logo-option-' + (i + 1) + '.png' }); logoGuess = srcs.length - 1; status.textContent = 'Loading photos…'; loadAll(); }, 'image/png'); });
+            } }),
+          ])]));
+      });
+    }
+    function makeLogos() {
+      if (!o.logoApi) { logoMsg.textContent = 'Logo ideas work from the admin page.'; return; }
+      if (f.business.value.trim().length < 2) { logoMsg.textContent = 'Type the business name first (above).'; f.business.focus(); return; }
+      logoBtn.disabled = true; logoMsg.textContent = 'Drawing 3 logos… (about 15 seconds)';
+      o.logoApi({ business: f.business.value.trim(), tagline: lg.tagline.value, what: lg.what.value, style: lg.style.value, primary: state.theme.bg, accent: state.theme.accent })
+        .then(function (j) {
+          logos = (j.logos || []).map(function (l) { return { name: l.name, svg: l.svg, primary: j.primary, accent: j.accent }; });
+          logoMsg.textContent = logos.length + ' logo idea(s). Shown on white and on your main colour. Not happy? Change the style words and try again.';
+          drawLogos();
+          logoOut.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        })
+        .catch(function (e) { logoMsg.textContent = (e && e.message) || 'Could not make logos. Try again.'; })
+        .then(function () { logoBtn.disabled = false; });
+    }
+    lg.tagline.addEventListener('input', drawLogos);
+    if (o.openLogos) { logoBox.open = true; setTimeout(function () { logoBox.scrollIntoView({ block: 'start' }); }, 300); }
+
     function lab(text, input) { return el('label', { class: 'st-field' }, [el('span', { text: text }), input]); }
     var panel = el('div', { class: 'st-panel' }, [
       el('h2', { text: '🎨 Design studio' }),
@@ -289,13 +376,14 @@
       el('label', { class: 'st-check' }, [enh, ' Auto-enhance photos (brighter, richer colour, sharper)']),
       lab('Add more photos from this phone', addPhotos),
       el('p', { class: 'admin-hint', text: 'Tip: if a photo has a messy background, choose another photo or ask the customer for one taken against a plain wall in daylight.' }),
+      logoBox,
     ]);
     var dl = el('div', { class: 'admin-actions' }, [
       el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Download this design', onclick: function () { download(state.layout); } }),
       el('button', { class: 'admin-btn', type: 'button', text: 'Download all 3', onclick: function () { [0, 1, 2].forEach(function (i, n) { setTimeout(function () { download(i); }, n * 400); }); } }),
     ]);
     wrap.appendChild(el('div', { class: 'st-box' }, [el('div', { class: 'st-top' }, [el('b', { text: o.title || 'Design studio' }), close]),
-      el('div', { class: 'st-body' }, [el('div', { class: 'st-left' }, [preview, thumbs, dl]), panel])]));
+      el('div', { class: 'st-body' }, [el('div', { class: 'st-left' }, [preview, thumbs, dl, logoOut]), panel])]));
     document.body.appendChild(wrap); document.body.style.overflow = 'hidden';
 
     THEMES.forEach(function (t) { themeRow.appendChild(el('button', { type: 'button', class: 'st-swatch', title: t.name, style: 'background:linear-gradient(135deg,' + t.bg + ' 60%,' + t.accent + ' 60%)', onclick: function () { state.theme = t; c1.value = t.bg; c2.value = t.accent; draw(); } })); });
@@ -307,7 +395,8 @@
       var photos = state.photos.filter(function (p, i) { return i !== state.logoIdx && p; });
       var main = state.photos[state.photoIdx] && state.photoIdx !== state.logoIdx ? state.photos[state.photoIdx] : photos[0] || null;
       return { business: f.business.value.trim(), headline: f.headline.value.trim(), details: f.details.value.trim(), offer: f.offer.value.trim().toUpperCase(), contact: f.contact.value.trim(),
-        photo: main, photos: [main].concat(photos.filter(function (p) { return p !== main; })), logo: state.logoIdx >= 0 ? state.raw[state.logoIdx] : null };
+        photo: main, photos: [main].concat(photos.filter(function (p) { return p !== main; })), logo: state.logoIdx >= 0 ? state.raw[state.logoIdx] : null,
+        logoWide: state.logoIdx >= 0 && state.raw[state.logoIdx] ? state.raw[state.logoIdx].width / state.raw[state.logoIdx].height > 1.3 : false };
     }
     function render(i, W, H) {
       var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -316,6 +405,7 @@
       return cv;
     }
     function draw() {
+      if (logos.length) drawLogos();
       var s = SIZES[state.size], scale = 540 / s.w;
       var big = render(state.layout, Math.round(s.w * scale * 2), Math.round(s.h * scale * 2));
       preview.width = big.width; preview.height = big.height; preview.getContext('2d').drawImage(big, 0, 0);

@@ -388,3 +388,15 @@ a.admin-btn--wa, a.admin-btn--wa:visited, a.admin-btn--wa:hover { color: #fff; t
 .st-custom input { width: 44px; height: 34px; border: 0; padding: 0; background: none; }
 .st-check { display: flex; gap: 8px; align-items: center; font-weight: 600; font-size: 14px; }
 @media (max-width: 860px) { .st-body { grid-template-columns: 1fr; } .st-box { max-width: none; } }
+
+.st-logobox { border: 1px solid var(--line, #E1E6EF); border-radius: 12px; padding: 10px 12px; display: grid; gap: 10px; }
+.st-logobox summary { font-weight: 800; cursor: pointer; }
+.st-logobox[open] { display: grid; }
+.st-logos { display: grid; gap: 14px; width: 100%; max-width: 520px; }
+.st-logos:empty { display: none; }
+.st-logocard { margin: 0; border: 1px solid var(--line, #E1E6EF); border-radius: 12px; padding: 10px; display: grid; gap: 8px; background: var(--surface, #fff); }
+.st-logo { border-radius: 8px; aspect-ratio: 3 / 2; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.st-logo svg { width: 100%; height: 100%; }
+.st-logo--light { background: #fff; border: 1px solid #EEF1F6; }
+.st-logocard figcaption { font-weight: 700; }
+.st-logopair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

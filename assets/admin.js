@@ -547,7 +547,7 @@
   function quickGuide(q, extras) {
     var kids = [el('summary', null, [el('span', { class: 'admin-fold-title', text: '📋 How to do it, step by step' })]),
       el('ol', { class: 'admin-mini' }, q.guide.map(function (t) { return el('li', { text: t }); }))];
-    if (q.design || q.key === 'qrmenu') kids.splice(1, 0, el('p', { class: 'admin-hint', text: '⚡ Fast way (no Canva needed): tap “Instant draft” on the request. It makes 3 finished designs from their photos, words and colours; change the words or colours if needed, download, put them through the Mockup maker and send as Option 1, 2, 3. Logos and brand kits still need your own ideas.' }));
+    if (q.design || q.key === 'qrmenu') kids.splice(1, 0, el('p', { class: 'admin-hint', text: '⚡ Fast way (no Canva needed): tap “Instant draft” on the request. It makes 3 finished designs from their photos, words and colours; change the words or colours if needed, download, put them through the Mockup maker and send as Option 1, 2, 3. For logos and brand kits, the same button opens ✨ Logo ideas: 3 original logos from their brief to pick from and adjust.' }));
     (extras || q.extras || []).forEach(function (x) {
       if (state.extraGuides[x]) kids.push(el('p', { class: 'admin-hint', text: '➕ ' + state.extraGuides[x] }));
     });
@@ -602,7 +602,7 @@
         if (owed) box.appendChild(el('p', { class: 'admin-meta' }, [badge('Owed 20% off this order (we were late last time)', 'is-due')]));
       }
       if ((q.design || q.key === 'qrmenu') && window.SirStudio) {
-        box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '🎨 Instant draft: 3 designs from their photos', onclick: function () { openStudio(r); } })]));
+        box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: /Logo|Brand kit|Launch pack/.test(q.interest) ? '✨ Logo ideas + designs' : '🎨 Instant draft: 3 designs from their photos', onclick: function () { openStudio(r); } })]));
       }
       box.appendChild(quickGuide(q, extras.length ? extras : []));
     }
@@ -618,8 +618,10 @@
     var details = String(r.details || '');
     var files = []; details.replace(/^• (.+?): (https?:\/\/\S+)$/gm, function (_, name, url) { files.push({ name: name, url: url }); return _; });
     var words = (details.split(/\n\n/).filter(function (b) { return /:\s*$/.test(b.split('\n')[0]) && !/^Files \(/.test(b); })[0] || '').split('\n').slice(1).join('\n');
-    window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, words: words, business: r.business || '', contact: r.contact || '', colours: orderField(details, 'Colours') });
+    window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, words: words, business: r.business || '', contact: r.contact || '',
+      colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest) });
   }
+  function logoApi(brief) { return api('POST', { action: 'logo_ideas', brief: brief }); }
 
   // Mockup maker: drop a design in, get it on a phone, a wall poster and a printed card, ready to send as options.
   function mockupMaker() {
@@ -710,7 +712,7 @@
     if (window.SirStudio) view.appendChild(el('div', { class: 'admin-card' }, [
       el('h2', { text: '🎨 Design studio' }),
       el('p', { class: 'admin-hint', text: 'Make a flyer from scratch: add photos from your phone, type the words, pick colours, download. For an order, use “Instant draft” on the request instead: it fills everything in from what the customer sent.' }),
-      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Open design studio', onclick: function () { window.SirStudio.open({ title: 'New design' }); } })
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Open design studio', onclick: function () { window.SirStudio.open({ title: 'New design', logoApi: logoApi }); } })
     ]));
     view.appendChild(mockupMaker());
     var boxes = {};

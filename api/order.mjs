@@ -4,11 +4,13 @@
 // Body: { name, contact, email?, business?, service, words, size?, colours?, style?, deadline?, files?: [{url,name}], from?, website? }
 // Files are uploaded first with /api/chat-upload (s = the form's session id). With an email the price is set as the
 // quote (full payment, deposit_pct 100) and the reply has the payment link; without one we follow up on WhatsApp.
-// Returns { ok, ref, pay? }
+// Returns { ok, ref, pay?, track? }  (track = the customer's order tracker page)
+// GET /track?t=…  → the tracker page (stages, promised date, pay button while unpaid).
 import { saveRequest, emailRequest, reference, getRequest, updateRequest, ensureDocToken } from "./_lib/store.mjs";
 import { acknowledgeLead, applyRules } from "./_lib/automation.mjs";
 import { payLink } from "./_lib/paystack.mjs";
-import { cleanOrder, quickPrice, visibleKeys, QUICK_SERVICES } from "./_lib/graphics.mjs";
+import { cleanOrder, visibleKeys, QUICK_SERVICES } from "./_lib/graphics.mjs";
+import { trackPage } from "./_lib/track.mjs";
 import { getSettings } from "./_lib/store.mjs";
 import { validContact } from "./lead.mjs";
 
@@ -26,6 +28,7 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   let visible;
   try { visible = visibleKeys(await getSettings()); } catch { visible = visibleKeys({}); }
+  if (req.method === "GET" && /\/track/.test(String(req.url || ""))) return trackPage(req, res);
   if (req.method === "GET") { res.setHeader("Cache-Control", "public, max-age=60"); return res.status(200).json({ visible, pages: { design: QUICK_SERVICES.some((x) => x.page === "design" && visible.includes(x.key)), services: QUICK_SERVICES.some((x) => x.page === "services" && visible.includes(x.key)) } }); }
   if (req.method !== "POST") { res.setHeader("Allow", "GET, POST"); return res.status(405).json({ error: "Method not allowed" }); }
   let body = req.body;
@@ -56,21 +59,22 @@ export default async function handler(req, res) {
   if (!saved && !mailed) return res.status(503).json({ error: "Couldn't save right now. Please message us on WhatsApp." });
   if (!saved) return res.status(200).json({ ok: true });
 
-  let pay = null;
+  let pay = null, track = null;
   try {
     let row = await getRequest(saved.id);
     // Fixed price, paid in full before we start (small jobs): never over a quote or payment we already have.
     if (row && row.quote_amount == null && !(row.payments || []).length) {
-      const price = quickPrice(order.service);
+      const price = order.total;
       row = await updateRequest(saved.id, { quote_amount: price, deposit_pct: 100 });
       row = (await applyRules(row, { quote_amount: price })) || row;
     }
     if (saved.inserted && email) await acknowledgeLead({ ...r, id: saved.id, auto_sent: {} });
+    row = (await ensureDocToken(saved.id)) || row;
+    if (row?.doc_token) track = `/track?t=${row.doc_token}`;
     if (email && row?.quote_amount && !(row.payments || []).length) {
-      row = (await ensureDocToken(saved.id)) || row;
       const link = payLink(row, "deposit");
       if (link) pay = link.replace(/^https?:\/\/[^/]+/, "");
     }
   } catch (e) { console.error("design price/pay failed", e); }
-  return res.status(200).json({ ok: true, ref: r.ref, ...(pay ? { pay } : {}) });
+  return res.status(200).json({ ok: true, ref: r.ref, ...(pay ? { pay } : {}), ...(track ? { track } : {}) });
 }

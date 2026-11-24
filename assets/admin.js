@@ -150,6 +150,7 @@
       state.unanswered = j.unanswered || [];
       state.settings = j.settings || {};
       state.quick = j.quick || [];
+      state.quickExtras = j.quick_extras || {}; state.extraGuides = j.extra_guides || {}; state.qc = j.quality_checks || []; state.jobStages = j.job_stages || [];
       state.me = j.me || { role: 'owner', perms: [] };
       if (STAFF_PAGE !== (state.me.role === 'staff')) {
         logout();
@@ -543,11 +544,145 @@
     return raw.split(',');
   }
   function quickPeriod(q) { return q.recurring ? ', then ' + nN(q.recurring.amount) + (q.recurring.period === 'monthly' ? ' a month' : ' a year') : ''; }
-  function quickGuide(q) {
-    return el('details', { class: 'admin-fold' }, [
-      el('summary', null, [el('span', { class: 'admin-fold-title', text: '📋 How to do it, step by step' })]),
-      el('ol', { class: 'admin-mini' }, q.guide.map(function (t) { return el('li', { text: t }); }))
+  function quickGuide(q, extras) {
+    var kids = [el('summary', null, [el('span', { class: 'admin-fold-title', text: '📋 How to do it, step by step' })]),
+      el('ol', { class: 'admin-mini' }, q.guide.map(function (t) { return el('li', { text: t }); }))];
+    (extras || q.extras || []).forEach(function (x) {
+      if (state.extraGuides[x]) kids.push(el('p', { class: 'admin-hint', text: '➕ ' + state.extraGuides[x] }));
+    });
+    if (q.design || /CV/.test(q.interest) || q.key === 'qrmenu') {
+      kids.push(el('p', { class: 'admin-h2', text: '✅ Before you send anything' }));
+      kids.push(el('ul', { class: 'admin-mini' }, state.qc.map(function (t) { return el('li', { text: t }); })));
+    }
+    return el('details', { class: 'admin-fold' }, kids);
+  }
+  function todayNg() { return new Date(Date.now() + 3600000).toISOString().slice(0, 10); }
+  // On a quick-service request: where the job is, the promised date, the tracking link, previous orders, the guide.
+  function quickPanel(r, q) {
+    var box = el('div', { class: 'admin-hint qs-panel' });
+    function draw() {
+      box.innerHTML = '';
+      var extras = Object.keys(state.quickExtras).filter(function (k) { return new RegExp('^Extras:.*' + state.quickExtras[k].label, 'm').test(r.details || ''); });
+      var stage = r.job_stage || ((r.payments || []).length ? 'paid' : 'received');
+      var late = r.deliver_by && stage !== 'done' && todayNg() > r.deliver_by;
+      box.appendChild(el('b', { text: 'Side service: ' + nN(q.price) + quickPeriod(q) + ' · ' + q.days }));
+      if (extras.length) box.appendChild(el('p', { class: 'admin-meta', text: '➕ Extras: ' + extras.map(function (k) { return state.quickExtras[k].label; }).join(', ') }));
+      if (r.deliver_by) box.appendChild(el('p', { class: 'admin-meta' }, [badge(late ? 'LATE: promised ' + niceDay(r.deliver_by) : 'Deliver by ' + niceDay(r.deliver_by), late ? 'is-due' : 'is-won')]));
+      if (late) box.appendChild(el('p', { class: 'admin-meta', text: 'On-time promise: when you mark it Delivered, a note is added that they get 20% off their next order.' }));
+      // Stage buttons
+      var row = el('div', { class: 'admin-actions qs-stages' });
+      state.jobStages.forEach(function (st) {
+        if (st[0] === 'received' || st[0] === 'paid') return;
+        row.appendChild(el('button', { class: 'admin-btn' + (stage === st[0] ? ' admin-btn--primary' : ''), type: 'button', text: st[1], onclick: function () {
+          api('PATCH', { id: r.id, job_stage: st[0] }).then(function (nr) { Object.assign(r, nr); flash('Stage: ' + st[1]); draw(); }).catch(fail);
+        } }));
+      });
+      box.appendChild(el('p', { class: 'admin-meta', text: 'Stage (the customer sees it on their tracking page): ' + ((state.jobStages.filter(function (x) { return x[0] === stage; })[0] || [0, stage])[1]) }));
+      box.appendChild(row);
+      // Tracking link + WhatsApp update
+      if (r.doc_token) {
+        var link = location.origin + '/track?t=' + r.doc_token;
+        var num = waNumber(r.contact);
+        var st = (state.jobStages.filter(function (x) { return x[0] === stage; })[0] || [0, '', ''])[2];
+        var msg = 'Hello ' + String(r.name).split(' ')[0] + ', update on your ' + r.interest + ': ' + st + '\nTrack it any time: ' + link;
+        box.appendChild(el('div', { class: 'admin-actions' }, [
+          el('button', { class: 'admin-btn', type: 'button', text: 'Copy tracking link', onclick: function () {
+            (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(function () { flash('Link copied'); }).catch(function () { prompt('Tracking link', link); });
+          } }),
+          num ? el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + num + '?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Send update on WhatsApp' }) : null
+        ]));
+      }
+      // Previous orders from the same customer (brand on file, 20% owed)
+      var digits = String(r.contact || '').replace(/\D/g, '').slice(-10);
+      var past = digits.length >= 10 ? (state.requests || []).filter(function (x) { return x.id !== r.id && String(x.contact || '').replace(/\D/g, '').slice(-10) === digits; }) : [];
+      if (past.length) {
+        var owed = past.some(function (x) { return /owes 20% off their next order/.test(x.notes || ''); });
+        box.appendChild(el('p', { class: 'admin-meta', text: '🗂️ Returning customer: ' + past.length + ' earlier request(s): ' + past.slice(0, 4).map(function (x) { return 'SGL-' + String(x.id).padStart(4, '0') + ' ' + x.interest; }).join(', ') + '. Reuse their logo and colours from those orders.' }));
+        if (owed) box.appendChild(el('p', { class: 'admin-meta' }, [badge('Owed 20% off this order (we were late last time)', 'is-due')]));
+      }
+      box.appendChild(quickGuide(q, extras.length ? extras : []));
+    }
+    draw();
+    return box;
+  }
+
+  // Mockup maker: drop a design in, get it on a phone, a wall poster and a printed card, ready to send as options.
+  function mockupMaker() {
+    var card = el('div', { class: 'admin-card' }, [
+      el('h2', { text: '🖼️ Mockup maker' }),
+      el('p', { class: 'admin-hint', text: 'Pick a finished design (PNG or JPG). You get it shown on a phone, as a poster on a wall and as a printed card. Download them and send with each option: designs look far more professional this way.' })
     ]);
+    var input = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp' });
+    var label = el('input', { type: 'text', placeholder: 'Label, e.g. Option 1', maxlength: '30' });
+    var out = el('div', { class: 'mk-out' });
+    card.appendChild(el('div', { class: 'admin-golive' }, [field('Design', input), field('Label (optional)', label)]));
+    card.appendChild(out);
+    function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+    function fit(img, w, h) { var s = Math.max(w / img.width, h / img.height); return { w: img.width * s, h: img.height * s }; }
+    function contain(img, w, h) { var s = Math.min(w / img.width, h / img.height); return { w: img.width * s, h: img.height * s }; }
+    function tag(c, W, H) {
+      if (label.value.trim()) {
+        c.font = '700 44px Inter, Arial, sans-serif'; var tw = c.measureText(label.value.trim()).width;
+        c.fillStyle = '#13254F'; rr(c, 40, 40, tw + 60, 76, 38); c.fill();
+        c.fillStyle = '#FFFFFF'; c.fillText(label.value.trim(), 70, 92);
+      }
+      c.font = '600 22px Inter, Arial, sans-serif'; c.fillStyle = 'rgba(0,0,0,.35)'; c.textAlign = 'right'; c.fillText('Preview · SIRRADDO', W - 36, H - 30); c.textAlign = 'left';
+    }
+    function phone(img) {
+      var W = 1080, H = 1350, cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d');
+      var g = c.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#E9EEF7'); g.addColorStop(1, '#C9D4E8'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+      var pw = 560, ph = 1140, px = (W - pw) / 2, py = 110;
+      c.save(); c.shadowColor = 'rgba(19,37,79,.35)'; c.shadowBlur = 60; c.shadowOffsetY = 30; c.fillStyle = '#111827'; rr(c, px, py, pw, ph, 78); c.fill(); c.restore();
+      var sx = px + 22, sy = py + 22, sw = pw - 44, sh = ph - 44;
+      c.save(); rr(c, sx, sy, sw, sh, 58); c.clip(); c.fillStyle = '#000'; c.fillRect(sx, sy, sw, sh);
+      var d = contain(img, sw, sh - 120); c.drawImage(img, sx + (sw - d.w) / 2, sy + 70 + (sh - 120 - d.h) / 2, d.w, d.h);
+      c.fillStyle = 'rgba(255,255,255,.9)'; c.font = '600 22px Inter, Arial, sans-serif'; c.fillText('12:21', sx + 40, sy + 44);
+      c.restore();
+      c.fillStyle = '#111827'; rr(c, px + pw / 2 - 70, py + 34, 140, 34, 17); c.fill();
+      tag(c, W, H); return cv;
+    }
+    function wall(img) {
+      var W = 1080, H = 1350, cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d');
+      var g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#F3EEE6'); g.addColorStop(1, '#E4DCCF'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+      c.fillStyle = '#B98F64'; c.fillRect(0, 1140, W, 210); c.fillStyle = 'rgba(0,0,0,.08)'; c.fillRect(0, 1140, W, 14);
+      var d = contain(img, 700, 900), fx = (W - d.w) / 2, fy = 130;
+      c.save(); c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 40; c.shadowOffsetY = 24; c.fillStyle = '#1F2937'; c.fillRect(fx - 26, fy - 26, d.w + 52, d.h + 52); c.restore();
+      c.fillStyle = '#FFFFFF'; c.fillRect(fx - 12, fy - 12, d.w + 24, d.h + 24);
+      c.drawImage(img, fx, fy, d.w, d.h);
+      // plant
+      c.fillStyle = '#8B5E3C'; rr(c, 860, 1010, 120, 140, 14); c.fill();
+      c.fillStyle = '#4D7C4A'; [[920, 930, 70], [870, 960, 55], [970, 965, 55], [920, 870, 50]].forEach(function (p) { c.beginPath(); c.ellipse(p[0], p[1], p[2] * .55, p[2], 0, 0, Math.PI * 2); c.fill(); });
+      tag(c, W, H); return cv;
+    }
+    function held(img) {
+      var W = 1080, H = 1350, cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d');
+      c.fillStyle = '#2B2F36'; c.fillRect(0, 0, W, H);
+      var g = c.createRadialGradient(W / 2, H / 2, 100, W / 2, H / 2, 800); g.addColorStop(0, 'rgba(255,255,255,.12)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+      var d = contain(img, 760, 1000);
+      [[-7, -40, 30], [5, 30, -10]].forEach(function (t, i) {
+        c.save(); c.translate(W / 2 + t[1], H / 2 + t[2]); c.rotate(t[0] * Math.PI / 180);
+        c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowBlur = 50; c.shadowOffsetY = 26; c.fillStyle = '#fff'; c.fillRect(-d.w / 2, -d.h / 2, d.w, d.h); c.shadowColor = 'transparent';
+        if (i === 1) c.drawImage(img, -d.w / 2, -d.h / 2, d.w, d.h); else { c.globalAlpha = .9; c.drawImage(img, -d.w / 2, -d.h / 2, d.w, d.h); c.globalAlpha = 1; c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(-d.w / 2, -d.h / 2, d.w, d.h); }
+        c.restore();
+      });
+      tag(c, W, H); return cv;
+    }
+    function make() {
+      var f = input.files && input.files[0]; if (!f) return;
+      var url = URL.createObjectURL(f), img = new Image();
+      img.onload = function () {
+        out.innerHTML = '';
+        [['Phone', phone], ['Wall poster', wall], ['Printed', held]].forEach(function (m) {
+          var cv = m[1](img); var data = cv.toDataURL('image/jpeg', .9);
+          var name = (label.value.trim() || 'design').replace(/\W+/g, '-').toLowerCase() + '-' + m[0].toLowerCase().replace(/\W+/g, '-') + '.jpg';
+          out.appendChild(el('figure', { class: 'mk-fig' }, [el('img', { src: data, alt: m[0] + ' mockup' }), el('a', { class: 'admin-btn', href: data, download: name, text: 'Download ' + m[0].toLowerCase() })]));
+        });
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    }
+    input.addEventListener('change', make); label.addEventListener('change', make);
+    return card;
   }
   function pkgQuick(view) {
     var list = state.quick || [];
@@ -555,18 +690,20 @@
     view.appendChild(el('div', { class: 'admin-card' }, [
       el('h2', { text: 'Side services' }),
       el('p', { class: 'admin-hint', text: 'Small fixed-price jobs people order and pay for online: flyers and designs on sirraddo.com.ng/design, the rest on sirraddo.com.ng/services. Switch each one on when you are ready to do it; switched-off ones disappear from the website, the order form and the chat. Each order arrives in Requests with the customer’s details and files, and this guide shows on its card. Yearly and monthly ones add their renewal by themselves once paid.' }),
-      el('p', { class: 'admin-meta', text: vis.length + ' of ' + list.length + ' showing on the website' })
+      el('p', { class: 'admin-meta', text: vis.length + ' of ' + list.length + ' switched on' })
     ]));
+    view.appendChild(mockupMaker());
     var boxes = {};
-    [['design', 'Flyers & graphics (/design)'], ['services', 'Quick services (/services)']].forEach(function (g) {
+    [['design', 'Flyers & graphics (/design)', function (q) { return q.page === 'design' && !q.worth; }], ['packs', 'Packs: bundles and seasonal (/design)', function (q) { return !!q.worth; }], ['services', 'Quick services (/services)', function (q) { return q.page === 'services'; }]].forEach(function (g) {
       view.appendChild(el('h2', { class: 'admin-h2', text: g[1] }));
-      list.filter(function (q) { return q.page === g[0]; }).forEach(function (q) {
+      list.filter(g[2]).forEach(function (q) {
         var on = el('input', { type: 'checkbox' }); on.checked = vis.indexOf(q.key) !== -1; boxes[q.key] = on;
         var orders = (state.requests || []).filter(function (r) { return r.interest === q.interest; });
         var paid = orders.filter(function (r) { return r.status === 'won'; }).length;
         view.appendChild(el('div', { class: 'admin-card' }, [
-          el('div', { class: 'admin-card-top' }, [el('h3', { text: q.interest }), badge(on.checked ? 'Showing' : 'Hidden', on.checked ? 'is-won' : '')]),
-          el('p', { class: 'admin-meta', text: nN(q.price) + quickPeriod(q) + ' · ' + q.days + ' · ' + q.what }),
+          el('div', { class: 'admin-card-top' }, [el('h3', { text: q.interest }), badge(on.checked ? (q.season ? 'On · shows ' + q.season.label : 'Showing') : 'Hidden', on.checked ? 'is-won' : '')]),
+          el('p', { class: 'admin-meta', text: nN(q.price) + (q.worth ? ' (worth ' + nN(q.worth) + ')' : '') + quickPeriod(q) + ' · ' + q.days + ' · ' + q.what }),
+          (q.extras || []).length ? el('p', { class: 'admin-meta', text: 'Extras customers can add: ' + q.extras.map(function (x) { return (state.quickExtras[x] || {}).label + ' +' + nN((state.quickExtras[x] || {}).price || 0); }).join(', ') }) : null,
           el('p', { class: 'admin-meta', text: orders.length ? orders.length + ' order(s), ' + paid + ' paid' : 'No orders yet' }),
           el('label', { class: 'admin-check' }, [on, ' Show on my website']),
           quickGuide(q)
@@ -2386,8 +2523,7 @@
     var top = el('div', { class: 'admin-card-top' }, [el('h2', { text: r.name }), el('span', { class: 'admin-tag', text: r.interest })]);
     card.appendChild(top);
     var quick = (state.quick || []).filter(function (q) { return q.interest === r.interest; })[0];
-    if (quick) card.appendChild(el('div', { class: 'admin-hint' }, [
-      el('b', { text: 'Side service: ' + nN(quick.price) + quickPeriod(quick) + ' · ' + quick.days }), quickGuide(quick)]));
+    if (quick) card.appendChild(quickPanel(r, quick));
 
     var badges = el('div', { class: 'admin-badges' }, [badge(cap(r.status), 'is-' + r.status)]);
     var SOURCE = { manual: 'Added by hand', design: 'Design order', service: 'Service order', form: 'Package form', contact: 'Contact form', 'chat-form': 'Chat (no AI reply)' };

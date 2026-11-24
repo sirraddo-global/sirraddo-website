@@ -3,4 +3,4 @@ import handler from "../../api/order.mjs";
 import { adapt } from "../lib/adapter.mjs";
 
 export default adapt(handler);
-export const config = { path: ["/api/order", "/api/design"] };
+export const config = { path: ["/api/order", "/api/design", "/track"] };

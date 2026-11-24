@@ -14,7 +14,7 @@
 export const QUICK_SERVICES = [
   // ---------- Flyers & graphics (/design) ----------
   {
-    key: "flyer", interest: "Flyer design", page: "design", design: true, on: true, price: 5000, days: "1–2 working days",
+    key: "flyer", workdays: 2, extras: ["express", "animated"], interest: "Flyer design", page: "design", design: true, on: true, price: 5000, days: "1–2 working days",
     what: "2 flyer designs to choose from, for WhatsApp, Instagram or print",
     ask: ["Words to put on it", "e.g. Business name, the offer or event, prices, date and venue, phone/WhatsApp, address, Instagram handle"],
     guide: [
@@ -28,7 +28,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "social", interest: "Social media designs", page: "design", design: true, on: true, price: 15000, days: "2–3 working days",
+    key: "social", workdays: 3, extras: ["animated"], interest: "Social media designs", page: "design", design: true, on: true, price: 15000, days: "2–3 working days",
     what: "2 looks to choose from, then 5 matching designs",
     ask: ["What should the 5 designs say?", "e.g. Post 1: our new menu… Post 2: weekend offer… (or tell us the topics and we'll write the words)"],
     guide: [
@@ -40,7 +40,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "card", interest: "Business card design", page: "design", design: true, on: true, price: 5000, days: "1–2 working days",
+    key: "card", workdays: 2, extras: ["express"], interest: "Business card design", page: "design", design: true, on: true, price: 5000, days: "1–2 working days",
     what: "2 designs to choose from, front and back, print-ready",
     ask: ["What goes on the card?", "e.g. Name, job title, business name, phone/WhatsApp, email, address, website, Instagram"],
     guide: [
@@ -52,7 +52,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "logo", interest: "Logo design", page: "design", design: true, on: true, price: 20000, days: "3–5 working days",
+    key: "logo", workdays: 5, extras: [], interest: "Logo design", page: "design", design: true, on: true, price: 20000, days: "3–5 working days",
     what: "3 ideas, then your favourite refined",
     ask: ["Tell us about the business", "e.g. Business name, what you sell, who your customers are, colours you like or hate, logos you like the style of"],
     guide: [
@@ -64,7 +64,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "brand", interest: "Brand kit", page: "design", design: true, on: true, price: 45000, days: "5–7 working days",
+    key: "brand", workdays: 7, extras: [], interest: "Brand kit", page: "design", design: true, on: true, price: 45000, days: "5–7 working days",
     what: "Logo, business card, letterhead and 3 social templates",
     ask: ["Tell us about the business", "e.g. Business name, what you sell, customers, colours you like, contacts for the card and letterhead"],
     guide: [
@@ -76,7 +76,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "invite", interest: "Invitation design", page: "design", design: true, on: false, price: 5000, days: "1–2 working days",
+    key: "invite", workdays: 2, extras: ["express", "animated"], interest: "Invitation design", page: "design", design: true, on: false, price: 5000, days: "1–2 working days",
     what: "2 designs to choose from, WhatsApp e-invite + print-ready card",
     ask: ["Event details", "e.g. Type of event, names, date and time, venue, dress code / colours, RSVP numbers, a Bible verse or quote"],
     guide: [
@@ -87,9 +87,70 @@ export const QUICK_SERVICES = [
       "Send PNG for WhatsApp and PDF for print. Video invites: quote separately on WhatsApp. Mark Done.",
     ],
   },
+  // ---------- Bundles and seasonal packs (/design) ----------
+  {
+    key: "launch", workdays: 7, extras: [], interest: "Launch pack", page: "design", design: true, on: false, price: 30000, worth: 37000, days: "5–7 working days",
+    what: "Logo + business card + flyer + Google Maps listing",
+    ask: ["Tell us about the business", "e.g. Business name, what you sell, customers, colours you like, address and opening hours, phone/WhatsApp, the first offer for your flyer"],
+    guide: [
+      "Logo first: 3 ideas to choose from (see Logo design). Get the chosen one approved before anything else.",
+      "Business card: 2 options in the new logo's colours (see Business card design).",
+      "Flyer: 2 options announcing the business or its first offer (see Flyer design).",
+      "Google Maps listing with the new logo and photos (see Google Maps listing).",
+      "Deliver everything in one Google Drive folder with mockups, and send the Maps review link. Mark Done.",
+    ],
+  },
+  {
+    key: "xmas", workdays: 3, extras: ["express", "animated"], interest: "Christmas & New Year pack", page: "design", design: true, on: false, price: 12000, worth: 15000,
+    season: { from: "11-15", to: "01-10", label: "15 Nov – 10 Jan" }, days: "2–3 working days",
+    what: "3 festive designs: Christmas sale, season's greetings and Happy New Year",
+    ask: ["What should the 3 designs say?", "e.g. Christmas sale: 20% off all cakes till 24 Dec. Greetings: from all of us at Bola's Kitchen. New Year: open again from 3 Jan. Phone/WhatsApp"],
+    guide: [
+      "Agree the 3 messages: a sale/offer, season's greetings, Happy New Year (or new opening hours).",
+      "Make 2 festive looks for the first design (Option 1, Option 2); they pick one and the other 2 follow that look.",
+      "Keep it their brand first, festive second: their colours and logo, with tasteful red/gold/green touches. No cartoon characters from films or brands.",
+      "Up to 2 rounds of changes. Send WhatsApp sizes (post and status) and print PDF if asked.",
+      "Remind them when to post: sale early December, greetings around 20 Dec, New Year on 31 Dec/1 Jan. Mark Done.",
+    ],
+  },
+  {
+    key: "sallah", workdays: 3, extras: ["express", "animated"], interest: "Ramadan & Sallah pack", page: "design", design: true, on: false, price: 12000, worth: 15000,
+    season: { from: "2027-02-01", to: "2027-03-22", label: "1 Feb – 22 Mar 2027" }, days: "2–3 working days",
+    what: "3 designs: Ramadan Kareem, a Ramadan offer and Eid Mubarak",
+    ask: ["What should the 3 designs say?", "e.g. Ramadan Kareem from Bola's Kitchen; iftar packs ₦3,500 delivered; Eid Mubarak. Phone/WhatsApp"],
+    guide: [
+      "Agree the 3 messages: Ramadan greeting, an offer (iftar packs, opening hours), Eid Mubarak.",
+      "Make 2 looks for the first design; they pick one and the other 2 follow it. Respectful style: crescent, lanterns, geometric patterns, their colours.",
+      "Up to 2 rounds of changes. Send post and status sizes.",
+      "Next year: update the dates in api/_lib/graphics.mjs (Ramadan moves about 11 days earlier each year). Mark Done.",
+    ],
+  },
+  {
+    key: "easter", workdays: 3, extras: ["express", "animated"], interest: "Easter pack", page: "design", design: true, on: false, price: 8000, worth: 10000,
+    season: { from: "2027-03-08", to: "2027-03-29", label: "8 – 29 Mar 2027" }, days: "2–3 working days",
+    what: "2 designs: an Easter offer and Happy Easter greetings",
+    ask: ["What should the 2 designs say?", "e.g. Easter offer: buy 2 get 1 free till Saturday; Happy Easter from Bola's Kitchen. Phone/WhatsApp"],
+    guide: [
+      "Agree the 2 messages: the Easter offer and the greeting.",
+      "Make 2 looks for the first design; they pick one and the other follows it. Fresh spring colours with their brand.",
+      "Up to 2 rounds of changes. Send post and status sizes.",
+      "Next year: update the dates in api/_lib/graphics.mjs (Easter moves). Mark Done.",
+    ],
+  },
+  {
+    key: "independence", workdays: 3, extras: ["express", "animated"], interest: "Independence Day pack", page: "design", design: true, on: false, price: 8000, worth: 10000,
+    season: { from: "09-10", to: "10-02", label: "10 Sep – 2 Oct" }, days: "2–3 working days",
+    what: "2 designs: an Independence Day offer and Happy Independence Day greetings",
+    ask: ["What should the 2 designs say?", "e.g. 1st October sale: 10% off everything; Happy Independence Day from Bola's Kitchen. Phone/WhatsApp"],
+    guide: [
+      "Agree the 2 messages: the offer and the greeting.",
+      "Make 2 looks for the first design in green and white with their brand; they pick one. Use the national colours tastefully; don't use the coat of arms.",
+      "Up to 2 rounds of changes. Send post and status sizes. Mark Done.",
+    ],
+  },
   // ---------- Quick services (/services) ----------
   {
-    key: "maps", interest: "Google Maps listing", page: "services", on: false, price: 7000, days: "2–5 days (Google's own check can take longer)",
+    key: "maps", workdays: 5, extras: [], interest: "Google Maps listing", page: "services", on: false, price: 7000, days: "2–5 days (Google's own check can take longer)",
     what: "Your business on Google Maps and Search",
     ask: ["Business details for Google", "e.g. Business name, full address (or areas you serve), category, opening hours, phone/WhatsApp, website or Instagram"],
     files: "Photos of the shop, products and logo (optional)",
@@ -103,7 +164,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "whatsapp", interest: "WhatsApp Business setup", page: "services", on: false, price: 5000, days: "Same or next day",
+    key: "whatsapp", workdays: 1, extras: [], interest: "WhatsApp Business setup", page: "services", on: false, price: 5000, days: "Same or next day",
     what: "A professional WhatsApp Business profile",
     ask: ["About the business", "e.g. Business name, what you sell (and prices), opening hours, address, and when a video call suits you"],
     files: "Logo and product photos (optional)",
@@ -117,7 +178,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "cv", interest: "CV design", page: "services", on: false, price: 3000, days: "1–2 working days",
+    key: "cv", workdays: 2, extras: ["express"], interest: "CV design", page: "services", on: false, price: 3000, days: "1–2 working days",
     what: "A clean, professional CV, 2 layouts to choose from",
     ask: ["About you", "e.g. The job you want, education, work experience (company, role, dates, what you did), skills, phone and email"],
     files: "Your old CV (optional)",
@@ -131,7 +192,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "cvcover", interest: "CV + cover letter", page: "services", on: false, price: 5000, days: "1–2 working days",
+    key: "cvcover", workdays: 2, extras: ["express"], interest: "CV + cover letter", page: "services", on: false, price: 5000, days: "1–2 working days",
     what: "CV plus a cover letter for the job",
     ask: ["About you and the job", "e.g. The job and company you're applying to (paste the advert), education, experience, skills, contacts"],
     files: "Your old CV and the job advert (optional)",
@@ -143,7 +204,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "minisite", interest: "Mini website", page: "services", on: false, price: 10000, recurring: { amount: 5000, period: "yearly" }, days: "2–3 working days",
+    key: "minisite", workdays: 3, extras: [], interest: "Mini website", page: "services", on: false, price: 10000, recurring: { amount: 5000, period: "yearly" }, days: "2–3 working days",
     what: "A one-page website / digital business card",
     ask: ["What should the page show?", "e.g. Business name, what you do, prices, opening hours, address, phone/WhatsApp, Instagram, the web address you'd like (yourname.sirraddo.com.ng)"],
     files: "Logo and photos (optional)",
@@ -156,7 +217,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "domain", interest: "Domain + business email", page: "services", on: false, price: 15000, recurring: { amount: 15000, period: "yearly" }, days: "1–2 working days",
+    key: "domain", workdays: 2, extras: [], interest: "Domain + business email", page: "services", on: false, price: 15000, recurring: { amount: 15000, period: "yearly" }, days: "1–2 working days",
     what: "Your own .com.ng name and email address",
     ask: ["The name you want", "e.g. bolacakes.com.ng (give 2–3 choices), the email names you want (info@, sales@) and the Gmail they should forward to"],
     guide: [
@@ -168,7 +229,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "qrmenu", interest: "QR menu / price list", page: "services", on: false, price: 10000, recurring: { amount: 5000, period: "yearly" }, days: "2–3 working days",
+    key: "qrmenu", workdays: 3, extras: [], interest: "QR menu / price list", page: "services", on: false, price: 10000, recurring: { amount: 5000, period: "yearly" }, days: "2–3 working days",
     what: "Customers scan a QR code to see your menu or prices",
     ask: ["Your menu or price list", "e.g. Business name, categories and items with prices, opening hours, WhatsApp for orders (or upload a photo of your current menu)"],
     files: "Photo of the current menu, logo, food/product photos (optional)",
@@ -181,7 +242,7 @@ export const QUICK_SERVICES = [
     ],
   },
   {
-    key: "posts", interest: "Monthly social media posts", page: "services", on: false, price: 20000, recurring: { amount: 20000, period: "monthly" }, days: "First posts within 3 working days",
+    key: "posts", workdays: 3, extras: [], interest: "Monthly social media posts", page: "services", on: false, price: 20000, recurring: { amount: 20000, period: "monthly" }, days: "First posts within 3 working days",
     what: "8 designed posts every month, with captions",
     ask: ["About the business and what to post", "e.g. What you sell, offers coming up, your Instagram/Facebook, colours, how often you want to post"],
     files: "Logo and product photos (optional)",
@@ -194,6 +255,50 @@ export const QUICK_SERVICES = [
     ],
   },
 ];
+
+// Paid extras the customer can tick on the order form (only for services that list them in `extras`).
+export const EXTRAS = {
+  express: { label: "Same-day delivery", price: 2000, note: "Order and pay by 12 noon, get your options the same day" },
+  animated: { label: "Animated WhatsApp status version", price: 3000, note: "A 10–15 second moving version for your status" },
+};
+export const EXTRA_GUIDES = {
+  express: "Same-day: paid by 12 noon → send the options by 6 pm and the final the same evening. Paid later → by 12 noon the next working day. Start it before anything else.",
+  animated: "Animated status: in Canva use Animate (or Adobe Express), 1080×1920, 10–15 seconds, text appears in order, logo last. Export MP4 and send on WhatsApp. Check it plays on a phone.",
+};
+// Checked before ANY design is sent (shown under every design guide in admin).
+export const QUALITY_CHECKS = [
+  "Spelling and grammar checked twice; names, dates and prices exactly as the customer wrote them.",
+  "Phone/WhatsApp number dialled or tapped once to be sure it's right.",
+  "Readable on a phone: look at it at 30% size. Main message readable in 3 seconds.",
+  "Their logo is sharp (not blurry or stretched) and their colours are used.",
+  "Print files: CMYK-safe colours, 300 dpi, 3 mm bleed, text 4 mm from the edge.",
+  "Each option shown on a mockup (Admin → Packages → Side services → Mockup maker) and labelled Option 1, 2, 3.",
+  "Nothing copied: no other brands' logos, characters or paid photos without a licence.",
+];
+export const ON_TIME_PROMISE = "If we deliver after the promised date, you get 20% off your next order.";
+
+/** Is a seasonal pack in its selling window today? (MM-DD windows repeat every year and may cross New Year.) */
+export function inSeason(svc, today = new Date(Date.now() + 3600 * 1000).toISOString().slice(0, 10)) {
+  if (!svc.season) return true;
+  const { from, to } = svc.season;
+  if (from.length === 10) return today >= from && today <= to;
+  const md = today.slice(5);
+  return from <= to ? md >= from && md <= to : md >= from || md <= to;
+}
+
+/** The order's total and the extras chosen (unknown or not-offered extras are ignored). */
+export function orderTotal(svc, extras = []) {
+  const chosen = (Array.isArray(extras) ? extras : []).filter((x, i, a) => a.indexOf(x) === i && (svc.extras || []).includes(x) && EXTRAS[x]);
+  return { chosen, total: svc.price + chosen.reduce((n, x) => n + EXTRAS[x].price, 0) };
+}
+
+/** Working days after a date (Mon–Fri). */
+export function addWorkdays(date, n) {
+  const d = new Date(date + "T12:00:00Z");
+  let left = n;
+  while (left > 0) { d.setUTCDate(d.getUTCDate() + 1); const w = d.getUTCDay(); if (w !== 0 && w !== 6) left--; }
+  return d.toISOString().slice(0, 10);
+}
 
 export const QUICK_KEYS = QUICK_SERVICES.map((s) => s.key);
 export const QUICK_NAMES = QUICK_SERVICES.map((s) => s.interest);
@@ -208,12 +313,14 @@ export const isDesign = isQuick;
 export const designPrice = quickPrice;
 
 /** Which services the website shows: the owner's choice (setting svc_visible, keys separated by commas) or the defaults. */
-export function visibleKeys(settings = {}) {
+export function visibleKeys(settings = {}, today) {
   const raw = settings.svc_visible;
-  if (raw == null || raw === "") return QUICK_SERVICES.filter((s) => s.on).map((s) => s.key);
-  if (raw === "none") return [];
-  const want = new Set(String(raw).split(",").map((k) => k.trim()));
-  return QUICK_KEYS.filter((k) => want.has(k));
+  let keys;
+  if (raw == null || raw === "") keys = QUICK_SERVICES.filter((s) => s.on).map((s) => s.key);
+  else if (raw === "none") keys = [];
+  else { const want = new Set(String(raw).split(",").map((k) => k.trim())); keys = QUICK_KEYS.filter((k) => want.has(k)); }
+  // Seasonal packs only show in their window, even when switched on.
+  return keys.filter((k) => inSeason(QUICK_SERVICES.find((s) => s.key === k), today));
 }
 
 export const DESIGN_SIZES = [
@@ -239,8 +346,10 @@ export function cleanOrder(body = {}, allowed = QUICK_KEYS) {
   const files = (Array.isArray(body.files) ? body.files : []).slice(0, 4)
     .map((f) => ({ url: str(f?.url, 400), name: str(f?.name, 60) || "file" }))
     .filter((f) => /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)/.test(f.url));
+  const { chosen, total } = orderTotal(svc, body.extras);
   const lines = [
     `ORDER: ${svc.interest} (${naira(svc.price)}${svc.recurring ? `, then ${naira(svc.recurring.amount)} ${svc.recurring.period === "monthly" ? "a month" : "a year"}` : ""})`,
+    chosen.length ? `Extras: ${chosen.map((x) => `${EXTRAS[x].label} (+${naira(EXTRAS[x].price)})`).join(", ")} · Total ${naira(total)}` : null,
     size && `Size / where it's used: ${size}`,
     deadline && `Needed by: ${deadline}`,
     colours && `Colours: ${colours}`,
@@ -250,6 +359,6 @@ export function cleanOrder(body = {}, allowed = QUICK_KEYS) {
     files.length ? `Files (${files.length}):` : null,
     ...files.map((f) => `• ${f.name}: ${f.url}`),
   ].filter((x) => x !== null && x !== false);
-  return { svc, service: svc.interest, size, deadline, details: lines.join("\n").replace(/\n{3,}/g, "\n\n").slice(0, 3800), files };
+  return { svc, extras: chosen, total, service: svc.interest, size, deadline, details: lines.join("\n").replace(/\n{3,}/g, "\n\n").slice(0, 3800), files };
 }
 export const cleanDesignOrder = (body) => cleanOrder(body);

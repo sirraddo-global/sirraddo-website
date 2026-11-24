@@ -1,7 +1,7 @@
 // Everything that runs by itself: status rules on every change, customer emails, and the daily run
 // (morning summary with one-tap WhatsApp links, reminders, client site checks, Monday report + backup).
 import tls from "node:tls";
-import { quickByInterest } from "./graphics.mjs";
+import { quickByInterest, addWorkdays } from "./graphics.mjs";
 import { servicesOf, addPeriod } from "./services.mjs";
 import { randomBytes } from "node:crypto";
 import {
@@ -97,6 +97,13 @@ export function rulesAfterUpdate(row, changed) {
       const quick = quickByInterest(row.interest);
       if (quick) {
         f.follow_up_on = today; // quick service: its details came with the order, so it's ready to start today
+        // Promised delivery date (shown to the customer on /track). Same-day extra: today if paid by 12 noon.
+        if (!row.deliver_by) {
+          const hour = new Date(Date.now() + 3600 * 1000).getUTCHours();
+          f.deliver_by = /^Extras:.*Same-day delivery/m.test(row.details || "")
+            ? (hour < 12 ? today : addWorkdays(today, 1))
+            : addWorkdays(today, quick.workdays || 3);
+        }
         // Yearly / monthly ones (mini website, domain + email, QR menu, monthly posts): add the renewal once.
         if (quick.recurring && !servicesOf(row).some((x) => x.name === quick.interest)) {
           f.services = [...servicesOf(row), {
@@ -108,6 +115,13 @@ export function rulesAfterUpdate(row, changed) {
         if (!row.project_stage) f.project_stage = "content";
         f.follow_up_on = row.brief_submitted_at ? null : addDays(today, 2); // chase the project form
       }
+    }
+  }
+  // Quick service delivered: no more follow-ups; if it was late, note the 20% off promise for their next order.
+  if ("job_stage" in changed && row.job_stage === "done") {
+    f.follow_up_on = null;
+    if (row.deliver_by && today > row.deliver_by && !/Delivered late/.test(row.notes || "")) {
+      f.notes = `${row.notes ? row.notes + "\n" : ""}Delivered late (${today}, promised ${row.deliver_by}): owes 20% off their next order.`;
     }
   }
   // Marked won or lost by hand -> no more lead follow-ups.

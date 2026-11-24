@@ -30,6 +30,61 @@
     if (wordsLabel) wordsLabel.textContent = ask || firstAsk;
     $('ds-words').placeholder = ph || firstPh;
     if (filesLabel && fl) filesLabel.textContent = /up to 4/.test(fl) ? fl : /\)$/.test(fl) ? fl.replace(/\)$/, ', up to 4)') : fl + ' (up to 4)';
+    drawExtras();
+  }
+
+  // Paid extras (same-day delivery, animated status) for the chosen service, and the running total.
+  var EXTRAS = {
+    express: ['Same-day delivery', 2000, 'Order and pay by 12 noon, get your options the same day'],
+    animated: ['Animated WhatsApp status version', 3000, 'A 10–15 second moving version for your status'],
+  };
+  var naira = function (n) { return '₦' + Number(n).toLocaleString('en-NG'); };
+  var extrasBox = $('ds-extras'), totalLine = $('ds-total');
+  function chosenExtras() {
+    return extrasBox ? Array.prototype.map.call(extrasBox.querySelectorAll('input:checked'), function (i) { return i.value; }) : [];
+  }
+  function drawTotal() {
+    var o = sel.options[sel.selectedIndex];
+    var price = o ? Number(o.getAttribute('data-price') || 0) : 0;
+    if (!totalLine) return;
+    if (!price) { totalLine.textContent = ''; return; }
+    var total = price + chosenExtras().reduce(function (n, k) { return n + EXTRAS[k][1]; }, 0);
+    totalLine.innerHTML = 'Total: <b>' + naira(total) + '</b>';
+  }
+  function drawExtras() {
+    if (!extrasBox) return;
+    var o = sel.options[sel.selectedIndex];
+    var keep = chosenExtras();
+    var list = ((o && o.getAttribute('data-extras')) || '').split(',').filter(function (k) { return EXTRAS[k]; });
+    Array.prototype.slice.call(extrasBox.querySelectorAll('label')).forEach(function (l) { l.remove(); });
+    list.forEach(function (k) {
+      var l = document.createElement('label'); l.className = 'ds-check';
+      var i = document.createElement('input'); i.type = 'checkbox'; i.value = k; i.checked = keep.indexOf(k) !== -1;
+      i.addEventListener('change', drawTotal);
+      var t = document.createElement('span');
+      t.innerHTML = '<b>' + EXTRAS[k][0] + ' (+' + naira(EXTRAS[k][1]) + ')</b><small>' + EXTRAS[k][2] + '</small>';
+      l.appendChild(i); l.appendChild(t); extrasBox.appendChild(l);
+    });
+    extrasBox.hidden = !list.length;
+    drawTotal();
+  }
+
+  // "Brand on file": the logo, colours and style from this customer's last order on this phone.
+  var brand = null;
+  try { brand = JSON.parse(localStorage.getItem('sirraddo-brand') || 'null'); } catch (_) { brand = null; }
+  if (brand && $('ds-brand') && ((brand.files || []).length || brand.colours)) {
+    $('ds-brand').hidden = false;
+    $('ds-use-brand').addEventListener('change', function () {
+      var on = this.checked;
+      if ($('ds-colours') && on && !$('ds-colours').value) $('ds-colours').value = brand.colours || '';
+      if ($('ds-style') && on && !$('ds-style').value) $('ds-style').value = brand.style || '';
+      (brand.files || []).forEach(function (f) {
+        var has = files.some(function (x) { return x.url === f.url; });
+        if (on && !has && files.length < MAX) files.push(f);
+        if (!on && has) files = files.filter(function (x) { return x.url !== f.url; });
+      });
+      showFiles();
+    });
   }
   sel.addEventListener('change', fit);
   document.querySelectorAll('[data-design]').forEach(function (a) { a.addEventListener('click', function () { setTimeout(fit, 0); }); });
@@ -42,6 +97,7 @@
     var shown = 0;
     document.querySelectorAll('article[data-svc]').forEach(function (c) { var v = !!on[c.getAttribute('data-svc')]; c.hidden = !v; if (v) shown++; });
     document.querySelectorAll('[data-svc-block]').forEach(function (b) { b.hidden = !on[b.getAttribute('data-svc-block')]; });
+    document.querySelectorAll('[data-svc-any]').forEach(function (b) { b.hidden = !b.getAttribute('data-svc-any').split(',').some(function (k) { return on[k]; }); });
     Array.prototype.slice.call(sel.options).forEach(function (o) {
       var k = o.getAttribute('data-svc'); if (!k) return;
       if (!on[k]) { if (sel.value === o.value) sel.value = ''; o.remove(); }
@@ -102,7 +158,7 @@
       service: sel.value, words: $('ds-words').value, size: $('ds-size') ? $('ds-size').value : '',
       colours: $('ds-colours') ? $('ds-colours').value : '', style: $('ds-style') ? $('ds-style').value : '', deadline: $('ds-deadline').value,
       name: $('ds-name').value, business: $('ds-business').value, contact: $('ds-contact').value,
-      email: $('ds-email').value, files: files, website: $('ds-hp').value,
+      email: $('ds-email').value, files: files, website: $('ds-hp').value, extras: chosenExtras(),
       from: window.sirraddoFrom ? window.sirraddoFrom() : '',
     };
     if (!body.service) { $('ds-service').focus(); return say('Please choose a service.', true); }
@@ -110,10 +166,16 @@
     fetch('/api/order', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Something went wrong'); return j; }); })
       .then(function (j) {
+        // Remember the brand for next time, and this order for the tracker.
+        try {
+          if (files.length || body.colours) localStorage.setItem('sirraddo-brand', JSON.stringify({ colours: body.colours, style: body.style, files: files.slice(0, 4), at: Date.now() }));
+          if (j.track) { var past = JSON.parse(localStorage.getItem('sirraddo-orders') || '[]'); past.unshift({ ref: j.ref, service: body.service, track: j.track }); localStorage.setItem('sirraddo-orders', JSON.stringify(past.slice(0, 10))); }
+        } catch (_) { /* ignore */ }
         if (j.pay) { say('Order saved (' + (j.ref || '') + '). Taking you to payment…'); location.href = j.pay; return; }
         var wa = 'https://wa.me/2348167550937?text=' + encodeURIComponent('Hi, I just ordered: ' + body.service + (j.ref ? ' (ref ' + j.ref + ')' : '') + ' on your website.');
         form.innerHTML = '<div class="ds-done"><h3>Order received 🎉</h3><p>' + (j.ref ? 'Your reference is <b>' + j.ref + '</b>. ' : '') +
-          'We will message you on WhatsApp to confirm and send your payment link.</p><a class="btn btn--gold" target="_blank" rel="noopener" href="' + wa + '">Message us on WhatsApp now</a></div>';
+          'We will message you on WhatsApp to confirm and send your payment link.</p><a class="btn btn--gold" target="_blank" rel="noopener" href="' + wa + '">Message us on WhatsApp now</a>' +
+          (j.track ? '<p><a href="' + j.track + '">Track your order</a> (bookmark it)</p>' : '') + '</div>';
       })
       .catch(function (err) { btn.disabled = false; say(err.message, true); });
   });

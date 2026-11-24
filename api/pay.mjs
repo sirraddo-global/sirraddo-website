@@ -6,6 +6,7 @@ import { getByDocToken, updateRequest, esc } from "./_lib/store.mjs";
 import { amountDue, paystackConfigured, startPayment, verifyPayment, recordPayment } from "./_lib/paystack.mjs";
 import { naira, COMPANY } from "./_lib/docs.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
+import { isQuick } from "./_lib/graphics.mjs";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -76,7 +77,8 @@ export default async function handler(req, res) {
         await recordPayment(tx);
         return page(res, 200, "Payment received", `<h1 class="ok">Payment received. Thank you!</h1>
 <p>We received <b>${naira(Math.round(tx.amount / 100))}</b>. ${r.email || tx.customer?.email ? "Your receipt is on its way to your email." : ""}</p>
-<a class="btn" href="/doc?t=${encodeURIComponent(token)}&type=receipt">View my receipt</a>
+${isQuick(r.interest) ? `<a class="btn" href="/track?t=${encodeURIComponent(token)}">Track my order</a><p class="muted">Bookmark it: it shows where your job is and the promised delivery date.</p>` : ""}
+<a class="btn"${isQuick(r.interest) ? ' style="background:#13254F;color:#fff"' : ""} href="/doc?t=${encodeURIComponent(token)}&type=receipt">View my receipt</a>
 <p class="muted">Paystack reference: ${esc(ref)}</p>`);
       }
       return page(res, 200, "Payment not completed", `<h1>Payment not completed</h1><p>${tx ? "Paystack says this payment was " + esc(tx.status || "not successful") + "." : "We couldn't confirm this payment yet."} If money left your account, don't worry: message us on WhatsApp with this reference and we'll sort it out.</p>

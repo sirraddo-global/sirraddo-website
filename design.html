@@ -76,6 +76,7 @@
           <li>Fixed prices, no surprises</li>
           <li>2–3 design options to choose from</li>
           <li>2 rounds of changes included</li>
+          <li>On-time promise: late = 20% off</li>
           <li>Print-ready files you own</li>
           <li>Card and transfer payments by Paystack</li>
         </ul>
@@ -155,7 +156,7 @@
             </ul>
             <a class="btn btn--navy btn--block" href="#order" data-design="Brand kit">Order brand kit</a>
           </article>
-          <article class="card package" aria-labelledby="ds-invite" data-svc="invite">
+          <article class="card package" aria-labelledby="ds-invite" data-svc="invite" hidden>
             <h3 id="ds-invite">Invitation design</h3>
             <p class="price">₦5,000</p>
             <p class="price-note">Ready in 1–2 working days</p>
@@ -167,6 +168,83 @@
               <li>PNG for WhatsApp, PDF for print</li>
             </ul>
             <a class="btn btn--navy btn--block" href="#order" data-design="Invitation design">Order invitation</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Packs: bundles and seasonal (switch on in Admin → Packages → Side services; seasonal ones show only in season) ===== -->
+    <section class="section section--grey" id="packs" aria-labelledby="packs-title" data-svc-any="launch,xmas,sallah,easter,independence" hidden>
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow eyebrow--dark">Packs</p>
+          <h2 id="packs-title">Save with a pack</h2>
+          <p>Everything matching, for less than ordering one by one.</p>
+        </div>
+        <div class="grid grid--3 packages">
+          <article class="card package package--featured" aria-labelledby="ds-launch" data-svc="launch" hidden>
+            <p class="package-flag">Best value</p>
+            <h3 id="ds-launch">Launch pack</h3>
+            <p class="price">₦30,000 <s class="price-was">₦37,000</s></p>
+            <p class="price-note">Ready in 5–7 working days</p>
+            <ul class="ticks">
+              <li>Logo: 3 ideas to choose from</li>
+              <li>Business card: 2 options</li>
+              <li>Flyer: 2 options</li>
+              <li>Google Maps listing set up</li>
+              <li>Everything matches your new brand</li>
+            </ul>
+            <a class="btn btn--gold btn--block" href="#order" data-design="Launch pack">Order launch pack</a>
+          </article>
+          <article class="card package package--featured" aria-labelledby="ds-xmas" data-svc="xmas" hidden>
+            <p class="package-flag">Seasonal</p>
+            <h3 id="ds-xmas">Christmas &amp; New Year pack</h3>
+            <p class="price">₦12,000 <s class="price-was">₦15,000</s></p>
+            <p class="price-note">Available 15 Nov – 10 Jan · ready in 2–3 working days</p>
+            <ul class="ticks">
+              <li>Christmas sale or offer flyer</li>
+              <li>Season's greetings</li>
+              <li>Happy New Year</li>
+              <li>2 looks to choose from</li>
+            </ul>
+            <a class="btn btn--gold btn--block" href="#order" data-design="Christmas &amp; New Year pack">Order Christmas pack</a>
+          </article>
+          <article class="card package package--featured" aria-labelledby="ds-sallah" data-svc="sallah" hidden>
+            <p class="package-flag">Seasonal</p>
+            <h3 id="ds-sallah">Ramadan &amp; Sallah pack</h3>
+            <p class="price">₦12,000 <s class="price-was">₦15,000</s></p>
+            <p class="price-note">Available 1 Feb – 22 Mar 2027 · ready in 2–3 working days</p>
+            <ul class="ticks">
+              <li>Ramadan Kareem</li>
+              <li>Your Ramadan offer</li>
+              <li>Eid Mubarak</li>
+              <li>2 looks to choose from</li>
+            </ul>
+            <a class="btn btn--gold btn--block" href="#order" data-design="Ramadan &amp; Sallah pack">Order Sallah pack</a>
+          </article>
+          <article class="card package package--featured" aria-labelledby="ds-easter" data-svc="easter" hidden>
+            <p class="package-flag">Seasonal</p>
+            <h3 id="ds-easter">Easter pack</h3>
+            <p class="price">₦8,000 <s class="price-was">₦10,000</s></p>
+            <p class="price-note">Available 8 – 29 Mar 2027 · ready in 2–3 working days</p>
+            <ul class="ticks">
+              <li>Your Easter offer</li>
+              <li>Happy Easter greetings</li>
+              <li>2 looks to choose from</li>
+            </ul>
+            <a class="btn btn--gold btn--block" href="#order" data-design="Easter pack">Order Easter pack</a>
+          </article>
+          <article class="card package package--featured" aria-labelledby="ds-independence" data-svc="independence" hidden>
+            <p class="package-flag">Seasonal</p>
+            <h3 id="ds-independence">Independence Day pack</h3>
+            <p class="price">₦8,000 <s class="price-was">₦10,000</s></p>
+            <p class="price-note">Available 10 Sep – 2 Oct · ready in 2–3 working days</p>
+            <ul class="ticks">
+              <li>1st October offer</li>
+              <li>Happy Independence Day</li>
+              <li>2 looks to choose from</li>
+            </ul>
+            <a class="btn btn--gold btn--block" href="#order" data-design="Independence Day pack">Order Independence pack</a>
           </article>
         </div>
       </div>
@@ -184,7 +262,7 @@
           <figure class="ds-sample"><img src="/assets/samples/flyer.svg" alt="Restaurant promo flyer, sample design" width="600" height="750" loading="lazy" decoding="async"><figcaption>Flyer</figcaption></figure>
           <figure class="ds-sample"><img src="/assets/samples/social.svg" alt="Gym offer social media post, sample design" width="600" height="750" loading="lazy" decoding="async"><figcaption>Social media post</figcaption></figure>
           <figure class="ds-sample"><img src="/assets/samples/card.svg" alt="Hair studio business card, front and back, sample design" width="600" height="750" loading="lazy" decoding="async"><figcaption>Business card</figcaption></figure>
-          <figure class="ds-sample" data-svc-block="invite"><img src="/assets/samples/invite.svg" alt="Wedding invitation in sage and gold, sample design" width="600" height="750" loading="lazy" decoding="async"><figcaption>Invitation</figcaption></figure>
+          <figure class="ds-sample" data-svc-block="invite" hidden><img src="/assets/samples/invite.svg" alt="Wedding invitation in sage and gold, sample design" width="600" height="750" loading="lazy" decoding="async"><figcaption>Invitation</figcaption></figure>
           <figure class="ds-sample"><img src="/assets/samples/logo.svg" alt="Farm logo with colour palette, sample design" width="600" height="750" loading="lazy" decoding="async"><figcaption>Logo & brand kit</figcaption></figure>
         </div>
       </div>
@@ -220,12 +298,17 @@
             <label for="ds-service">What do you want designed?</label>
             <select id="ds-service" required>
               <option value="">Choose…</option>
-              <option value="Flyer design" data-svc="flyer" data-ask="Words to put on it" data-ph="e.g. Business name, the offer or event, prices, date and venue, phone/WhatsApp, address, Instagram handle">Flyer design (₦5,000)</option>
-              <option value="Social media designs" data-svc="social" data-ask="What should the 5 designs say?" data-ph="e.g. Post 1: our new menu… Post 2: weekend offer… (or tell us the topics and we'll write the words)">Social media pack: 5 designs (₦15,000)</option>
-              <option value="Business card design" data-svc="card" data-ask="What goes on the card?" data-ph="e.g. Name, job title, business name, phone/WhatsApp, email, address, website, Instagram">Business card design (₦5,000)</option>
-              <option value="Logo design" data-svc="logo" data-ask="Tell us about the business" data-ph="e.g. Business name, what you sell, who your customers are, colours you like or hate, logos you like the style of">Logo design (₦20,000)</option>
-              <option value="Brand kit" data-svc="brand" data-ask="Tell us about the business" data-ph="e.g. Business name, what you sell, customers, colours you like, contacts for the card and letterhead">Brand kit (₦45,000)</option>
-              <option value="Invitation design" data-svc="invite" data-ask="Event details" data-ph="e.g. Type of event, names, date and time, venue, dress code / colours, RSVP numbers, a Bible verse or quote">Invitation design (₦5,000)</option>
+              <option value="Flyer design" data-svc="flyer" data-price="5000" data-extras="express,animated" data-ask="Words to put on it" data-ph="e.g. Business name, the offer or event, prices, date and venue, phone/WhatsApp, address, Instagram handle">Flyer design (₦5,000)</option>
+              <option value="Social media designs" data-svc="social" data-price="15000" data-extras="animated" data-ask="What should the 5 designs say?" data-ph="e.g. Post 1: our new menu… Post 2: weekend offer… (or tell us the topics and we'll write the words)">Social media pack: 5 designs (₦15,000)</option>
+              <option value="Business card design" data-svc="card" data-price="5000" data-extras="express" data-ask="What goes on the card?" data-ph="e.g. Name, job title, business name, phone/WhatsApp, email, address, website, Instagram">Business card design (₦5,000)</option>
+              <option value="Logo design" data-svc="logo" data-price="20000" data-extras="" data-ask="Tell us about the business" data-ph="e.g. Business name, what you sell, who your customers are, colours you like or hate, logos you like the style of">Logo design (₦20,000)</option>
+              <option value="Brand kit" data-svc="brand" data-price="45000" data-extras="" data-ask="Tell us about the business" data-ph="e.g. Business name, what you sell, customers, colours you like, contacts for the card and letterhead">Brand kit (₦45,000)</option>
+              <option value="Invitation design" data-svc="invite" data-price="5000" data-extras="express,animated" data-ask="Event details" data-ph="e.g. Type of event, names, date and time, venue, dress code / colours, RSVP numbers, a Bible verse or quote">Invitation design (₦5,000)</option>
+              <option value="Launch pack" data-svc="launch" data-price="30000" data-extras="" data-ask="Tell us about the business" data-ph="e.g. Business name, what you sell, customers, colours you like, address and opening hours, phone/WhatsApp, the first offer for your flyer">Launch pack (₦30,000)</option>
+              <option value="Christmas &amp; New Year pack" data-svc="xmas" data-price="12000" data-extras="express,animated" data-ask="What should the 3 designs say?" data-ph="e.g. Christmas sale: 20% off all cakes till 24 Dec. Greetings: from all of us at Bola's Kitchen. New Year: open again from 3 Jan. Phone/WhatsApp">Christmas &amp; New Year pack (₦12,000)</option>
+              <option value="Ramadan &amp; Sallah pack" data-svc="sallah" data-price="12000" data-extras="express,animated" data-ask="What should the 3 designs say?" data-ph="e.g. Ramadan Kareem from Bola's Kitchen; iftar packs ₦3,500 delivered; Eid Mubarak. Phone/WhatsApp">Ramadan &amp; Sallah pack (₦12,000)</option>
+              <option value="Easter pack" data-svc="easter" data-price="8000" data-extras="express,animated" data-ask="What should the 2 designs say?" data-ph="e.g. Easter offer: buy 2 get 1 free till Saturday; Happy Easter from Bola's Kitchen. Phone/WhatsApp">Easter pack (₦8,000)</option>
+              <option value="Independence Day pack" data-svc="independence" data-price="8000" data-extras="express,animated" data-ask="What should the 2 designs say?" data-ph="e.g. 1st October sale: 10% off everything; Happy Independence Day from Bola's Kitchen. Phone/WhatsApp">Independence Day pack (₦8,000)</option>
             </select>
           </div>
           <div class="field">
@@ -250,6 +333,7 @@
             <input id="ds-files" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" multiple>
             <p class="ds-files-list" id="ds-files-list" aria-live="polite"></p>
           </div>
+          <label class="ds-check ds-brandfile" id="ds-brand" hidden><input type="checkbox" id="ds-use-brand"> <span>Use my logo and colours from my last order</span></label>
           <div class="field">
             <label for="ds-colours">Colours (optional)</label>
             <input id="ds-colours" maxlength="200" placeholder="e.g. Your brand colours, or 'red and gold'">
@@ -262,6 +346,9 @@
             <label for="ds-deadline">Needed by (optional)</label>
             <input id="ds-deadline" type="date">
           </div>
+          <fieldset class="ds-extras" id="ds-extras" hidden>
+            <legend>Extras (optional)</legend>
+          </fieldset>
           <div class="field">
             <label for="ds-name">Your name</label>
             <input id="ds-name" maxlength="120" autocomplete="name" required>
@@ -279,7 +366,9 @@
             <input id="ds-email" type="email" maxlength="200" autocomplete="email">
           </div>
           <input class="rv-hp" id="ds-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <p class="ds-total" id="ds-total" aria-live="polite"></p>
           <button class="btn btn--gold btn--block" type="submit" id="ds-submit">Order and pay</button>
+          <p class="ds-promise">⏱️ On-time promise: If we deliver after the promised date, you get 20% off your next order.</p>
           <p class="rv-msg" id="ds-msg" role="status"></p>
         </form>
       </div>

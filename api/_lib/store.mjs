@@ -40,6 +40,9 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS deposit_pct INTEGER`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS next_payment INTEGER`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ref_used INTEGER NOT NULL DEFAULT 0`,
+  // Quick services: where the job is (designing, options, changes, done) and the promised delivery date.
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS job_stage TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS deliver_by DATE`,
   `CREATE UNIQUE INDEX IF NOT EXISTS customer_requests_ref_code ON customer_requests (ref_code)`,
   `CREATE TABLE IF NOT EXISTS staff (id SERIAL PRIMARY KEY, name TEXT NOT NULL, username TEXT UNIQUE, phone TEXT, pass_hash TEXT NOT NULL, must_change BOOLEAN NOT NULL DEFAULT true, temp_expires TIMESTAMPTZ, perms JSONB NOT NULL DEFAULT '[]'::jsonb, active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ, password_changed_at TIMESTAMPTZ)`,
   `ALTER TABLE staff ADD COLUMN IF NOT EXISTS username TEXT UNIQUE`,
@@ -232,7 +235,7 @@ export async function ensureSchema() {
 export const STATUSES = ["new", "contacted", "quoted", "won", "lost"];
 export const STAGES = ["content", "building", "review", "live"];
 
-const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, ref_code, ref_used, services, wants, name, contact, business, interest, details, page,
+const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, ref_code, ref_used, services, wants, job_stage, deliver_by::text AS deliver_by, name, contact, business, interest, details, page,
   transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, deposit_pct, next_payment, payments, project_stage,
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
   brief_token, brief_saved_at, brief_submitted_at, email, doc_token,
@@ -317,7 +320,7 @@ const EDITABLE = {
   name: "text", contact: "text", email: "text", business: "text", interest: "text", details: "text", notes: "text",
   status: "text", follow_up_on: "date", quote_amount: "int", payments: "jsonb", project_stage: "text",
   live_on: "date", renewal_amount: "int", renewal_due: "date", website_url: "text",
-  handover: "jsonb", draft_md: "text", came_from: "text", services: "jsonb", wants: "text", deposit_pct: "int", next_payment: "int",
+  handover: "jsonb", draft_md: "text", came_from: "text", services: "jsonb", wants: "text", deposit_pct: "int", next_payment: "int", job_stage: "text", deliver_by: "date",
 };
 export async function updateRequest(id, fields) {
   await ensureSchema();

@@ -21,7 +21,7 @@ test("catalog: unique keys, a guide for each, prices on the pages, new ones star
     assert.ok(s.guide.length >= 3, `${s.key} guide`);
     const page = readFileSync(join(ROOT, `${s.page}.html`), "utf8");
     assert.ok(page.includes(`<option value="${s.interest.replace("&", "&amp;")}" data-svc="${s.key}"`), `${s.key} in the ${s.page} form`);
-    assert.ok(page.includes(`data-svc="${s.key}">`), `${s.key} card`);
+    assert.match(page, new RegExp(`<article[^>]*data-svc="${s.key}"`), `${s.key} card`);
     assert.ok(page.includes(naira(s.price)), `${s.key} price`);
   }
   assert.deepEqual(visibleKeys({}), ["flyer", "social", "card", "logo", "brand"]);
@@ -67,4 +67,46 @@ test("switches: hidden services can't be ordered; switched on, a yearly one adds
   await h.action({ action: "settings", settings: { svc_visible: "none" } });
   assert.deepEqual((await h.call("GET", "/api/order")).json.visible, []);
   assert.equal((await h.call("POST", "/api/design", { ...order, service: "Flyer design" })).status, 400, "all off");
+});
+
+test("extras add to the price; seasonal packs only in season; paid order gets a promised date and a tracker", async () => {
+  const { inSeason, QUICK_SERVICES: Q, orderTotal, addWorkdays } = await import("../api/_lib/graphics.mjs");
+  const xmas = Q.find((s) => s.key === "xmas");
+  assert.equal(inSeason(xmas, "2026-12-20"), true); assert.equal(inSeason(xmas, "2027-01-05"), true); assert.equal(inSeason(xmas, "2027-02-01"), false);
+  assert.equal(orderTotal(Q.find((s) => s.key === "logo"), ["express"]).total, 20000, "logo has no same-day option");
+  assert.equal(addWorkdays("2026-11-27", 1), "2026-11-30", "Friday + 1 working day = Monday");
+
+  await h.action({ action: "settings", settings: { svc_visible: "flyer,easter" } });
+  assert.deepEqual((await h.call("GET", "/api/order")).json.visible.includes("easter"), false, "Easter pack hidden out of season");
+
+  const res = await h.call("POST", "/api/order", { name: "Ife", contact: "08077778888", email: "ife@example.com", service: "Flyer design",
+    words: "Ife Fabrics: new Ankara arrivals this week", extras: ["animated", "bogus"] });
+  assert.equal(res.status, 200, res.text);
+  assert.match(res.json.track, /^\/track\?t=/);
+  const id = Number(res.json.ref.replace(/\D/g, ""));
+  let r = await h.row(id);
+  assert.equal(r.quote_amount, 8000, "₦5,000 + ₦3,000 animated");
+  assert.match(r.details, /Extras: Animated WhatsApp status version \(\+₦3,000\) · Total ₦8,000/);
+
+  let page = await h.call("GET", res.json.track);
+  assert.equal(page.status, 200); assert.match(page.text, /Order received/); assert.match(page.text, /Pay ₦8,000 now/);
+
+  const t = new URL("http://x" + res.json.pay).searchParams.get("t");
+  const start = await h.call("POST", "/api/pay", { t, email: "ife@example.com", for: "deposit" });
+  const [body, headers] = signed({ event: "charge.success", data: { reference: new URL(start.json.url).searchParams.get("ref") } });
+  await h.call("POST", "/api/paystack-webhook", body, headers);
+  r = await h.row(id);
+  assert.equal(r.status, "won"); assert.match(r.deliver_by, /^\d{4}-\d{2}-\d{2}$/);
+  assert.doesNotMatch((await h.call("GET", res.json.track)).text, /Pay ₦/, "no pay button once paid");
+
+  assert.equal((await h.call("PATCH", "/api/requests", { id, job_stage: "nonsense" }, { authorization: "Bearer testpassword123" })).status, 400);
+  // Delivered late -> note about 20% off next order
+  await h.call("PATCH", "/api/requests", { id, deliver_by: "2026-01-02" }, { authorization: "Bearer testpassword123" });
+  const done = await h.call("PATCH", "/api/requests", { id, job_stage: "done" }, { authorization: "Bearer testpassword123" });
+  assert.equal(done.status, 200, done.text);
+  r = await h.row(id);
+  assert.equal(r.job_stage, "done"); assert.match(r.notes, /owes 20% off their next order/);
+  page = await h.call("GET", res.json.track);
+  assert.match(page.text, /Delivered/);
+  assert.equal((await h.call("GET", "/track?t=nope")).status, 404);
 });

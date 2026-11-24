@@ -808,3 +808,17 @@ p { margin: 0 0 1em; }
 .field input[type="file"] { padding: 14px; min-height: 0; border: 1.5px dashed #B9C3D6; background: var(--bg-soft); border-radius: 12px; cursor: pointer; font-size: 14px; color: var(--muted); width: 100%; }
 .field input[type="file"]:hover { border-color: var(--gold); }
 .field input[type="file"]::file-selector-button { background: var(--navy); color: #fff; border: 0; border-radius: 8px; padding: 9px 16px; margin-right: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
+
+/* Order form extras, total, brand on file, on-time promise */
+.ds-extras { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 4px; margin: 0 0 18px; background: var(--surface); }
+.ds-extras legend { font-weight: 700; padding: 0 6px; color: var(--ink); }
+.ds-check { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; cursor: pointer; }
+.ds-check input { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--gold); }
+.ds-check b { display: block; color: var(--ink); }
+.ds-check small { display: block; color: var(--muted); font-size: 13px; }
+.ds-brandfile { margin: -6px 0 14px; font-weight: 600; color: var(--ink); }
+.ds-total { font-size: 1.1rem; text-align: center; margin: 6px 0 10px; color: var(--ink); }
+.ds-total:empty { display: none; }
+.ds-promise { text-align: center; font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+.price-was { font-size: .5em; color: var(--muted); font-weight: 600; margin-left: 6px; }
+.ds-brandfile[hidden], .ds-extras[hidden] { display: none; }

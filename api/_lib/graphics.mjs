@@ -263,7 +263,7 @@ export const EXTRAS = {
 };
 export const EXTRA_GUIDES = {
   express: "Same-day: paid by 12 noon → send the options by 6 pm and the final the same evening. Paid later → by 12 noon the next working day. Start it before anything else.",
-  animated: "Animated status: in Canva use Animate (or Adobe Express), 1080×1920, 10–15 seconds, text appears in order, logo last. Export MP4 and send on WhatsApp. Check it plays on a phone.",
+  animated: "Animated status: open the order in the design studio (Instant draft), pick the option they chose, tap \"Make animated status video\" and keep the screen open for 12 seconds. Download the MP4, check it plays on your phone, then send it on WhatsApp.",
 };
 // Checked before ANY design is sent (shown under every design guide in admin).
 export const QUALITY_CHECKS = [

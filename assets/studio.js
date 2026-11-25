@@ -132,7 +132,23 @@
     var clean = function (l) { return l.replace(phone, '').replace(biz ? new RegExp('^' + biz.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*[:\\-–]?\\s*', 'i') : /$^/, '').replace(/\b(call|whatsapp|phone)\b[:\s]*$/i, '').trim(); };
     var rest = lines.map(clean).filter(function (l) { return l.length > 1; });
     var headline = rest.shift() || 'Your headline here';
-    if (headline.length > 48) { var cut = headline.slice(0, 48).lastIndexOf(' '); rest.unshift(headline.slice(cut + 1)); headline = headline.slice(0, cut); }
+    // "10 percent discount of every order…" / "10% discount on…" → "10% OFF every order…"
+    var pct = headline.match(/^(?:get\s+)?(\d{1,2})\s*(?:%|per\s*cent|percent)\s*(?:off|discount)?\s*(?:of|on|for)?\s*/i);
+    if (pct) { headline = pct[1] + '% OFF ' + headline.slice(pct[0].length); offer = ''; }
+    // Dates go under the headline: "from December 1 to 31", "till Sunday", "this weekend only"…
+    var MONTH = '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*';
+    var dateRe = new RegExp('\\s*,?\\s*\\b((?:from|between|starting|valid|on|till|until|ends?|this)\\b.*(?:' + MONTH + '|\\d{1,2}(?:st|nd|rd|th)?|weekend|week|month|sunday|saturday|friday|today|only)\\.?)$', 'i');
+    var dm = headline.match(dateRe);
+    if (dm && dm.index > 8) { var when = dm[1].replace(/^from\s+/i, ''); rest.unshift(when.charAt(0).toUpperCase() + when.slice(1)); headline = headline.slice(0, dm.index); }
+    if (headline.length > 48) {
+      // Break at a natural word ("from", "at", "for"…) rather than mid-phrase.
+      var brk = headline.slice(0, 48).search(/\s(?:from|at|for|with|in|till|until|on)\s(?!.*\s(?:from|at|for|with|in|till|until|on)\s)/i);
+      var cut = brk > 12 ? brk : headline.slice(0, 48).lastIndexOf(' ');
+      rest.unshift(headline.slice(cut + 1)); headline = headline.slice(0, cut);
+    }
+    // A discount mentioned lower down becomes the badge ("15 percent discount" → 15% OFF).
+    rest = rest.map(function (l) { return l.replace(/(\d{1,2})\s*(?:%|per\s*cent|percent)\s*(?:off|discount)/i, '$1% off'); });
+    if (!pct && !offer) { var pm = rest.join(' ').match(/(\d{1,2})% off/i); if (pm) offer = pm[1] + '% OFF'; }
     return { business: biz, headline: headline, details: rest.slice(0, 3).join('\n'), offer: offer.replace(/\s+/g, ' ').toUpperCase(), contact: phone ? 'Call / WhatsApp: ' + phone : '' };
   }
   function themeFrom(colours) {
@@ -827,17 +843,104 @@
         place: mf.place.value.trim(),
         menuPhotos: state.photos.map(function (img, i) { return { img: img, caption: state.captions[i] || '', i: i }; }).filter(function (x) { return x.img && x.i !== state.logoIdx; }) };
     }
-    function render(i, W, H) {
+    function render(i, W, H, photoIdx) {
       var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       var c = cv.getContext('2d'); c.textBaseline = 'alphabetic';
-      layouts()[i].draw(c, W, H, data(), state.theme);
+      var keep = state.photoIdx; if (photoIdx != null) state.photoIdx = photoIdx;
+      try { layouts()[i].draw(c, W, H, data(), state.theme); } finally { state.photoIdx = keep; }
       return cv;
+    }
+    // ---------- Set of N (e.g. 5 social media posts): same look, a different photo on each ----------
+    var setN = Math.max(0, Math.min(10, Number(o.set) || 0));
+    var setRow = el('div', { class: 'st-thumbs' }), setBox = el('div', { class: 'st-set', hidden: setN ? null : '' }, [
+      el('b', { text: 'The set of ' + setN + ' (same look as the chosen option, a different photo on each)' }), setRow,
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Download the set of ' + setN, onclick: function () { setOrder().forEach(function (pi, n) { setTimeout(function () { download(state.layout, pi, n + 1); }, n * 450); }); } }),
+      el('small', { class: 'admin-hint', text: 'Change the words between downloads if each post needs its own message.' }),
+    ]);
+    function setOrder() {
+      var pool = state.photos.map(function (p, i) { return p && i !== state.logoIdx ? i : -1; }).filter(function (i) { return i >= 0; });
+      if (!pool.length) pool = [null];
+      var start = Math.max(0, pool.indexOf(state.photoIdx)), out = [];
+      for (var n = 0; n < setN; n++) out.push(pool[(start + n) % pool.length]);
+      return out;
+    }
+    function drawSet() {
+      if (!setN) return;
+      var s = SIZES[state.size]; setRow.innerHTML = '';
+      setOrder().forEach(function (pi, n) { setRow.appendChild(el('div', { class: 'st-thumb' }, [render(state.layout, Math.round(s.w * 0.16), Math.round(s.h * 0.16), pi), el('span', { text: 'Post ' + (n + 1) })])); });
+    }
+
+    // ---------- Animated WhatsApp status (video made right here; no Canva needed) ----------
+    var vidMsg = el('small', { class: 'st-bgmsg' }), vidOut = el('div', { class: 'st-vid' });
+    var vidBtn = el('button', { class: 'admin-btn' + (o.animated ? ' admin-btn--primary' : ''), type: 'button', text: '\uD83C\uDFAC Make animated status video', onclick: makeVideo });
+    var vidBox = el('div', { class: 'st-set' }, [
+      el('b', { text: o.animated ? 'This order includes an animated status video' : 'Animated status video (extra)' }),
+      el('small', { class: 'admin-hint', text: 'Uses the chosen option in WhatsApp status size: parts slide in, slow zoom, shine. 12 seconds. Keep this screen open while it records.' }),
+      vidBtn, vidMsg, vidOut,
+    ]);
+    dl.parentNode.insertBefore(vidBox, dl.nextSibling); dl.parentNode.insertBefore(setBox, dl.nextSibling);
+    function pickMime() {
+      var list = ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+      for (var i = 0; i < list.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(list[i])) return list[i];
+      return '';
+    }
+    function makeVideo() {
+      var mime = pickMime();
+      if (!mime || !HTMLCanvasElement.prototype.captureStream) { vidMsg.textContent = 'This browser can\'t record video. Open admin in Chrome and try again.'; return; }
+      var W = 720, H = 1280, DUR = 12, FPS = 30;
+      var art = render(state.layout, W, H);
+      var cv = el('canvas', { style: 'position:fixed;left:-9999px;top:0' }); cv.width = W; cv.height = H; document.body.appendChild(cv);
+      var c = cv.getContext('2d'), bg = state.theme.bg;
+      var rec = new MediaRecorder(cv.captureStream(FPS), { mimeType: mime, videoBitsPerSecond: 6000000 }), chunks = [];
+      rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = function () {
+        cv.remove(); vidBtn.disabled = false;
+        var mp4 = /mp4/.test(mime), blob = new Blob(chunks, { type: mp4 ? 'video/mp4' : 'video/webm' }), url = URL.createObjectURL(blob);
+        var name = (f.business.value || 'design').replace(/\W+/g, '-').toLowerCase() + '-status-video.' + (mp4 ? 'mp4' : 'webm');
+        vidOut.innerHTML = '';
+        vidOut.appendChild(el('video', { src: url, controls: '', playsinline: '', loop: '', muted: '', autoplay: '' }));
+        vidOut.appendChild(el('a', { class: 'admin-btn admin-btn--primary', href: url, download: name, text: 'Download video (' + (mp4 ? 'MP4' : 'WebM') + ', ' + Math.round(blob.size / 1024) + ' KB)' }));
+        vidMsg.textContent = mp4 ? 'Done. Send the MP4 on WhatsApp; it plays as a status.' : 'Done, but this browser saved WebM. WhatsApp needs MP4: use Chrome on Android (it records MP4), or convert the file before sending.';
+      };
+      var bands = 4, bh = H / bands;
+      function ease(x) { x = Math.max(0, Math.min(1, x)); var c1 = 1.4, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); }
+      function frame(t) {
+        c.globalAlpha = 1; c.fillStyle = bg; c.fillRect(0, 0, W, H);
+        if (t < 2.2) { // parts slide in, one after another, from alternating sides
+          for (var b = 0; b < bands; b++) {
+            var p = ease((t - b * 0.28) / 0.8); if (p <= 0) continue;
+            var dx = (b % 2 ? 1 : -1) * W * (1 - p);
+            c.globalAlpha = Math.min(1, p * 1.3); c.drawImage(art, 0, b * bh, W, bh, dx, b * bh, W, bh);
+          }
+          c.globalAlpha = 1;
+        } else { // slow zoom
+          var z = 1 + 0.045 * Math.min(1, (t - 2.2) / (DUR - 2.2));
+          c.drawImage(art, (W - W * z) / 2, (H - H * z) / 2, W * z, H * z);
+        }
+        [3.2, 7.6].forEach(function (s0) { // shine sweeps across
+          var k = (t - s0) / 1.1; if (k < 0 || k > 1) return;
+          var x = -W * 0.6 + k * W * 2.2, g = c.createLinearGradient(x, 0, x + W * 0.45, H * 0.35);
+          g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.5, 'rgba(255,255,255,.28)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+          c.fillStyle = g; c.fillRect(0, 0, W, H);
+        });
+        if (t > DUR - 0.6) { c.fillStyle = 'rgba(0,0,0,' + ((t - (DUR - 0.6)) / 0.6 * 0.15) + ')'; c.fillRect(0, 0, W, H); }
+      }
+      vidBtn.disabled = true; vidOut.innerHTML = ''; vidMsg.textContent = 'Recording… 0 / ' + DUR + ' s';
+      frame(0); rec.start(500);
+      var t0 = performance.now();
+      (function tick() {
+        var t = (performance.now() - t0) / 1000;
+        if (t >= DUR) { frame(DUR); setTimeout(function () { rec.stop(); }, 120); return; }
+        frame(t); vidMsg.textContent = 'Recording… ' + Math.floor(t) + ' / ' + DUR + ' s';
+        requestAnimationFrame(tick);
+      })();
     }
     function draw() {
       if (logos.length) drawLogos();
       var s = SIZES[state.size], scale = 540 / s.w;
       var big = render(state.layout, Math.round(s.w * scale * 2), Math.round(s.h * scale * 2));
       preview.width = big.width; preview.height = big.height; preview.getContext('2d').drawImage(big, 0, 0);
+      drawSet();
       thumbs.innerHTML = '';
       layouts().forEach(function (L, i) {
         var t = render(i, Math.round(s.w * 0.24), Math.round(s.h * 0.24));
@@ -845,10 +948,10 @@
         thumbs.appendChild(b);
       });
     }
-    function download(i) {
-      var s = SIZES[state.size], cv = render(i, s.w, s.h);
+    function download(i, photoIdx, postNo) {
+      var s = SIZES[state.size], cv = render(i, s.w, s.h, photoIdx);
       cv.toBlob(function (b) {
-        var a = el('a', { href: URL.createObjectURL(b), download: (f.business.value || 'design').replace(/\W+/g, '-').toLowerCase() + '-option-' + (i + 1) + '-' + state.size + '.png' });
+        var a = el('a', { href: URL.createObjectURL(b), download: (f.business.value || 'design').replace(/\W+/g, '-').toLowerCase() + (postNo ? '-post-' + postNo : '-option-' + (i + 1)) + '-' + state.size + '.png' });
         document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       }, 'image/png');
     }

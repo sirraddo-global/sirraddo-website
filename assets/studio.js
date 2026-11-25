@@ -392,9 +392,13 @@
     if (draw) rows.forEach(function (r, i) {
       var cy = y + i * lh + lh / 2;
       icon(c, r[0], x + size * 0.75, cy, size * 0.72, iconBg, iconFg);
-      c.font = '700 ' + size + 'px ' + FONT; c.fillStyle = color;
-      var t = r[1]; while (c.measureText(t).width > w - size * 2.2 && t.length > 3) t = t.slice(0, -2) + '…';
-      c.fillText(t, x + size * 1.9, cy + size * 0.36);
+      // Too long? Shrink the text a little first, then wrap to a second line, so nothing gets cut.
+      var fs = size, room = w - size * 2.2, t = r[1];
+      c.font = '700 ' + fs + 'px ' + FONT;
+      while (c.measureText(t).width > room && fs > size * 0.78) { fs -= 1; c.font = '700 ' + fs + 'px ' + FONT; }
+      c.fillStyle = color;
+      var parts = c.measureText(t).width > room ? wrapText(c, t, room).slice(0, 2) : [t];
+      parts.forEach(function (line, k) { c.fillText(line, x + size * 1.9, cy + size * 0.36 + (k - (parts.length - 1) / 2) * fs * 1.15); });
     });
     return rows.length * lh;
   }
@@ -479,7 +483,7 @@
         photoGrid(c, tiles, pad, y, W - pad * 2, gh, cols, 22 * u, t.accent, t, u);
         y += gh + 40 * u;
       }
-      var barH = (d.phones.length || d.socials.length || d.place ? 64 * u + (d.socials.length || d.place ? 44 * u : 0) : 0);
+      var barH = (d.phones.length || d.socials.length || d.place ? 64 * u + (d.socials.length || d.place ? 54 * u : 0) : 0);
       c.font = '500 ' + 26 * u + 'px ' + FONT;
       var noteLines = d.note ? wrapText(c, d.note, W - pad * 2 - 40 * u) : [], noteH = noteLines.length ? noteLines.length * 26 * u * 1.4 + 30 * u : 0;
       if (d.listTitle) { c.font = '800 ' + 26 * u + 'px ' + FONT; c.fillStyle = t.accent; c.textAlign = 'center'; c.fillText(d.listTitle.toUpperCase().split('').join(String.fromCharCode(8202)), W / 2, y + 26 * u); c.textAlign = 'left'; y += 50 * u; }
@@ -490,7 +494,7 @@
         c.fillStyle = onColour(t.accent); c.textAlign = 'center';
         c.font = '800 ' + 32 * u + 'px ' + FONT; c.fillText(d.phones.length ? 'Call / WhatsApp: ' + d.phones.join(' · ') : '', W / 2, H - barH + 44 * u);
         var sub = d.socials.concat(d.place ? [d.place] : []).join('   ·   ');
-        if (sub) { c.font = '600 ' + 24 * u + 'px ' + FONT; c.fillText(sub, W / 2, H - barH + 88 * u, W - pad * 2); }
+        if (sub) { c.font = '700 ' + 30 * u + 'px ' + FONT; c.fillText(sub, W / 2, H - barH + 96 * u, W - pad * 2); }
         c.textAlign = 'left';
       }
     } },
@@ -509,7 +513,7 @@
         photoGrid(c, tiles, pad, y, W - pad * 2, gh, cols, 22 * u, '#FFFFFF', t, u);
         y += gh + 36 * u;
       }
-      var barH = d.phones.length || d.socials.length ? 110 * u : 0;
+      var barH = d.phones.length || d.socials.length || d.place ? 110 * u : 0;
       if (d.offer) offerBadge(c, t, d.offer, W - pad - 70 * u, headH + 10 * u, 70 * u);
       if (d.listTitle) { c.font = '800 ' + 30 * u + 'px ' + SERIF; c.fillStyle = t.bg; c.textAlign = 'center'; c.fillText(d.listTitle, W / 2, y + 28 * u); c.textAlign = 'left'; y += 48 * u; }
       // items as chips
@@ -533,7 +537,7 @@
         c.textAlign = 'center'; c.fillStyle = onColour(t.bg);
         c.font = '800 ' + 32 * u + 'px ' + FONT; c.fillText(d.phones.join('  ·  '), W / 2, H - barH + 50 * u, W - pad * 2);
         var sub = d.socials.concat(d.place ? [d.place] : []).join('   ·   ');
-        if (sub) { c.font = '600 ' + 22 * u + 'px ' + FONT; c.fillStyle = t.accent; c.fillText(sub, W / 2, H - barH + 88 * u, W - pad * 2); }
+        if (sub) { c.font = '700 ' + 28 * u + 'px ' + FONT; c.fillStyle = t.accent; c.fillText(sub, W / 2, H - barH + 94 * u, W - pad * 2); }
         c.textAlign = 'left';
       }
     } },

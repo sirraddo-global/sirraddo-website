@@ -803,7 +803,14 @@
 
     // The business name sometimes sits in the customer's list ("KASSYtreats&more"); it's already the title, so leave it out.
     function squash(x) { return String(x || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
-    function notBrand(item) { var b = squash(f.business.value), it = squash(item); return !(b.length >= 4 && it.length >= 4 && (it.indexOf(b) === 0 || b.indexOf(it) === 0)); }
+    // Loose match: "KASSYtreats&more" vs "Kassy treat & more" — ignores spaces, symbols, "and"/"more" and plural s.
+    function brandKey(x) { return squash(String(x || '').replace(/&|\band\b|\bmore\b|\b(ltd|limited|enterprises?|ventures?)\b/gi, ' ')).replace(/s/g, ''); }
+    function notBrand(item) {
+      var b = brandKey(f.business.value), it = brandKey(item);
+      if (b.length < 4 || it.length < 4) return true;
+      var n = 0; while (n < b.length && n < it.length && b[n] === it[n]) n++;
+      return !(n >= 5 && n >= Math.max(b.length, it.length) * 0.8);
+    }
     function data() {
       var photos = state.photos.filter(function (p, i) { return i !== state.logoIdx && p; });
       var main = state.photos[state.photoIdx] && state.photoIdx !== state.logoIdx ? state.photos[state.photoIdx] : photos[0] || null;

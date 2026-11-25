@@ -77,4 +77,13 @@
       Array.prototype.forEach.call(svcLinks, function (li) { li.hidden = !j.pages[li.getAttribute('data-svc-page')]; });
     }).catch(function () {});
   }
+
+  // Branded dropdown lists (assets/picker.js), loaded only when the page has one (or the order pop-up adds one).
+  (function () {
+    var loaded = false;
+    function load() { if (loaded) return; loaded = true; var sc = document.createElement('script'); sc.src = '/assets/picker.js'; sc.defer = true; document.head.appendChild(sc); }
+    if (document.querySelector('select')) return load();
+    var mo = new MutationObserver(function () { if (document.querySelector('select')) { mo.disconnect(); load(); } });
+    mo.observe(document.body, { childList: true, subtree: true });
+  })();
 })();

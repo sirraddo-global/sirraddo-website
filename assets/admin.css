@@ -421,3 +421,10 @@ a.admin-btn--wa, a.admin-btn--wa:visited, a.admin-btn--wa:hover { color: #fff; t
 .st-set .st-thumb canvas { width: 84px; }
 .st-vid { display: grid; gap: 8px; justify-items: start; }
 .st-vid video { width: 180px; max-width: 100%; border-radius: 10px; background: #000; }
+
+.st-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-chip { border: 1.5px solid var(--line, #C8D0DC); background: var(--surface, #fff); color: inherit; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.st-chip.is-on { border-color: #D9A21B; background: rgba(217,162,27,.15); }
+.st-idea { border-radius: 12px; display: grid; gap: 2px; text-align: left; max-width: 100%; }
+.st-idea span { font-weight: 500; opacity: .8; }
+.st-lookname { font-weight: 600; opacity: .7; font-size: 11px; }

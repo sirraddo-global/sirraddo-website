@@ -6,7 +6,7 @@ import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { startHarness, PAYSTACK_KEY, ROOT } from "./harness.mjs";
-import { QUICK_SERVICES, visibleKeys } from "../api/_lib/graphics.mjs";
+import { QUICK_SERVICES, visibleKeys, cleanOrder } from "../api/_lib/graphics.mjs";
 
 let h;
 before(async () => { h = await startHarness(); });
@@ -113,4 +113,16 @@ test("extras add to the price; seasonal packs only in season; paid order gets a 
   page = await h.call("GET", res.json.track);
   assert.match(page.text, /Delivered/);
   assert.equal((await h.call("GET", "/track?t=nope")).status, 404);
+});
+
+test("design form boxes: business name, phone, card name… become labelled lines; card words can be left empty", () => {
+  const o = cleanOrder({ service: "Business card design", words: "", business: "SIRRADDO GLOBAL LIMITED",
+    info: { person: "Adeyemo Ridwan", title: "Managing Director", phone: "08112999073", bizmail: "info@sirraddo.com.ng", address: "Iwo Road, Ibadan", junk: "x" } });
+  assert.match(o.details, /^Business name: SIRRADDO GLOBAL LIMITED$/m);
+  assert.match(o.details, /^Name on card: Adeyemo Ridwan$/m);
+  assert.match(o.details, /^Job title: Managing Director$/m);
+  assert.match(o.details, /^Phone on design: 08112999073$/m);
+  assert.match(o.details, /^Email on design: info@sirraddo.com.ng$/m);
+  assert.ok(!/junk|Anything else/.test(o.details));
+  assert.throws(() => cleanOrder({ service: "Flyer design", words: "" }), /Words to put on it/);
 });

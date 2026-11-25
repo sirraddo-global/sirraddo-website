@@ -29,6 +29,10 @@
     var ask = o && o.getAttribute('data-ask'), ph = o && o.getAttribute('data-ph'), fl = o && o.getAttribute('data-files');
     if (wordsLabel) wordsLabel.textContent = ask || firstAsk;
     $('ds-words').placeholder = ph || firstPh;
+    // Separate boxes for business name, what they sell, phone, address… shown only where that design needs them.
+    var key = (o && o.getAttribute('data-svc')) || '';
+    document.querySelectorAll('#ds-info [data-for]').forEach(function (f) { f.hidden = !!key && f.getAttribute('data-for').split(',').indexOf(key) === -1; });
+    $('ds-words').required = !(o && o.getAttribute('data-optional'));
     if (filesLabel && fl) filesLabel.textContent = /up to 6/.test(fl) ? fl : /\)$/.test(fl) ? fl.replace(/\)$/, ', up to 6)') : fl + ' (up to 6)';
     drawExtras();
   }
@@ -173,6 +177,7 @@
       colours: $('ds-colours') ? $('ds-colours').value : '', style: $('ds-style') ? $('ds-style').value : '', deadline: $('ds-deadline').value,
       name: $('ds-name').value, business: $('ds-business').value, contact: $('ds-contact').value,
       email: $('ds-email').value, files: files, samples: samples, website: $('ds-hp').value, extras: chosenExtras(),
+      info: (function () { var i = {}; ['sell', 'person', 'title', 'phone', 'bizmail', 'web', 'address', 'socials'].forEach(function (k) { var x = $('ds-' + k); if (x && !x.closest('[hidden]') && x.value.trim()) i[k] = x.value.trim(); }); return i; })(),
       from: window.sirraddoFrom ? window.sirraddoFrom() : '',
     };
     if (!body.service) { $('ds-service').focus(); return say('Please choose a service.', true); }

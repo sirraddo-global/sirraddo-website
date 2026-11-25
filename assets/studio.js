@@ -124,7 +124,8 @@
   // ---------- guessing the text from the order ----------
   function guess(o) {
     var words = String(o.words || '').replace(/\r/g, '');
-    var phone = (words.match(/(\+?234|0)[789][01]\d[\s-]?\d{3}[\s-]?\d{4}/) || [])[0] || o.contact || '';
+    var info = o.info || {};
+    var phone = (info.phone || '').split(/[,;\/]/)[0].trim() || (words.match(/(\+?234|0)[789][01]\d[\s-]?\d{3}[\s-]?\d{4}/) || [])[0] || o.contact || '';
     var offer = (words.match(/\d{1,2}\s?%\s?off\b|buy \d+ get \d+( free)?|free delivery|from \u20A6\s?[\d,]+|\u20A6\s?[\d,]+/i) || [])[0] || '';
     var lines = words.split(/\n|[.!?]\s+/).map(function (l) { return l.replace(/^[\s•\-*]+/, '').trim(); }).filter(Boolean);
     var biz = o.business || '';
@@ -318,6 +319,10 @@
       (rest.split(/,(?![^(]*\))/).length >= 3 ? rest.split(',') : [rest]).forEach(function (x) { x = x.trim(); if (x) m.items.push(x.charAt(0).toUpperCase() + x.slice(1)); });
     });
     if (!m.listTitle) m.listTitle = m.items.length ? 'Contact us for' : '';
+    var inf = o.info || {};
+    (inf.phone || '').split(/[,;\/]+/).forEach(function (p) { p = p.replace(/[^\d+]/g, ''); if (p.length >= 10 && m.phones.indexOf(p) === -1) m.phones.unshift(p); });
+    (inf.socials || '').split(/[,;\s]+/).forEach(function (h) { h = h.trim(); if (!h) return; if (h.charAt(0) !== '@') h = '@' + h; if (m.socials.indexOf(h) === -1) m.socials.push(h); });
+    if (inf.address && !m.place) m.place = inf.address;
     if (!m.phones.length && o.contact) m.phones.push(String(o.contact).replace(/[^\d+]/g, ''));
     return m;
   }
@@ -588,6 +593,14 @@
     });
     d.address = titleCase(addr.join(', ')).replace(/\bNo\b\.?\s*/g, 'No. ');
     if (d.name && d.name === d.name.toLowerCase()) d.name = titleCase(d.name);
+    var inf = o.info || {};
+    if (inf.person) d.name = inf.person;
+    if (inf.title) d.title = inf.title;
+    if (inf.email) d.email = inf.email;
+    if (inf.web) d.web = inf.web.replace(/^https?:\/\//i, '');
+    if (inf.address) d.address = inf.address;
+    if (inf.phone) d.phones = inf.phone.split(/[,;\/]+/).map(function (p) { return p.trim(); }).filter(Boolean).concat(d.phones).filter(function (p, i, a) { return a.indexOf(p) === i; }).slice(0, 3);
+    if (inf.socials) inf.socials.split(/[,;\s]+/).filter(Boolean).forEach(function (h) { h = h.charAt(0) === '@' ? h : '@' + h; if (d.socials.indexOf(h) === -1) d.socials.push(h); });
     if (!d.phones.length && o.contact) d.phones.push(String(o.contact).replace(/[^\d+]/g, ''));
     return d;
   }
@@ -787,7 +800,7 @@
       what: el('textarea', { rows: '2', maxlength: '300', placeholder: 'What they sell / do, e.g. cakes and small chops for parties' }),
       style: el('input', { maxlength: '200', placeholder: 'e.g. elegant, playful, bold, traditional' }),
     };
-    lg.what.value = (o.words || '').replace(/\s+/g, ' ').slice(0, 300);
+    lg.what.value = (((o.info || {}).sell ? o.info.sell + '. ' : '') + (o.words || '')).replace(/\s+/g, ' ').trim().slice(0, 300);
     lg.style.value = o.style || '';
     var logoOut = el('div', { class: 'st-logos' }), logoMsg = el('p', { class: 'admin-hint' });
     var logos = [];

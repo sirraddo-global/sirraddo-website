@@ -624,9 +624,12 @@
     for (var i = 0; i < L.length; i++) if (/:\s*$/.test(L[i]) && (i === 0 || L[i - 1] === '') && !/^(ORDER|Extras|Size|Needed by|Colours|Style)/.test(L[i])) { start = i + 1; break; }
     if (start >= 0) for (var j = start; j < L.length; j++) if (/^(Files \(\d|Style samples they like)/.test(L[j])) { end = j; break; }
     var words = start >= 0 ? L.slice(start, end).join('\n').trim() : '';
-    window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, samples: samples, words: words, business: r.business || '', contact: r.contact || '',
+    window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, samples: samples, words: words, business: orderField(details, 'Business name') || r.business || '', contact: r.contact || '',
       colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, bgApi: bgApi, captionApi: captionApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest),
-      set: /Social media designs/.test(r.interest) ? 5 : 0, kind: /Business card/i.test(r.interest) ? 'card' : '', animated: /Animated WhatsApp status/i.test(details) });
+      set: /Social media designs/.test(r.interest) ? 5 : 0, kind: /Business card/i.test(r.interest) ? 'card' : '',
+      info: { sell: orderField(details, 'What they sell'), person: orderField(details, 'Name on card'), title: orderField(details, 'Job title'),
+        phone: orderField(details, 'Phone on design'), email: orderField(details, 'Email on design'), web: orderField(details, 'Website'),
+        address: orderField(details, 'Address / area'), socials: orderField(details, 'Social handles'), business: orderField(details, 'Business name') }, animated: /Animated WhatsApp status/i.test(details) });
   }
   function logoApi(brief) { return api('POST', { action: 'logo_ideas', brief: brief }); }
   function bgApi(image) { return api('POST', { action: 'remove_bg', image: image }); }

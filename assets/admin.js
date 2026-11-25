@@ -618,12 +618,18 @@
     var details = String(r.details || '');
     var files = []; details.replace(/^• (.+?): (https?:\/\/\S+)$/gm, function (_, name, url) { files.push({ name: name, url: url }); return _; });
     var samples = []; details.replace(/^◦ (.+?): (https?:\/\/\S+)$/gm, function (_, name, url) { samples.push({ name: name, url: url }); return _; });
-    var words = (details.split(/\n\n/).filter(function (b) { return /:\s*$/.test(b.split('\n')[0]) && !/^Files \(/.test(b); })[0] || '').split('\n').slice(1).join('\n');
+    // The customer's words: everything after the question line ("Words to put on it:") up to the files list,
+    // blank lines included (a menu often has them).
+    var L = details.split('\n'), start = -1, end = L.length;
+    for (var i = 0; i < L.length; i++) if (/:\s*$/.test(L[i]) && (i === 0 || L[i - 1] === '') && !/^(ORDER|Extras|Size|Needed by|Colours|Style)/.test(L[i])) { start = i + 1; break; }
+    if (start >= 0) for (var j = start; j < L.length; j++) if (/^(Files \(\d|Style samples they like)/.test(L[j])) { end = j; break; }
+    var words = start >= 0 ? L.slice(start, end).join('\n').trim() : '';
     window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, samples: samples, words: words, business: r.business || '', contact: r.contact || '',
-      colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, bgApi: bgApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest) });
+      colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, bgApi: bgApi, captionApi: captionApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest) });
   }
   function logoApi(brief) { return api('POST', { action: 'logo_ideas', brief: brief }); }
   function bgApi(image) { return api('POST', { action: 'remove_bg', image: image }); }
+  function captionApi(images, items) { return api('POST', { action: 'photo_labels', images: images, items: items }); }
 
   // Mockup maker: drop a design in, get it on a phone, a wall poster and a printed card, ready to send as options.
   function mockupMaker() {
@@ -714,7 +720,7 @@
     if (window.SirStudio) view.appendChild(el('div', { class: 'admin-card' }, [
       el('h2', { text: '🎨 Design studio' }),
       el('p', { class: 'admin-hint', text: 'Make a flyer from scratch: add photos from your phone, type the words, pick colours, download. For an order, use “Instant draft” on the request instead: it fills everything in from what the customer sent.' }),
-      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Open design studio', onclick: function () { window.SirStudio.open({ title: 'New design', logoApi: logoApi, bgApi: bgApi }); } })
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Open design studio', onclick: function () { window.SirStudio.open({ title: 'New design', logoApi: logoApi, bgApi: bgApi, captionApi: captionApi }); } })
     ]));
     view.appendChild(mockupMaker());
     var boxes = {};

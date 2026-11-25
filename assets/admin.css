@@ -405,3 +405,8 @@ a.admin-btn--wa, a.admin-btn--wa:visited, a.admin-btn--wa:hover { color: #fff; t
 .st-samplerow img { height: 120px; width: auto; max-width: 100%; border-radius: 8px; border: 1px solid var(--line, #E1E6EF); object-fit: cover; }
 .st-bgrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .st-bgmsg { flex-basis: 100%; color: var(--muted, #4A5568); }
+.st-mode { display: flex; gap: 8px; flex-wrap: wrap; }
+.st-group { display: grid; gap: 10px; }
+.st-group[hidden] { display: none; }
+.st-captions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.st-captions input { font: inherit; padding: 8px 10px; border: 1px solid var(--line, #C8D0DC); border-radius: 8px; background: var(--surface, #fff); color: inherit; min-width: 0; }

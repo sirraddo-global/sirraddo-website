@@ -1,7 +1,7 @@
 // Sets settings in .env safely, with hidden typing (nothing shows on screen or in history). Run on the VPS:
 //   node scripts/set-env.mjs DATABASE_URL PAYSTACK_SECRET_KEY ...
 // Press Enter on an empty answer to skip one. CRON_SECRET is made up automatically if asked for.
-// Afterwards: pm2 restart sirraddo-website --update-env
+// Afterwards: pm2 restart sirraddo-website --update-env   ·   check them all: node scripts/check-env.mjs
 import { readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 
@@ -15,6 +15,8 @@ function hidden(question) {
     stdin.setRawMode?.(true); stdin.resume(); stdin.setEncoding("utf8");
     const onData = (chunk) => {
       for (const ch of chunk) {
+        // A pasted JSON key (several lines) keeps going until it's complete.
+        if ((ch === "\r" || ch === "\n") && value.trim().startsWith("{") && !(() => { try { JSON.parse(value); return true; } catch { return false; } })()) { value += "\n"; continue; }
         if (ch === "\r" || ch === "\n") { stdin.setRawMode?.(false); stdin.pause(); stdin.off("data", onData); process.stdout.write("\n"); return resolve(value.trim()); }
         if (ch === "\u0003") { process.stdout.write("\n"); process.exit(1); }
         if (ch === "\u007f" || ch === "\b") value = value.slice(0, -1); else value += ch;

@@ -133,22 +133,36 @@
     });
   }
 
-  input.addEventListener('change', function () {
-    var picked = Array.prototype.slice.call(input.files || []);
-    input.value = '';
-    if (files.length + picked.length > MAX) { say('You can add up to ' + MAX + ' files. Send more on WhatsApp after ordering.', true); picked = picked.slice(0, MAX - files.length); }
+  // Uploads picked files into `into` (their own photos, or samples of a design they like).
+  function upload(picked, into, max, draw) {
+    if (into.length + picked.length > max) { say('You can add up to ' + max + ' here. Send more on WhatsApp after ordering.', true); picked = picked.slice(0, max - into.length); }
     picked.forEach(function (file) {
-      uploading++; showFiles();
+      uploading++; draw();
       shrink(file).then(function (blob) {
         var type = blob.type || file.type;
         var name = file.name.replace(/[^\w.\- ]+/g, '_').slice(0, 60);
         if (type === 'image/jpeg' && !/\.jpe?g$/i.test(name)) name = name.replace(/\.\w+$/, '') + '.jpg';
         return fetch('/api/chat-upload?s=' + encodeURIComponent(session) + '&name=' + encodeURIComponent(name) + '&type=' + encodeURIComponent(type), { method: 'POST', body: blob })
           .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Upload failed'); return j; }); });
-      }).then(function (j) { files.push({ url: j.url, name: j.name }); say(''); })
+      }).then(function (j) { into.push({ url: j.url, name: j.name }); say(''); })
         .catch(function (e) { say(e.message || 'Upload failed. You can send it on WhatsApp instead.', true); })
-        .then(function () { uploading--; showFiles(); });
+        .then(function () { uploading--; draw(); });
     });
+  }
+  input.addEventListener('change', function () {
+    var picked = Array.prototype.slice.call(input.files || []); input.value = '';
+    upload(picked, files, MAX, showFiles);
+  });
+
+  // A design they like (screenshot, photo of a flyer): we copy the look, not the content.
+  var samples = [], sInput = $('ds-samples'), sList = $('ds-samples-list');
+  function showSamples() {
+    if (!sList) return;
+    sList.textContent = samples.length ? '🖼️ ' + samples.map(function (f) { return f.name; }).join(', ') + (uploading ? ' · uploading…' : '') : '';
+  }
+  if (sInput) sInput.addEventListener('change', function () {
+    var picked = Array.prototype.slice.call(sInput.files || []); sInput.value = '';
+    upload(picked, samples, 2, showSamples);
   });
 
   form.addEventListener('submit', function (e) {
@@ -158,7 +172,7 @@
       service: sel.value, words: $('ds-words').value, size: $('ds-size') ? $('ds-size').value : '',
       colours: $('ds-colours') ? $('ds-colours').value : '', style: $('ds-style') ? $('ds-style').value : '', deadline: $('ds-deadline').value,
       name: $('ds-name').value, business: $('ds-business').value, contact: $('ds-contact').value,
-      email: $('ds-email').value, files: files, website: $('ds-hp').value, extras: chosenExtras(),
+      email: $('ds-email').value, files: files, samples: samples, website: $('ds-hp').value, extras: chosenExtras(),
       from: window.sirraddoFrom ? window.sirraddoFrom() : '',
     };
     if (!body.service) { $('ds-service').focus(); return say('Please choose a service.', true); }

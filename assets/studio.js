@@ -363,6 +363,14 @@
     lg.tagline.addEventListener('input', drawLogos);
     if (o.openLogos) { logoBox.open = true; setTimeout(function () { logoBox.scrollIntoView({ block: 'start' }); }, 300); }
 
+    // The customer's style sample(s): shown for reference only, never put on the design.
+    var sampleBox = (o.samples || []).length ? el('div', { class: 'st-samples' }, [
+      el('b', { text: '✨ Style they like (match the look, don\u2019t copy it)' }),
+      el('div', { class: 'st-samplerow' }, o.samples.map(function (smp) {
+        return el('a', { href: smp.url, target: '_blank', rel: 'noopener' }, [el('img', { src: smp.url, alt: 'Customer sample: ' + smp.name, loading: 'lazy' })]);
+      })),
+      el('small', { text: 'Its colours are the dashed swatch (used automatically if they gave no colours). Pick the layout closest to it below. Use only the customer\u2019s own words, logo and photos.' }),
+    ]) : null;
     function lab(text, input) { return el('label', { class: 'st-field' }, [el('span', { text: text }), input]); }
     var panel = el('div', { class: 'st-panel' }, [
       el('h2', { text: '🎨 Design studio' }),
@@ -383,11 +391,34 @@
       el('button', { class: 'admin-btn', type: 'button', text: 'Download all 3', onclick: function () { [0, 1, 2].forEach(function (i, n) { setTimeout(function () { download(i); }, n * 400); }); } }),
     ]);
     wrap.appendChild(el('div', { class: 'st-box' }, [el('div', { class: 'st-top' }, [el('b', { text: o.title || 'Design studio' }), close]),
-      el('div', { class: 'st-body' }, [el('div', { class: 'st-left' }, [preview, thumbs, dl, logoOut]), panel])]));
+      el('div', { class: 'st-body' }, [el('div', { class: 'st-left' }, [sampleBox, preview, thumbs, dl, logoOut]), panel])]));
     document.body.appendChild(wrap); document.body.style.overflow = 'hidden';
 
     THEMES.forEach(function (t) { themeRow.appendChild(el('button', { type: 'button', class: 'st-swatch', title: t.name, style: 'background:linear-gradient(135deg,' + t.bg + ' 60%,' + t.accent + ' 60%)', onclick: function () { state.theme = t; c1.value = t.bg; c2.value = t.accent; draw(); } })); });
     if (o.colours && themeFrom(o.colours)) themeRow.insertBefore(el('button', { type: 'button', class: 'st-swatch', title: 'Their colours: ' + o.colours, style: 'background:linear-gradient(135deg,' + state.theme.bg + ' 60%,' + state.theme.accent + ' 60%);outline:2px solid #D9A21B', onclick: function () { state.theme = themeFrom(o.colours); c1.value = state.theme.bg; c2.value = state.theme.accent; draw(); } }), themeRow.firstChild);
+    // Colours from their style sample: the most common dark colour (main) and bright colour (accent).
+    function sampleTheme(img) {
+      var cv = document.createElement('canvas'); cv.width = 64; cv.height = 64;
+      var c = cv.getContext('2d'); c.drawImage(img, 0, 0, 64, 64);
+      var d; try { d = c.getImageData(0, 0, 64, 64).data; } catch (e) { return null; }
+      var dark = {}, bright = {};
+      for (var i = 0; i < d.length; i += 4) {
+        var r = d[i], g = d[i + 1], b = d[i + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b), sat = mx ? (mx - mn) / mx : 0;
+        var key = '#' + [r, g, b].map(function (v) { return ('0' + (Math.min(255, Math.round(v / 24) * 24)).toString(16)).slice(-2); }).join('');
+        var L = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        if (L < 0.45 && (sat > 0.25 || L < 0.15)) dark[key] = (dark[key] || 0) + 1;
+        else if (L >= 0.45 && sat > 0.45) bright[key] = (bright[key] || 0) + 1;
+      }
+      var top = function (o) { return Object.keys(o).sort(function (a, b) { return o[b] - o[a]; })[0]; };
+      var bg = top(dark), accent = top(bright);
+      if (!bg || !accent) return null;
+      return { name: 'From their sample', bg: bg, accent: accent, light: '#F7F5F0' };
+    }
+    if ((o.samples || []).length) load(o.samples[0].url).then(function (img) {
+      var t = img && sampleTheme(img); if (!t) return;
+      themeRow.insertBefore(el('button', { type: 'button', class: 'st-swatch', title: 'From their sample', style: 'background:linear-gradient(135deg,' + t.bg + ' 60%,' + t.accent + ' 60%);outline:2px dashed #D9A21B', onclick: function () { state.theme = t; c1.value = t.bg; c2.value = t.accent; draw(); } }), themeRow.firstChild);
+      if (!themeFrom(o.colours)) { state.theme = t; c1.value = t.bg; c2.value = t.accent; draw(); }
+    });
     function customTheme() { state.theme = { name: 'Custom', bg: c1.value, accent: c2.value, light: lum(c1.value) < 0.5 ? '#F7F5F0' : '#FFFFFF' }; draw(); }
     c1.addEventListener('input', customTheme); c2.addEventListener('input', customTheme);
 

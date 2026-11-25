@@ -617,8 +617,9 @@
   function openStudio(r) {
     var details = String(r.details || '');
     var files = []; details.replace(/^• (.+?): (https?:\/\/\S+)$/gm, function (_, name, url) { files.push({ name: name, url: url }); return _; });
+    var samples = []; details.replace(/^◦ (.+?): (https?:\/\/\S+)$/gm, function (_, name, url) { samples.push({ name: name, url: url }); return _; });
     var words = (details.split(/\n\n/).filter(function (b) { return /:\s*$/.test(b.split('\n')[0]) && !/^Files \(/.test(b); })[0] || '').split('\n').slice(1).join('\n');
-    window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, words: words, business: r.business || '', contact: r.contact || '',
+    window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, samples: samples, words: words, business: r.business || '', contact: r.contact || '',
       colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest) });
   }
   function logoApi(brief) { return api('POST', { action: 'logo_ideas', brief: brief }); }

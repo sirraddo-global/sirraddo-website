@@ -80,13 +80,17 @@ test("extras add to the price; seasonal packs only in season; paid order gets a 
   assert.deepEqual((await h.call("GET", "/api/order")).json.visible.includes("easter"), false, "Easter pack hidden out of season");
 
   const res = await h.call("POST", "/api/order", { name: "Ife", contact: "08077778888", email: "ife@example.com", service: "Flyer design",
-    words: "Ife Fabrics: new Ankara arrivals this week", extras: ["animated", "bogus"] });
+    words: "Ife Fabrics: new Ankara arrivals this week", extras: ["animated", "bogus"],
+    samples: [{ url: "https://example.com/liked.jpg", name: "liked.jpg" }, { url: "javascript:alert(1)", name: "bad" }, { url: "https://example.com/3.jpg", name: "3" }] });
   assert.equal(res.status, 200, res.text);
   assert.match(res.json.track, /^\/track\?t=/);
   const id = Number(res.json.ref.replace(/\D/g, ""));
   let r = await h.row(id);
   assert.equal(r.quote_amount, 8000, "₦5,000 + ₦3,000 animated");
   assert.match(r.details, /Extras: Animated WhatsApp status version \(\+₦3,000\) · Total ₦8,000/);
+  assert.match(r.details, /Style samples they like \(1\)/);
+  assert.match(r.details, /^◦ liked\.jpg: https:\/\/example\.com\/liked\.jpg$/m);
+  assert.doesNotMatch(r.details, /javascript:|3\.jpg/);
 
   let page = await h.call("GET", res.json.track);
   assert.equal(page.status, 200); assert.match(page.text, /Order received/); assert.match(page.text, /Pay ₦8,000 now/);

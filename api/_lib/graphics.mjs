@@ -18,7 +18,7 @@ export const QUICK_SERVICES = [
     what: "2 flyer designs to choose from, for WhatsApp, Instagram or print",
     ask: ["Words to put on it", "e.g. Business name, the offer or event, prices, date and venue, phone/WhatsApp, address, Instagram handle"],
     guide: [
-      "Read the order on the request card: words, size, colours, deadline, and open the uploaded logo/photos.",
+      "Read the order on the request card: words, size, colours, deadline, and open the uploaded logo/photos. If they added a style sample (the ◦ links), match its mood, layout and colours, but with only their own words, logo and photos.",
       "Pick the size: square 1080×1080 for posts, 1080×1920 for status, A4/A5 at 300 dpi with 3 mm bleed for print.",
       "Design it (Canva, Adobe Express or Photopea). Use only their logo/photos or free stock photos: never other brands' logos or characters.",
       "Make 2 different designs (different layout and style, same words). A third is a nice bonus when you have time.",
@@ -273,7 +273,7 @@ export const QUALITY_CHECKS = [
   "Their logo is sharp (not blurry or stretched) and their colours are used.",
   "Print files: CMYK-safe colours, 300 dpi, 3 mm bleed, text 4 mm from the edge.",
   "Each option shown on a mockup (Admin → Packages → Side services → Mockup maker) and labelled Option 1, 2, 3.",
-  "Nothing copied: no other brands' logos, characters or paid photos without a licence.",
+  "Nothing copied: no other brands' logos, characters or paid photos without a licence. If they sent a style sample, yours matches its mood, layout and colours but uses only their own words, logo and photos.",
 ];
 export const ON_TIME_PROMISE = "If we deliver after the promised date, you get 20% off your next order.";
 
@@ -347,6 +347,10 @@ export function cleanOrder(body = {}, allowed = QUICK_KEYS) {
     .map((f) => ({ url: str(f?.url, 400), name: str(f?.name, 60) || "file" }))
     .filter((f) => /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)/.test(f.url));
   const { chosen, total } = orderTotal(svc, body.extras);
+  // Samples of a design they like: used for the style only (lines start with ◦ so the studio doesn't treat them as photos).
+  const samples = (Array.isArray(body.samples) ? body.samples : []).slice(0, 2)
+    .map((f) => ({ url: str(f?.url, 400), name: str(f?.name, 60) || "sample" }))
+    .filter((f) => /^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)/.test(f.url));
   const lines = [
     `ORDER: ${svc.interest} (${naira(svc.price)}${svc.recurring ? `, then ${naira(svc.recurring.amount)} ${svc.recurring.period === "monthly" ? "a month" : "a year"}` : ""})`,
     chosen.length ? `Extras: ${chosen.map((x) => `${EXTRAS[x].label} (+${naira(EXTRAS[x].price)})`).join(", ")} · Total ${naira(total)}` : null,
@@ -358,7 +362,10 @@ export function cleanOrder(body = {}, allowed = QUICK_KEYS) {
     files.length ? "" : null,
     files.length ? `Files (${files.length}):` : null,
     ...files.map((f) => `• ${f.name}: ${f.url}`),
+    samples.length ? "" : null,
+    samples.length ? `Style samples they like (${samples.length}): match the look, never copy their words, logos or pictures` : null,
+    ...samples.map((f) => `◦ ${f.name}: ${f.url}`),
   ].filter((x) => x !== null && x !== false);
-  return { svc, extras: chosen, total, service: svc.interest, size, deadline, details: lines.join("\n").replace(/\n{3,}/g, "\n\n").slice(0, 3800), files };
+  return { svc, samples, extras: chosen, total, service: svc.interest, size, deadline, details: lines.join("\n").replace(/\n{3,}/g, "\n\n").slice(0, 3800), files };
 }
 export const cleanDesignOrder = (body) => cleanOrder(body);

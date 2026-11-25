@@ -400,3 +400,6 @@ a.admin-btn--wa, a.admin-btn--wa:visited, a.admin-btn--wa:hover { color: #fff; t
 .st-logo--light { background: #fff; border: 1px solid #EEF1F6; }
 .st-logocard figcaption { font-weight: 700; }
 .st-logopair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.st-samples { width: 100%; max-width: 520px; border: 1px dashed #D9A21B; border-radius: 12px; padding: 10px; display: grid; gap: 8px; background: rgba(217,162,27,.06); }
+.st-samplerow { display: flex; gap: 8px; }
+.st-samplerow img { height: 120px; width: auto; max-width: 100%; border-radius: 8px; border: 1px solid var(--line, #E1E6EF); object-fit: cover; }

@@ -298,18 +298,52 @@
             <label for="ds-service">What do you want designed?</label>
             <select id="ds-service" required>
               <option value="">Choose…</option>
-              <option value="Flyer design" data-svc="flyer" data-price="5000" data-extras="express,animated" data-ask="Words to put on it" data-ph="e.g. Business name, the offer or event, prices, date and venue, phone/WhatsApp, address, Instagram handle">Flyer design (₦5,000)</option>
+              <option value="Flyer design" data-svc="flyer" data-price="5000" data-extras="express,animated" data-ask="Words to put on it" data-ph="e.g. The offer or event, prices, date and venue, the list of things you sell (one per line)">Flyer design (₦5,000)</option>
               <option value="Social media designs" data-svc="social" data-price="15000" data-extras="animated" data-ask="What should the 5 designs say?" data-ph="e.g. Post 1: our new menu… Post 2: weekend offer… (or tell us the topics and we'll write the words)">Social media pack: 5 designs (₦15,000)</option>
-              <option value="Business card design" data-svc="card" data-price="5000" data-extras="express" data-ask="What goes on the card?" data-ph="e.g. Name, job title, business name, phone/WhatsApp, email, address, website, Instagram">Business card design (₦5,000)</option>
-              <option value="Logo design" data-svc="logo" data-price="20000" data-extras="" data-ask="Tell us about the business" data-ph="e.g. Business name, what you sell, who your customers are, colours you like or hate, logos you like the style of">Logo design (₦20,000)</option>
-              <option value="Brand kit" data-svc="brand" data-price="45000" data-extras="" data-ask="Tell us about the business" data-ph="e.g. Business name, what you sell, customers, colours you like, contacts for the card and letterhead">Brand kit (₦45,000)</option>
+              <option value="Business card design" data-svc="card" data-price="5000" data-extras="express" data-optional="1" data-ask="Anything else for the card? (optional)" data-ph="e.g. A short slogan for the back, a second phone number, or a design note">Business card design (₦5,000)</option>
+              <option value="Logo design" data-svc="logo" data-price="20000" data-extras="" data-optional="1" data-ask="Anything else about the business? (optional)" data-ph="e.g. Who your customers are, colours you hate, logos you like the style of">Logo design (₦20,000)</option>
+              <option value="Brand kit" data-svc="brand" data-price="45000" data-extras="" data-optional="1" data-ask="Anything else about the business? (optional)" data-ph="e.g. Who your customers are, a slogan, logos you like the style of">Brand kit (₦45,000)</option>
               <option value="Invitation design" data-svc="invite" data-price="5000" data-extras="express,animated" data-ask="Event details" data-ph="e.g. Type of event, names, date and time, venue, dress code / colours, RSVP numbers, a Bible verse or quote">Invitation design (₦5,000)</option>
-              <option value="Launch pack" data-svc="launch" data-price="30000" data-extras="" data-ask="Tell us about the business" data-ph="e.g. Business name, what you sell, customers, colours you like, address and opening hours, phone/WhatsApp, the first offer for your flyer">Launch pack (₦30,000)</option>
+              <option value="Launch pack" data-svc="launch" data-price="30000" data-extras="" data-ask="The first offer for your flyer, and anything else" data-ph="e.g. Opening day 10% off everything. Opening hours 8am–8pm, Mon–Sat">Launch pack (₦30,000)</option>
               <option value="Christmas &amp; New Year pack" data-svc="xmas" data-price="12000" data-extras="express,animated" data-ask="What should the 3 designs say?" data-ph="e.g. Christmas sale: 20% off all cakes till 24 Dec. Greetings: from all of us at Bola's Kitchen. New Year: open again from 3 Jan. Phone/WhatsApp">Christmas &amp; New Year pack (₦12,000)</option>
               <option value="Ramadan &amp; Sallah pack" data-svc="sallah" data-price="12000" data-extras="express,animated" data-ask="What should the 3 designs say?" data-ph="e.g. Ramadan Kareem from Bola's Kitchen; iftar packs ₦3,500 delivered; Eid Mubarak. Phone/WhatsApp">Ramadan &amp; Sallah pack (₦12,000)</option>
               <option value="Easter pack" data-svc="easter" data-price="8000" data-extras="express,animated" data-ask="What should the 2 designs say?" data-ph="e.g. Easter offer: buy 2 get 1 free till Saturday; Happy Easter from Bola's Kitchen. Phone/WhatsApp">Easter pack (₦8,000)</option>
               <option value="Independence Day pack" data-svc="independence" data-price="8000" data-extras="express,animated" data-ask="What should the 2 designs say?" data-ph="e.g. 1st October sale: 10% off everything; Happy Independence Day from Bola's Kitchen. Phone/WhatsApp">Independence Day pack (₦8,000)</option>
             </select>
+          </div>
+          <div class="ds-info" id="ds-info">
+            <div class="field" data-for="flyer,social,card,logo,brand,launch,xmas,sallah,easter,independence">
+              <label for="ds-business">Business name</label>
+              <input id="ds-business" maxlength="200" autocomplete="organization" placeholder="e.g. Kassy Treats &amp; More">
+            </div>
+            <div class="field" data-for="flyer,social,logo,brand,launch">
+              <label for="ds-sell">What you sell or do</label>
+              <input id="ds-sell" maxlength="200" placeholder="e.g. Cakes, small chops and drinks for parties">
+            </div>
+            <div class="field ds-pair" data-for="card,brand">
+              <div><label for="ds-person">Name on the card</label><input id="ds-person" maxlength="60" placeholder="e.g. Adeyemo Ridwan"></div>
+              <div><label for="ds-title">Job title</label><input id="ds-title" maxlength="60" placeholder="e.g. Managing Director"></div>
+            </div>
+            <div class="field" data-for="flyer,social,card,brand,launch,xmas,sallah,easter,independence">
+              <label for="ds-phone">Phone / WhatsApp to show on it</label>
+              <input id="ds-phone" type="tel" maxlength="60" inputmode="tel" placeholder="e.g. 0803 123 4567, 0812 345 6789">
+            </div>
+            <div class="field ds-pair" data-for="card,brand,launch">
+              <div><label for="ds-bizmail">Email on it (optional)</label><input id="ds-bizmail" type="email" maxlength="100" placeholder="e.g. info@yourbusiness.com"></div>
+              <div><label for="ds-web">Website (optional)</label><input id="ds-web" maxlength="100" placeholder="e.g. www.yourbusiness.com"></div>
+            </div>
+            <div class="field" data-for="flyer,card,brand,launch">
+              <label for="ds-address">Address or area (optional)</label>
+              <input id="ds-address" maxlength="150" placeholder="e.g. Iwo Road, Ibadan · Nationwide">
+            </div>
+            <div class="field" data-for="flyer,social,card,brand,launch,xmas,sallah,easter,independence">
+              <label for="ds-socials">Instagram / TikTok / Facebook (optional)</label>
+              <input id="ds-socials" maxlength="120" placeholder="e.g. @kassytreats">
+            </div>
+            <div class="field">
+              <label for="ds-colours">Colours (optional)</label>
+              <input id="ds-colours" maxlength="200" placeholder="e.g. Your brand colours, or 'red and gold'">
+            </div>
           </div>
           <div class="field">
             <label for="ds-words" id="ds-words-label">Words to put on it</label>
@@ -342,10 +376,6 @@
           </div>
           <label class="ds-check ds-brandfile" id="ds-brand" hidden><input type="checkbox" id="ds-use-brand"> <span>Use my logo and colours from my last order</span></label>
           <div class="field">
-            <label for="ds-colours">Colours (optional)</label>
-            <input id="ds-colours" maxlength="200" placeholder="e.g. Your brand colours, or 'red and gold'">
-          </div>
-          <div class="field">
             <label for="ds-style">Style or ideas (optional)</label>
             <input id="ds-style" maxlength="300" placeholder="e.g. Bold and bright, or simple and classy. A design you like?">
           </div>
@@ -359,10 +389,6 @@
           <div class="field">
             <label for="ds-name">Your name</label>
             <input id="ds-name" maxlength="120" autocomplete="name" required>
-          </div>
-          <div class="field">
-            <label for="ds-business">Business name (optional)</label>
-            <input id="ds-business" maxlength="200" autocomplete="organization">
           </div>
           <div class="field">
             <label for="ds-contact">WhatsApp number</label>

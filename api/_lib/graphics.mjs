@@ -16,7 +16,7 @@ export const QUICK_SERVICES = [
   {
     key: "flyer", workdays: 2, extras: ["express", "animated"], interest: "Flyer design", page: "design", design: true, on: true, price: 5000, days: "1–2 working days",
     what: "2 flyer designs to choose from, for WhatsApp, Instagram or print",
-    ask: ["Words to put on it", "e.g. Business name, the offer or event, prices, date and venue, phone/WhatsApp, address, Instagram handle"],
+    ask: ["Words to put on it", "e.g. The offer or event, prices, date and venue, the list of things you sell (one per line)"],
     guide: [
       "Read the order on the request card: words, size, colours, deadline, and open the uploaded logo/photos. If they added a style sample (the ◦ links), match its mood, layout and colours, but with only their own words, logo and photos.",
       "Pick the size: square 1080×1080 for posts, 1080×1920 for status, A4/A5 at 300 dpi with 3 mm bleed for print.",
@@ -42,7 +42,7 @@ export const QUICK_SERVICES = [
   {
     key: "card", workdays: 2, extras: ["express"], interest: "Business card design", page: "design", design: true, on: true, price: 5000, days: "1–2 working days",
     what: "2 designs to choose from, front and back, print-ready",
-    ask: ["What goes on the card?", "e.g. Name, job title, business name, phone/WhatsApp, email, address, website, Instagram"],
+    ask: ["Anything else for the card? (optional)", "e.g. A short slogan for the back, a second phone number, or a design note"],
     guide: [
       "Size 3.5 × 2 inches (89 × 51 mm) + 3 mm bleed, 300 dpi, keep text 4 mm inside the edge.",
       "Front: logo and name. Back: contacts (add a WhatsApp QR code if they like).",
@@ -54,7 +54,7 @@ export const QUICK_SERVICES = [
   {
     key: "logo", workdays: 5, extras: [], interest: "Logo design", page: "design", design: true, on: true, price: 20000, days: "3–5 working days",
     what: "3 ideas, then your favourite refined",
-    ask: ["Tell us about the business", "e.g. Business name, what you sell, who your customers are, colours you like or hate, logos you like the style of"],
+    ask: ["Anything else about the business? (optional)", "e.g. Who your customers are, colours you hate, logos you like the style of"],
     guide: [
       "Ask 3 questions on WhatsApp if needed: who are the customers, which colours, any style they like.",
       "Make 3 different ideas (no copying any brand). Send them together as Option 1, 2, 3; they pick one.",
@@ -66,7 +66,7 @@ export const QUICK_SERVICES = [
   {
     key: "brand", workdays: 7, extras: [], interest: "Brand kit", page: "design", design: true, on: true, price: 45000, days: "5–7 working days",
     what: "Logo, business card, letterhead and 3 social templates",
-    ask: ["Tell us about the business", "e.g. Business name, what you sell, customers, colours you like, contacts for the card and letterhead"],
+    ask: ["Anything else about the business? (optional)", "e.g. Who your customers are, a slogan, logos you like the style of"],
     guide: [
       "Do the logo first: 3 ideas to choose from (see Logo design), then get the chosen one approved.",
       "Then the business card and letterhead (A4, Word/Google Docs so they can type in it, plus PDF).",
@@ -91,7 +91,7 @@ export const QUICK_SERVICES = [
   {
     key: "launch", workdays: 7, extras: [], interest: "Launch pack", page: "design", design: true, on: false, price: 30000, worth: 37000, days: "5–7 working days",
     what: "Logo + business card + flyer + Google Maps listing",
-    ask: ["Tell us about the business", "e.g. Business name, what you sell, customers, colours you like, address and opening hours, phone/WhatsApp, the first offer for your flyer"],
+    ask: ["The first offer for your flyer, and anything else", "e.g. Opening day 10% off everything. Opening hours 8am–8pm, Mon–Sat"],
     guide: [
       "Logo first: 3 ideas to choose from (see Logo design). Get the chosen one approved before anything else.",
       "Business card: 2 options in the new logo's colours (see Business card design).",
@@ -263,7 +263,7 @@ export const EXTRAS = {
 };
 export const EXTRA_GUIDES = {
   express: "Same-day: paid by 12 noon → send the options by 6 pm and the final the same evening. Paid later → by 12 noon the next working day. Start it before anything else.",
-  animated: "Animated status: in Canva use Animate (or Adobe Express), 1080×1920, 10–15 seconds, text appears in order, logo last. Export MP4 and send on WhatsApp. Check it plays on a phone.",
+  animated: "Animated status: open the order in the design studio (Instant draft), pick the option they chose, tap \"Make animated status video\" and keep the screen open for 12 seconds. Download the MP4, check it plays on your phone, then send it on WhatsApp.",
 };
 // Checked before ANY design is sent (shown under every design guide in admin).
 export const QUALITY_CHECKS = [
@@ -333,12 +333,24 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const naira = (n) => "₦" + Number(n).toLocaleString("en-NG");
 
 /** Checks an order from the form and writes it up as the request's details (what we need to do the job). */
+// Form boxes → order lines. The admin design studio reads these labels back.
+export const INFO_FIELDS = [
+  ["sell", "What they sell", 200], ["person", "Name on card", 60], ["title", "Job title", 60],
+  ["phone", "Phone on design", 60], ["bizmail", "Email on design", 100], ["web", "Website", 100],
+  ["address", "Address / area", 150], ["socials", "Social handles", 120],
+];
+const OPTIONAL_WORDS = new Set(["card", "logo", "brand"]);
 export function cleanOrder(body = {}, allowed = QUICK_KEYS) {
   const svc = quickByInterest(body.service);
   if (!svc) throw Object.assign(new Error("Please choose a service."), { status: 400 });
   if (!allowed.includes(svc.key)) throw Object.assign(new Error("That service isn't available right now. Please message us on WhatsApp."), { status: 400 });
   const words = str(body.words, 1500);
-  if (words.length < 5) throw Object.assign(new Error(`Please fill in "${svc.ask[0]}".`), { status: 400 });
+  // Separate boxes from the form (business name, what they sell, phone to show…), one labelled line each.
+  const raw = body.info && typeof body.info === "object" ? body.info : {};
+  const info = INFO_FIELDS.map(([k, label, max]) => [label, str(raw[k], max)]).filter(([, v]) => v);
+  const business = str(body.business, 200);
+  if (words.length < 5 && !(info.length || business)) throw Object.assign(new Error(`Please fill in "${svc.ask[0]}".`), { status: 400 });
+  if (words.length < 5 && !OPTIONAL_WORDS.has(svc.key) && !info.length) throw Object.assign(new Error(`Please fill in "${svc.ask[0]}".`), { status: 400 });
   const size = svc.design ? (DESIGN_SIZES.includes(body.size) ? body.size : "Not sure: please advise") : "";
   const colours = svc.design ? str(body.colours, 200) : "";
   const style = svc.design ? str(body.style, 300) : "";
@@ -358,7 +370,10 @@ export function cleanOrder(body = {}, allowed = QUICK_KEYS) {
     deadline && `Needed by: ${deadline}`,
     colours && `Colours: ${colours}`,
     style && `Style / ideas: ${style}`,
-    "", `${svc.ask[0]}:`, words,
+    info.length || business ? "" : null,
+    business && `Business name: ${business}`,
+    ...info.map(([label, v]) => `${label}: ${v}`),
+    ...(words ? ["", `${svc.ask[0]}:`, words] : []),
     files.length ? "" : null,
     files.length ? `Files (${files.length}):` : null,
     ...files.map((f) => `• ${f.name}: ${f.url}`),

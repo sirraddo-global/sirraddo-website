@@ -875,3 +875,10 @@ html.picker-lock, html.picker-lock body { overflow: hidden; }
 .picker__sheet { overflow: hidden; }
 .picker__list { min-height: 0; flex: 1 1 auto; }
 .picker--pop .picker__list { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); padding-bottom: 20px; }
+
+/* Design order form: separate boxes for the business details */
+.ds-info { display: grid; gap: 18px; }
+.ds-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ds-pair > div { display: grid; gap: 6px; min-width: 0; }
+@media (max-width: 560px) { .ds-pair { grid-template-columns: 1fr; } }
+.field[hidden] { display: none !important; }

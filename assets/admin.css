@@ -409,4 +409,10 @@ a.admin-btn--wa, a.admin-btn--wa:visited, a.admin-btn--wa:hover { color: #fff; t
 .st-group { display: grid; gap: 10px; }
 .st-group[hidden] { display: none; }
 .st-captions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.st-tiles { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 6px; -webkit-overflow-scrolling: touch; }
+.st-tile { flex: 0 0 auto; width: 74px; border: 2px solid var(--line, #C8D0DC); border-radius: 10px; padding: 3px; background: var(--surface, #fff); color: inherit; cursor: pointer; display: grid; gap: 3px; font: inherit; font-size: 11px; font-weight: 700; text-align: center; }
+.st-tile img, .st-tile-none { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 7px; display: grid; place-items: center; background: rgba(128,128,128,.15); }
+.st-tile.is-on { border-color: #D9A21B; box-shadow: 0 0 0 2px rgba(217,162,27,.35); }
+.st-cap { display: flex; gap: 6px; align-items: center; min-width: 0; }
+.st-cap img, .st-cap > span { width: 38px; height: 38px; flex: 0 0 38px; object-fit: cover; border-radius: 6px; }
 .st-captions input { font: inherit; padding: 8px 10px; border: 1px solid var(--line, #C8D0DC); border-radius: 8px; background: var(--surface, #fff); color: inherit; min-width: 0; }

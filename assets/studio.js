@@ -576,6 +576,21 @@
     var sizeSel = el('select', null, Object.keys(SIZES).map(function (k) { return el('option', { value: k, text: SIZES[k].label }); }));
     var themeRow = el('div', { class: 'st-themes' });
     var photoSel = el('select'), logoSel = el('select');
+    // Picture tiles instead of a plain list of file names, so you can see which photo you're choosing.
+    var photoTiles = el('div', { class: 'st-tiles' }), logoTiles = el('div', { class: 'st-tiles' });
+    function fillTiles(box, sel, withNone) {
+      box.innerHTML = '';
+      Array.prototype.forEach.call(sel.options, function (op) {
+        var i = Number(op.value), src = i >= 0 && srcs[i] ? srcs[i].url : '';
+        var kids = src && state.raw && state.raw[i] ? [el('img', { src: src, alt: '', loading: 'lazy' })] : [el('span', { class: 'st-tile-none', text: i < 0 ? 'None' : '?' })];
+        kids.push(el('small', { text: i < 0 ? 'No logo' : String(i + 1) }));
+        var b = el('button', { type: 'button', class: 'st-tile' + (sel.value === op.value ? ' is-on' : ''), title: op.textContent, onclick: function () {
+          sel.value = op.value; sel.dispatchEvent(new Event('change'));
+          Array.prototype.forEach.call(box.children, function (x) { x.classList.toggle('is-on', x === b); });
+        } }, kids);
+        box.appendChild(b);
+      });
+    }
     var enh = el('input', { type: 'checkbox' }); enh.checked = true;
     var addPhotos = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', multiple: '' });
     var c1 = el('input', { type: 'color', value: state.theme.bg, title: 'Main colour' }), c2 = el('input', { type: 'color', value: state.theme.accent, title: 'Accent colour' });
@@ -744,7 +759,7 @@
       promoBox, menuBox,
       lab('Badge (optional)', f.offer),
       el('div', { class: 'st-field' }, [el('span', { text: 'Colours' }), themeRow, el('div', { class: 'st-custom' }, [c1, c2, el('small', { text: 'or pick your own: main and accent' })])]),
-      lab('Main photo', photoSel), bgRow, lab('Logo', logoSel),
+      el('div', { class: 'st-field' }, [el('span', { text: 'Main photo (tap one)' }), photoTiles]), bgRow, el('div', { class: 'st-field' }, [el('span', { text: 'Logo (tap one)' }), logoTiles]),
       el('label', { class: 'st-check' }, [enh, ' Auto-enhance photos (brighter, richer colour, sharper)']),
       lab('Add more photos from this phone', addPhotos),
       el('p', { class: 'admin-hint', text: 'Tip: if a photo has a messy background, choose another photo or ask the customer for one taken against a plain wall in daylight.' }),
@@ -786,13 +801,16 @@
     function customTheme() { state.theme = { name: 'Custom', bg: c1.value, accent: c2.value, light: lum(c1.value) < 0.5 ? '#F7F5F0' : '#FFFFFF' }; draw(); }
     c1.addEventListener('input', customTheme); c2.addEventListener('input', customTheme);
 
+    // The business name sometimes sits in the customer's list ("KASSYtreats&more"); it's already the title, so leave it out.
+    function squash(x) { return String(x || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
+    function notBrand(item) { var b = squash(f.business.value), it = squash(item); return !(b.length >= 4 && it.length >= 4 && (it.indexOf(b) === 0 || b.indexOf(it) === 0)); }
     function data() {
       var photos = state.photos.filter(function (p, i) { return i !== state.logoIdx && p; });
       var main = state.photos[state.photoIdx] && state.photoIdx !== state.logoIdx ? state.photos[state.photoIdx] : photos[0] || null;
       return { business: f.business.value.trim(), headline: f.headline.value.trim(), details: f.details.value.trim(), offer: f.offer.value.trim().toUpperCase(), contact: f.contact.value.trim(),
         photo: main, photos: [main].concat(photos.filter(function (p) { return p !== main; })), logo: state.logoIdx >= 0 ? state.raw[state.logoIdx] : null,
         logoWide: state.logoIdx >= 0 && state.raw[state.logoIdx] ? state.raw[state.logoIdx].width / state.raw[state.logoIdx].height > 1.3 : false,
-        listTitle: mf.listTitle.value.trim(), items: mf.items.value.split('\n').map(function (x) { return x.replace(/^[\s•\-*◆♦]+/, '').trim(); }).filter(Boolean),
+        listTitle: mf.listTitle.value.trim(), items: mf.items.value.split('\n').map(function (x) { return x.replace(/^[\s•\-*◆♦]+/, '').trim(); }).filter(Boolean).filter(notBrand),
         note: mf.note.value.trim(), phones: mf.phones.value.split(/[,;\/]+/).map(function (x) { return x.trim(); }).filter(Boolean),
         socials: mf.socials.value.split(/[,;\s]+/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { return x.charAt(0) === '@' ? x : '@' + x; }),
         place: mf.place.value.trim(),
@@ -831,12 +849,13 @@
         logoSel.appendChild(el('option', { value: String(i), text: (i + 1) + '. ' + (p.name || 'photo') }));
       });
       photoSel.value = String(state.photoIdx); logoSel.value = String(state.logoIdx);
+      fillTiles(photoTiles, photoSel); fillTiles(logoTiles, logoSel);
       captionBox.innerHTML = '';
       srcs.forEach(function (p, i) {
         if (i === state.logoIdx) return;
         var inp = el('input', { value: state.captions[i] || '', maxlength: '24', placeholder: 'Label for photo ' + (i + 1) + ' (e.g. Cakes)' });
         inp.addEventListener('input', function () { state.captions[i] = inp.value.trim(); draw(); });
-        captionBox.appendChild(inp);
+        captionBox.appendChild(el('label', { class: 'st-cap' }, [state.raw && state.raw[i] ? el('img', { src: p.url, alt: '' }) : el('span'), inp]));
       });
     }
     function process() { state.photos = state.raw.map(function (img) { return img ? (state.enhance ? enhance(img) : img) : null; }); }
@@ -856,7 +875,7 @@
     Object.keys(mf).forEach(function (k) { mf[k].addEventListener('input', draw); });
     sizeSel.addEventListener('change', function () { state.size = sizeSel.value; draw(); });
     photoSel.addEventListener('change', function () { state.photoIdx = Number(photoSel.value); bgUndo.hidden = !(state.orig && state.orig[state.photoIdx]); bgMsg.textContent = ''; draw(); });
-    logoSel.addEventListener('change', function () { state.logoIdx = Number(logoSel.value); draw(); });
+    logoSel.addEventListener('change', function () { state.logoIdx = Number(logoSel.value); refreshSelects(); draw(); });
     enh.addEventListener('change', function () { state.enhance = enh.checked; process(); draw(); });
     addPhotos.addEventListener('change', function () {
       Array.prototype.forEach.call(addPhotos.files, function (file) { srcs.push({ url: URL.createObjectURL(file), name: file.name }); });

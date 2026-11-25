@@ -11,6 +11,7 @@ export const neonConfigured = () => Boolean(process.env.NEON_API_KEY);
 
 async function call(path) {
   const res = await fetch(API + path, { headers: { Authorization: `Bearer ${process.env.NEON_API_KEY}`, Accept: "application/json" } });
+  if (res.headers.get("cf-mitigated") === "challenge") throw new Error("Neon's firewall blocks usage checks from this server (not a key problem). See usage on the Neon dashboard instead; the database itself works.");
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(j.message || `Neon API ${res.status}`);
   return j;

@@ -53,7 +53,9 @@ await check("CLOUDFLARE_API_TOKEN", async (v) => {
 });
 await check("NEON_API_KEY", async (v) => {
   const id = E.NEON_PROJECT_ID;
-  const r = await get(`https://console.neon.tech/api/v2/projects${id ? "/" + id : "?limit=1"}`, { authorization: `Bearer ${v}`, accept: "application/json" });
+  const raw = await fetch(`https://console.neon.tech/api/v2/projects${id ? "/" + id : "?limit=1"}`, { headers: { authorization: `Bearer ${v}`, accept: "application/json" }, signal: AbortSignal.timeout(15000) });
+  if (raw.headers.get("cf-mitigated") === "challenge") return results.push(["--  ", "NEON_API_KEY", "can't test: Neon's firewall blocks this server (not the key). Only the usage meter is affected"]);
+  const r = { status: raw.status, j: await raw.json().catch(() => null) };
   if (r.status !== 200) throw new Error(`Neon refused it (${r.status}${r.status === 404 ? ": NEON_PROJECT_ID not found for this key" : ""})`);
   ok("NEON_API_KEY", id ? `works for project ${r.j?.project?.name || id}` : "works");
 });

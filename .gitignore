@@ -1,2 +1,6 @@
 public/
 node_modules/
+.env
+files/
+services/bg-remover/node_modules/
+services/bg-remover/models/

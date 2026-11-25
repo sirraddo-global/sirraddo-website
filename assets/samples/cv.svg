@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="600" height="750">
+  <rect width="600" height="750" fill="#E8ECF3"/>
+  <rect x="70" y="40" width="460" height="670" fill="#FFFFFF"/>
+  <rect x="70" y="40" width="460" height="8" fill="#13254F"/>
+  <text x="104" y="104" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="30" fill="#13254F">Chidinma Eze</text>
+  <text x="104" y="130" font-family="Arial, sans-serif" font-size="14" letter-spacing="2" fill="#8A6410">ACCOUNTANT · ACA</text>
+  <text x="104" y="154" font-family="Arial, sans-serif" font-size="12" fill="#4A5568">Ibadan · 0800 000 0000 · chidinma@example.com</text>
+  <g font-family="Arial, sans-serif">
+    <text x="104" y="200" font-weight="700" font-size="13" letter-spacing="2" fill="#13254F">PROFILE</text>
+    <rect x="104" y="208" width="392" height="1.5" fill="#D9A21B"/>
+    <rect x="104" y="222" width="380" height="7" rx="3" fill="#CBD3E0"/><rect x="104" y="236" width="350" height="7" rx="3" fill="#CBD3E0"/><rect x="104" y="250" width="300" height="7" rx="3" fill="#CBD3E0"/>
+    <text x="104" y="292" font-weight="700" font-size="13" letter-spacing="2" fill="#13254F">EXPERIENCE</text>
+    <rect x="104" y="300" width="392" height="1.5" fill="#D9A21B"/>
+    <text x="104" y="324" font-weight="700" font-size="14" fill="#1B2433">Senior Accountant</text><text x="496" y="324" text-anchor="end" font-size="12" fill="#4A5568">2022 – now</text>
+    <circle cx="110" cy="342" r="2.5" fill="#13254F"/><rect x="120" y="338" width="330" height="7" rx="3" fill="#CBD3E0"/>
+    <circle cx="110" cy="358" r="2.5" fill="#13254F"/><rect x="120" y="354" width="290" height="7" rx="3" fill="#CBD3E0"/>
+    <circle cx="110" cy="374" r="2.5" fill="#13254F"/><rect x="120" y="370" width="310" height="7" rx="3" fill="#CBD3E0"/>
+    <text x="104" y="408" font-weight="700" font-size="14" fill="#1B2433">Accounts Officer</text><text x="496" y="408" text-anchor="end" font-size="12" fill="#4A5568">2019 – 2022</text>
+    <circle cx="110" cy="426" r="2.5" fill="#13254F"/><rect x="120" y="422" width="320" height="7" rx="3" fill="#CBD3E0"/>
+    <circle cx="110" cy="442" r="2.5" fill="#13254F"/><rect x="120" y="438" width="270" height="7" rx="3" fill="#CBD3E0"/>
+    <text x="104" y="484" font-weight="700" font-size="13" letter-spacing="2" fill="#13254F">EDUCATION</text>
+    <rect x="104" y="492" width="392" height="1.5" fill="#D9A21B"/>
+    <text x="104" y="516" font-weight="700" font-size="14" fill="#1B2433">B.Sc. Accounting</text><text x="496" y="516" text-anchor="end" font-size="12" fill="#4A5568">2018</text>
+    <rect x="104" y="526" width="220" height="7" rx="3" fill="#CBD3E0"/>
+    <text x="104" y="570" font-weight="700" font-size="13" letter-spacing="2" fill="#13254F">SKILLS</text>
+    <rect x="104" y="578" width="392" height="1.5" fill="#D9A21B"/>
+    <g font-size="12" fill="#13254F">
+      <rect x="104" y="592" width="96" height="26" rx="13" fill="#EEF2F8"/><text x="152" y="609" text-anchor="middle">Excel</text>
+      <rect x="208" y="592" width="96" height="26" rx="13" fill="#EEF2F8"/><text x="256" y="609" text-anchor="middle">Sage</text>
+      <rect x="312" y="592" width="96" height="26" rx="13" fill="#EEF2F8"/><text x="360" y="609" text-anchor="middle">Payroll</text>
+      <rect x="104" y="626" width="96" height="26" rx="13" fill="#EEF2F8"/><text x="152" y="643" text-anchor="middle">Tax</text>
+      <rect x="208" y="626" width="96" height="26" rx="13" fill="#EEF2F8"/><text x="256" y="643" text-anchor="middle">Audit</text>
+    </g>
+  </g>
+</svg>

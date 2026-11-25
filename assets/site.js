@@ -69,4 +69,12 @@
       ]).then(function (j) { openWa(j && j.ref); });
     });
   }
+  // Links to /services show only when at least one quick service is switched on (Admin → Packages → Side services).
+  var svcLinks = document.querySelectorAll('[data-svc-page]');
+  if (svcLinks.length) {
+    fetch('/api/order').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || !j.pages) return;
+      Array.prototype.forEach.call(svcLinks, function (li) { li.hidden = !j.pages[li.getAttribute('data-svc-page')]; });
+    }).catch(function () {});
+  }
 })();

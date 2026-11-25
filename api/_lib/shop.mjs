@@ -1,3 +1,4 @@
+import { googleClientId } from "./googleid.mjs";
 // Online Store checkout for customer websites.
 // Every store site has a cart. Buyers can order on WhatsApp (always) or pay online with Paystack (once you add
 // the store owner's own Paystack secret key in admin → Go live). Money goes straight to the store owner's Paystack
@@ -8,6 +9,7 @@ import { kindFor } from "./brief-schema.mjs";
 import { priceAmount } from "./sitegen.mjs";
 import { SITE_URL } from "../../site.config.mjs";
 import { waitUntil } from "./platform.mjs";
+import { salePrice, parseOptions, parseVariantStock, variantKeys, variantLeft, deliveryFor, cleanZones, cleanCodes, activeCodes, applyCode, useCode, instalmentsOn, firstPayment, clearBuyerCart } from "./storeplus.mjs";
 import { q, ensureSchema, getRequest, updateRequestShop, sendCustomerEmail, customerEmailConfigured, sendEmail, emailConfigured, esc, reference } from "./store.mjs";
 
 const PS = "https://api.paystack.co";
@@ -18,8 +20,16 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // at 0 the product is sold out by itself.
 export const stockOf = (p) => (/^\d{1,6}$/.test(String(p?.stock ?? "").trim()) ? Number(p.stock) : null);
 export const isSoldOut = (p) => Boolean(p?.soldout) || stockOf(p) === 0;
-export function shopProducts(brief) {
-  return (brief?.products || []).map((p, i) => ({ ...p, i, amount: priceAmount(p.price), stockLeft: stockOf(p), soldout: isSoldOut(p) })).filter((p) => p.name);
+// Sale prices (old price crossed out, until the sale ends), sizes/colours and stock per choice are worked out here.
+export function shopProducts(brief, now = Date.now()) {
+  return (brief?.products || []).map((p, i) => {
+    const sale = salePrice(p, priceAmount, now);
+    const options = parseOptions(p.options);
+    const vstock = options.length ? parseVariantStock(p.vstock, options) : {};
+    const keys = variantKeys(options);
+    const allOut = keys.length > 0 && keys.every((k) => vstock[k] !== undefined) && keys.every((k) => Number(vstock[k]) === 0);
+    return { ...p, i, amount: sale.amount, wasAmount: sale.was, onSale: sale.onSale, saleEnds: sale.ends, off: sale.off || 0, options, vstock, stockLeft: stockOf(p), soldout: isSoldOut(p) || allOut };
+  }).filter((p) => p.name);
 }
 
 // ---------- The store owner's Paystack key, encrypted at rest ----------
@@ -34,7 +44,7 @@ export function sealKey(plain) {
   const data = Buffer.concat([c.update(plain, "utf8"), c.final()]);
   return [iv, c.getAuthTag(), data].map((b) => b.toString("base64url")).join(".");
 }
-function openKey(sealed) {
+export function openKey(sealed) {
   const [iv, tag, data] = String(sealed || "").split(".").map((s) => Buffer.from(s, "base64url"));
   const d = createDecipheriv("aes-256-gcm", cryptoKey(), iv);
   d.setAuthTag(tag);
@@ -103,7 +113,7 @@ export async function ensureStoreToken(id) {
   const row = await getRequest(id);
   if (row && kindFor(row.interest) === "store" && !row.shop?.token) await ensureShopToken(id);
 }
-export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove, paystackOn, flwKey, flwOn, flwRemove, transfer, delivery, accounts, accountsOn, google, googleOn, manageOn }) {
+export async function setShopPayments(id, { secretKey, deliveryFee, notify, remove, paystackOn, flwKey, flwOn, flwRemove, transfer, delivery, accounts, accountsOn, google, googleOn, manageOn, zones, freeOver, codes, instalments, hideStock }) {
   let row = await ensureShopToken(id);
   const patch = {};
   // Every way to pay is a switch the owner (in My store) or SIRRADDO (in admin) can turn on and off at any time.
@@ -132,6 +142,19 @@ export async function setShopPayments(id, { secretKey, deliveryFee, notify, remo
   if (googleOn !== undefined) patch.googleOff = !googleOn;   // the owner: Google sign-in on/off (phone number + password always stays)
   if (google !== undefined) patch.google = Boolean(google);
   if (manageOn !== undefined) patch.manageOff = !manageOn;
+  // Delivery fee by area, free delivery above an amount, discount codes and pay small-small (the owner, in My store).
+  if (zones !== undefined) patch.zones = cleanZones(zones);
+  // Stores that source items when customers order (or just don't want numbers shown): no "Only 2 left" / "5 in stock".
+  if (hideStock !== undefined) patch.hideStock = Boolean(hideStock);
+  if (freeOver !== undefined) { const n = Math.round(Number(String(freeOver ?? "").replace(/[^\d.]/g, "")) || 0); if (n < 0 || n > 1e8) throw new Error("Free delivery: write an amount in naira, or leave it empty"); patch.freeOver = n || null; }
+  if (codes !== undefined) patch.codes = cleanCodes(codes, row.shop?.codes);
+  if (instalments !== undefined) {
+    const t = instalments || {}, cur = row.shop?.instalments || {};
+    const next = { on: Boolean(t.on ?? cur.on), firstPct: Math.min(90, Math.max(10, Math.round(Number(t.firstPct ?? cur.firstPct) || 30))) };
+    const tr = transfer !== undefined ? patch.transfer : row.shop?.transfer;
+    if (next.on && !(tr?.bank && tr?.name && tr?.number)) throw new Error("Pay small-small uses your bank transfer details: fill in Bank transfer first");
+    patch.instalments = next;
+  }
   if (remove) { patch.key = null; patch.keyEnd = null; patch.keyMode = null; }
   else if (secretKey) {
     const k = String(secretKey).trim();
@@ -174,9 +197,10 @@ export function payMethods(shop = {}) {
     flutterwave: Boolean(shop.flwKey) && !shop.flwOff,
     transfer: Boolean(t.on && t.bank && t.name && t.number),
     delivery: Boolean(d.on),
+    instalment: instalmentsOn(shop),
   };
 }
-export const METHOD_LABEL = { paystack: "Paystack (card, transfer, USSD)", flutterwave: "Flutterwave (card, transfer, USSD)", transfer: "Bank transfer", delivery: "Pay on delivery" };
+export const METHOD_LABEL = { paystack: "Paystack (card, transfer, USSD)", flutterwave: "Flutterwave (card, transfer, USSD)", transfer: "Bank transfer", delivery: "Pay on delivery", instalment: "Pay small-small (bank transfer)" };
 
 // ---------- Orders ----------
 async function storeByToken(token) {
@@ -190,6 +214,12 @@ const ownerEmail = (r) => r.shop?.notify || (EMAIL.test(String(r.brief?.order_al
 
 // The web addresses a store's website runs on (its own domain, www., its address before the domain, and any saved URL).
 // The shared Google sign-in page only ever hands a sign-in back to one of these.
+// One product of a store (for "tell me when it's back").
+export async function storeProduct(token, i) {
+  const r = await storeByToken(token);
+  if (!r) return null;
+  return { id: r.id, product: shopProducts(r.brief).find((x) => x.i === Number(i)) || null };
+}
 export function storeOrigins(r) {
   const out = new Set();
   const add = (u) => { try { const x = new URL(/^https?:\/\//i.test(u) ? u : "https://" + u); if (x.protocol === "https:") out.add(x.origin); } catch { /* not an address */ } };
@@ -212,27 +242,58 @@ export async function shopConfig(token) {
   if (!r) return null;
   // Live stock counts, so the website is right even between republishes.
   const stock = {};
-  for (const p of shopProducts(r.brief)) if (p.stockLeft !== null || p.soldout) stock[p.i] = p.soldout ? 0 : p.stockLeft;
+  const vstock = {};
+  for (const p of shopProducts(r.brief)) {
+    if (p.stockLeft !== null || p.soldout) stock[p.i] = p.soldout ? 0 : p.stockLeft;
+    if (Object.keys(p.vstock).length) vstock[p.i] = Object.fromEntries(Object.entries(p.vstock).map(([k, v]) => [k, Number(v)]));
+  }
   const m = payMethods(r.shop || {});
-  const googleClient = r.shop?.accounts && !r.shop?.accountsOff && r.shop?.google && !r.shop?.googleOff && process.env.GOOGLE_SIGNIN_CLIENT_ID ? process.env.GOOGLE_SIGNIN_CLIENT_ID : null;
+  const googleClient = r.shop?.accounts && !r.shop?.accountsOff && r.shop?.google && !r.shop?.googleOff && googleClientId() ? googleClientId() : null;
   return { online: m.paystack || m.flutterwave, methods: m, mode: r.shop?.keyMode || null, deliveryFee: r.shop?.deliveryFee ?? null, name: storeName(r), stock,
-    deliveryNote: m.delivery ? r.shop.delivery.note || "" : "", accounts: Boolean(r.shop?.accounts && !r.shop?.accountsOff), google: googleClient, id: r.id };
+    deliveryNote: m.delivery ? r.shop.delivery.note || "" : "", accounts: Boolean(r.shop?.accounts && !r.shop?.accountsOff), google: googleClient, id: r.id,
+    vstock, hideStock: Boolean(r.shop?.hideStock), zones: cleanZones(r.shop?.zones), freeOver: Number(r.shop?.freeOver) || 0, codes: activeCodes(r.shop).length > 0, firstPct: m.instalment ? firstPayment(r.shop, 100).pct : 0 };
 }
 
 // Work out the order from the product list (never trust prices from the browser).
-function priceOrder(r, items) {
+// zone: the buyer's delivery area (undefined = an older store page that doesn't ask: the flat fee is used).
+// quote: just working out the total for the cart (a missing area is fine there).
+export function priceOrder(r, items, { zone, code, quote = false } = {}) {
   const products = shopProducts(r.brief);
   const lines = [];
+  const bad = (msg, status = 409) => Object.assign(new Error(msg), { status });
   for (const it of Array.isArray(items) ? items.slice(0, 50) : []) {
     const p = products.find((x) => x.i === Number(it?.i));
     const qty = Math.min(99, Math.max(1, Math.floor(Number(it?.q) || 0)));
-    if (!p || !p.amount || !qty || p.soldout) continue; // sold out (set by the owner in Manage my store, or stock at 0)
-    if (p.stockLeft !== null && qty > p.stockLeft) throw Object.assign(new Error(`Only ${p.stockLeft} ${p.name} left. Please change the quantity in your cart.`), { status: 409 });
-    lines.push({ i: p.i, name: p.name, price: p.amount, qty, total: p.amount * qty });
+    if (!p || !p.amount || !qty || p.soldout) continue; // sold out (set by the owner in My store, or stock at 0)
+    let v = "";
+    if (p.options.length) {
+      v = clean(it?.v, 70);
+      if (!variantKeys(p.options).includes(v)) throw bad(`Please choose the ${p.options.map((g) => g.name.toLowerCase()).join(" and ")} for ${p.name}.`, 400);
+      const vl = variantLeft(p, v);
+      if (vl !== null && qty > vl) throw bad(vl === 0 ? `${p.name} (${v}) is sold out. Please remove it from your cart.` : `Only ${vl} ${p.name} (${v}) left. Please change the quantity in your cart.`);
+    }
+    const same = lines.filter((l) => l.i === p.i).reduce((s, l) => s + l.qty, 0);
+    if (p.stockLeft !== null && qty + same > p.stockLeft) throw bad(`Only ${p.stockLeft} ${p.name} left. Please change the quantity in your cart.`);
+    lines.push({ i: p.i, ...(v ? { v } : {}), name: v ? `${p.name} (${v})` : p.name, price: p.amount, qty, total: p.amount * qty });
   }
   const subtotal = lines.reduce((s, l) => s + l.total, 0);
-  const delivery = r.shop?.deliveryFee || 0;
-  return { lines, subtotal, delivery, total: subtotal + delivery };
+  const c = applyCode(r.shop, code, subtotal);
+  if (c.error) throw bad(c.error, 400);
+  const goods = subtotal - (c.discount || 0);
+  let d;
+  if (zone === undefined && !quote) d = { fee: Number(r.shop?.deliveryFee) || 0, zone: "" };
+  else {
+    d = deliveryFor(r.shop, { goods, zone });
+    if (d.error) { if (!quote) throw bad(d.error, 400); d = { fee: null, zone: "", free: Number(r.shop?.freeOver) || 0 }; }
+  }
+  return { lines, subtotal, discount: c.discount || 0, code: c.code || "", codeLabel: c.label || "", delivery: d.fee, zone: d.zone, freeOver: Number(r.shop?.freeOver) || 0, total: goods + (d.fee || 0) };
+}
+// For the cart: the total with discount and delivery, before paying.
+export async function quoteOrder(token, items, { zone, code } = {}) {
+  const r = await storeByToken(token);
+  if (!r) throw Object.assign(new Error("Store not found"), { status: 404 });
+  const o = priceOrder(r, items, { zone, code, quote: true });
+  return { subtotal: o.subtotal, discount: o.discount, code: o.code, codeLabel: o.codeLabel, delivery: o.delivery, zone: o.zone, freeOver: o.freeOver, total: o.total };
 }
 
 export async function startCheckout(token, items, buyer, returnBase, opts = {}) {
@@ -243,7 +304,7 @@ export async function startCheckout(token, items, buyer, returnBase, opts = {}) 
   const method = opts.method || (on.paystack ? "paystack" : on.flutterwave ? "flutterwave" : "paystack");
   if (!METHOD_LABEL[method]) throw Object.assign(new Error("Unknown payment option"), { status: 400 });
   if (!on[method]) throw Object.assign(new Error(method === "paystack" || method === "flutterwave" ? "Online payment isn't switched on for this store. Please order on WhatsApp." : `${METHOD_LABEL[method]} isn't available for this store right now. Please choose another option or order on WhatsApp.`), { status: 409 });
-  const order = priceOrder(r, items);
+  const order = priceOrder(r, items, { zone: opts.zone, code: opts.code });
   if (!order.lines.length) throw Object.assign(new Error("Your cart is empty"), { status: 400 });
   const b = {
     name: String(buyer?.name || "").trim().slice(0, 120), phone: String(buyer?.phone || "").trim().slice(0, 40),
@@ -254,7 +315,7 @@ export async function startCheckout(token, items, buyer, returnBase, opts = {}) 
   const online = method === "paystack" || method === "flutterwave";
   if (online && !EMAIL.test(b.email)) throw Object.assign(new Error("Please enter your email for the payment receipt"), { status: 400 });
   if (b.email && !EMAIL.test(b.email)) b.email = "";
-  if (method === "delivery" && !b.address) throw Object.assign(new Error("Please enter your delivery address"), { status: 400 });
+  if ((method === "delivery" || order.zone) && !b.address) throw Object.assign(new Error("Please enter your delivery address"), { status: 400 });
   // A signed-in buyer (Standard Store): the order goes into their account.
   let buyerId = null;
   if (opts.buyerToken && r.shop?.accounts) {
@@ -263,31 +324,41 @@ export async function startCheckout(token, items, buyer, returnBase, opts = {}) 
     if (acct) buyerId = acct.id;
   }
   const ref = `SHOP${r.id}-${randomBytes(6).toString("hex")}`;
-  const status = method === "transfer" ? "awaiting" : method === "delivery" ? "cod" : "pending";
-  await q(`INSERT INTO store_orders (request_id, ref, items, subtotal, delivery, total, buyer, status, method, buyer_id) VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7::jsonb, $8, $9, $10)`,
-    [r.id, ref, JSON.stringify(order.lines), order.subtotal, order.delivery, order.total, JSON.stringify(b), status, method, buyerId]);
+  const status = method === "transfer" ? "awaiting" : method === "delivery" ? "cod" : method === "instalment" ? "part" : "pending";
+  await q(`INSERT INTO store_orders (request_id, ref, items, subtotal, delivery, total, buyer, status, method, buyer_id, discount, code, zone) VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7::jsonb, $8, $9, $10, $11, $12, $13)`,
+    [r.id, ref, JSON.stringify(order.lines), order.subtotal, order.delivery || 0, order.total, JSON.stringify(b), status, method, buyerId, order.discount, order.code || null, order.zone || null]);
+  await clearBuyerCart(r.id, buyerId);
   if (!online) {
     // Bank transfer / pay on delivery: the items are kept for this buyer now (stock goes down; cancelling puts it back).
     const [o] = await q(`SELECT * FROM store_orders WHERE ref = $1`, [ref]);
     await takeStock(r, o);
-    await notifyOwner(r, o, method === "transfer" ? "awaiting" : "cod");
-    return { url: orderLink({ ref }), ref, method };
+    await notifyOwner(r, o, method === "transfer" || method === "instalment" ? "awaiting" : "cod");
+    return { url: orderLink({ ref }, r), ref, method };
   }
   if (method === "flutterwave") {
     const data = await flw(openKey(r.shop.flwKey), "/payments", {
-      tx_ref: ref, amount: order.total, currency: "NGN", redirect_url: `${returnBase}/api/shop?paid=1&ref=${encodeURIComponent(ref)}`,
+      tx_ref: ref, amount: order.total, currency: "NGN", redirect_url: orderLink({ ref }, r) + "&paid=1",
       customer: { email: b.email, phonenumber: b.phone, name: b.name }, customizations: { title: storeName(r) }, meta: { order: ref },
     });
     return { url: data.link, ref, method };
   }
   const data = await ps(openKey(r.shop.key), "/transaction/initialize", {
     email: b.email, amount: order.total * 100, currency: "NGN", reference: ref,
-    callback_url: `${returnBase}/api/shop?paid=1&ref=${encodeURIComponent(ref)}`,
+    callback_url: orderLink({ ref }, r) + "&paid=1",
     metadata: { store: storeName(r), custom_fields: [{ display_name: "Order", variable_name: "order", value: ref }, { display_name: "Phone", variable_name: "phone", value: b.phone }] },
   });
   return { url: data.authorization_url, ref, method };
 }
-export function orderLink(o) { return `${SITE_URL}/api/shop?ref=${encodeURIComponent(o.ref)}`; }
+// The buyer's order / receipt page is on the store's OWN website (…/order?ref=…) once the site has been published
+// with that page; before that (or when the site is paused) it is our address, which always works too.
+export function storePageBase(r) {
+  const h = r?.hosting || {};
+  if (!h.orderPage || h.pausedAt) return null;
+  const u = r.website_url || h.pagesUrl || "";
+  try { return u ? new URL(/^https?:\/\//i.test(u) ? u : "https://" + u).origin : null; } catch { return null; }
+}
+export function orderLink(o, r) { const b = storePageBase(r); return b ? `${b}/order?ref=${encodeURIComponent(o.ref)}` : `${SITE_URL}/api/shop?ref=${encodeURIComponent(o.ref)}`; }
+export async function storeRow(id) { return storeById(id); }
 
 const naira = (n) => "₦" + Number(n || 0).toLocaleString("en-NG");
 // The buyer's receipt: the store's details, receipt number and date, who paid, each item, and how it was paid.
@@ -297,9 +368,10 @@ export function paidNote(o) {
   const m = o.method || "paystack";
   if (m === "transfer") return `Paid by bank transfer, confirmed by the store. Order reference: ${o.ref}.`;
   if (m === "delivery") return `Paid on delivery. Order reference: ${o.ref}.`;
+  if (m === "instalment") return `Paid small-small by bank transfer (${(o.payments || []).length || 1} payment${(o.payments || []).length === 1 ? "" : "s"}), confirmed by the store. Order reference: ${o.ref}.`;
   return `Paid online through ${m === "flutterwave" ? "Flutterwave" : "Paystack"} (card, bank transfer or USSD). Payment reference: ${o.ref}.`;
 }
-export function receiptLink(o) { return `${SITE_URL}/api/shop?ref=${encodeURIComponent(o.ref)}&receipt=1`; }
+export function receiptLink(o, r) { return orderLink(o, r) + "&receipt=1"; }
 // The same receipt as plain data, for drawing it as a picture / PDF on the buyer's phone.
 export function receiptData(r, o) {
   const b = o.buyer || {}, br = r.brief || {};
@@ -310,10 +382,11 @@ export function receiptData(r, o) {
     when: new Date(o.paid_at || o.created_at || Date.now()).toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Lagos" }),
     buyer: [b.name, b.phone, b.email, b.address].filter(Boolean).map(String),
     items: o.items.map((l) => ({ name: l.name, qty: l.qty, price: naira(l.price || Math.round(l.total / (l.qty || 1))), amount: naira(l.total) })),
-    delivery: o.delivery ? naira(o.delivery) : "",
+    delivery: o.delivery ? naira(o.delivery) + (o.zone ? ` (${o.zone})` : "") : "",
+    discount: o.discount ? `−${naira(o.discount)}${o.code ? ` (code ${o.code})` : ""}` : "",
     total: naira(o.total),
     note: paidNote(o),
-    link: receiptLink(o),
+    link: receiptLink(o, r),
   };
 }
 export function receiptHtml(r, o) {
@@ -329,7 +402,8 @@ export function receiptHtml(r, o) {
 <td style="vertical-align:top;padding:0"><div style="color:#4A5568;font-size:12px">BILLED TO</div>${esc(b.name || "")}${b.phone ? `<br>${esc(b.phone)}` : ""}${b.email ? `<br>${esc(b.email)}` : ""}${b.address ? `<br>${esc(b.address)}` : ""}</td></tr></table>
 <table style="width:100%;border-collapse:collapse;font-size:14px"><tr><th style="${th}">Item</th><th style="${th};text-align:center">Qty</th><th style="${th};text-align:right">Price</th><th style="${th};text-align:right">Amount</th></tr>
 ${o.items.map((l) => `<tr><td style="${td}">${esc(l.name)}</td><td style="${td};text-align:center">${l.qty}</td><td style="${td};text-align:right">${naira(l.price || Math.round(l.total / (l.qty || 1)))}</td><td style="${td};text-align:right">${naira(l.total)}</td></tr>`).join("")}
-${o.delivery ? `<tr><td style="${td}" colspan="3">Delivery</td><td style="${td};text-align:right">${naira(o.delivery)}</td></tr>` : ""}
+${o.discount ? `<tr><td style="${td}" colspan="3">Discount${o.code ? ` (code ${esc(o.code)})` : ""}</td><td style="${td};text-align:right">−${naira(o.discount)}</td></tr>` : ""}
+${o.delivery ? `<tr><td style="${td}" colspan="3">Delivery${o.zone ? ` (${esc(o.zone)})` : ""}</td><td style="${td};text-align:right">${naira(o.delivery)}</td></tr>` : ""}
 <tr><td style="padding:10px 8px;font-weight:800" colspan="3">Total paid</td><td style="padding:10px 8px;text-align:right;font-weight:800;font-size:17px">${naira(o.total)}</td></tr></table>
 <p style="font-size:13px;color:#4A5568;margin:10px 0 0">${esc(paidNote(o))}${o.delivery ? "" : " Delivery cost, if any, is confirmed by the store."}</p>
 <p style="font-size:13px;color:#4A5568;margin:6px 0 0">Thank you for shopping with ${esc(storeName(r))}.</p></div>`;
@@ -358,7 +432,7 @@ export async function confirmOrder(ref) {
   if (o.status === "paid") return { order: o, store: await storeById(o.request_id), already: true };
   const r = await storeById(o.request_id);
   // Bank transfer and pay-on-delivery orders are confirmed by the store owner, not here.
-  if (o.method === "transfer" || o.method === "delivery") return { order: o, store: r };
+  if (o.method === "transfer" || o.method === "delivery" || o.method === "instalment") return { order: o, store: r };
   if (o.method === "flutterwave") {
     if (!r?.shop?.flwKey) return { order: o, store: r };
     let tx;
@@ -402,6 +476,12 @@ export function storeReplyTo(r, prefer = ["orders", "sales", "receipts", "info"]
 async function changeStock(r, order, sign) {
   const low = [];
   for (const l of order.items || []) {
+    if (l.v) {
+      // Stock per size/colour, when the owner counts it.
+      const rows = await q(`UPDATE customer_requests SET brief = jsonb_set(brief, ARRAY['products', $2::text, 'vstock', $4::text], to_jsonb(GREATEST(0, (brief->'products'->($2::int)->'vstock'->>$4)::int + $3::int)::text))
+        WHERE id = $1 AND (brief->'products'->($2::int)->'vstock'->>$4) ~ '^[0-9]{1,6}$' RETURNING (brief->'products'->($2::int)->'vstock'->>$4)::int AS left`, [r.id, String(l.i), sign * (Number(l.qty) || 0), l.v]).catch((e) => { console.error("option stock update failed", e); return []; });
+      if (rows[0]) low.push({ name: l.name, left: rows[0].left });
+    }
     const rows = await q(`UPDATE customer_requests SET brief = jsonb_set(brief, ARRAY['products', $2::text, 'stock'], to_jsonb(GREATEST(0, (brief->'products'->($2::int)->>'stock')::int + $3::int)::text))
       WHERE id = $1 AND (brief->'products'->($2::int)->>'stock') ~ '^[0-9]{1,6}$' RETURNING (brief->'products'->($2::int)->>'stock')::int AS left`, [r.id, String(l.i), sign * (Number(l.qty) || 0)]).catch((e) => { console.error("stock update failed", e); return []; });
     if (rows[0]) low.push({ name: l.name, left: rows[0].left });
@@ -416,6 +496,7 @@ async function changeStock(r, order, sign) {
 async function takeStock(r, order) {
   const [claimed] = await q(`UPDATE store_orders SET stock_taken = true WHERE ref = $1 AND NOT stock_taken RETURNING ref`, [order.ref]);
   if (!claimed) return;
+  if (order.code) await useCode(r.id, order.code);
   const low = await changeStock(r, order, -1);
   if (low.length) order.stockNote = low;
 }
@@ -474,11 +555,23 @@ export async function ownerOrderAction(requestId, ref, action) {
     const [row] = await q(`UPDATE store_orders SET delivered_at = now() WHERE ref = $1 RETURNING *`, [o.ref]);
     return row;
   }
+  // Order tracking: the buyer's order page shows each step as the owner taps it.
+  if (action === "packed" || action === "shipped") {
+    if (o.status !== "paid" && o.status !== "cod") throw new Error(o.status === "part" ? "This order is being paid small-small: send it once it's fully paid." : "Confirm the payment first.");
+    const [row] = await q(action === "packed" ? `UPDATE store_orders SET packed_at = COALESCE(packed_at, now()) WHERE ref = $1 RETURNING *`
+      : `UPDATE store_orders SET packed_at = COALESCE(packed_at, now()), shipped_at = COALESCE(shipped_at, now()) WHERE ref = $1 RETURNING *`, [o.ref]);
+    return row;
+  }
+  if (action === "unpacked") {
+    const [row] = await q(`UPDATE store_orders SET packed_at = NULL, shipped_at = NULL WHERE ref = $1 AND delivered_at IS NULL RETURNING *`, [o.ref]);
+    return row || o;
+  }
   if (action === "undelivered") {
     const [row] = await q(`UPDATE store_orders SET delivered_at = NULL WHERE ref = $1 RETURNING *`, [o.ref]);
     return row;
   }
   if (action === "cancel") {
+    if (o.status === "part" && o.paid_amount > 0) throw new Error(`The customer has paid ${naira(o.paid_amount)} so far. Refund them first (from your bank app), then cancel.`);
     if (o.status === "paid") throw new Error("This order is paid. To cancel it, refund the customer first (online payments: from your Paystack or Flutterwave dashboard), then message them.");
     if (o.status === "cancelled") return o;
     const [row] = await q(`UPDATE store_orders SET status = 'cancelled', cancelled_at = now() WHERE ref = $1 RETURNING *`, [o.ref]);
@@ -487,11 +580,25 @@ export async function ownerOrderAction(requestId, ref, action) {
   }
   throw new Error("Unknown action");
 }
+// Pay small-small: the owner records each transfer they receive. When the full amount is in, the order is paid.
+export async function recordInstalment(requestId, ref, amount) {
+  const o = await orderByRef(ref);
+  if (!o || o.request_id !== Number(requestId)) throw new Error("Order not found");
+  if (o.status !== "part") throw new Error("Only pay small-small orders take part payments.");
+  const n = Math.round(Number(String(amount ?? "").replace(/[^\d.]/g, "")));
+  const left = o.total - (o.paid_amount || 0);
+  if (!n || n < 1) throw new Error("Write the amount you received");
+  if (n > left) throw new Error(`That's more than what's left to pay (${naira(left)}).`);
+  const done = n === left;
+  const [row] = await q(`UPDATE store_orders SET paid_amount = paid_amount + $2, payments = payments || jsonb_build_array(jsonb_build_object('amount', $2::int, 'at', now())),
+    status = CASE WHEN $3 THEN 'paid' ELSE status END, paid_at = CASE WHEN $3 THEN now() ELSE paid_at END WHERE ref = $1 AND status = 'part' RETURNING *`, [o.ref, n, done]);
+  return row;
+}
 export async function storeOrders(requestId, { status = "", search = "", limit = 100, buyerId = null } = {}) {
   await ensureSchema();
   const s = String(search || "").trim().toLowerCase();
-  return q(`SELECT ref, items, subtotal, delivery, total, buyer, status, method, buyer_id, claim, created_at, paid_at, delivered_at, cancelled_at FROM store_orders
-    WHERE request_id = $1 AND ($2 = '' OR status = $2 OR ($2 = 'todo' AND (status IN ('awaiting','cod') OR (status = 'paid' AND delivered_at IS NULL))))
+  return q(`SELECT ref, items, subtotal, delivery, total, buyer, status, method, buyer_id, claim, created_at, paid_at, delivered_at, cancelled_at, packed_at, shipped_at, discount, code, zone, paid_amount, payments FROM store_orders
+    WHERE request_id = $1 AND ($2 = '' OR status = $2 OR ($2 = 'todo' AND (status IN ('awaiting','cod','part') OR (status = 'paid' AND delivered_at IS NULL))))
       AND ($3 = '' OR lower(buyer->>'name') LIKE '%' || $3 || '%' OR buyer->>'phone' LIKE '%' || $3 || '%' OR lower(ref) LIKE '%' || $3 || '%')
       AND ($5::int IS NULL OR buyer_id = $5) AND ($2 <> '' OR status NOT IN ('pending', 'failed', 'abandoned', 'reversed'))
     ORDER BY created_at DESC LIMIT $4`, [Number(requestId), String(status || ""), s, Math.min(500, Number(limit) || 100), buyerId]);

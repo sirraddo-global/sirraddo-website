@@ -3,10 +3,17 @@
 // "website" is a hidden field real people leave empty; bots fill it in.
 // Returns: { ok: true, ref: "SGL-0012" } (ref is missing if the database is unavailable)
 import { saveRequest, emailRequest, reference } from "./_lib/store.mjs";
-import { acknowledgeLead } from "./_lib/automation.mjs";
+import { acknowledgeLead, applyRules } from "./_lib/automation.mjs";
+import { getRequest, updateRequest, ensureDocToken } from "./_lib/store.mjs";
+import { payLink } from "./_lib/paystack.mjs";
+import { currentOffer } from "./_lib/marketing.mjs";
+import { DESIGN_NAMES } from "./_lib/graphics.mjs";
 
-const SOURCES = ["form", "contact", "chat-form"];
-const PACKAGES = ["Starter website", "Business website", "Online Store", "Custom app", "Business software", "ZAPPI PAY", "Other"];
+// Fixed-price packages the price picker can start straight away (quote set, deposit paid online).
+export const FIXED_PRICES = { "Starter website": 50000, "Business website": 100000 };
+
+const SOURCES = ["form", "contact", "chat-form", "picker"];
+const PACKAGES = ["Starter website", "Business website", "Online Store", "Custom app", "Business software", "ZAPPI PAY", ...DESIGN_NAMES, "Other"];
 
 const hits = new Map();
 function rateLimited(ip) {
@@ -82,5 +89,23 @@ export default async function handler(req, res) {
   }
   if (!saved && !mailed) return res.status(503).json({ error: "Couldn't save right now. Please message us on WhatsApp." });
   if (saved?.inserted && r.email) await acknowledgeLead({ ...r, id: saved.id, auto_sent: {} }); // "we got your request" email
+  // "Start now" in the price picker: the package price becomes the quote, and they go straight to paying the deposit.
+  // Only for fixed prices, only with an email (Paystack needs it), never over a quote or payment we already have,
+  // and not while an offer runs (the offer price is set by us on the quote).
+  if (body.start === true && saved && FIXED_PRICES[interest] && email) {
+    try {
+      const offer = await currentOffer().catch(() => null);
+      let row = await getRequest(saved.id);
+      if (!offer && row && row.quote_amount == null && !(row.payments || []).length) {
+        row = await updateRequest(saved.id, { quote_amount: FIXED_PRICES[interest] });
+        row = (await applyRules(row, { quote_amount: FIXED_PRICES[interest] })) || row;
+      }
+      if (row?.quote_amount && !(row.payments || []).length) {
+        row = (await ensureDocToken(saved.id)) || row;
+        const pay = payLink(row, "deposit");
+        if (pay) return res.status(200).json({ ok: true, ref: r.ref, pay: pay.replace(/^https?:\/\/[^/]+/, "") });
+      }
+    } catch (e) { console.error("picker start failed", e); }
+  }
   return res.status(200).json({ ok: true, ref: r.ref });
 }

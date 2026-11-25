@@ -40,6 +40,9 @@ const SCHEMA = [
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS deposit_pct INTEGER`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS next_payment INTEGER`,
   `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS ref_used INTEGER NOT NULL DEFAULT 0`,
+  // Quick services: where the job is (designing, options, changes, done) and the promised delivery date.
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS job_stage TEXT`,
+  `ALTER TABLE customer_requests ADD COLUMN IF NOT EXISTS deliver_by DATE`,
   `CREATE UNIQUE INDEX IF NOT EXISTS customer_requests_ref_code ON customer_requests (ref_code)`,
   `CREATE TABLE IF NOT EXISTS staff (id SERIAL PRIMARY KEY, name TEXT NOT NULL, username TEXT UNIQUE, phone TEXT, pass_hash TEXT NOT NULL, must_change BOOLEAN NOT NULL DEFAULT true, temp_expires TIMESTAMPTZ, perms JSONB NOT NULL DEFAULT '[]'::jsonb, active BOOLEAN NOT NULL DEFAULT true, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ, password_changed_at TIMESTAMPTZ)`,
   `ALTER TABLE staff ADD COLUMN IF NOT EXISTS username TEXT UNIQUE`,
@@ -191,6 +194,28 @@ const SCHEMA = [
      who TEXT NOT NULL DEFAULT '',
      created_at TIMESTAMPTZ NOT NULL DEFAULT now())`,
   `CREATE INDEX IF NOT EXISTS site_reviews_req ON site_reviews (request_id, status)`,
+  // Store extras (api/_lib/storeplus.mjs): discount codes, delivery areas, tracking, pay small-small, product reviews,
+  // "tell me when it's back" lists and signed-in buyers' unfinished carts.
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS discount INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS code TEXT`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS zone TEXT`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS packed_at TIMESTAMPTZ`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS shipped_at TIMESTAMPTZ`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS paid_amount INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE store_orders ADD COLUMN IF NOT EXISTS payments JSONB NOT NULL DEFAULT '[]'::jsonb`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS product_i INTEGER`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS product TEXT`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS buyer_id INTEGER`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT false`,
+  // Testimonials from our own clients (request_id 0): which client, their business and an optional photo.
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS client_id INTEGER`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS business TEXT`,
+  `ALTER TABLE site_reviews ADD COLUMN IF NOT EXISTS photo TEXT`,
+  `CREATE TABLE IF NOT EXISTS stock_alerts (id SERIAL PRIMARY KEY, request_id INTEGER NOT NULL, product_i INTEGER NOT NULL, product TEXT NOT NULL DEFAULT '', variant TEXT NOT NULL DEFAULT '',
+     name TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), done_at TIMESTAMPTZ)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS stock_alerts_one ON stock_alerts (request_id, product_i, variant, phone) WHERE done_at IS NULL`,
+  `CREATE TABLE IF NOT EXISTS buyer_carts (request_id INTEGER NOT NULL, buyer_id INTEGER NOT NULL, items JSONB NOT NULL DEFAULT '[]'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), nudged_at TIMESTAMPTZ,
+     PRIMARY KEY (request_id, buyer_id))`,
 ];
 let schemaReady = null;
 export async function ensureSchema() {
@@ -210,7 +235,7 @@ export async function ensureSchema() {
 export const STATUSES = ["new", "contacted", "quoted", "won", "lost"];
 export const STAGES = ["content", "building", "review", "live"];
 
-const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, ref_code, ref_used, services, wants, name, contact, business, interest, details, page,
+const REQUEST_COLUMNS = `id, created_at, updated_at, source, came_from, ref_code, ref_used, services, wants, job_stage, deliver_by::text AS deliver_by, name, contact, business, interest, details, page,
   transcript, status, notes, follow_up_on::text AS follow_up_on, quote_amount, deposit_pct, next_payment, payments, project_stage,
   live_on::text AS live_on, renewal_amount, renewal_due::text AS renewal_due,
   brief_token, brief_saved_at, brief_submitted_at, email, doc_token,
@@ -246,7 +271,12 @@ export async function saveRequest(r) {
       JSON.stringify(r.transcript || []), r.email || null, JSON.stringify(r.ideas || {}), cleanFrom(r.cameFrom),
       ["customer_accounts", "custom_system"].includes(r.wants) ? r.wants : detectWants(r.details, r.ideas?.goals, r.ideas?.pages, r.ideas?.products_services)]
   );
+  // A business an agent registered as their prospect (within 90 days) stays theirs when it contacts us directly.
+  if (rows[0]?.inserted && !/^(agent|referral):/.test(cleanFrom(r.cameFrom) || "")) await claimForAgent(rows[0].id, r.contact);
   return rows[0] ? { id: rows[0].id, inserted: rows[0].inserted === true } : null;
+}
+async function claimForAgent(id, contact) {
+  try { await (await import("./agents.mjs")).claimProspect(id, contact); } catch (e) { console.error("agent prospect check failed", e.message); }
 }
 
 // What a lead asked for beyond our packages (so admin → Packages shows demand): buyer logins / saved addresses
@@ -272,6 +302,11 @@ export async function createRequest(f) {
      VALUES ($1, 'manual', $2, $3, $4, $5, $6, $7, $8, (now() AT TIME ZONE 'Africa/Lagos')::date + 1) RETURNING ${REQUEST_COLUMNS}`,
     [sessionId, f.name, f.contact, f.business || null, f.interest, f.details || "", f.email || null, cleanFrom(f.came_from)]
   );
+  if (rows[0] && !/^(agent|referral):/.test(rows[0].came_from || "")) {
+    await claimForAgent(rows[0].id, f.contact);
+    const [again] = await q(`SELECT ${REQUEST_COLUMNS} FROM customer_requests WHERE id = $1`, [rows[0].id]);
+    return again || rows[0];
+  }
   return rows[0];
 }
 
@@ -285,7 +320,7 @@ const EDITABLE = {
   name: "text", contact: "text", email: "text", business: "text", interest: "text", details: "text", notes: "text",
   status: "text", follow_up_on: "date", quote_amount: "int", payments: "jsonb", project_stage: "text",
   live_on: "date", renewal_amount: "int", renewal_due: "date", website_url: "text",
-  handover: "jsonb", draft_md: "text", came_from: "text", services: "jsonb", wants: "text", deposit_pct: "int", next_payment: "int",
+  handover: "jsonb", draft_md: "text", came_from: "text", services: "jsonb", wants: "text", deposit_pct: "int", next_payment: "int", job_stage: "text", deliver_by: "date",
 };
 export async function updateRequest(id, fields) {
   await ensureSchema();
@@ -313,7 +348,7 @@ export async function updateRequest(id, fields) {
 // store login and their buyers' accounts (e.g. for a data-deletion request). Their files are removed by the caller.
 export async function deleteRequest(id) {
   await ensureSchema();
-  for (const t of ["change_requests", "site_stats", "site_visitors", "greeting_sends", "site_reviews", "store_orders", "store_users", "store_buyers"])
+  for (const t of ["change_requests", "site_stats", "site_visitors", "greeting_sends", "site_reviews", "store_orders", "store_users", "store_buyers", "stock_alerts", "buyer_carts"])
     await q(`DELETE FROM ${t} WHERE request_id = $1`, [id]).catch((e) => console.error("delete from", t, e.message));
   const rows = await q(`DELETE FROM customer_requests WHERE id = $1 RETURNING id`, [id]);
   return rows.length > 0;
@@ -361,7 +396,7 @@ export async function getBrief(token) {
   if (!token || token.length < 20) return null;
   await ensureSchema();
   const rows = await q(
-    `SELECT id, name, business, contact, interest, status, project_stage, brief, brief_files, brief_saved_at, brief_submitted_at, chat_ideas,
+    `SELECT id, name, business, contact, email, interest, status, project_stage, brief, brief_files, brief_saved_at, brief_submitted_at, chat_ideas,
        (draft_md IS NOT NULL AND draft_md <> '') AS has_draft
      FROM customer_requests WHERE brief_token = $1`,
     [token]
@@ -614,7 +649,7 @@ export async function deleteUnanswered(id) {
 export const SETTING_KEYS = [
   "bank_name", "account_name", "account_number", "invoice_note",
   "tpl_new", "tpl_quoted", "tpl_won", "tpl_payment", "tpl_renewal", "tpl_brief", "tpl_receipt", "tpl_invoice",
-  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward", "pkg_build", "pkg_addon", "pkg_renewal_addon", "pkg_rate", "custom_build_from", "custom_monthly", "neon_plan", "owner_whatsapp", "away_until", "away_web",
+  "tpl_preview", "tpl_handover", "handover_terms", "default_registrar", "vercel_pro_at", "referral_reward", "pkg_build", "pkg_addon", "pkg_renewal_addon", "pkg_rate", "custom_build_from", "custom_monthly", "neon_plan", "owner_whatsapp", "away_until", "away_web", "agent_rate", "agent_min", "agent_tiers", "agent_invite_bonus", "svc_visible",
 ];
 export async function getSettings() {
   await ensureSchema();

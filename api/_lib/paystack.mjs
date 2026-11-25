@@ -1,6 +1,7 @@
 // Paystack: online payment of deposits, balances and renewals.
 // Needs PAYSTACK_SECRET_KEY in Netlify. Paystack's webhook (/api/paystack-webhook) and the return page (/pay)
 // both record the payment; recordPayment() makes sure it is only counted once.
+import { isQuick } from "./graphics.mjs";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   getRequest, addPaymentOnce, ensureBriefToken, ensureDocToken, updateRequest, getSettings, customerEmail,
@@ -37,7 +38,7 @@ export function amountDue(r, want = "") {
   // Renewals can be paid from 60 days before the due date (or any time after it).
   const renewalOpen = r.renewal_amount && r.renewal_due && (r.project_stage === "live" || r.live_on) && daysBetween(todayLagos(), r.renewal_due) <= 60;
   const options = {
-    deposit: deposit ? { kind: "project", amount: deposit, label: `${depositPct(r)}% deposit for your ${r.interest}` } : null,
+    deposit: deposit ? { kind: "project", amount: deposit, label: depositPct(r) >= 100 ? `Payment for your ${r.interest}` : `${depositPct(r)}% deposit for your ${r.interest}` } : null,
     balance: bal > 0 ? { kind: "project", amount: bal, label: bal < fullBal ? `Next instalment for your ${r.interest}` : `Balance for your ${r.interest}` } : null,
     renewal: renewalOpen ? { kind: "renewal", amount: r.renewal_amount, label: `Yearly website renewal (due ${r.renewal_due})`, renewal_due: r.renewal_due } : null,
   };
@@ -117,7 +118,8 @@ export async function recordPayment(tx) {
     row = (await afterProjectPayment(id).catch((e) => { console.error("after payment hosting failed", e); return null; })) || row;
   }
   const paidProject = projectPaid(row);
-  if (!row.brief_token && paidProject > 0 && (!row.quote_amount || paidProject >= depositOf(row))) {
+  // Quick services (flyers, CVs, Maps listing…) sent their details with the order: no website project form.
+  if (!isQuick(row.interest) && !row.brief_token && paidProject > 0 && (!row.quote_amount || paidProject >= depositOf(row))) {
     row = (await ensureBriefToken(id)) || row;
     await emailBriefLink(row);
   }
@@ -132,7 +134,7 @@ async function notifyPayment(row, amount, kind, forWhat, ref) {
       `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.5"><p><b>${esc(row.name)}</b> paid <b>${naira(amount)}</b> on Paystack for their ${what} (${esc(row.interest)}, ${reference(row.id)}).</p>
       <p>Paystack reference: ${esc(ref)}. It is recorded in admin and their receipt was emailed${customerEmail(row) ? "" : " (no email on file, so send it on WhatsApp)"}.</p>
       ${row.quote_amount != null ? `<p>Project balance now: ${naira(balance(row))}.</p>` : ""}
-      ${what === "balance" && balance(row) === 0 ? "<p><b>Fully paid.</b> Put the site live, mark it Live and send the handover pack.</p>" : ""}
+      ${isQuick(row.interest) ? "<p><b>Quick service paid.</b> The order details, their files and the step-by-step guide are on the request in admin. Start it and keep them posted on WhatsApp.</p>" : what === "balance" && balance(row) === 0 ? "<p><b>Fully paid.</b> Put the site live, mark it Live and send the handover pack.</p>" : ""}
       <p><a href="${SITE}/admin">Open admin</a></p></div>`);
   }
   const to = customerEmail(row);

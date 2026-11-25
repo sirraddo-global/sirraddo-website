@@ -11,6 +11,7 @@
 //   POST   { action: "send_preview", id }  email the preview link to the customer
 //   GET    ?view=export&id=123  the website as a .zip (pages + images) to upload to any host
 import { timingSafeEqual, createHash, createHmac } from "node:crypto";
+import { clientReviewUrl } from "./_lib/reviews.mjs";
 import { setMeta, getMeta, q, cleanFrom,
   dbConfigured, listRequests, createRequest, updateRequest, deleteRequest, listChats, listUnanswered,
   setUnansweredResolved, deleteUnanswered, getSettings, saveSettings, ensureBriefToken, STATUSES, STAGES,
@@ -36,8 +37,11 @@ import { PERMS, permFor, fieldPerms, can, staffFromCredential, staffSessionToken
 import { paystackConfigured, payButton, depositOf } from "./_lib/paystack.mjs";
 import { setupStatus } from "./_lib/setup.mjs";
 import { assistantSystem } from "./_lib/assistant.mjs";
-import { pickProvider, friendlyAiError } from "./_lib/providers.mjs";
+import { pickProvider, friendlyAiError, ensureAiBackup } from "./_lib/providers.mjs";
 import { generateDesign, changeDesignOptions } from "./_lib/design.mjs";
+import { logoIdeas } from "./_lib/logos.mjs";
+import { QUICK_SERVICES, EXTRAS, EXTRA_GUIDES, QUALITY_CHECKS } from "./_lib/graphics.mjs";
+import { JOB_STAGES, STAGE_KEYS } from "./_lib/track.mjs";
 import { addDomain, checkHosting, publish, pause, restore, setupEmail, afterProjectPayment, GoLiveError, restorePrevious } from "./_lib/golive.mjs";
 import { cloudflareConfigured } from "./_lib/cloudflare.mjs";
 import { todayLagos } from "./_lib/automation.mjs";
@@ -116,6 +120,11 @@ function cleanFields(body) {
   }
   if ((has("name") && !out.name) || (has("contact") && !out.contact)) throw new Bad("Name and contact can't be empty");
   if (has("came_from")) out.came_from = cleanFrom(body.came_from);
+  if (has("job_stage")) {
+    if (body.job_stage !== null && !STAGE_KEYS.includes(body.job_stage)) throw new Bad("Unknown job stage");
+    out.job_stage = body.job_stage;
+  }
+  if (has("deliver_by")) out.deliver_by = date(body.deliver_by);
   if (has("services")) { try { out.services = cleanServices(body.services); } catch (e) { throw new Bad(e.message); } }
   if (has("deposit_pct")) {
     const v = body.deposit_pct === "" || body.deposit_pct == null ? null : Number(body.deposit_pct);
@@ -275,15 +284,16 @@ export default async function handler(req, res) {
       }
       const [requests, unanswered, settings, setup, totals] = await Promise.all([listRequests(), listUnanswered(), getSettings(), setupStatus(), dashboardTotals().catch(() => null)]);
       for (const r of requests) r.handover_check = handoverChecklist(r, settings);
+      for (const r of requests) if (r.status === "won") r.review_link = await clientReviewUrl(r.id);
       const email_usage = await emailUsage(14).catch(() => null);
       const meOut = { role: me.role, name: me.name, username: me.username, perms: me.perms };
       if (me.role === "staff") {
         // Staff see customers and jobs, not the money totals, setup details or email usage unless they have Money.
         return res.status(200).json({ me: meOut, requests: can(me, "money") ? requests : requests.map((r) => ({ ...r, payments: [], quote_amount: null, renewal_amount: null, services: [] })),
-          unanswered, settings: Object.fromEntries(Object.entries(settings).filter(([k]) => !/^(pkg_|custom_|neon_plan|vercel_pro_at)/.test(k) && (can(me, "money") || !/^(bank_name|account_name|account_number)$/.test(k)))), setup: [], totals: can(me, "money") ? totals : null, email_usage: null, statuses: STATUSES, stages: STAGES,
+          quick: QUICK_SERVICES, quick_extras: EXTRAS, extra_guides: EXTRA_GUIDES, quality_checks: QUALITY_CHECKS, job_stages: JOB_STAGES, unanswered, settings: Object.fromEntries(Object.entries(settings).filter(([k]) => !/^(pkg_|custom_|neon_plan|vercel_pro_at)/.test(k) && (can(me, "money") || !/^(bank_name|account_name|account_number)$/.test(k)))), setup: [], totals: can(me, "money") ? totals : null, email_usage: null, statuses: STATUSES, stages: STAGES,
           can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
       }
-      return res.status(200).json({ me: meOut, requests, unanswered, settings, setup, totals, email_usage, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
+      return res.status(200).json({ me: meOut, requests, quick: QUICK_SERVICES, quick_extras: EXTRAS, extra_guides: EXTRA_GUIDES, quality_checks: QUALITY_CHECKS, job_stages: JOB_STAGES, unanswered, settings, setup, totals, email_usage, statuses: STATUSES, stages: STAGES, can_email_customers: customerEmailConfigured(), can_pay_online: paystackConfigured(), can_host: cloudflareConfigured() });
     }
 
     if (req.method === "PATCH") {
@@ -378,6 +388,24 @@ export default async function handler(req, res) {
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(await getRequest(id));
       }
+      // Remove a photo's background (Design studio). Runs on the VPS's own background remover (BG_KEY, port 4105).
+      if (body.action === "remove_bg") {
+        const m = String(body.image || "").match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+        if (!m) throw new Bad("Send a JPG, PNG or WebP photo");
+        const bytes = Buffer.from(m[2], "base64");
+        if (bytes.length > 10 * 1024 * 1024) throw new Bad("That photo is too big (max 10 MB)");
+        if (!process.env.BG_KEY) throw new Bad("The background remover isn't set up yet (it runs on the VPS: bash vps-app.sh bgremover).");
+        const r = await fetch(`http://127.0.0.1:${process.env.BG_PORT || 4105}/remove`, { method: "POST", headers: { "x-bg-key": process.env.BG_KEY, "content-type": "application/octet-stream" }, body: bytes, signal: AbortSignal.timeout(50000) })
+          .catch(() => { throw new Bad("The background remover isn't answering. On the VPS: pm2 restart bg-remover"); });
+        if (!r.ok) throw new Bad(r.status === 401 ? "Background remover key doesn't match (BG_KEY)." : "Couldn't remove the background from that photo.");
+        return res.status(200).json({ image: "data:image/png;base64," + Buffer.from(await r.arrayBuffer()).toString("base64") });
+      }
+      // Logo ideas for the Design studio: 3 original SVG logos from a short brief (nothing is saved).
+      if (body.action === "logo_ideas") {
+        const result = await logoIdeas(body.brief || {}, FUNCTION_BUDGET_MS() - 2000);
+        if (!result.ok) throw new Bad(result.error);
+        return res.status(200).json(result);
+      }
       if (body.action === "design") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");
@@ -443,6 +471,7 @@ export default async function handler(req, res) {
         }
         while (msgs.length && msgs[0].role !== "user") msgs.shift();
         if (!msgs.length || msgs[msgs.length - 1].role !== "user") throw new Bad("Ask a question");
+        await ensureAiBackup();
         const provider = pickProvider();
         if (!provider) throw new Bad("No AI key is set in Netlify (GEMINI_API_KEY or ANTHROPIC_API_KEY)");
         const id = Number.isInteger(Number(body.id)) && Number(body.id) > 0 ? Number(body.id) : null;
@@ -697,6 +726,66 @@ export default async function handler(req, res) {
           You can also <a href="${link}">view, print or save it as a PDF</a>.</p>${body.type === "invoice" ? payButton(row) : body.type === "renewal" ? payButton(row, "renewal") : ""}${doc.html}`);
         if (body.type === "handover") await markSent(id, "handover");
         return res.status(200).json({ ok: true, to, row: body.type === "handover" ? await getRequest(id) : undefined });
+      }
+      // Admin → Marketing → Agents: applications, commission, payouts (list for marketing staff; the rest owner only).
+      if (/^agents?_/.test(String(body.action || ""))) {
+        const ag = await import("./_lib/agents.mjs");
+        if (body.action !== "agents_list" && !can(me, "owner")) return res.status(403).json({ error: NOT_ALLOWED });
+        try {
+          if (body.action === "agent_update") await ag.adminUpdate(body.id, body);
+          if (body.action === "agent_payout") await ag.adminPayout(body.id, body);
+          if (body.action === "agent_reset") return res.status(200).json(await ag.adminResetPassword(body.id));
+          if (body.action === "agent_bonus") await ag.adminBonus(body.id, body);
+          if (body.action === "agent_news") { const r2 = await ag.adminNews(body); const out2 = await ag.adminList(); return res.status(200).json({ ...out2, emailed: r2.emailed }); }
+          if (body.action === "agent_news_delete") await ag.adminNewsDelete(body.id);
+          if (body.action === "agents_settings") {
+            const rate = Number(body.rate), min = Number(body.min);
+            if (!(rate > 0 && rate <= 50)) throw new Bad("Commission must be between 1 and 50%.");
+            if (!(min >= 1000)) throw new Bad("The smallest payout must be at least ₦1,000.");
+            const set = { agent_rate: String(rate), agent_min: String(Math.round(min)) };
+            if ("tiers" in body) {
+              const t = String(body.tiers || "").trim();
+              if (t && !/^off$/i.test(t) && !ag.parseTiers(t).length) throw new Bad('Write levels like "5:12, 15:15" (from the 5th paying client 12%…), or "off".');
+              set.agent_tiers = /^off$/i.test(t) ? "off" : ag.parseTiers(t).map((x) => `${x.clients}:${x.rate}`).join(",");
+            }
+            if ("invite_bonus" in body) {
+              const ib = Math.round(Number(body.invite_bonus));
+              if (!(ib >= 0 && ib <= 100000)) throw new Bad("The invite bonus must be between ₦0 and ₦100,000.");
+              set.agent_invite_bonus = String(ib);
+            }
+            await saveSettings(set);
+          }
+          const out = await ag.adminList();
+          return res.status(200).json(can(me, "money") ? out : { ...out, agents: out.agents.map((a) => ({ ...a, bank: null, payouts: [], leads: a.leads.map((l) => ({ ...l, paid: null })) })) });
+        } catch (e) { if (e instanceof ag.AgentError) throw new Bad(e.message); throw e; }
+      }
+      // Settings → AI backup (owner only): the key is stored encrypted and never sent back.
+      if (String(body.action || "").startsWith("ai_backup")) {
+        if (!can(me, "owner")) return res.status(403).json({ error: NOT_ALLOWED });
+        const ab = await import("./_lib/aibackup.mjs");
+        try {
+          if (body.action === "ai_backup_save") return res.status(200).json(await ab.saveAiBackup(body));
+          if (body.action === "ai_backup_test") {
+            const { ensureAiBackup, chatProviders } = await import("./_lib/providers.mjs");
+            const cfg = await ensureAiBackup(true);
+            if (!cfg) throw new Bad("Save a key and switch the backup on first.");
+            const p = chatProviders().find((x) => x.name === "backup");
+            const t0 = Date.now();
+            try {
+              const out = await p.call(p.start([{ role: "user", content: "Reply with exactly: OK, backup ready." }]), "You are a test. Reply briefly.", [], 20000, { maxTokens: 30, where: "test" });
+              return res.status(200).json({ ok: true, ms: Date.now() - t0, reply: String(out.text || "").slice(0, 120), status: await ab.aiBackupStatus() });
+            } catch (e) {
+              const m = String(e.code || "") + " " + e.message;
+              const why = /_401|_403|invalid.*key|unauthor/i.test(m) ? "The key was refused. Copy it again from the service and save."
+                : /_402|credit|balance|insufficient/i.test(m) ? "The service says there's no credit on the account. Add a little credit, then test again."
+                : /_404|model/i.test(m) ? "The service doesn't know that model name. Check the model on its website."
+                : /_429/.test(m) ? "Too many requests right now (or the free limit is used up). Try again later."
+                : /timeout/i.test(m) ? "The service took too long. Try again." : "It didn't answer: " + e.message.slice(0, 160);
+              return res.status(200).json({ ok: false, error: why, status: await ab.aiBackupStatus() });
+            }
+          }
+          return res.status(200).json(await ab.aiBackupStatus());
+        } catch (e) { if (e.status === 400) throw new Bad(e.message); throw e; }
       }
       if (body.action === "settings") {
         return res.status(200).json({ settings: await saveSettings(body.settings || {}) });

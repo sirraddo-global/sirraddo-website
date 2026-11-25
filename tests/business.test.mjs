@@ -139,6 +139,47 @@ test("go-live: publish to Cloudflare; domain only attached once the balance is p
   assert.equal(r.website_url, "https://adasalon.com.ng");
 });
 
+test("big store: photos upload over several publishes; pending ones show from our server, never broken", async () => {
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  const files = [], products = [];
+  for (let i = 0; i < 40; i++) {
+    const { url } = await globalThis.__TEST_BLOB__.put(`p${i}.png`, Buffer.concat([png, Buffer.from(String(i))]), { contentType: "image/png" });
+    files.push({ url, name: `item-${i + 1}.png`, type: "image/png" });
+    products.push({ name: `Item ${i + 1}`, price: "1000", category: i < 20 ? "Bags" : "Shoes" });
+  }
+  const [{ brief, brief_files }] = await h.sql(`SELECT brief, brief_files FROM customer_requests WHERE id = $1`, [ada]);
+  await h.sql(`UPDATE customer_requests SET brief = $2::jsonb, brief_files = $3::jsonb WHERE id = $1`, [ada, JSON.stringify({ ...brief, products }), JSON.stringify({ ...(brief_files || {}), product_photos: files })]);
+  process.env.PUBLISH_PHOTO_MS = "1"; // one group of photos per publish
+  const uploads = () => h.CF.calls.filter((c) => /assets\/upload/.test(c.path || c)).length;
+  let left = null, runs = 0;
+  try {
+    while (left !== 0 && runs < 20) {
+      const pub = await h.action({ action: "host_publish", id: ada, force: true });
+      assert.equal(pub.status, 200, pub.text);
+      runs++;
+      const dep = h.CF.deployments.at(-1), html = h.CF.assets.get(dep.manifest["/index.html"]);
+      const page = Buffer.from(html.value, "base64").toString();
+      const imgs = Object.keys(dep.manifest).filter((f) => f.startsWith("/images/"));
+      left = pub.json.photosLeft;
+      if (runs === 1) assert.ok(left > 0 && left < 40, "first publish goes live with some photos still to upload: " + left);
+      // Every product photo on the page is either uploaded to the site or shown from our server.
+      for (const m of page.matchAll(/src="([^"]+)"/g)) if (/\/__blob\/|images\//.test(m[1])) assert.ok(/^https?:\/\/.+\/__blob\//.test(m[1]) || imgs.includes("/" + m[1].replace(/^\//, "")), "photo link works: " + m[1]);
+    }
+    assert.equal(left, 0, "all photos uploaded after " + runs + " publishes");
+    assert.ok(runs > 2);
+    const page = Buffer.from(h.CF.assets.get(h.CF.deployments.at(-1).manifest["/index.html"]).value, "base64").toString();
+    assert.ok(!/__blob/.test(page), "finally every photo is on the site itself");
+    // Publishing again doesn't upload the photos again.
+    const before = h.CF.assets.size;
+    const again = await h.action({ action: "host_publish", id: ada, force: true });
+    assert.equal(again.json.photosLeft, 0);
+    assert.ok(h.CF.assets.size - before <= 3, "photos not uploaded twice");
+  } finally {
+    delete process.env.PUBLISH_PHOTO_MS;
+    await h.sql(`UPDATE customer_requests SET brief = $2::jsonb, brief_files = $3::jsonb WHERE id = $1`, [ada, JSON.stringify(brief), JSON.stringify(brief_files || {})]);
+  }
+});
+
 test("Do it with AI: a change request is read and applied to the live site (add, remove, change); Undo puts it back", async () => {
   const brief = { business_name: "Kemi Wears", phone: "08035550000", products: [{ name: "Ankara gown", price: "20000", stock: "4" }, { name: "Lace blouse", price: "12000" }, { name: "Gele", price: "5000" }] };
   const md = "# Website text\n## Page: Home\n### Hero\n**Headline:** Kemi Wears\n### Visit\n**Text:** Open Monday to Saturday in Bodija.\n## Page: About us\n### Story\n**Text:** We sew in Ibadan.\n## Product descriptions\n### Lace blouse\nSoft lace.\n### Gele\nBright gele.\n\n---\n*Draft written by AI from the project form on 2026-11-01. Check it.*";
@@ -568,6 +609,267 @@ test("Online Store: basket checkout into the store's own Paystack, order emails,
   }
 });
 
+test("project form reminders: how far they are and minutes left, twice at most; chat answers filled in first", async () => {
+  const id = (await h.action({ action: "create", name: "Tolu Ade", contact: "08035550000", interest: "Business website" })).json.id;
+  const ago = (d) => new Date(Date.now() - d * 86400000).toISOString();
+  await h.sql(`UPDATE customer_requests SET status = 'won', email = 'tolu@example.com', brief_token = $2, brief_saved_at = $3, auto_sent = $4::jsonb,
+    brief = '{"business_name":"Tolu Prints","phone":"08035550000","description":"Printing"}'::jsonb, chat_ideas = '{"business_name":"Tolu Prints"}'::jsonb WHERE id = $1`,
+    [id, "remindtok-long-enough-" + id, ago(3), JSON.stringify({ "brief-link": ago(4) })]);
+  let n = h.sent.length;
+  await h.daily();
+  let mail = h.newMail(n).filter((m) => m.to.includes("tolu@example.com"));
+  assert.equal(mail.length, 1, "one reminder");
+  assert.match(mail[0].subject, /^You're \d+% done: about \d+ minutes to finish$/);
+  assert.match(mail[0].html, /remindtok-/);
+  n = h.sent.length; await h.daily();
+  assert.equal(h.newMail(n).filter((m) => m.to.includes("tolu@example.com")).length, 0, "not again the next day");
+  // 4 days later: the second and last one
+  await h.sql(`UPDATE customer_requests SET brief_saved_at = $2, auto_sent = jsonb_set(auto_sent, '{brief-reminder}', to_jsonb($3::text)) WHERE id = $1`, [id, ago(7), ago(4)]);
+  n = h.sent.length; await h.daily();
+  assert.equal(h.newMail(n).filter((m) => m.to.includes("tolu@example.com")).length, 1, "second reminder");
+  n = h.sent.length; await h.daily();
+  assert.equal(h.newMail(n).filter((m) => m.to.includes("tolu@example.com")).length, 0, "never a third");
+  // A fresh form opens with what they told us typed in, marked to check.
+  const id2 = (await h.action({ action: "create", name: "Musa Bello", contact: "08036660000", interest: "Starter website" })).json.id;
+  await h.sql(`UPDATE customer_requests SET status = 'won', email = 'musa@example.com', brief_token = $2, chat_ideas = '{"business_name":"Musa Tailors","hours":"Mon-Sat 8am-7pm","style":"black and gold"}'::jsonb WHERE id = $1`, [id2, "prefilltok-long-enough-" + id2]);
+  const view = (await h.call("GET", "/api/brief?t=prefilltok-long-enough-" + id2)).json;
+  assert.equal(view.answers.business_name, "Musa Tailors");
+  assert.equal(view.answers.phone, "08036660000");
+  assert.equal(view.answers.email, "musa@example.com");
+  assert.equal(view.answers.colours, "black and gold");
+  assert.ok(view.prefilled.includes("hours"));
+});
+
+test("backup AI: added in Settings (key encrypted, never shown), answers by itself when Gemini fails, test button", async () => {
+  const chat = (text, sid) => h.call("POST", "/api/chat", { sessionId: sid, page: "/", messages: [{ role: "user", content: text }] });
+  // Without a backup, a Gemini failure gives the "chat on WhatsApp" message.
+  let r = await chat("please fail now", "s-ab-1");
+  assert.match(r.json.reply, /WhatsApp/);
+  // Owner saves an OpenRouter key.
+  let st = (await h.action({ action: "ai_backup" })).json;
+  assert.equal(st.service, "openrouter"); assert.equal(st.hasKey, false);
+  assert.match((await h.action({ action: "ai_backup_save", service: "openrouter", key: "short" })).json.error, /doesn't look right/);
+  st = (await h.action({ action: "ai_backup_save", service: "openrouter", key: "sk-or-v1-test-key-1234567890abcd", model: "" })).json;
+  assert.equal(st.hasKey, true); assert.equal(st.keyEnd, "abcd"); assert.equal(st.model, "openai/gpt-4.1-mini");
+  assert.ok(!JSON.stringify(st).includes("sk-or-v1-test"), "the key never comes back");
+  const [{ value }] = await h.sql(`SELECT value FROM settings WHERE key = '_ai_backup'`);
+  assert.ok(!value.includes("sk-or-v1-test"), "stored encrypted");
+  // Test button
+  const t = (await h.action({ action: "ai_backup_test" })).json;
+  assert.equal(t.ok, true); assert.match(t.reply, /Backup here/);
+  assert.equal(globalThis.__LAST_BACKUP__.auth, "Bearer sk-or-v1-test-key-1234567890abcd");
+  assert.match(globalThis.__LAST_BACKUP__.url, /^https:\/\/openrouter\.ai\/api\/v1\/chat\/completions$/);
+  // Gemini fails → the backup answers; the customer just gets an answer.
+  r = await chat("please fail now", "s-ab-2");
+  assert.match(r.json.reply, /Backup here/);
+  // The backup gets the same up-to-date instructions as Gemini and Claude (prices picker, form, agents FAQ).
+  const sys = globalThis.__LAST_BACKUP__.body.messages[0].content;
+  assert.match(sys, /₦ Prices/); assert.match(sys, /Write it for me/); assert.match(sys, /Agents: When do I get paid\?/); assert.match(sys, /sirraddo\.com\.ng\/agents/);
+  // It can save a request too (tool call), like the others.
+  r = await chat("fail and save my details", "s-ab-3");
+  assert.equal(r.json.saved, true);
+  assert.ok((await h.sql(`SELECT 1 FROM customer_requests WHERE contact = '08039998888'`)).length, "request saved by the backup");
+  // The admin assistant falls back to the backup too, with its full workflow knowledge.
+  const prov = await import("../api/_lib/providers.mjs");
+  await prov.ensureAiBackup(true);
+  const chain = prov.pickProvider();
+  const { assistantSystem } = await import("../api/_lib/assistant.mjs");
+  const asys = await assistantSystem(null, { role: "owner" });
+  assert.match(asys, /Marketing → Agents/); assert.match(asys, /Settings → AI backup/); assert.match(asys, /ONE STEP PER SCREEN/);
+  const gem = prov.chatProviders().find((p) => p.name === "gemini"), oldCall = gem.call;
+  gem.call = async () => { throw Object.assign(new Error("busy"), { code: "gemini_503" }); }; // Gemini down for the admin assistant
+  try {
+    const out = await chain.call(chain.start([{ role: "user", content: "How do agents get paid?" }]), asys, [], 20000, {});
+    assert.equal(out.provider, "backup");
+    assert.match(globalThis.__LAST_BACKUP__.body.messages[0].content, /Marketing → Agents/);
+  } finally { gem.call = oldCall; }
+  // A refused key: Test says so in plain words; chat falls back to the WhatsApp message.
+  globalThis.__BACKUP_FAIL__ = true;
+  assert.match((await h.action({ action: "ai_backup_test" })).json.error, /key was refused/);
+  globalThis.__BACKUP_FAIL__ = false;
+  // Switched off: not used.
+  await h.action({ action: "ai_backup_save", service: "openrouter", on: false });
+  const { ensureAiBackup } = await import("../api/_lib/providers.mjs"); await ensureAiBackup(true);
+  r = await chat("please fail now", "s-ab-4");
+  assert.match(r.json.reply, /WhatsApp/);
+  st = (await h.action({ action: "ai_backup_save", remove: true })).json;
+  assert.equal(st.hasKey, false);
+  await ensureAiBackup(true);
+});
+
+test("agents: apply, approve, link brings leads, commission on build payments only, payout request and payout", async () => {
+  const ag = (body, token) => h.call("POST", "/api/agent", body, { authorization: "Bearer " + (token || ""), "x-forwarded-for": "10.9.9." + Math.floor(Math.random() * 200) });
+  const prog = (await h.call("GET", "/api/agent")).json;
+  assert.deepEqual(prog, { rate: 10, min: 5000, tiers: [{ clients: 5, rate: 12 }, { clients: 15, rate: 15 }], inviteBonus: 2000 });
+  // Apply
+  assert.match((await ag({ action: "apply", name: "Tolu Ade", phone: "123", password: "secret123", agree: true })).json.error, /valid WhatsApp/);
+  assert.match((await ag({ action: "apply", name: "Tolu Ade", phone: "08031987001", password: "secret123" })).json.error, /agree/);
+  assert.match((await ag({ action: "apply", name: "Tolu Ade", phone: "08031987001", password: "short", agree: true })).json.error, /8 characters/);
+  let n = h.sent.length;
+  const ap = await ag({ action: "apply", name: "Tolu Ade", phone: "+2348031987001", email: "tolu.agent@example.com", city: "Ibadan", pitch: "I know many traders", password: "secret123", agree: true });
+  assert.equal(ap.status, 200, ap.text);
+  assert.ok(h.newMail(n).some((m) => /New agent application: Tolu Ade/.test(m.subject)), "we're told about the application");
+  assert.match((await ag({ action: "apply", name: "Tolu Ade", phone: "08031987001", password: "secret123", agree: true })).json.error, /already applied/);
+  // Can't log in until approved
+  let li = await ag({ action: "login", phone: "08031987001", password: "secret123" });
+  assert.equal(li.status, 403); assert.match(li.json.error, /reviewing/);
+  // Admin approves → code + welcome email
+  let list = (await h.action({ action: "agents_list" })).json;
+  const me = list.agents.find((a) => a.phone === "08031987001");
+  assert.equal(me.status, "pending"); assert.equal(me.code, null);
+  n = h.sent.length;
+  list = (await h.action({ action: "agent_update", id: me.id, status: "active" })).json;
+  const a = list.agents.find((x) => x.id === me.id);
+  assert.match(a.code, /^TOLUA\d{2}$/); assert.match(a.link, new RegExp("/\\?a=" + a.code + "$"));
+  assert.ok(h.newMail(n).some((m) => m.to.includes("tolu.agent@example.com") && /now a SIRRADDO agent/.test(m.subject)));
+  // Log in
+  assert.equal((await ag({ action: "login", phone: "08031987001", password: "wrong12345" })).status, 401);
+  li = await ag({ action: "login", phone: "0803 198 7001", password: "secret123" });
+  assert.equal(li.status, 200); const tok = li.json.token;
+  assert.equal((await ag({ action: "me" }, "ag.1.1.x")).status, 401);
+  // A business comes through the link (the page stores "agent:code" as where they came from)
+  const lead = await h.call("POST", "/api/lead", { source: "form", name: "Bisi Foods", contact: "08035987111", business: "Bisi Foods", interest: "Business website", from: "agent:" + a.code.toLowerCase(), page: "/" }, { "x-forwarded-for": "10.7.7.7" });
+  assert.equal(lead.status, 200, lead.text);
+  // and the agent's own business doesn't count
+  await h.call("POST", "/api/lead", { source: "form", name: "Tolu Ade", contact: "08031987001", business: "Tolu Shop", interest: "Starter website", from: "agent:" + a.code.toLowerCase(), page: "/" }, { "x-forwarded-for": "10.7.7.8" });
+  let d = (await ag({ action: "me" }, tok)).json;
+  assert.equal(d.count, 2); assert.equal(d.earned, 0);
+  assert.ok(d.leads.some((l) => /own business/.test(l.stage)));
+  assert.ok(!JSON.stringify(d).includes("08035987111"), "agents never see clients' phone numbers");
+  // The client pays a deposit (and a renewal later, which doesn't count)
+  const [{ id: rid }] = await h.sql(`SELECT id FROM customer_requests WHERE contact = '08035987111'`);
+  const today = new Date().toISOString().slice(0, 10);
+  await h.sql(`UPDATE customer_requests SET status = 'won', quote_amount = 100000, payments = $2::jsonb WHERE id = $1`, [rid, JSON.stringify([{ date: today, amount: 30000, kind: "project" }, { date: today, amount: 40000, kind: "renewal" }])]);
+  d = (await ag({ action: "me" }, tok)).json;
+  assert.equal(d.earned, 3000, "10% of the ₦30,000 build payment only"); assert.equal(d.clients, 1);
+  assert.match((await ag({ action: "payout" }, tok)).json.error, /bank details/);
+  assert.match((await ag({ action: "bank", bank: "Opay", account_no: "123", account_name: "Tolu Ade" }, tok)).json.error, /10-digit/);
+  d = (await ag({ action: "bank", bank: "Opay", account_no: "8031987001", account_name: "Tolu Ade" }, tok)).json;
+  assert.equal(d.agent.bank.bank, "Opay");
+  assert.match((await ag({ action: "payout" }, tok)).json.error, /from ₦5,000/);
+  // Balance paid → ₦10,000 earned; payout request emails us
+  await h.sql(`UPDATE customer_requests SET payments = $2::jsonb WHERE id = $1`, [rid, JSON.stringify([{ date: today, amount: 30000, kind: "project" }, { date: today, amount: 70000, kind: "project" }])]);
+  n = h.sent.length;
+  d = (await ag({ action: "payout" }, tok)).json;
+  assert.equal(d.balance, 10000); assert.ok(d.agent.payout_requested_at);
+  assert.ok(h.newMail(n).some((m) => /Agent payout request: Tolu Ade, ₦10,000/.test(m.subject)));
+  // Daily email: new lead and money
+  n = h.sent.length; await h.daily();
+  assert.ok(h.newMail(n).some((m) => m.to.includes("tolu.agent@example.com") && /You earned ₦10,000/.test(m.subject)));
+  n = h.sent.length; await h.daily();
+  assert.ok(!h.newMail(n).some((m) => m.to.includes("tolu.agent@example.com")), "not repeated");
+  // Admin records the payout → balance 0, agent emailed
+  n = h.sent.length;
+  list = (await h.action({ action: "agent_payout", id: me.id, amount: "10,000", ref: "TRF123" })).json;
+  const after = list.agents.find((x) => x.id === me.id);
+  assert.equal(after.balance, 0); assert.equal(after.payout_requested_at, null);
+  assert.ok(h.newMail(n).some((m) => m.to.includes("tolu.agent@example.com") && /paid you ₦10,000/.test(m.subject)));
+  // A refund takes the commission back; rate change applies
+  await h.action({ action: "agents_settings", rate: 15, min: 5000 });
+  d = (await ag({ action: "me" }, tok)).json;
+  assert.equal(d.rate, 15); assert.equal(d.earned, 15000); assert.equal(d.balance, 5000);
+  // Only the owner approves
+  assert.equal((await h.action({ action: "agents_settings", rate: 80, min: 5000 })).status, 400);
+  // Paused agents can't log in
+  await h.action({ action: "agent_update", id: me.id, status: "paused" });
+  assert.equal((await ag({ action: "me" }, tok)).status, 401);
+  assert.match((await ag({ action: "login", phone: "08031987001", password: "secret123" })).json.error, /paused/);
+  // Reset password → temporary one, must change
+  await h.action({ action: "agent_update", id: me.id, status: "active" });
+  const temp = (await h.action({ action: "agent_reset", id: me.id })).json.password;
+  li = (await ag({ action: "login", phone: "08031987001", password: temp })).json;
+  assert.equal(li.must_change, true);
+  const ch = await ag({ action: "password", current: temp, next: "newpass456" }, li.token);
+  assert.equal(ch.status, 200, ch.text);
+  await h.action({ action: "agents_settings", rate: 10, min: 5000 });
+});
+
+test("agents 2: prospects, levels, bonuses, invites, announcements, leaderboard, statement, demos", async () => {
+  const ag = (body, token) => h.call("POST", "/api/agent", body, { authorization: "Bearer " + (token || ""), "x-forwarded-for": "10.8.8." + Math.floor(Math.random() * 200) });
+  const mk = async (name, phone, by) => {
+    await ag({ action: "apply", name, phone, email: phone + "@example.com", password: "secret123", agree: true, by });
+    const a = (await h.action({ action: "agents_list" })).json.agents.find((x) => x.phone === phone);
+    const b = (await h.action({ action: "agent_update", id: a.id, status: "active" })).json.agents.find((x) => x.id === a.id);
+    return { ...b, token: (await ag({ action: "login", phone, password: "secret123" })).json.token };
+  };
+  const ada = await mk("Ada Okafor", "08061230001");
+  // Invite link: the apply form shows who invited them, and the new agent is linked
+  assert.equal((await h.call("GET", "/api/agent?by=" + ada.code)).json.invitedBy, "Ada");
+  const ben = await mk("Ben Musa", "08061230002", ada.code);
+  assert.equal((await h.action({ action: "agents_list" })).json.agents.find((x) => x.id === ben.id).invited_by, "Ada Okafor");
+
+  // Register a prospect → a request for the team, protected for 90 days
+  let d = (await ag({ action: "prospect", business: "Kola Pharmacy", name: "Kola", phone: "08069990001", interest: "Business website", note: "Wants a site before Christmas" }, ada.token)).json;
+  assert.equal(d.prospects.length, 1); assert.match(d.prospects[0].status, /Talking to us|Protected/);
+  const [req1] = await h.sql(`SELECT id, came_from, source, details FROM customer_requests WHERE contact = '08069990001'`);
+  assert.equal(req1.came_from, "agent:" + ada.code.toLowerCase()); assert.equal(req1.source, "agent"); assert.match(req1.details, /Wants a site/);
+  assert.match((await ag({ action: "prospect", business: "Kola Pharmacy", phone: "+234 806 999 0001" }, ben.token)).json.error, /already/i);
+  assert.match((await ag({ action: "prospect", business: "Me", phone: "08061230001" }, ada.token)).json.error, /own business/);
+  // Registered without asking us to contact them; later the owner chats with us directly → still Ada's
+  await ag({ action: "prospect", business: "Tunde Motors", phone: "08069990002", contact_us: false }, ada.token);
+  await h.call("POST", "/api/lead", { source: "form", name: "Tunde", contact: "0806 999 0002", interest: "Starter website", page: "/", from: "facebook / test" }, { "x-forwarded-for": "10.7.1.1" });
+  const [req2] = await h.sql(`SELECT came_from FROM customer_requests WHERE contact = '0806 999 0002'`);
+  assert.equal(req2.came_from, "agent:" + ada.code.toLowerCase(), "credited to the agent who registered them");
+  // A business already talking to us can't be registered
+  await h.call("POST", "/api/lead", { source: "form", name: "Old Client", contact: "08069990003", interest: "Starter website", page: "/" }, { "x-forwarded-for": "10.7.1.2" });
+  assert.match((await ag({ action: "prospect", business: "Old", phone: "08069990003" }, ben.token)).json.error, /already talking to us/);
+
+  // Levels: Ada's 5th paying client earns 12% (levels 5:12, 15:15)
+  const today = new Date().toISOString().slice(0, 10);
+  const pay = async (contact, amount) => { const [r] = await h.sql(`SELECT id FROM customer_requests WHERE contact = $1`, [contact]); await h.sql(`UPDATE customer_requests SET payments = $2::jsonb WHERE id = $1`, [r.id, JSON.stringify([{ date: today, amount, kind: "project" }])]); };
+  await pay("08069990001", 100000); await pay("0806 999 0002", 50000);
+  for (let i = 0; i < 3; i++) {
+    await h.call("POST", "/api/lead", { source: "form", name: "Client " + i, contact: "0806888000" + i, interest: "Business website", page: "/", from: "agent:" + ada.code.toLowerCase() }, { "x-forwarded-for": "10.7.2." + i });
+    await pay("0806888000" + i, 100000);
+  }
+  d = (await ag({ action: "me" }, ada.token)).json;
+  assert.equal(d.clients, 5);
+  assert.equal(d.earned, 10000 + 5000 + 10000 + 10000 + 12000, "1st–4th at 10%, the 5th at 12%");
+  assert.equal(d.level.name, "Silver agent"); assert.equal(d.level.rate, 12); assert.equal(d.level.next.need, 10);
+  // Ben earns his first commission → Ada gets the invite bonus
+  await h.call("POST", "/api/lead", { source: "form", name: "Ben client", contact: "08067770001", interest: "Starter website", page: "/", from: "agent:" + ben.code.toLowerCase() }, { "x-forwarded-for": "10.7.3.1" });
+  await pay("08067770001", 35000);
+  d = (await ag({ action: "me" }, ada.token)).json;
+  assert.equal(d.inviteTotal, 2000); assert.equal(d.invites[0].who, "Ben"); assert.equal(d.invites[0].earnedYet, true);
+  // Admin bonus (top agent of the month) → balance and email
+  let n = h.sent.length;
+  await h.action({ action: "agent_bonus", id: ada.id, amount: "5,000", note: "Top agent of November" });
+  assert.ok(h.newMail(n).some((m) => m.to.includes("08061230001@example.com") && /₦5,000 bonus/.test(m.subject)));
+  d = (await ag({ action: "me" }, ada.token)).json;
+  assert.equal(d.bonusTotal, 5000); assert.equal(d.balance, 47000 + 2000 + 5000);
+  // Leaderboard: Ada first with 5 paying clients this month
+  assert.equal(d.top[0].name, "Ada O."); assert.equal(d.top[0].clients, 5);
+  // Announcement: on dashboards (new), emailed, then marked seen
+  n = h.sent.length;
+  const nw = (await h.action({ action: "agent_news", title: "December promo", body: "10% off Business websites until 31 Dec.", email: true })).json;
+  assert.ok(nw.emailed >= 2); assert.ok(h.newMail(n).some((m) => /December promo/.test(m.subject)));
+  d = (await ag({ action: "me" }, ben.token)).json;
+  assert.equal(d.news[0].title, "December promo"); assert.equal(d.news[0].fresh, true);
+  await ag({ action: "news_seen" }, ben.token);
+  assert.equal((await ag({ action: "me" }, ben.token)).json.news[0].fresh, false);
+  // Statement for this month: commission lines, bonus, invite bonus, payout; totals add up
+  await h.action({ action: "agent_payout", id: ada.id, amount: "20000", ref: "TRF9" });
+  const st = (await ag({ action: "statement", month: today.slice(0, 7) }, ada.token)).json;
+  assert.equal(st.opening, 0);
+  assert.equal(st.earned, 47000 + 2000 + 5000); assert.equal(st.paid, 20000); assert.equal(st.closing, 34000);
+  assert.ok(st.rows.some((r) => r.kind === "Commission" && /12%/.test(r.what)));
+  assert.ok(st.rows.some((r) => r.kind === "Invite bonus") && st.rows.some((r) => r.kind === "Bonus") && st.rows.some((r) => r.kind === "Paid to you" && r.amount === -20000));
+  assert.match((await ag({ action: "statement", month: "nope" }, ada.token)).json.error, /month/);
+  // Settings: levels off → everyone at the base rate; invite bonus 0
+  await h.action({ action: "agents_settings", rate: 10, min: 5000, tiers: "off", invite_bonus: 0 });
+  d = (await ag({ action: "me" }, ada.token)).json;
+  assert.equal(d.earned, 47000 - 2000); assert.equal(d.inviteTotal, 0); assert.equal(d.level.next, null);
+  assert.equal((await h.action({ action: "agents_settings", rate: 10, min: 5000, tiers: "nonsense" })).status, 400);
+  await h.action({ action: "agents_settings", rate: 10, min: 5000, tiers: "5:12,15:15", invite_bonus: 2000 });
+  // Demo websites
+  const list = await h.call("GET", "/demo?a=" + ada.code);
+  assert.equal(list.status, 200); assert.match(list.text, /Hair &amp; beauty salon/); assert.match(list.text, new RegExp("/demo/salon\\?a=" + ada.code));
+  const salon = await h.call("GET", "/demo/salon/prices?a=" + ada.code);
+  assert.equal(salon.status, 200); assert.match(salon.text, /Get one like this/); assert.match(salon.text, new RegExp('href="/\\?a=' + ada.code + '"')); assert.match(salon.text, /Knotless braids/);
+  assert.match((await h.call("GET", "/demo/shop")).text, /Ankara Maxi Dress/);
+  assert.equal((await h.call("GET", "/demo/nothing")).status, 404);
+});
+
 test("daily run completes without errors", async () => {
   const errors = [];
   const orig = console.error;
@@ -937,4 +1239,86 @@ test("the 7am email lists what staff did in the last 24 hours", async () => {
   const mail = h.newMail(n).find((m) => /What staff did/.test(m.html || ""));
   assert.ok(mail, "staff section in the daily email");
   assert.match(mail.html, /Ada Helper/);
+});
+
+test("client reviews: emailed review link a week after launch, photo and business, verified client, approve to show", async () => {
+  const id = (await h.action({ action: "create", name: "Kemi Bello", contact: "08035550123", interest: "Starter website" })).json.id;
+  const day = (d) => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
+  await h.sql(`UPDATE customer_requests SET status = 'won', email = 'kemi@example.com', business = 'Kemi Bakes', project_stage = 'live', live_on = $2,
+    quote_amount = 50000, payments = $3::jsonb, website_url = 'kemibakes.com.ng', auto_sent = '{"handover":"x"}'::jsonb WHERE id = $1`,
+    [id, day(8), JSON.stringify([{ date: day(20), amount: 50000, kind: "project" }])]);
+  let n = h.sent.length;
+  await h.daily();
+  const mail = h.newMail(n).filter((m) => m.to.includes("kemi@example.com") && /How did we do/.test(m.subject));
+  assert.equal(mail.length, 1, "review request emailed once");
+  const t = /\/rate\?t=([\w.-]+)/.exec(mail[0].html)[1];
+  n = h.sent.length; await h.daily();
+  assert.equal(h.newMail(n).filter((m) => m.to.includes("kemi@example.com") && /How did we do/.test(m.subject)).length, 0, "not twice");
+
+  // Admin gets the same link for WhatsApp
+  assert.match((await h.row(id)).review_link, new RegExp(`/rate\\?t=${t.replace(".", "\\.")}$`));
+
+  // The page and its API
+  assert.equal((await h.call("GET", `/rate?t=${t}`)).status, 200);
+  const info = await h.call("GET", `/api/site?client_review=${t}`);
+  assert.equal(info.status, 200, info.text);
+  assert.equal(info.json.name, "Kemi"); assert.equal(info.json.business, "Kemi Bakes"); assert.equal(info.json.done, false);
+  assert.equal((await h.call("GET", `/api/site?client_review=${id}.AAAAAAAAAAAAAAAAAAAA`)).status, 404, "forged link refused");
+
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  const noOk = await h.call("POST", `/api/site?client_review=${t}`, { stars: 5, text: "Great work, very fast.", name: "Kemi Bello", photo: png });
+  assert.equal(noOk.status, 400, "needs permission"); assert.match(noOk.json.error, /tick the box/);
+  n = h.sent.length;
+  const ok = await h.call("POST", `/api/site?client_review=${t}`, { stars: 5, text: "Great work, very fast. Orders come from Google now.", name: "Kemi Bello", business: "Kemi Bakes", photo: png, consent: true });
+  assert.equal(ok.status, 200, ok.text);
+  assert.ok(h.newMail(n).some((m) => /New 5-star review for SIRRADDO/.test(m.subject) && /your client/.test(m.subject)), "owner told");
+  // Sending again replaces it
+  await h.call("POST", `/api/site?client_review=${t}`, { stars: 4, text: "Great work, very fast. Orders come from Google now!", name: "Kemi Bello", business: "Kemi Bakes", consent: true, keepPhoto: true });
+  const rows = await h.sql(`SELECT stars, photo, verified, status FROM site_reviews WHERE client_id = $1`, [id]);
+  assert.equal(rows.length, 1); assert.equal(rows[0].stars, 4); assert.ok(rows[0].photo, "photo kept"); assert.equal(rows[0].verified, true);
+  assert.equal((await h.call("GET", `/api/site?client_review=${t}`)).json.done, true);
+
+  // Waits for approval, then shows as a verified client with photo and business
+  let pub = (await h.call("GET", "/api/site?reviews=sirraddo")).json;
+  assert.ok(!pub.list.some((x) => x.business === "Kemi Bakes"), "hidden until approved");
+  const list = (await h.action({ action: "reviews" })).json.reviews;
+  const mine = list.find((r) => r.client_id === id);
+  assert.ok(mine && mine.photo && mine.business === "Kemi Bakes");
+  await h.action({ action: "review_set", reviewId: mine.id, status: "shown" });
+  pub = (await h.call("GET", "/api/site?reviews=sirraddo")).json;
+  const shown = pub.list.find((x) => x.business === "Kemi Bakes");
+  assert.ok(shown && shown.client === true && shown.photo && shown.stars === 4);
+  assert.equal(pub.list[0].business, "Kemi Bakes", "client reviews first");
+});
+
+test("agents 3: training lessons and quiz, trained badge for admin", async () => {
+  const ag = (body, token) => h.call("POST", "/api/agent", body, { authorization: "Bearer " + (token || ""), "x-forwarded-for": "10.9.8." + Math.floor(Math.random() * 200) });
+  assert.equal((await ag({ action: "apply", name: "Bisi Train", phone: "08031987333", password: "secret123", agree: true })).status, 200);
+  let list = (await h.action({ action: "agents_list" })).json;
+  const me = list.agents.find((a) => a.phone === "08031987333");
+  await h.action({ action: "agent_update", id: me.id, status: "active" });
+  const tok = (await ag({ action: "login", phone: "08031987333", password: "secret123" })).json.token;
+  const d = (await ag({ action: "me" }, tok)).json;
+  assert.equal(d.agent.trained_at, null);
+  assert.equal(d.training.length, 6);
+  assert.ok(d.training.every((x) => x.q && x.options.length >= 3 && x.answer === undefined), "right answers never sent");
+  const bad = (await ag({ action: "training", answers: [0, 0, 0, 0, 0, 0] }, tok)).json;
+  assert.equal(bad.ok, false); assert.ok(bad.wrong.length > 0); assert.match(bad.message, /of 6 right/);
+  const good = (await ag({ action: "training", answers: [1, 0, 1, 2, 1, 2] }, tok)).json;
+  assert.equal(good.ok, true, JSON.stringify(good)); assert.ok(good.agent.trained_at);
+  list = (await h.action({ action: "agents_list" })).json;
+  assert.ok(list.agents.find((a) => a.id === me.id).trained_at, "admin sees it");
+  assert.equal((await ag({ action: "training", answers: [1, 0, 1, 2, 1, 2] })).status, 401, "needs login");
+});
+
+test("monthly report: change on the month before and a renewal heads-up", async () => {
+  const { reportHtml } = await import("../api/_lib/stats.mjs");
+  const s = { visitors: 150, views: 400, wa: 12, calls: 0, emails: 0, pages: [], sources: [], orders: 0, sales: 0 };
+  const r = { name: "Ada", website_url: "https://adasalon.com.ng", renewal_due: "2026-12-20", renewal_amount: 25000 };
+  const html = reportHtml(r, s, "November 2026", { visitors: 100, wa: 15 }, "October", "2026-12-01");
+  assert.match(html, /up 50% on October/);
+  assert.match(html, /down 20% on October/);
+  assert.match(html, /yearly renewal of ₦25,000 is due on 20 December 2026/);
+  const plain = reportHtml({ ...r, renewal_due: "2027-06-01" }, s, "November 2026");
+  assert.doesNotMatch(plain, /on October|renewal/, "no comparison or renewal note when not due");
 });

@@ -1,6 +1,9 @@
 // Everything that runs by itself: status rules on every change, customer emails, and the daily run
 // (morning summary with one-tap WhatsApp links, reminders, client site checks, Monday report + backup).
 import tls from "node:tls";
+import { quickByInterest, addWorkdays } from "./graphics.mjs";
+import { servicesOf, addPeriod } from "./services.mjs";
+import { randomBytes } from "node:crypto";
 import {
   listRequests, updateRequest, ensureDocToken, getSettings, markSent, setSiteCheck, listUnansweredSince,
   sendEmail, emailConfigured, sendCustomerEmail, customerEmailConfigured, customerEmail, esc, waLink, cleanup, reference, setMeta, claimMeta , emailUsage, countRefused, cleanupRefused, q } from "./store.mjs";
@@ -11,6 +14,7 @@ import { monthlyReports, cleanupStats } from "./stats.mjs";
 import { weeklyBackup } from "./backup.mjs";
 import { FUNCTION_BUDGET_MS, deleteOldChatFiles } from "./platform.mjs";
 import { handoverChecklist } from "./handover-check.mjs";
+import { clientReviewUrl } from "./reviews.mjs";
 import { sendBatch as sendGreetingBatch, occurrences, getConfig as getGreetingConfig } from "./greetings.mjs";
 const todayIso = () => new Date(Date.now() + 3600 * 1000).toISOString().slice(0, 10);
 const addDaysIso = (d, n) => { const t = new Date(d + "T12:00:00Z"); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
@@ -49,6 +53,7 @@ export const TEMPLATES = {
   tpl_invoice: "Hello {name}, here is your invoice for the {package} package. Total: {amount}. Paid: {paid}. Balance: {balance}. View or save it here: {doc_link}\nPay online: {pay_link}",
   tpl_preview: "Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.",
   tpl_renewal: "Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.\nPay online: {pay_link}",
+  tpl_review: "Hello {name}, thank you for choosing SIRRADDO! If you are happy with your website, would you rate us? It takes a minute, and you can add your photo or logo: {review_link}",
 };
 const projectPaid = (r) => (r.payments || []).filter((p) => !p.kind || p.kind === "project").reduce((s, p) => s + Number(p.amount || 0), 0);
 
@@ -89,8 +94,34 @@ export function rulesAfterUpdate(row, changed) {
     if (reached) {
       f.status = "won";
       if (row.renewal_amount == null && DEFAULT_RENEWAL[row.interest]) f.renewal_amount = DEFAULT_RENEWAL[row.interest];
-      if (!row.project_stage) f.project_stage = "content";
-      f.follow_up_on = row.brief_submitted_at ? null : addDays(today, 2); // chase the project form
+      const quick = quickByInterest(row.interest);
+      if (quick) {
+        f.follow_up_on = today; // quick service: its details came with the order, so it's ready to start today
+        // Promised delivery date (shown to the customer on /track). Same-day extra: today if paid by 12 noon.
+        if (!row.deliver_by) {
+          const hour = new Date(Date.now() + 3600 * 1000).getUTCHours();
+          f.deliver_by = /^Extras:.*Same-day delivery/m.test(row.details || "")
+            ? (hour < 12 ? today : addWorkdays(today, 1))
+            : addWorkdays(today, quick.workdays || 3);
+        }
+        // Yearly / monthly ones (mini website, domain + email, QR menu, monthly posts): add the renewal once.
+        if (quick.recurring && !servicesOf(row).some((x) => x.name === quick.interest)) {
+          f.services = [...servicesOf(row), {
+            id: randomBytes(5).toString("hex"), name: quick.interest, amount: quick.recurring.amount, period: quick.recurring.period,
+            next_due: addPeriod(today, quick.recurring.period), active: true, started: today,
+          }];
+        }
+      } else {
+        if (!row.project_stage) f.project_stage = "content";
+        f.follow_up_on = row.brief_submitted_at ? null : addDays(today, 2); // chase the project form
+      }
+    }
+  }
+  // Quick service delivered: no more follow-ups; if it was late, note the 20% off promise for their next order.
+  if ("job_stage" in changed && row.job_stage === "done") {
+    f.follow_up_on = null;
+    if (row.deliver_by && today > row.deliver_by && !/Delivered late/.test(row.notes || "")) {
+      f.notes = `${row.notes ? row.notes + "\n" : ""}Delivered late (${today}, promised ${row.deliver_by}): owes 20% off their next order.`;
     }
   }
   // Marked won or lost by hand -> no more lead follow-ups.
@@ -122,6 +153,28 @@ export function customerHtml(r, paragraphs, button) {
     ${button ? `<p><a href="${button.url}" style="display:inline-block;background:#D9A21B;color:#13254F;font-weight:700;text-decoration:none;padding:12px 18px;border-radius:10px">${esc(button.label)}</a></p>` : ""}
     <p>Questions? Reply to this email or <a href="https://wa.me/2348167550937">WhatsApp us</a>.</p>
     <p style="color:#4A5568;font-size:12px">SIRRADDO GLOBAL LIMITED · RC 9939920 · Ibadan, Nigeria</p></div>`;
+}
+
+
+// The "finish your project details" reminder: progress bar, minutes left and the link.
+async function formReminder(r) {
+  const { getBrief } = await import("./store.mjs");
+  const { briefProgress, kindFor } = await import("./brief-schema.mjs");
+  const full = await getBrief(r.brief_token).catch(() => null);
+  const p = briefProgress(kindFor(r.interest), full?.brief || {}, full?.brief_files || {});
+  const url = `${SITE}/brief?t=${r.brief_token}`;
+  const bar = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:360px;margin:6px 0 4px"><tr><td style="background:#EEF1F6;border-radius:99px;height:12px;padding:0"><div style="width:${Math.max(4, p.pct)}%;background:#D9A21B;height:12px;border-radius:99px"></div></td></tr></table><div style="font-size:13px;color:#4A5568">${p.pct}% done · about ${p.minutes} minutes left</div>`;
+  if (r.brief_saved_at && p.done > 0) {
+    return [`You're ${p.pct}% done: about ${p.minutes} minutes to finish`, customerHtml(r, [
+      "Great start on your project details! Here's where you are:", bar,
+      "Your answers are saved: open the same link and carry on where you stopped. Tip: tap “Add products from photos” and let “✨ Write it for me” fill in names and descriptions.",
+      "As soon as you send it, we start building your website.",
+    ], { url, label: "Finish my details" })];
+  }
+  return ["Your website is waiting for your details", customerHtml(r, [
+    "We're ready to start your website as soon as we have your project details.",
+    `It takes about 10–15 minutes on your phone, one short step at a time. Anything you told our assistant is already filled in for you, and you can save and finish later.`,
+  ], { url, label: "Fill in my project details" })];
 }
 
 async function sendOnce(r, key, subject, html) {
@@ -236,11 +289,17 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
         // project form: link (if never emailed) and one reminder 2 days later
         if (waitingForm(r)) {
           if (await emailBriefLink(r)) report.customerEmails++;
+          // Friendly reminders, 2 and 6 days after the link (or after they last saved): how far they are and
+          // how long the rest takes. Two at most.
           const sentAt = (r.auto_sent || {})["brief-link"];
-          if (sentAt && !r.brief_saved_at && Date.parse(sentAt) < now.getTime() - 2 * 86400000 &&
-              await sendOnce(r, "brief-reminder", "Reminder: your project details", customerHtml(r, [
-                "Just a reminder: we are ready to start your website as soon as we have your project details.",
-              ], { url: `${SITE}/brief?t=${r.brief_token}`, label: "Fill in my project details" }))) report.customerEmails++;
+          const since = r.brief_saved_at || sentAt;
+          const days = since ? (now.getTime() - Date.parse(since)) / 86400000 : 0;
+          const first = (r.auto_sent || {})["brief-reminder"];
+          const key = !first && days >= 2 ? "brief-reminder"
+            : first && !(r.auto_sent || {})["brief-reminder-2"] && days >= 6 && now.getTime() - Date.parse(first) >= 3 * 86400000 ? "brief-reminder-2" : null;
+          if (sentAt && key) {
+            if (await sendOnce(r, key, ...(await formReminder(r)))) report.customerEmails++;
+          }
         }
         // renewal: 30 days, 7 days, due day, 3 days overdue
         if (r.status === "won" && r.renewal_due && r.renewal_amount) {
@@ -258,6 +317,15 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
                 : { url: docLink(r, "renewal"), label: "View renewal invoice" }) +
                 (paystackConfigured() ? `<p style="font-family:Arial,sans-serif;font-size:13px"><a href="${docLink(r, "renewal")}">View the renewal invoice</a></p>` : ""))) report.customerEmails++;
           }
+        }
+        // review request: once, 7+ days after the site went live and the balance is paid (not for very old sites)
+        if (r.status === "won" && r.project_stage === "live" && r.live_on && balance(r) === 0) {
+          const since = daysBetween(r.live_on, today);
+          if (since >= 7 && since <= 60 && await sendOnce(r, "review-ask", "How did we do? A quick review for SIRRADDO",
+            customerHtml(r, [
+              `It's been a week since your website went live${r.website_url ? ` at <b>${esc(r.website_url)}</b>` : ""}. We hope it's already helping your business.`,
+              "Would you take a minute to rate us? A few honest words help other business owners choose with confidence. You can add your photo or logo too.",
+            ], { url: await clientReviewUrl(r.id), label: "Rate SIRRADDO" }))) report.customerEmails++;
         }
         // monthly / yearly services: 7 days before, due day, 3 days late
         for (const s of (r.status === "won" && Array.isArray(r.services) ? r.services : [])) {
@@ -441,6 +509,8 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
       ${sections.join("")}${weekly}<p style="margin-top:20px"><a href="${SITE}/admin">Open the admin page</a></p></div>`;
     report.emailed = Boolean(await sendEmail(`SIRRADDO ${monday ? "weekly + daily" : "daily"} summary${counts ? ": " + counts : ""}`, html, attachments));
   }
+  // Agents: an email when a business came through their link or a client they brought paid.
+  await import("./agents.mjs").then((m) => m.dailyAgentNews(report)).catch((e) => console.error("agent news failed", e));
   report.removed = await cleanup(90);
   report.chatFilesRemoved = await deleteOldChatFiles(90, now).catch((e) => { console.error("chat files clean-up failed", e); return 0; });
   report.counts = { fresh: fresh.length, due: due.length, formsWaiting: formsWaiting.length, owing: owing.length, renewals: renewals.length, briefs: briefs.length, siteProblems: siteProblems.length, stale: stale.length, questions: questions.length };

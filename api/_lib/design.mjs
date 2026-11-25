@@ -5,7 +5,7 @@ import { readImageForAi } from "./platform.mjs";
 import { FUNCTION_BUDGET_MS } from "./platform.mjs";
 import { randomBytes } from "node:crypto";
 import { getPreviewById, saveDesign, setDesignOptions, MAX_DESIGN_OPTIONS } from "./store.mjs";
-import { pickProvider, friendlyAiError } from "./providers.mjs";
+import { pickProvider, friendlyAiError, ensureAiBackup } from "./providers.mjs";
 import { buildSiteModel, renderPage, css as baseCss, darkDesignCss } from "./sitegen.mjs";
 
 const SYSTEM = `You are a senior web designer for small Nigerian businesses. You restyle an existing website by writing CSS only.
@@ -63,6 +63,7 @@ export async function generateDesign(id, budgetMs = FUNCTION_BUDGET_MS() - 2000,
   const row = await getPreviewById(id);
   if (!row) return { ok: false, error: "Not found" };
   if (!row.draft_md) return { ok: false, error: "Write the website text first" };
+  await ensureAiBackup();
   const provider = pickProvider();
   if (!provider) return { ok: false, error: "No AI key is set in Netlify (ANTHROPIC_API_KEY or GEMINI_API_KEY)" };
   const options = currentOptions(row);

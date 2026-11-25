@@ -86,18 +86,32 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 const naira = (n) => "₦" + Number(n || 0).toLocaleString("en-NG");
 const pageName = (p) => (p === "/" ? "Home" : p.replace(/^\//, "").replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase()));
 
-export function reportHtml(r, s, monthLabel) {
+// "up 25% on October" style note; nothing when there's nothing to compare with.
+function change(now, before, prevLabel) {
+  if (!prevLabel || before == null || (!now && !before)) return "";
+  if (!before) return ` <span style="color:#1B6B3A;font-weight:400">(new)</span>`;
+  const pct = Math.round(((now - before) / before) * 100);
+  if (pct === 0) return ` <span style="color:#5B6577;font-weight:400">(same as ${prevLabel})</span>`;
+  return pct > 0 ? ` <span style="color:#1B6B3A;font-weight:400">(up ${pct}% on ${prevLabel})</span>` : ` <span style="color:#8A6410;font-weight:400">(down ${-pct}% on ${prevLabel})</span>`;
+}
+
+export function reportHtml(r, s, monthLabel, prev = null, prevLabel = "", today = null) {
   const row = (label, value) => `<tr><td style="padding:8px 10px;border-bottom:1px solid #E1E6EF">${label}</td><td style="padding:8px 10px;border-bottom:1px solid #E1E6EF;text-align:right;font-weight:700">${value}</td></tr>`;
   const quiet = s.views === 0;
   const parts = [
     `Here's how <b>${esc(r.website_url ? r.website_url.replace(/^https?:\/\//, "") : "your website")}</b> did in <b>${monthLabel}</b>.`,
     `<table style="border-collapse:collapse;width:100%;max-width:460px;font-size:15px">
-${row("People who visited", s.visitors.toLocaleString("en-NG"))}${row("Pages viewed", s.views.toLocaleString("en-NG"))}
-${row("WhatsApp taps", s.wa.toLocaleString("en-NG"))}${s.calls ? row("Call taps", s.calls) : ""}${s.emails ? row("Email taps", s.emails) : ""}
+${row("People who visited", s.visitors.toLocaleString("en-NG") + change(s.visitors, prev?.visitors, prevLabel))}${row("Pages viewed", s.views.toLocaleString("en-NG"))}
+${row("WhatsApp taps", s.wa.toLocaleString("en-NG") + change(s.wa, prev?.wa, prevLabel))}${s.calls ? row("Call taps", s.calls) : ""}${s.emails ? row("Email taps", s.emails) : ""}
 ${s.orders ? row("Paid online orders", `${s.orders} · ${naira(s.sales)}`) : ""}</table>`,
   ];
   if (s.pages.length) parts.push(`<b>Most viewed pages:</b> ${s.pages.map((p) => `${esc(pageName(p.path))} (${p.n})`).join(", ")}`);
   if (s.sources.length) parts.push(`<b>Where visitors came from:</b> ${s.sources.map((x) => `${esc(x.source)} (${x.n})`).join(", ")}`);
+  // A heads-up when the yearly renewal is coming (the renewal reminders send the pay link).
+  if (r.renewal_due && today) {
+    const days = Math.round((new Date(r.renewal_due) - new Date(today)) / 86400000);
+    if (days >= 0 && days <= 60) parts.push(`<b>Coming up:</b> your yearly renewal${r.renewal_amount ? ` of ${naira(r.renewal_amount)}` : ""} is due on ${new Date(r.renewal_due).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}. It keeps your domain, hosting, SSL and email running. We'll send a reminder with a pay link.`);
+  }
   parts.push(quiet
     ? "It was a quiet month. Sharing your website link on your WhatsApp status, Instagram bio and Google Business Profile is the quickest way to bring visitors."
     : "Tip: share your website link on your WhatsApp status and social media bios. Every share brings new visitors.");
@@ -112,6 +126,9 @@ export async function monthlyReports(now = new Date()) {
   const last = new Date(Date.UTC(lagos.getUTCFullYear(), lagos.getUTCMonth(), 0));
   const from = first.toISOString().slice(0, 10), to = last.toISOString().slice(0, 10);
   const label = `${MONTHS[first.getUTCMonth()]} ${first.getUTCFullYear()}`;
+  const pFirst = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() - 1, 1)), pLast = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth(), 0));
+  const pFrom = pFirst.toISOString().slice(0, 10), pTo = pLast.toISOString().slice(0, 10), pLabel = MONTHS[pFirst.getUTCMonth()];
+  const today = lagos.toISOString().slice(0, 10);
   await ensureSchema();
   const rows = await q(`SELECT id FROM customer_requests WHERE status = 'won' AND hosting->>'statsKey' IS NOT NULL AND hosting->>'pausedAt' IS NULL
     AND COALESCE(hosting->>'reportsOff', '') = '' AND live_on IS NOT NULL AND live_on <= $1::date - 7`, [to]);
@@ -123,7 +140,9 @@ export async function monthlyReports(now = new Date()) {
     const email = r && customerEmail(r);
     if (!email) continue;
     const s = await siteSummary(id, from, to);
-    await sendCustomerEmail(email, `Your website in ${label}: ${s.visitors} visitor${s.visitors === 1 ? "" : "s"}, ${s.wa} WhatsApp tap${s.wa === 1 ? "" : "s"}`, reportHtml(r, s, label));
+    // Compare with the month before only if the site was already live for all of it.
+    const prev = r.live_on && r.live_on <= pFrom ? await siteSummary(id, pFrom, pTo) : null;
+    await sendCustomerEmail(email, `Your website in ${label}: ${s.visitors} visitor${s.visitors === 1 ? "" : "s"}, ${s.wa} WhatsApp tap${s.wa === 1 ? "" : "s"}`, reportHtml(r, s, label, prev, pLabel, today));
     await setMeta(key, new Date().toISOString());
     sent++;
   }

@@ -160,10 +160,18 @@ test("big store: up to 100 products, sections per category, photos matched by fi
   assert.equal(productPhotoFor(site2, site2.products[0]), null);
   delete products[1].photo;
   const { cleanAnswers } = await import("../api/_lib/brief-schema.mjs");
-  const kept = cleanAnswers("store", { products: [{ name: "Rice", price: "100", photo: "https://www.sirraddo.com.ng/files/x.jpg" }, { photo: "https://evil" }] });
-  assert.deepEqual(kept.products, [{ name: "Rice", price: "100", category: "", details: "", photo: "https://www.sirraddo.com.ng/files/x.jpg" }], "photo kept; a row with only a photo dropped");
+  const kept = cleanAnswers("store", { products: [{ name: "Rice", price: "100", photo: "https://www.sirraddo.com.ng/files/x.jpg", photos: ["https://www.sirraddo.com.ng/files/y.jpg", "javascript:alert(1)", "https://www.sirraddo.com.ng/files/x.jpg"] }, { photo: "https://evil" }, { photo: "javascript:x" }, {}] });
+  assert.deepEqual(kept.products, [
+    { name: "Rice", price: "100", category: "", details: "", photo: "https://www.sirraddo.com.ng/files/x.jpg", photos: ["https://www.sirraddo.com.ng/files/y.jpg"] },
+    { name: "", price: "", category: "", details: "", photo: "https://evil" },
+  ], "photo and extra photos kept; a card with only a photo waits for its name; bad links and empty rows dropped");
+  // A card with a photo but no name yet is not on the website, and its photo is not given to another product.
+  const site3 = buildSiteModel({ ...row, brief: { ...row.brief, products: [{ name: "Rice", price: "100" }, { name: "", photo: row.brief_files.product_photos[0].url }] } });
+  assert.equal(site3.products.length, 1);
+  assert.equal(site3.productPhotos.length, 1, "the waiting photo is held back");
+  assert.notEqual(productPhotoFor(site3, site3.products[0])?.url, row.brief_files.product_photos[0].url);
   const { SECTIONS } = await import("../api/_lib/brief-schema.mjs");
-  assert.equal(SECTIONS.flatMap((s) => s.fields).find((f) => f.key === "products").max, 100);
+  assert.equal(SECTIONS.flatMap((s) => s.fields).find((f) => f.key === "products").max, 1000);
   const shop = site.pages.find((p) => p.kind === "shop");
   const html = renderPage(site, shop.slug, { mode: "export", link: (s) => "/" + s });
   assert.match(html, /class="cat-nav"/);
@@ -386,9 +394,34 @@ test("Manage my website: non-store sites get the same private link (hours, numbe
   assert.match(await saved.text(), /Saved ✓/);
   assert.equal((await h.row(id)).hosting.lookMode, "ask");
   // Owner confirms their Google Business Profile: "Google profile done" ticks itself; the box then disappears.
-  assert.match(p2.text, /My Google Business Profile is verified/);
+  assert.match(p2.text, /Google says my business is verified/);
+  assert.match(p2.text, /Get found on Google Maps/);
+  assert.match(p2.text, /business\.google\.com\/create/);
+  assert.match(p2.text, /value="08035550000"|Copy/, "their details ready to copy");
   const g = await fetch(h.base + path, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ phone: "08035550000", gbp_verified: "1" }) });
   assert.match(await g.text(), /Saved ✓/);
   assert.equal((await h.row(id)).handover.gbp_done, true);
   assert.doesNotMatch((await h.call("GET", path)).text, /My Google Business Profile is verified/);
+});
+
+test("1,000 products and 3,000 photos: the shop page builds quickly and matches photos like before", async () => {
+  const { buildSiteModel, productPhotoFor, productPhotoForSlow, renderPage } = await import("../api/_lib/sitegen.mjs");
+  // Same answers as the old one-by-one matching, on a mixed list (chosen, named, numbered, phone names).
+  const mk = (n, files) => ({ id: 7, name: "Big", business: "Big Mart", interest: "Online Store", status: "won", brief: { business_name: "Big Mart", products: n, pages: ["Home", "Shop"], whatsapp: "08031234567" },
+    brief_files: { product_photos: files }, draft_md: "# Website text: Big\n\n## Page: Home\n### Hero\n**Headline:** Hi\n\n## Page: Shop\n### Intro\n**Text:** All" });
+  const small = Array.from({ length: 30 }, (_, i) => ({ name: `Thing ${i}`, price: "500", category: ["A", "B"][i % 2], ...(i === 3 ? { photo: "https://x.test/f/p5.jpg" } : {}) }));
+  const sf = Array.from({ length: 25 }, (_, i) => ({ url: `https://x.test/f/p${i}.jpg`, name: i % 3 === 0 ? `thing-${i}.jpg` : i % 3 === 1 ? `IMG_${i}.jpg` : `thing-${i - 1} 2.jpg`, type: "image/jpeg" }));
+  const s1 = buildSiteModel(mk(small, sf));
+  for (const p of s1.products) assert.equal(productPhotoFor(s1, p)?.url || null, productPhotoForSlow(s1, p)?.url || null, p.name);
+  const products = Array.from({ length: 1000 }, (_, i) => ({ name: `Item ${i + 1}`, price: String(1000 + i), category: `Cat ${i % 12}` }));
+  const photos = [];
+  for (let i = 0; i < 1000; i++) for (const n of ["", " 2", " 3"]) photos.push({ url: `https://x.test/f/${i}${n.trim()}.jpg`, name: `Item ${i + 1}${n}.jpg`, type: "image/jpeg" });
+  const t = Date.now();
+  const site = buildSiteModel(mk(products, photos));
+  const html = renderPage(site, "index", { mode: "export", link: (x) => x, img: (u) => u });
+  const ms = Date.now() - t;
+  assert.ok(ms < 8000, "built in " + ms + " ms");
+  assert.equal(productPhotoFor(site, site.products[999]).name, "Item 1000.jpg");
+  assert.match(html, /Search 1000 products/);
+  assert.match(html, /See all 84/, "big categories show a few, with See all");
 });

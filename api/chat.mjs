@@ -8,7 +8,7 @@ import { SITE_FAQ } from "./_lib/site-faq.generated.mjs";
 const SYSTEM_PROMPT = `${BASE_PROMPT}\n\nOUR WEBSITE FAQ (published on www.sirraddo.com.ng; answers must agree with it):\n${SITE_FAQ}`;
 import { currentNotices } from "./_lib/notices.mjs";
 import { saveRequest, emailRequest, logChat, addUnanswered, reference } from "./_lib/store.mjs";
-import { chatProviders, CHAT_MODELS } from "./_lib/providers.mjs";
+import { chatProviders, CHAT_MODELS, ensureAiBackup } from "./_lib/providers.mjs";
 import { acknowledgeLead } from "./_lib/automation.mjs";
 import { cleanIdeas } from "./_lib/ideas.mjs";
 
@@ -124,6 +124,7 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
+  await ensureAiBackup();
   const providers = chatProviders();
   if (!providers.length) return res.status(200).json({ reply: FALLBACK, saved: false });
 
@@ -157,12 +158,23 @@ export default async function handler(req, res) {
   // Service notices showing now (planned upgrade, service problem, holiday): the assistant can mention them.
   const notices = await currentNotices().catch(() => []);
   let system = notices.length ? `${SYSTEM_PROMPT}\n\nSERVICE NOTICES SHOWING ON THE WEBSITE NOW (mention them when relevant, e.g. if someone asks about delays, payments or availability):\n${notices.map((n) => `- ${n.title}: ${n.message}`).join("\n")}` : SYSTEM_PROMPT;
+  // Side services switched on in admin (Packages → Side services): only these may be offered.
+  try {
+    const g = await import("./_lib/graphics.mjs");
+    const { getSettings } = await import("./_lib/store.mjs");
+    const on = new Set(g.visibleKeys(await getSettings()));
+    const lines = g.QUICK_SERVICES.filter((x) => on.has(x.key)).map((x) => `- ${x.interest}: ₦${x.price.toLocaleString("en-NG")}${x.recurring ? `, then ₦${x.recurring.amount.toLocaleString("en-NG")} ${x.recurring.period === "monthly" ? "a month" : "a year"}` : ""} (${x.what}; ${x.days}). Order at sirraddo.com.ng/${x.page === "design" ? "design" : "services"}`);
+    system += `\n\nSIDE SERVICES AVAILABLE NOW:\n${lines.length ? lines.join("\n") : "(none right now)"}`;
+  } catch { /* the chat still works without the list */ }
   // A special offer running now (Admin → Marketing → Offer): the assistant mentions it when it fits.
   const offer = await import("./_lib/marketing.mjs").then((m) => m.currentOffer()).catch(() => null);
   if (offer) system += `\n\nSPECIAL OFFER RUNNING NOW (mention it when someone asks about prices or is deciding; the team applies it on the quote; don't invent other discounts): ${offer.title}${offer.text ? ` (${offer.text})` : ""}. Last day: ${offer.until}.`;
   // Away mode: the team answers; replies can be slower. Never say the founder is away or travelling (safety).
   const away = await import("./_lib/notices.mjs").then((m) => m.awayStatus()).catch(() => null);
   if (away) system += `\n\nTEAM MODE UNTIL ${away.nice.toUpperCase()}: our team is answering requests and replies may take a little longer. Save their request as usual and tell them the team will reply on WhatsApp. If they ask for Ridwan by name, say the team is handling requests and will pass on their message. Never say anyone is away, travelling or out of town.`;
+  // Language the visitor picked in the chat ("Chat in: Pidgin" etc.).
+  const LANGS = { pcm: "Nigerian Pidgin", yo: "Yoruba", ha: "Hausa", ig: "Igbo" };
+  if (LANGS[body?.lang]) system += `\n\nLANGUAGE: the visitor chose to chat in ${LANGS[body.lang]}. Reply in simple, natural ${LANGS[body.lang]} (mix in English words people commonly use, e.g. website, domain, deposit). Keep prices, package names, references and links exactly as they are. If they write in English, you may answer in English.`;
   let saved = false;
   let lastErr = null;
   // Cheapest first; if it fails, the next one answers (saving is safe to repeat: same chat, same request).

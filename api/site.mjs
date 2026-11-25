@@ -5,12 +5,13 @@
 //   POST { t, text, files }          send the change request
 //   POST ?review=1 { k, stars, name, text }   a visitor's review (waits for the owner's OK)
 //   GET  ?reviews=sirraddo           approved reviews of SIRRADDO for our own website
+//   GET/POST ?client_review=TOKEN    our client's own review of SIRRADDO (the /rate page; waits for your OK)
 //   GET  ?greeting=1                 the festive greeting showing on sirraddo.com.ng now (or null)
 //   GET  ?nogreet=ID.SIG             stop festive greeting emails for that customer
 import { putFile, waitUntil } from "./_lib/platform.mjs";
 import { dbConfigured, getByPreviewToken, esc } from "./_lib/store.mjs";
 import { recordHit } from "./_lib/stats.mjs";
-import { addReview, shownReviews, OUR_ID } from "./_lib/reviews.mjs";
+import { addReview, shownReviews, OUR_ID, clientReviewInfo, addClientReview } from "./_lib/reviews.mjs";
 import { addChange, listChanges, freeUntil, isFree, MAX_CHANGE_FILES } from "./_lib/changes.mjs";
 import { uploadsEnabled } from "./brief.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
@@ -31,9 +32,9 @@ async function readRaw(req, limit) {
   }
   return Buffer.concat(chunks);
 }
-async function readJson(req) {
+async function readJson(req, limit = 20000) {
   let body = req.body;
-  if (body === undefined) body = (await readRaw(req, 20000)).toString("utf8");
+  if (body === undefined) body = (await readRaw(req, limit)).toString("utf8");
   if (Buffer.isBuffer(body)) body = body.toString("utf8");
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { body = null; } }
   return body && typeof body === "object" ? body : {};
@@ -119,6 +120,26 @@ export default async function handler(req, res) {
     res.setHeader("Cache-Control", "public, max-age=120");
     res.setHeader("Netlify-CDN-Cache-Control", "public, s-maxage=300, stale-while-revalidate=3600");
     return res.status(200).json(out);
+  }
+
+  // Our client's review of SIRRADDO from their personal /rate link (shows after you approve it in admin).
+  if (query.client_review) {
+    res.setHeader("Cache-Control", "no-store");
+    if (!dbConfigured()) return res.status(503).json({ error: "Reviews aren't available right now." });
+    try {
+      if (req.method === "GET") {
+        const info = await clientReviewInfo(String(query.client_review));
+        return info ? res.status(200).json(info) : res.status(404).json({ error: "This review link isn't valid. Please ask us for a new one." });
+      }
+      if (req.method !== "POST") return res.status(405).json({ error: "Not allowed" });
+      const b = await readJson(req, 600000);
+      const out = await addClientReview(String(query.client_review), b);
+      return res.status(out.error ? 400 : 200).json(out.error ? { error: out.error } : { ok: true });
+    } catch (e) {
+      if (e.tooBig) return res.status(413).json({ error: "That photo is too large. Please choose a smaller one." });
+      console.error("client review failed", e);
+      return res.status(500).json({ error: "Sorry, that didn't send. Please try again." });
+    }
   }
 
   // A review from a customer's website (shows only after the owner approves it in Manage my store).

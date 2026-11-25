@@ -27,7 +27,7 @@ export default async function handler(req, res) {
   if (!session) return res.status(400).json({ error: "Missing chat" });
   if (!TYPES.includes(type)) return res.status(415).json({ error: "Please send a photo (JPG or PNG) or a PDF." });
   const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
-  if (limited(byIp, ip, 10, 60 * 60 * 1000) || limited(bySession, session, 5, 24 * 60 * 60 * 1000)) {
+  if (limited(byIp, ip, 12, 60 * 60 * 1000) || limited(bySession, session, 9, 24 * 60 * 60 * 1000)) {
     return res.status(429).json({ error: "That's the most files for now. Please send more on WhatsApp: https://wa.me/2348167550937" });
   }
   try {

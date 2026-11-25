@@ -41,15 +41,21 @@
         <p id="brief-status" class="brief-status" hidden></p>
         <div class="brief-progress" aria-hidden="true"><span id="brief-bar"></span></div>
         <p id="brief-progress-text" class="brief-small"></p>
+        <nav id="brief-steps" class="brief-steps" aria-label="Steps"></nav>
+        <p class="brief-step-now"><span id="brief-step-title"></span></p>
       </section>
       <form id="brief-form" novalidate></form>
       <div class="brief-actions">
         <p id="brief-message" class="brief-message" role="status" aria-live="polite"></p>
-        <button type="button" id="brief-save" class="btn btn--navy btn--block">Save and finish later</button>
-        <button type="button" id="brief-submit" class="btn btn--gold btn--block">Send my details</button>
-        <p class="brief-small">Your answers save automatically as you type. Questions? <a href="https://wa.me/2348167550937" target="_blank" rel="noopener">WhatsApp us</a>. See our <a href="/privacy">Privacy Policy</a>.</p>
+        <div class="brief-nav">
+          <button type="button" id="brief-back" class="btn btn--outline brief-back" hidden>← Back</button>
+          <button type="button" id="brief-next" class="btn btn--gold brief-next">Next →</button>
+          <button type="button" id="brief-submit" class="btn btn--gold brief-next" hidden>Send my details ✓</button>
+        </div>
+        <button type="button" id="brief-save" class="brief-save-link">Save and finish later</button>
       </div>
-    </div>
+      <p class="brief-small">Your answers save automatically as you type. Questions? <a href="https://wa.me/2348167550937" target="_blank" rel="noopener">WhatsApp us</a>. See our <a href="/privacy">Privacy Policy</a>.</p>
+          </div>
   </main>
 </body>
 </html>

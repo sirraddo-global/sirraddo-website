@@ -253,3 +253,10 @@ BASE_URL=http://localhost:8000 node scripts/check-live.mjs
 ```
 
 If you change the page on purpose (for example new prices), update the matching line in `scripts/check-live.mjs`.
+
+## Store extras and every-site features (Nov 2026)
+
+- `api/_lib/storeplus.mjs`: sales (old price + end date), sizes/colours with stock per choice, delivery fees by area + free delivery above an amount, discount codes, pay small-small (instalments by transfer), order tracking (packed/shipped/delivered), "tell me when it's back" lists, signed-in buyers' unfinished carts, product reviews from verified buyers, reports. Prices are always worked out on the server (`priceOrder` in `shop.mjs`); the cart asks `/api/shop` `action: "quote"` for the exact total.
+- `api/_lib/sitekit.mjs`: for every site: install as an app (`manifest.webmanifest`, `sw.js`, `app-icon.svg` published with the site), a phone quick-action bar for non-store sites, an "Open now" badge from the hours (Lagos time; only when the hours can be read for sure), Share/Install buttons.
+- Owners set everything in My store (Products → Sale, sizes & colours; Payments → areas, codes, pay small-small; Orders → tracking buttons, record payment; Reports).
+

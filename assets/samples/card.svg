@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 750" width="600" height="750">
+  <rect width="600" height="750" fill="#F1EDE8"/>
+  <g transform="translate(70 90) rotate(-6 230 135)">
+    <rect x="6" y="10" width="460" height="270" rx="16" fill="#000" opacity=".12"/>
+    <rect width="460" height="270" rx="16" fill="#1F1A2E"/>
+    <circle cx="230" cy="108" r="40" fill="none" stroke="#E7B9A0" stroke-width="3"/>
+    <text x="230" y="122" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="40" fill="#E7B9A0">A</text>
+    <text x="230" y="194" text-anchor="middle" font-family="Georgia, serif" font-size="30" letter-spacing="3" fill="#FFFFFF">ADA'S HAIR STUDIO</text>
+    <text x="230" y="226" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" letter-spacing="5" fill="#E7B9A0">BRAIDS · WIGS · STYLING</text>
+  </g>
+  <g transform="translate(70 400) rotate(4 230 135)">
+    <rect x="6" y="10" width="460" height="270" rx="16" fill="#000" opacity=".12"/>
+    <rect width="460" height="270" rx="16" fill="#FFFFFF"/>
+    <rect width="12" height="270" rx="6" fill="#E7B9A0"/>
+    <text x="44" y="70" font-family="Georgia, serif" font-size="32" fill="#1F1A2E">Ada Obi</text>
+    <text x="44" y="100" font-family="Arial, sans-serif" font-size="15" letter-spacing="3" fill="#9C6B55">CREATIVE DIRECTOR</text>
+    <g font-family="Arial, sans-serif" font-size="17" fill="#3F3A4A">
+      <text x="44" y="158">☎  0800 000 0000</text>
+      <text x="44" y="190">✉  hello@adashair.example</text>
+      <text x="44" y="222">⌂  Ring Road, Ibadan</text>
+    </g>
+    <g transform="translate(340 140)" fill="#1F1A2E">
+      <rect width="80" height="80" rx="6" fill="#F1EDE8"/>
+      <rect x="10" y="10" width="20" height="20"/><rect x="50" y="10" width="20" height="20"/><rect x="10" y="50" width="20" height="20"/>
+      <rect x="40" y="40" width="8" height="8"/><rect x="54" y="54" width="8" height="8"/><rect x="40" y="62" width="8" height="8"/><rect x="62" y="40" width="8" height="8"/>
+    </g>
+  </g>
+</svg>

@@ -13,8 +13,8 @@
     address: 'PLT 106/107 Agbaakin Layout, Iwo Road, Olowotinfiowosanu Area, Ibadan, Oyo State, Nigeria',
     phone: '+234 816 755 0937', email: 'info@sirraddo.com.ng'
   };
-  var PACKAGES = ['Starter website', 'Business website', 'Online Store', 'Custom app', 'Business software', 'ZAPPI PAY', 'Other'];
-  var DEFAULT_QUOTE = { 'Starter website': 50000, 'Business website': 100000, 'Online Store': 150000 };
+  var PACKAGES = ['Starter website', 'Business website', 'Online Store', 'Custom app', 'Business software', 'ZAPPI PAY', 'Flyer design', 'Social media designs', 'Business card design', 'Logo design', 'Brand kit', 'Invitation design', 'Google Maps listing', 'WhatsApp Business setup', 'CV design', 'CV + cover letter', 'Mini website', 'Domain + business email', 'QR menu / price list', 'Monthly social media posts', 'Other'];
+  var DEFAULT_QUOTE = { 'Starter website': 50000, 'Business website': 100000, 'Online Store': 150000, 'Flyer design': 5000, 'Social media designs': 15000, 'Business card design': 5000, 'Logo design': 20000, 'Brand kit': 45000, 'Invitation design': 5000, 'Google Maps listing': 7000, 'WhatsApp Business setup': 5000, 'CV design': 3000, 'CV + cover letter': 5000, 'Mini website': 10000, 'Domain + business email': 15000, 'QR menu / price list': 10000, 'Monthly social media posts': 20000 };
   // "Business: wants Google Maps…" (from the chat assistant) -> 'Business website'
   function recommendedPackage(text) {
     var t = String(text || '').split(':')[0].toLowerCase();
@@ -37,7 +37,8 @@
     tpl_receipt: { label: 'Send receipt', text: 'Hello {name}, thank you for your payment of {last_payment}. Your receipt: {doc_link}' },
     tpl_preview: { label: 'Send website preview', text: 'Hello {name}, your website preview is ready! Please look through every page here: {preview_link}\nAt the bottom you can approve it or tell us what to change.' },
     tpl_handover: { label: 'Website is live (handover)', text: 'Hello {name}, your website is now live at {website}! Here is your handover pack: your domain, email and renewal details, your private Manage link (change prices, opening hours, numbers and more yourself, and approve customer reviews) and how to get on Google Maps: {doc_link}' },
-    tpl_renewal: { label: 'Renewal reminder', text: 'Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.\nPay online: {pay_link}' }
+    tpl_renewal: { label: 'Renewal reminder', text: 'Hello {name}, your website renewal of {renewal_amount} is due on {renewal_due}. It covers your domain, hosting, SSL, business email and backups. Please let us know once you have paid so everything keeps running.\nPay online: {pay_link}' },
+    tpl_review: { label: 'Ask for a review', text: 'Hello {name}, thank you for choosing SIRRADDO! If you are happy with your website, would you rate us? It takes a minute, and you can add your photo or logo: {review_link}' }
   };
 
   var password = null;
@@ -132,7 +133,7 @@
     setError(err.message);
   }
   function replaceRequest(row) {
-    state.requests = state.requests.map(function (r) { return r.id === row.id ? row : r; });
+    state.requests = state.requests.map(function (r) { if (r.id === row.id && r.review_link && !row.review_link) row.review_link = r.review_link; return r.id === row.id ? row : r; });
   }
   function update(r, fields, msg) {
     fields.id = r.id;
@@ -148,6 +149,8 @@
       state.requests = j.requests || [];
       state.unanswered = j.unanswered || [];
       state.settings = j.settings || {};
+      state.quick = j.quick || [];
+      state.quickExtras = j.quick_extras || {}; state.extraGuides = j.extra_guides || {}; state.qc = j.quality_checks || []; state.jobStages = j.job_stages || [];
       state.me = j.me || { role: 'owner', perms: [] };
       if (STAFF_PAGE !== (state.me.role === 'staff')) {
         logout();
@@ -388,7 +391,7 @@
   function reviewsCard() {
     var card = el('div', { class: 'admin-card admin-settings' }, [
       el('h2', { text: 'Reviews of SIRRADDO' }),
-      el('p', { class: 'admin-intro', text: 'Clients rate you on the Websites page of your website. New ones wait here (and you get an email). Choose Show on website for genuine reviews, Hide for fake or rude ones. Shown reviews appear on your website within about 5 minutes.' })
+      el('p', { class: 'admin-intro', text: 'Clients rate you on the Websites page of your website, or from their own review link (emailed 7 days after their site goes live; also under their client card → WhatsApp → Ask for a review). Those show as Verified client, with their business and photo. New ones wait here (and you get an email). Choose Show on website for genuine reviews, Hide for fake or rude ones. Shown reviews appear on your website within about 5 minutes.' })
     ]);
     var box = el('div', null, [el('p', { class: 'admin-hint', text: 'Loading…' })]);
     card.appendChild(box);
@@ -399,7 +402,8 @@
         var st = { pending: ['New', 'is-new'], shown: ['On website', 'is-won'], hidden: ['Hidden', ''] }[r.status] || ['', ''];
         var stars = new Array(r.stars + 1).join('\u2605') + new Array(6 - r.stars).join('\u2606');
         box.appendChild(el('div', { class: 'admin-golive' }, [
-          el('p', null, [el('b', { text: stars + '  ' + r.name }), ' ', badge(st[0], st[1])]),
+          r.photo ? el('img', { src: r.photo, alt: '', class: 'admin-rv-photo' }) : null,
+          el('p', null, [el('b', { text: stars + '  ' + r.name }), r.business ? ' · ' + r.business : '', ' ', badge(st[0], st[1]), r.client_id ? badge('Verified client', 'is-won') : null]),
           r.body ? el('p', { text: r.body }) : null,
           el('p', { class: 'admin-hint', text: new Date(r.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) }),
           el('div', { class: 'admin-actions' }, [
@@ -522,14 +526,221 @@
     PKG.custom = { build: Number(pkgSetting('custom_build_from')), monthly: Number(pkgSetting('custom_monthly')) };
   }
   function nN(n) { return '₦' + Math.round(n).toLocaleString('en-NG'); }
-  var PKG_TABS = [['standard', 'Standard Store'], ['custom', 'Custom system'], ['database', 'Database'], ['demand', 'Who\u2019s asking'], ['prices', 'Prices']];
+  var PKG_TABS = [['quick', 'Side services'], ['standard', 'Standard Store'], ['custom', 'Custom system'], ['database', 'Database'], ['demand', 'Who\u2019s asking'], ['prices', 'Prices']];
   function renderPackages(view) {
     loadPkg();
-    var tab = state.pkgTab || 'standard';
+    var tab = state.pkgTab || 'quick';
     view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Packages' }, PKG_TABS.map(function (t) {
       return el('button', { type: 'button', 'aria-pressed': t[0] === tab ? 'true' : 'false', text: t[1], onclick: function () { state.pkgTab = t[0]; render(); } });
     })));
-    ({ standard: pkgStandard, custom: pkgCustom, database: pkgDatabase, demand: pkgDemand, prices: pkgPrices })[tab](view);
+    ({ quick: pkgQuick, standard: pkgStandard, custom: pkgCustom, database: pkgDatabase, demand: pkgDemand, prices: pkgPrices })[tab](view);
+  }
+
+  // ---------- Packages → Side services: on/off switch + step-by-step guide for each quick service ----------
+  function quickVisible() {
+    var raw = (state.settings || {}).svc_visible;
+    if (raw == null || raw === '') return (state.quick || []).filter(function (q) { return q.on; }).map(function (q) { return q.key; });
+    if (raw === 'none') return [];
+    return raw.split(',');
+  }
+  function quickPeriod(q) { return q.recurring ? ', then ' + nN(q.recurring.amount) + (q.recurring.period === 'monthly' ? ' a month' : ' a year') : ''; }
+  function quickGuide(q, extras) {
+    var kids = [el('summary', null, [el('span', { class: 'admin-fold-title', text: '📋 How to do it, step by step' })]),
+      el('ol', { class: 'admin-mini' }, q.guide.map(function (t) { return el('li', { text: t }); }))];
+    if (q.design || q.key === 'qrmenu') kids.splice(1, 0, el('p', { class: 'admin-hint', text: '⚡ Fast way (no Canva needed): tap “Instant draft” on the request. It makes 3 finished designs from their photos, words and colours; change the words or colours if needed, download, put them through the Mockup maker and send as Option 1, 2, 3. For logos and brand kits, the same button opens ✨ Logo ideas: 3 original logos from their brief to pick from and adjust.' }));
+    (extras || q.extras || []).forEach(function (x) {
+      if (state.extraGuides[x]) kids.push(el('p', { class: 'admin-hint', text: '➕ ' + state.extraGuides[x] }));
+    });
+    if (q.design || /CV/.test(q.interest) || q.key === 'qrmenu') {
+      kids.push(el('p', { class: 'admin-h2', text: '✅ Before you send anything' }));
+      kids.push(el('ul', { class: 'admin-mini' }, state.qc.map(function (t) { return el('li', { text: t }); })));
+    }
+    return el('details', { class: 'admin-fold' }, kids);
+  }
+  function todayNg() { return new Date(Date.now() + 3600000).toISOString().slice(0, 10); }
+  // On a quick-service request: where the job is, the promised date, the tracking link, previous orders, the guide.
+  function quickPanel(r, q) {
+    var box = el('div', { class: 'admin-hint qs-panel' });
+    function draw() {
+      box.innerHTML = '';
+      var extras = Object.keys(state.quickExtras).filter(function (k) { return new RegExp('^Extras:.*' + state.quickExtras[k].label, 'm').test(r.details || ''); });
+      var stage = r.job_stage || ((r.payments || []).length ? 'paid' : 'received');
+      var late = r.deliver_by && stage !== 'done' && todayNg() > r.deliver_by;
+      box.appendChild(el('b', { text: 'Side service: ' + nN(q.price) + quickPeriod(q) + ' · ' + q.days }));
+      if (extras.length) box.appendChild(el('p', { class: 'admin-meta', text: '➕ Extras: ' + extras.map(function (k) { return state.quickExtras[k].label; }).join(', ') }));
+      if (r.deliver_by) box.appendChild(el('p', { class: 'admin-meta' }, [badge(late ? 'LATE: promised ' + niceDay(r.deliver_by) : 'Deliver by ' + niceDay(r.deliver_by), late ? 'is-due' : 'is-won')]));
+      if (late) box.appendChild(el('p', { class: 'admin-meta', text: 'On-time promise: when you mark it Delivered, a note is added that they get 20% off their next order.' }));
+      // Stage buttons
+      var row = el('div', { class: 'admin-actions qs-stages' });
+      state.jobStages.forEach(function (st) {
+        if (st[0] === 'received' || st[0] === 'paid') return;
+        row.appendChild(el('button', { class: 'admin-btn' + (stage === st[0] ? ' admin-btn--primary' : ''), type: 'button', text: st[1], onclick: function () {
+          api('PATCH', { id: r.id, job_stage: st[0] }).then(function (nr) { Object.assign(r, nr); flash('Stage: ' + st[1]); draw(); }).catch(fail);
+        } }));
+      });
+      box.appendChild(el('p', { class: 'admin-meta', text: 'Stage (the customer sees it on their tracking page): ' + ((state.jobStages.filter(function (x) { return x[0] === stage; })[0] || [0, stage])[1]) }));
+      box.appendChild(row);
+      // Tracking link + WhatsApp update
+      if (r.doc_token) {
+        var link = location.origin + '/track?t=' + r.doc_token;
+        var num = waNumber(r.contact);
+        var st = (state.jobStages.filter(function (x) { return x[0] === stage; })[0] || [0, '', ''])[2];
+        var msg = 'Hello ' + String(r.name).split(' ')[0] + ', update on your ' + r.interest + ': ' + st + '\nTrack it any time: ' + link;
+        box.appendChild(el('div', { class: 'admin-actions' }, [
+          el('button', { class: 'admin-btn', type: 'button', text: 'Copy tracking link', onclick: function () {
+            (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(function () { flash('Link copied'); }).catch(function () { prompt('Tracking link', link); });
+          } }),
+          num ? el('a', { class: 'admin-btn admin-btn--wa', href: 'https://wa.me/' + num + '?text=' + encodeURIComponent(msg), target: '_blank', rel: 'noopener', text: 'Send update on WhatsApp' }) : null
+        ]));
+      }
+      // Previous orders from the same customer (brand on file, 20% owed)
+      var digits = String(r.contact || '').replace(/\D/g, '').slice(-10);
+      var past = digits.length >= 10 ? (state.requests || []).filter(function (x) { return x.id !== r.id && String(x.contact || '').replace(/\D/g, '').slice(-10) === digits; }) : [];
+      if (past.length) {
+        var owed = past.some(function (x) { return /owes 20% off their next order/.test(x.notes || ''); });
+        box.appendChild(el('p', { class: 'admin-meta', text: '🗂️ Returning customer: ' + past.length + ' earlier request(s): ' + past.slice(0, 4).map(function (x) { return 'SGL-' + String(x.id).padStart(4, '0') + ' ' + x.interest; }).join(', ') + '. Reuse their logo and colours from those orders.' }));
+        if (owed) box.appendChild(el('p', { class: 'admin-meta' }, [badge('Owed 20% off this order (we were late last time)', 'is-due')]));
+      }
+      if ((q.design || q.key === 'qrmenu') && window.SirStudio) {
+        box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: /Logo|Brand kit|Launch pack/.test(q.interest) ? '✨ Logo ideas + designs' : '🎨 Instant draft: 3 designs from their photos', onclick: function () { openStudio(r); } })]));
+      }
+      box.appendChild(quickGuide(q, extras.length ? extras : []));
+    }
+    draw();
+    return box;
+  }
+
+  // Design studio from an order: their uploaded files, words, colours and contacts.
+  function orderField(details, label) {
+    var m = String(details || '').match(new RegExp('^' + label + ':\\s*(.+)$', 'm')); return m ? m[1].trim() : '';
+  }
+  function openStudio(r) {
+    var details = String(r.details || '');
+    var files = []; details.replace(/^• (.+?): (https?:\/\/\S+)$/gm, function (_, name, url) { files.push({ name: name, url: url }); return _; });
+    var samples = []; details.replace(/^◦ (.+?): (https?:\/\/\S+)$/gm, function (_, name, url) { samples.push({ name: name, url: url }); return _; });
+    var words = (details.split(/\n\n/).filter(function (b) { return /:\s*$/.test(b.split('\n')[0]) && !/^Files \(/.test(b); })[0] || '').split('\n').slice(1).join('\n');
+    window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, samples: samples, words: words, business: r.business || '', contact: r.contact || '',
+      colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, bgApi: bgApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest) });
+  }
+  function logoApi(brief) { return api('POST', { action: 'logo_ideas', brief: brief }); }
+  function bgApi(image) { return api('POST', { action: 'remove_bg', image: image }); }
+
+  // Mockup maker: drop a design in, get it on a phone, a wall poster and a printed card, ready to send as options.
+  function mockupMaker() {
+    var card = el('div', { class: 'admin-card' }, [
+      el('h2', { text: '🖼️ Mockup maker' }),
+      el('p', { class: 'admin-hint', text: 'Pick a finished design (PNG or JPG). You get it shown on a phone, as a poster on a wall and as a printed card. Download them and send with each option: designs look far more professional this way.' })
+    ]);
+    var input = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp' });
+    var label = el('input', { type: 'text', placeholder: 'Label, e.g. Option 1', maxlength: '30' });
+    var out = el('div', { class: 'mk-out' });
+    card.appendChild(el('div', { class: 'admin-golive' }, [field('Design', input), field('Label (optional)', label)]));
+    card.appendChild(out);
+    function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+    function fit(img, w, h) { var s = Math.max(w / img.width, h / img.height); return { w: img.width * s, h: img.height * s }; }
+    function contain(img, w, h) { var s = Math.min(w / img.width, h / img.height); return { w: img.width * s, h: img.height * s }; }
+    function tag(c, W, H) {
+      if (label.value.trim()) {
+        c.font = '700 44px Inter, Arial, sans-serif'; var tw = c.measureText(label.value.trim()).width;
+        c.fillStyle = '#13254F'; rr(c, 40, 40, tw + 60, 76, 38); c.fill();
+        c.fillStyle = '#FFFFFF'; c.fillText(label.value.trim(), 70, 92);
+      }
+      c.font = '600 22px Inter, Arial, sans-serif'; c.fillStyle = 'rgba(0,0,0,.35)'; c.textAlign = 'right'; c.fillText('Preview · SIRRADDO', W - 36, H - 30); c.textAlign = 'left';
+    }
+    function phone(img) {
+      var W = 1080, H = 1350, cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d');
+      var g = c.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#E9EEF7'); g.addColorStop(1, '#C9D4E8'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+      var pw = 560, ph = 1140, px = (W - pw) / 2, py = 110;
+      c.save(); c.shadowColor = 'rgba(19,37,79,.35)'; c.shadowBlur = 60; c.shadowOffsetY = 30; c.fillStyle = '#111827'; rr(c, px, py, pw, ph, 78); c.fill(); c.restore();
+      var sx = px + 22, sy = py + 22, sw = pw - 44, sh = ph - 44;
+      c.save(); rr(c, sx, sy, sw, sh, 58); c.clip(); c.fillStyle = '#000'; c.fillRect(sx, sy, sw, sh);
+      var d = contain(img, sw, sh - 120); c.drawImage(img, sx + (sw - d.w) / 2, sy + 70 + (sh - 120 - d.h) / 2, d.w, d.h);
+      c.fillStyle = 'rgba(255,255,255,.9)'; c.font = '600 22px Inter, Arial, sans-serif'; c.fillText('12:21', sx + 40, sy + 44);
+      c.restore();
+      c.fillStyle = '#111827'; rr(c, px + pw / 2 - 70, py + 34, 140, 34, 17); c.fill();
+      tag(c, W, H); return cv;
+    }
+    function wall(img) {
+      var W = 1080, H = 1350, cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d');
+      var g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#F3EEE6'); g.addColorStop(1, '#E4DCCF'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+      c.fillStyle = '#B98F64'; c.fillRect(0, 1140, W, 210); c.fillStyle = 'rgba(0,0,0,.08)'; c.fillRect(0, 1140, W, 14);
+      var d = contain(img, 700, 900), fx = (W - d.w) / 2, fy = 130;
+      c.save(); c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 40; c.shadowOffsetY = 24; c.fillStyle = '#1F2937'; c.fillRect(fx - 26, fy - 26, d.w + 52, d.h + 52); c.restore();
+      c.fillStyle = '#FFFFFF'; c.fillRect(fx - 12, fy - 12, d.w + 24, d.h + 24);
+      c.drawImage(img, fx, fy, d.w, d.h);
+      // plant
+      c.fillStyle = '#8B5E3C'; rr(c, 860, 1010, 120, 140, 14); c.fill();
+      c.fillStyle = '#4D7C4A'; [[920, 930, 70], [870, 960, 55], [970, 965, 55], [920, 870, 50]].forEach(function (p) { c.beginPath(); c.ellipse(p[0], p[1], p[2] * .55, p[2], 0, 0, Math.PI * 2); c.fill(); });
+      tag(c, W, H); return cv;
+    }
+    function held(img) {
+      var W = 1080, H = 1350, cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d');
+      c.fillStyle = '#2B2F36'; c.fillRect(0, 0, W, H);
+      var g = c.createRadialGradient(W / 2, H / 2, 100, W / 2, H / 2, 800); g.addColorStop(0, 'rgba(255,255,255,.12)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+      var d = contain(img, 760, 1000);
+      [[-7, -40, 30], [5, 30, -10]].forEach(function (t, i) {
+        c.save(); c.translate(W / 2 + t[1], H / 2 + t[2]); c.rotate(t[0] * Math.PI / 180);
+        c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowBlur = 50; c.shadowOffsetY = 26; c.fillStyle = '#fff'; c.fillRect(-d.w / 2, -d.h / 2, d.w, d.h); c.shadowColor = 'transparent';
+        if (i === 1) c.drawImage(img, -d.w / 2, -d.h / 2, d.w, d.h); else { c.globalAlpha = .9; c.drawImage(img, -d.w / 2, -d.h / 2, d.w, d.h); c.globalAlpha = 1; c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(-d.w / 2, -d.h / 2, d.w, d.h); }
+        c.restore();
+      });
+      tag(c, W, H); return cv;
+    }
+    function make() {
+      var f = input.files && input.files[0]; if (!f) return;
+      var url = URL.createObjectURL(f), img = new Image();
+      img.onload = function () {
+        out.innerHTML = '';
+        [['Phone', phone], ['Wall poster', wall], ['Printed', held]].forEach(function (m) {
+          var cv = m[1](img); var data = cv.toDataURL('image/jpeg', .9);
+          var name = (label.value.trim() || 'design').replace(/\W+/g, '-').toLowerCase() + '-' + m[0].toLowerCase().replace(/\W+/g, '-') + '.jpg';
+          out.appendChild(el('figure', { class: 'mk-fig' }, [el('img', { src: data, alt: m[0] + ' mockup' }), el('a', { class: 'admin-btn', href: data, download: name, text: 'Download ' + m[0].toLowerCase() })]));
+        });
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    }
+    input.addEventListener('change', make); label.addEventListener('change', make);
+    return card;
+  }
+  function pkgQuick(view) {
+    var list = state.quick || [];
+    var vis = quickVisible();
+    view.appendChild(el('div', { class: 'admin-card' }, [
+      el('h2', { text: 'Side services' }),
+      el('p', { class: 'admin-hint', text: 'Small fixed-price jobs people order and pay for online: flyers and designs on sirraddo.com.ng/design, the rest on sirraddo.com.ng/services. Switch each one on when you are ready to do it; switched-off ones disappear from the website, the order form and the chat. Each order arrives in Requests with the customer’s details and files, and this guide shows on its card. Yearly and monthly ones add their renewal by themselves once paid.' }),
+      el('p', { class: 'admin-meta', text: vis.length + ' of ' + list.length + ' switched on' })
+    ]));
+    if (window.SirStudio) view.appendChild(el('div', { class: 'admin-card' }, [
+      el('h2', { text: '🎨 Design studio' }),
+      el('p', { class: 'admin-hint', text: 'Make a flyer from scratch: add photos from your phone, type the words, pick colours, download. For an order, use “Instant draft” on the request instead: it fills everything in from what the customer sent.' }),
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Open design studio', onclick: function () { window.SirStudio.open({ title: 'New design', logoApi: logoApi, bgApi: bgApi }); } })
+    ]));
+    view.appendChild(mockupMaker());
+    var boxes = {};
+    [['design', 'Flyers & graphics (/design)', function (q) { return q.page === 'design' && !q.worth; }], ['packs', 'Packs: bundles and seasonal (/design)', function (q) { return !!q.worth; }], ['services', 'Quick services (/services)', function (q) { return q.page === 'services'; }]].forEach(function (g) {
+      view.appendChild(el('h2', { class: 'admin-h2', text: g[1] }));
+      list.filter(g[2]).forEach(function (q) {
+        var on = el('input', { type: 'checkbox' }); on.checked = vis.indexOf(q.key) !== -1; boxes[q.key] = on;
+        var orders = (state.requests || []).filter(function (r) { return r.interest === q.interest; });
+        var paid = orders.filter(function (r) { return r.status === 'won'; }).length;
+        view.appendChild(el('div', { class: 'admin-card' }, [
+          el('div', { class: 'admin-card-top' }, [el('h3', { text: q.interest }), badge(on.checked ? (q.season ? 'On · shows ' + q.season.label : 'Showing') : 'Hidden', on.checked ? 'is-won' : '')]),
+          el('p', { class: 'admin-meta', text: nN(q.price) + (q.worth ? ' (worth ' + nN(q.worth) + ')' : '') + quickPeriod(q) + ' · ' + q.days + ' · ' + q.what }),
+          (q.extras || []).length ? el('p', { class: 'admin-meta', text: 'Extras customers can add: ' + q.extras.map(function (x) { return (state.quickExtras[x] || {}).label + ' +' + nN((state.quickExtras[x] || {}).price || 0); }).join(', ') }) : null,
+          el('p', { class: 'admin-meta', text: orders.length ? orders.length + ' order(s), ' + paid + ' paid' : 'No orders yet' }),
+          el('label', { class: 'admin-check' }, [on, ' Show on my website']),
+          quickGuide(q)
+        ]));
+      });
+    });
+    view.appendChild(el('div', { class: 'admin-actions' }, [
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Save switches', onclick: function () {
+        var keys = list.filter(function (q) { return boxes[q.key].checked; }).map(function (q) { return q.key; });
+        api('POST', { action: 'settings', settings: { svc_visible: keys.length ? keys.join(',') : 'none' } })
+          .then(function (j) { state.settings = j.settings; flash('Saved: ' + keys.length + ' showing on the website (it updates within a minute)'); render(); }).catch(fail);
+      } })
+    ]));
   }
   function pkgStandard(view) {
     view.appendChild(el('div', { class: 'admin-card' }, [
@@ -1239,7 +1450,7 @@
   // Tabs: Today (what to post), Ready ads, Showcase, Review cards, Festive, Offer, Referrals, Ad spend.
   // Pictures for Showcase / Review cards / Festive / Offer are drawn here in the browser (canvas), with a tagged QR.
   var MKC = { navy: '#13244F', deep: '#0C1733', gold: '#D9A21B', soft: '#C9D1E6', dim: '#AEB8D3' };
-  var MK_TABS = [['today', 'Today'], ['ads', 'Ready ads'], ['video', 'Video maker'], ['showcase', 'Showcase'], ['reviews', 'Review cards'], ['festive', 'Festive'], ['offer', 'Offer'], ['referrals', 'Referrals'], ['spend', 'Ad spend']];
+  var MK_TABS = [['today', 'Today'], ['ads', 'Ready ads'], ['video', 'Video maker'], ['showcase', 'Showcase'], ['reviews', 'Review cards'], ['festive', 'Festive'], ['offer', 'Offer'], ['referrals', 'Referrals'], ['agents', 'Agents'], ['spend', 'Ad spend']];
   var LINKS_URL = 'https://www.sirraddo.com.ng/links';
   var MK_PERM = { festive: 'owner', offer: 'owner', spend: 'money' };
   function renderMarketing(view) {
@@ -1249,7 +1460,7 @@
     view.appendChild(el('div', { class: 'admin-tabs admin-subtabs', role: 'group', 'aria-label': 'Marketing' }, tabs.map(function (t) {
       return el('button', { type: 'button', 'aria-pressed': t[0] === tab ? 'true' : 'false', text: t[1], onclick: function () { state.mkTab = t[0]; render(); } });
     })));
-    ({ today: mkToday, ads: mkReadyAds, video: mkVideoMaker, showcase: mkShowcase, reviews: mkReviewCards, festive: mkFestive, offer: mkOffer, referrals: mkReferrals, spend: mkSpend })[tab](view);
+    ({ today: mkToday, ads: mkReadyAds, video: mkVideoMaker, showcase: mkShowcase, reviews: mkReviewCards, festive: mkFestive, offer: mkOffer, referrals: mkReferrals, agents: mkAgents, spend: mkSpend })[tab](view);
   }
 
   // ---------- Ready ads (pictures, videos, flyers) ----------
@@ -1683,6 +1894,111 @@
       })) : el('p', { class: 'admin-empty', text: 'No referrals yet. Remind happy customers about their link (it’s on their Manage page).' }));
     }).catch(fail);
   }
+
+  // ---------- Marketing → Agents: people who bring clients for a commission ----------
+  function mkAgents(view) {
+    var head = el('div', { class: 'admin-card' }, [el('h2', { text: 'Agents' }),
+      el('p', { class: 'admin-hint' }, ['People apply on ', el('a', { href: '/agents', target: '_blank', rel: 'noopener', text: 'sirraddo.com.ng/agents' }),
+        '. Approve them here and they get their own link. Requests that come through it are theirs (the request shows “agent:CODE” as where it came from; you can also set that by hand if a client mentions an agent code). They earn the commission on what that client pays for the build in the first 12 months, and see it all on their dashboard.'])]);
+    view.appendChild(head);
+    var box = el('div'); view.appendChild(box);
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Loading…' }));
+    var openId = null;
+    function draw(j) {
+      box.textContent = '';
+      if (isOwner()) {
+        var rate = el('input', { type: 'number', min: 1, max: 50, value: j.rate, inputmode: 'decimal' });
+        var min = el('input', { type: 'number', min: 1000, step: 500, value: j.min, inputmode: 'numeric' });
+        var tiers = el('input', { value: j.tiers.length ? j.tiers.map(function (t) { return t.clients + ':' + t.rate; }).join(', ') : 'off', placeholder: '5:12, 15:15' });
+        var inv = el('input', { type: 'number', min: 0, step: 500, value: j.inviteBonus, inputmode: 'numeric' });
+        box.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: 'Commission' }),
+          el('div', { class: 'admin-grid2' }, [field('Commission (% of what the client pays for the build)', rate), field('Smallest payout (₦)', min),
+            field('Levels (from the Nth paying client, this %)', tiers, '"5:12, 15:15" = from the 5th paying client 12% (Silver), from the 15th 15% (Gold). "off" = everyone at the base %.'),
+            field('Invite bonus (₦)', inv, 'Paid to an agent when someone they invited earns their first commission. 0 = none.')]),
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Save', onclick: function () { api('POST', { action: 'agents_settings', rate: rate.value, min: min.value, tiers: tiers.value, invite_bonus: inv.value }).then(function (x) { flash('Saved'); draw(x); }).catch(fail); } })]));
+        // Announcements
+        var nt = el('input', { placeholder: 'Title, e.g. December promo', maxlength: 120 }), nbody = el('textarea', { rows: 3, maxlength: 1500, placeholder: 'What agents should know' }), nlink = el('input', { placeholder: 'Link (optional), https://…' });
+        var nmail = el('input', { type: 'checkbox' });
+        var news = el('div', { class: 'admin-card' }, [el('h2', { text: 'Announcements to agents' }), el('p', { class: 'admin-hint', text: 'Shows at the top of every agent\'s dashboard. Tick email to also send it (up to 60 agents, from today\'s email allowance).' }),
+          nt, nbody, nlink, el('label', { class: 'admin-check' }, [nmail, ' Also email it to agents']),
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Post announcement', onclick: function () {
+            api('POST', { action: 'agent_news', title: nt.value, body: nbody.value, link: nlink.value, email: nmail.checked }).then(function (x) { flash(x.emailed ? 'Posted and emailed to ' + x.emailed : 'Posted'); draw(x); }).catch(fail);
+          } })]);
+        if (j.news.length) news.appendChild(el('ul', { class: 'admin-mini' }, j.news.map(function (n) {
+          return el('li', null, [el('b', { text: n.title }), ' · ' + new Date(n.created_at).toLocaleDateString('en-GB') + (n.emailed ? ' · emailed ' + n.emailed : '') + ' ',
+            el('button', { class: 'admin-btn', type: 'button', text: 'Delete', onclick: function () { if (window.confirm('Delete this announcement?')) api('POST', { action: 'agent_news_delete', id: n.id }).then(draw).catch(fail); } })]);
+        })));
+        box.appendChild(news);
+      }
+      if (j.top && j.top.length) box.appendChild(el('div', { class: 'admin-card' }, [el('h2', { text: '🏆 Top agents this month' }), el('ol', { class: 'admin-mini' }, j.top.map(function (t) { return el('li', { text: t.name + (t.city ? ' (' + t.city + ')' : '') + ' · ' + t.clients + ' paying' }); })),
+        el('p', { class: 'admin-hint', text: 'Reward the top agent with "Add bonus" on their card below.' })]));
+      var pending = j.agents.filter(function (a) { return a.status === 'pending'; });
+      var owed = j.agents.filter(function (a) { return a.payout_requested_at; });
+      var list = el('div', { class: 'admin-card' }, [el('h2', { text: 'Your agents (' + j.agents.filter(function (a) { return a.status === 'active'; }).length + ' active)' })]);
+      if (pending.length || owed.length) list.appendChild(el('p', { class: 'admin-flag', text: [pending.length ? pending.length + ' waiting for approval' : '', owed.length ? owed.length + ' asked for a payout' : ''].filter(Boolean).join(' · ') }));
+      if (!j.agents.length) list.appendChild(el('p', { class: 'admin-empty', text: 'No agents yet. Share sirraddo.com.ng/agents on your status and pages to find some.' }));
+      j.agents.forEach(function (a) { list.appendChild(agentRow(a, j)); });
+      box.appendChild(list);
+    }
+    function agentRow(a, j) {
+      var badge = { pending: 'Waiting for approval', active: 'Active', paused: 'Paused', declined: 'Declined' }[a.status] || a.status;
+      var d = el('details', { class: 'admin-agent', open: a.id === openId || a.status === 'pending' || a.payout_requested_at ? true : null });
+      d.addEventListener('toggle', function () { if (d.open) openId = a.id; });
+      d.appendChild(el('summary', null, [el('b', { text: a.name }), ' · ' + (a.code || 'no code yet') + ' · ' + badge + (a.status === 'active' ? ' · ' + a.count + ' sent · ' + a.clients + ' paying · balance ' + naira(a.balance) : '') + (a.payout_requested_at ? ' · 💰 payout requested' : '')]));
+      var num = waNumber(a.phone);
+      d.appendChild(el('p', { class: 'admin-meta', text: [a.phone, a.email, a.city, 'applied ' + new Date(a.created_at).toLocaleDateString('en-GB'), a.last_login_at ? 'last log in ' + new Date(a.last_login_at).toLocaleDateString('en-GB') : 'never logged in', a.status === 'active' ? (a.trained_at ? '🎓 trained' : 'not trained yet') : null].filter(Boolean).join(' · ') }));
+      if (a.pitch) d.appendChild(el('p', { class: 'admin-meta', text: 'How they’ll find clients: ' + a.pitch }));
+      if (a.link) d.appendChild(el('p', { class: 'admin-meta', text: 'Link: ' + a.link + ' · commission ' + a.rate + '%' + (a.own_rate != null ? ' (their own rate)' : '') }));
+      if (a.status === 'active') d.appendChild(el('p', { class: 'admin-meta', text: a.level + ' · commission ' + naira(a.earned) + (a.bonusTotal ? ' · bonuses ' + naira(a.bonusTotal) : '') + (a.inviteTotal ? ' · invite bonuses ' + naira(a.inviteTotal) : '') + ' · paid ' + naira(a.paidOut) + ' · balance ' + naira(a.balance) + (a.prospects ? ' · ' + a.prospects + ' registered prospect' + (a.prospects === 1 ? '' : 's') : '') + (a.invites ? ' · invited ' + a.invites + ' agent' + (a.invites === 1 ? '' : 's') : '') }));
+      if (a.invited_by) d.appendChild(el('p', { class: 'admin-meta', text: 'Invited by ' + a.invited_by }));
+      var acts = el('div', { class: 'admin-actions' });
+      if (isOwner()) {
+        var set = function (status, ok) { return function () { api('POST', { action: 'agent_update', id: a.id, status: status }).then(function (x) { flash(ok); openId = a.id; draw(x); }).catch(fail); }; };
+        if (a.status !== 'active') acts.appendChild(el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: a.status === 'pending' ? 'Approve' : 'Make active', onclick: set('active', 'Approved') }));
+        if (a.status === 'pending') acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Decline', onclick: function () { if (window.confirm('Decline ' + a.name + '?')) set('declined', 'Declined')(); } }));
+        if (a.status === 'active') acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Pause', onclick: function () { if (window.confirm('Pause ' + a.name + '? They can’t log in while paused; their clients still count.')) set('paused', 'Paused')(); } }));
+        if (num && a.status === 'active') acts.appendChild(el('a', { class: 'admin-btn admin-btn--wa', target: '_blank', rel: 'noopener', text: 'Welcome on WhatsApp',
+          href: 'https://wa.me/' + num + '?text=' + encodeURIComponent('Hello ' + a.name.split(' ')[0] + ', welcome to SIRRADDO agents! 🎉 You’re approved. Your link: ' + a.link + '\nYou earn ' + a.rate + '% when a business you bring pays for their website. Log in to your dashboard at https://www.sirraddo.com.ng/agents#login with your WhatsApp number and password: it has ready messages to share.') }));
+        acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Reset password', onclick: function () {
+          if (!window.confirm('Give ' + a.name + ' a new temporary password?')) return;
+          api('POST', { action: 'agent_reset', id: a.id }).then(function (x) {
+            var msg = 'Hello ' + a.name.split(' ')[0] + ', your temporary SIRRADDO agent password is ' + x.password + ' . Log in at https://www.sirraddo.com.ng/agents#login and choose your own.';
+            window.prompt('Send this to them on WhatsApp (it’s shown once):', msg);
+            if (num) window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank', 'noopener');
+          }).catch(fail);
+        } }));
+        var own = el('input', { type: 'number', min: 1, max: 50, placeholder: String(j.rate), value: a.own_rate != null ? a.own_rate : '', style: 'max-width:90px' });
+        acts.appendChild(el('span', { class: 'admin-inline' }, ['Own %', own, el('button', { class: 'admin-btn', type: 'button', text: 'Set', onclick: function () { api('POST', { action: 'agent_update', id: a.id, rate: own.value }).then(function (x) { flash('Saved'); openId = a.id; draw(x); }).catch(fail); } })]));
+      }
+      if (isOwner() && a.status === 'active') {
+        acts.appendChild(el('button', { class: 'admin-btn', type: 'button', text: 'Add bonus', onclick: function () {
+          var amt = window.prompt('Bonus for ' + a.name + ' (₦):', '5000'); if (!amt) return;
+          var why = window.prompt('What is it for? (they see this)', 'Top agent of the month'); if (why == null) return;
+          api('POST', { action: 'agent_bonus', id: a.id, amount: amt, note: why }).then(function (x) { flash('Bonus added'); openId = a.id; draw(x); }).catch(fail);
+        } }));
+      }
+      d.appendChild(acts);
+      // Pay
+      if (isOwner() && a.status !== 'pending') {
+        var bank = a.bank ? a.bank.bank + ' · ' + a.bank.account_no + ' · ' + a.bank.account_name : 'No bank details yet';
+        var amt = el('input', { inputmode: 'numeric', value: a.balance > 0 ? a.balance : '', placeholder: 'Amount' });
+        var ref = el('input', { placeholder: 'Transfer reference (optional)', maxlength: 80 });
+        d.appendChild(el('div', { class: 'admin-golive' }, [el('span', { class: 'admin-label', text: 'Record a payout' }), el('p', { class: 'admin-meta', text: bank }),
+          el('div', { class: 'admin-grid2' }, [amt, ref]),
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'I’ve paid them', disabled: !a.bank, onclick: function () {
+            if (!window.confirm('Record ' + naira(amt.value) + ' paid to ' + a.name + '? They’ll get an email.')) return;
+            api('POST', { action: 'agent_payout', id: a.id, amount: amt.value, ref: ref.value }).then(function (x) { flash('Payout recorded'); openId = a.id; draw(x); }).catch(fail);
+          } })]));
+      }
+      if (a.leads.length) d.appendChild(el('ul', { class: 'admin-mini' }, a.leads.map(function (l) {
+        return el('li', null, [el('b', { text: l.business || l.name }), ' · ' + l.interest + ' · ' + l.status + (l.self ? ' · their own business (not counted)' : '') + (l.paid != null ? ' · paid ' + naira(l.paid) : '') + ' · earns ' + naira(l.earned) + (l.rate ? ' (' + l.rate + '%)' : '')]);
+      })));
+      if (a.payouts.length) d.appendChild(el('p', { class: 'admin-meta', text: 'Payouts: ' + a.payouts.map(function (p) { return naira(p.amount) + ' on ' + new Date(p.created_at).toLocaleDateString('en-GB') + (p.ref ? ' (' + p.ref + ')' : ''); }).join(', ') }));
+      return d;
+    }
+    api('POST', { action: 'agents_list' }).then(draw).catch(function (e) { box.textContent = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
+  }
+
   // Client card → Referrals
   function referralBlock(r) {
     var box = el('div', { class: 'admin-golive' }, [el('span', { class: 'admin-label', text: 'Referrals' })]);
@@ -2230,9 +2546,11 @@
     var card = el('article', { class: 'admin-card admin-card--' + r.status });
     var top = el('div', { class: 'admin-card-top' }, [el('h2', { text: r.name }), el('span', { class: 'admin-tag', text: r.interest })]);
     card.appendChild(top);
+    var quick = (state.quick || []).filter(function (q) { return q.interest === r.interest; })[0];
+    if (quick) card.appendChild(quickPanel(r, quick));
 
     var badges = el('div', { class: 'admin-badges' }, [badge(cap(r.status), 'is-' + r.status)]);
-    var SOURCE = { manual: 'Added by hand', form: 'Package form', contact: 'Contact form', 'chat-form': 'Chat (no AI reply)' };
+    var SOURCE = { manual: 'Added by hand', design: 'Design order', service: 'Service order', form: 'Package form', contact: 'Contact form', 'chat-form': 'Chat (no AI reply)' };
     if (SOURCE[r.source]) badges.appendChild(badge(SOURCE[r.source]));
     if (r.came_from && r.came_from !== 'direct') badges.appendChild(badge('From: ' + r.came_from, 'is-from'));
     if (r.wants) badges.appendChild(badge(r.wants === 'customer_accounts' ? 'Wants customer accounts' : 'Wants a custom system', 'is-due'));
@@ -2289,7 +2607,8 @@
       doc_link: r._docType && r.doc_token ? docUrl(r, r._docType) : '',
       preview_link: r.preview_token ? previewUrl(r) : '(no preview link yet)',
       website: r.website_url || '(add their website address)',
-      pay_link: r.doc_token ? location.origin + '/pay?t=' + r.doc_token + (r._docType === 'renewal' ? '&for=renewal' : '') : ''
+      pay_link: r.doc_token ? location.origin + '/pay?t=' + r.doc_token + (r._docType === 'renewal' ? '&for=renewal' : '') : '',
+      review_link: r.review_link || '(reload admin to get their review link)'
     };
     return text.replace(/\{(\w+)\}/g, function (m, k) { return k in vals ? vals[k] : m; });
   }
@@ -2705,7 +3024,14 @@
     if (!h.pausedAt) pubActs.appendChild(el('button', { class: 'btn btn--navy admin-golive-btn', type: 'button', text: h.publishedAt ? 'Update live site' : '2. Publish website', onclick: function (e) {
       var force = false;
       if (owing) { if (!window.confirm('The balance (' + naira(bal) + ') isn\'t paid yet.\n\nThe site will go only on the free .pages.dev address, not their domain. Their domain connects by itself once the balance is paid. If it\'s still unpaid after 7 days, the site pauses itself.\n\nPublish on .pages.dev now?')) return; force = true; }
-      act({ action: 'host_publish', force: force }, function (j) { return (j.firstTime ? 'Live! Marked Live, renewal date set. ' : 'Updated. ') + (j.owed ? 'On ' + j.url + ' only until the balance is paid.' : j.waitingForDomain ? 'It\'s on ' + j.url + ' until the domain is active, then it connects by itself.' : j.url); }, e.currentTarget, 'Publishing… (up to a minute)');
+      var btn = e.currentTarget, first = null;
+      var msg = function (j) { return (first ? 'Live! Marked Live, renewal date set. ' : 'Updated. ') + (j.owed ? 'On ' + j.url + ' only until the balance is paid.' : j.waitingForDomain ? 'It\'s on ' + j.url + ' until the domain is active, then it connects by itself.' : j.url) + (j.photosLeft ? ' ' + j.photosLeft + ' photos are still uploading: they show from our server until then.' : ''); };
+      // Big stores: each publish uploads photos for a few seconds; keep going until all are on the site.
+      (function go(n) {
+        act({ action: 'host_publish', force: force }, function (j) { if (first === null) first = j.firstTime; return msg(j); }, btn, n ? 'Uploading photos… ' + n : 'Publishing… (up to a minute)').then(function (j) {
+          if (j && j.photosLeft > 0 && n < 60) { btn = document.querySelector('.admin-golive-btn') || btn; btn.disabled = true; btn.textContent = 'Uploading photos: ' + (j.photosTotal - j.photosLeft) + ' of ' + j.photosTotal + '…'; go(n + 1); }
+        });
+      })(0);
     } }));
     // Undo: put the version before the current one back live (e.g. the owner dislikes a new look). Cloudflare keeps them.
     var hist = h.history || [], ci = hist.map(function (v) { return v.id; }).indexOf(h.deploymentId), prevV = hist[ci >= 0 ? ci + 1 : 1];
@@ -3625,7 +3951,7 @@
   // Settings are split into small sections (chips at the top) so there's no long scrolling.
   var SETTINGS_SECTIONS = [
     ['business', 'Bank & invoices'], ['messages', 'WhatsApp messages'], ['handover', 'Handover'],
-    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['docs', 'Company documents'], ['backup', 'Backup']
+    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['ai', 'AI backup'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['docs', 'Company documents'], ['backup', 'Backup']
   ];
   function renderSettings(view) {
     var s = state.settings;
@@ -3679,6 +4005,7 @@
     if (pick === 'reviews') view.appendChild(reviewsCard());
     if (pick === 'email') view.appendChild(emailUsageCard());
     if (pick === 'greetings') view.appendChild(greetingsCard());
+    if (pick === 'ai') view.appendChild(aiBackupCard());
     if (pick === 'staff') staffSettings(view);
     if (pick === 'docs') companyDocs(view);
     if (pick === 'backup') view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
@@ -3686,6 +4013,84 @@
       el('p', { class: 'admin-intro', text: 'Every Monday a backup of all your business data (customers, quotes, payments, website text, orders, change requests) is emailed to you as a file. Keep those emails. You can also download one now. It contains customer details, so keep it private.' }),
       el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Download backup now', onclick: function (e) { downloadFile('/api/requests?view=backup', 'sirraddo-backup.json.gz', e.currentTarget); } })])
     ]));
+  }
+
+
+  // ---------- Settings → AI backup: a third AI that answers when Gemini and Claude can't ----------
+  function aiBackupCard() {
+    var card = el('div', { class: 'admin-card admin-settings admin-aib' }, [el('h2', { text: 'AI backup' }),
+      el('p', { class: 'admin-intro', text: 'A third AI that answers by itself whenever Gemini and Claude are busy, out of their limit or not working, so the website chat, "Write it for me" and your admin AI tools keep going. Customers don\'t see any difference.' })]);
+    var box = el('div'); card.appendChild(box);
+    box.appendChild(el('p', { class: 'admin-hint', text: 'Loading…' }));
+    function draw(st) {
+      box.textContent = '';
+      var svc = el('select', { 'aria-label': 'AI service' });
+      Object.keys(st.services).forEach(function (k) { svc.appendChild(el('option', { value: k, text: st.services[k].label })); });
+      svc.value = st.service;
+      var key = el('input', { type: 'password', autocomplete: 'off', placeholder: st.hasKey ? 'Saved (ends …' + st.keyEnd + '). Paste a new one to change it.' : 'Paste the API key here', spellcheck: 'false' });
+      var model = el('input', { value: st.model, placeholder: '', spellcheck: 'false', autocapitalize: 'none' });
+      var base = el('input', { value: st.base, placeholder: 'https://…/v1', spellcheck: 'false', autocapitalize: 'none' });
+      var baseF = field('Service address (only for "Other")', base);
+      var on = el('input', { type: 'checkbox' }); on.checked = st.hasKey ? st.on : true;
+      var how = el('div', { class: 'admin-aib-how' });
+      function sync() {
+        var d = st.services[svc.value];
+        model.placeholder = d.model || 'model name';
+        if (!st.hasKey || svc.value !== st.service) model.value = d.model || model.value;
+        baseF.hidden = svc.value !== 'custom';
+        how.textContent = '';
+        how.appendChild(el('b', { text: 'How to get the key' }));
+        var ol = el('ol');
+        if (d.keys) ol.appendChild(el('li', null, ['Open ', el('a', { href: d.keys, target: '_blank', rel: 'noopener', text: d.keys.replace(/^https:\/\//, '') }), ' and sign up or log in.']));
+        ol.appendChild(el('li', { text: 'Create a new API key (name it "SIRRADDO website") and copy it.' }));
+        ol.appendChild(el('li', { text: 'Paste it below, tap Save, then Test.' }));
+        how.appendChild(ol);
+        if (d.note) how.appendChild(el('p', { class: 'admin-hint', text: d.note }));
+      }
+      svc.addEventListener('change', sync);
+      box.appendChild(field('AI service', svc));
+      box.appendChild(how);
+      box.appendChild(field('API key', key, 'Stored encrypted. It is never shown again, not even to you here. Don\'t paste it in WhatsApp or chats.'));
+      box.appendChild(field('Model', model, 'Leave the suggested one unless you know you want another.'));
+      box.appendChild(baseF);
+      box.appendChild(el('label', { class: 'admin-check' }, [on, ' Use the backup when Gemini and Claude can\'t answer']));
+      sync();
+      var res = el('p', { class: 'admin-aib-res', role: 'status' });
+      var save = el('button', { class: 'btn btn--navy', type: 'button', text: 'Save' });
+      var test = el('button', { class: 'admin-btn', type: 'button', text: 'Test it', disabled: !st.hasKey });
+      save.addEventListener('click', function () {
+        save.disabled = true;
+        api('POST', { action: 'ai_backup_save', service: svc.value, key: key.value.trim(), model: model.value.trim(), base: base.value.trim(), on: on.checked })
+          .then(function (j) { flash('Saved'); draw(j); test2(); }).catch(function (e) { save.disabled = false; fail(e); });
+      });
+      function test2() {
+        var t = box.querySelector('.admin-aib-test'); if (t) t.click();
+      }
+      test.classList.add('admin-aib-test');
+      test.addEventListener('click', function () {
+        test.disabled = true; res.className = 'admin-aib-res'; res.textContent = 'Asking the backup AI…';
+        api('POST', { action: 'ai_backup_test' }).then(function (j) {
+          test.disabled = false;
+          res.className = 'admin-aib-res ' + (j.ok ? 'is-ok' : 'is-bad');
+          res.textContent = j.ok ? '✓ Working. It answered in ' + (j.ms / 1000).toFixed(1) + ' s: "' + j.reply + '"' : '✗ ' + j.error;
+        }).catch(function (e) { test.disabled = false; fail(e); });
+      });
+      box.appendChild(el('div', { class: 'admin-actions' }, [save, test]));
+      box.appendChild(res);
+      var u = st.used || {};
+      var lines = [];
+      if (st.hasKey) lines.push(st.on ? 'Status: on, ready to step in.' : 'Status: switched off.');
+      if (u.count) lines.push('Answered ' + u.count + ' time' + (u.count === 1 ? '' : 's') + ' this month' + (u.lastAt ? ' (last: ' + new Date(u.lastAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + ')' : '') + '.');
+      else if (st.hasKey) lines.push('It hasn\'t had to answer this month: Gemini and Claude handled everything.');
+      if (u.lastError && u.lastErrorAt && (!u.lastAt || u.lastErrorAt > u.lastAt)) lines.push('Last problem (' + new Date(u.lastErrorAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) + '): ' + u.lastError);
+      lines.forEach(function (l) { box.appendChild(el('p', { class: 'admin-hint', text: l })); });
+      if (st.hasKey) box.appendChild(el('button', { class: 'admin-btn admin-btn--danger', type: 'button', text: 'Remove the backup', onclick: function () {
+        if (!window.confirm('Remove the backup AI and its key?')) return;
+        api('POST', { action: 'ai_backup_save', remove: true }).then(function (j) { flash('Removed'); draw(j); }).catch(fail);
+      } }));
+    }
+    api('POST', { action: 'ai_backup' }).then(draw).catch(function (e) { box.textContent = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
+    return card;
   }
 
   // ---------- CSV export ----------

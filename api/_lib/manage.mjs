@@ -1,3 +1,4 @@
+import { parseOptions, parseVariantStock } from "./storeplus.mjs";
 // "Manage my store": a private link for the store owner to change urgent things themselves — product prices,
 // sold out / in stock, opening hours, phone and WhatsApp, a short notice on their site, and which reviews show. Saving updates the
 // live site on Cloudflare (free, no Netlify deploy) and emails you what changed. Bigger changes stay with you
@@ -9,8 +10,11 @@ import { kindFor } from "./brief-schema.mjs";
 
 // The customer row plus their project form answers (the admin row leaves the answers out).
 async function load(id) {
-  const [r, b] = await Promise.all([getRequest(id), getBriefById(id)]);
-  return r ? { ...r, brief: b?.brief || {} } : null;
+  const [r, b, d] = await Promise.all([getRequest(id), getBriefById(id), q(`SELECT draft_md FROM customer_requests WHERE id = $1`, [id]).catch(() => [])]);
+  // The Google Business Profile description our AI wrote with the website text (for the Google guide).
+  const m = String(d?.[0]?.draft_md || "").match(/## Google Business Profile description\s*\n([\s\S]*?)(?=\n## |$)/);
+  const gbpText = m ? m[1].replace(/^\(.*\)\s*$/m, "").replace(/\[ADD:[^\]]*\]/g, "").trim() : "";
+  return r ? { ...r, brief: b?.brief || {}, gbpText: /wasn't written/.test(gbpText) ? "" : gbpText } : null;
 }
 import { cloudflareConfigured } from "./cloudflare.mjs";
 import { setReviewStatuses } from "./reviews.mjs";
@@ -69,6 +73,29 @@ export async function applyManage(r, input) {
       }
     }
     if (sold !== Boolean(p.soldout)) { changes.push(`${p.name}: ${sold ? "SOLD OUT" : "back in stock"}`); if (sold) p.soldout = true; else delete p.soldout; }
+    // Sale: the old price (crossed out on the website) and when the sale ends (then the old price comes back by itself).
+    if (v && "was" in v) {
+      const was = String(v.was ?? "").trim() === "" ? "" : cleanPrice(v.was);
+      if (String(v.was ?? "").trim() && !was) throw new Error(`${p.name}: write the old price as a number, e.g. 15000`);
+      if (was !== String(p.was || "")) { changes.push(`${p.name}: ${was ? `on sale (was ${was})` : "sale ended"}`); if (was) p.was = was; else { delete p.was; delete p.saleEnds; } }
+    }
+    if (v && "saleEnds" in v) {
+      const raw = String(v.saleEnds ?? "").trim();
+      if (raw && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(raw)) throw new Error(`${p.name}: choose the date the sale ends`);
+      const ends = raw ? (raw.length === 10 ? raw + "T23:59" : raw) + ":00+01:00" : "";
+      if (ends !== String(p.saleEnds || "")) { changes.push(`${p.name}: ${ends ? "sale ends " + raw.replace("T", " ") : "sale has no end date"}`); if (ends) p.saleEnds = ends; else delete p.saleEnds; }
+    }
+    // Sizes / colours ("Size: 40, 41, 42 | Colour: Black, Brown") and stock for each choice ("40 / Black = 3").
+    if (v && "options" in v) {
+      const groups = parseOptions(String(v.options ?? ""));
+      const before = JSON.stringify(parseOptions(p.options));
+      if (JSON.stringify(groups) !== before) { changes.push(`${p.name}: ${groups.length ? "choices " + groups.map((g) => `${g.name} (${g.values.join(", ")})`).join(", ") : "no choices"}`); if (groups.length) p.options = groups; else { delete p.options; delete p.vstock; } }
+    }
+    if (v && "vstock" in v && p.options) {
+      const vs = parseVariantStock(String(v.vstock ?? ""), parseOptions(p.options));
+      if (JSON.stringify(vs) !== JSON.stringify(p.vstock || {})) { changes.push(`${p.name}: stock per choice updated`); if (Object.keys(vs).length) p.vstock = vs; else delete p.vstock; }
+    }
+    if (v && "top" in v) { const top = v.top === true || v.top === "1" || v.top === "on"; if (top !== Boolean(p.top)) { changes.push(`${p.name}: ${top ? "shown at the top of the home page" : "no longer at the top"}`); if (top) p.top = true; else delete p.top; } }
   }
   const patch = { products };
   for (const [key, label, max] of [["hours", "Opening hours", 120], ["phone", "Phone", 30], ["whatsapp", "WhatsApp", 30], ["site_notice", "Notice on the website", 200], ["tagline", "Slogan", 100]]) {

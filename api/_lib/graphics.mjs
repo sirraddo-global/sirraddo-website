@@ -76,6 +76,18 @@ export const QUICK_SERVICES = [
     ],
   },
   {
+    key: "custom", workdays: 3, extras: [], interest: "Something else (we quote)", page: "design", design: true, on: true, price: 0, quote: true, days: "Price sent within a few hours",
+    what: "Banners, menus, price lists, packaging, labels, certificates, church programmes… tell us and we quote first",
+    ask: ["What do you need designed?", "e.g. A 6ft × 3ft shop banner for my salon, or labels for my zobo bottles (size, how many designs, where it will be printed)"],
+    guide: [
+      "Read what they need: the item, size, how many designs, and where it will be printed or used.",
+      "Work out a fair price (compare with the fixed prices: flyer ₦5,000, social pack ₦15,000) and set the quote on the request.",
+      "Send the quote and pay link on WhatsApp (Quote follow-up). Start once it is paid.",
+      "Make 2–3 options in the design studio, send them, then up to 2 rounds of changes.",
+      "Send the final files in the right size (print-ready PDF for printing). Mark Done.",
+    ],
+  },
+  {
     key: "invite", workdays: 2, extras: ["express", "animated"], interest: "Invitation design", page: "design", design: true, on: false, price: 5000, days: "1–2 working days",
     what: "2 designs to choose from, WhatsApp e-invite + print-ready card",
     ask: ["Event details", "e.g. Type of event, names, date and time, venue, dress code / colours, RSVP numbers, a Bible verse or quote"],
@@ -370,6 +382,7 @@ export function cleanOrder(body = {}, allowed = QUICK_KEYS) {
     deadline && `Needed by: ${deadline}`,
     colours && `Colours: ${colours}`,
     style && `Style / ideas: ${style}`,
+    str(body.look, 80) && `Look they picked in the preview: ${str(body.look, 80)}`,
     info.length || business ? "" : null,
     business && `Business name: ${business}`,
     ...info.map(([label, v]) => `${label}: ${v}`),

@@ -157,6 +157,18 @@
             </ul>
             <a class="btn btn--navy btn--block" href="#order" data-design="Brand kit">Order brand kit</a>
           </article>
+          <article class="card package" aria-labelledby="ds-custom" data-svc="custom">
+            <h3 id="ds-custom">Something else?</h3>
+            <p class="price">We quote</p>
+            <p class="price-note">Price sent within a few hours, before you pay anything</p>
+            <ul class="ticks">
+              <li>Banners, roll-ups, menus and price lists</li>
+              <li>Labels, packaging, certificates, programmes</li>
+              <li>2–3 options and 2 rounds of changes</li>
+              <li>Print-ready files for any printer</li>
+            </ul>
+            <a class="btn btn--navy btn--block" href="#order" data-design="Something else (we quote)">Ask for a price</a>
+          </article>
           <article class="card package" aria-labelledby="ds-invite" data-svc="invite" hidden>
             <h3 id="ds-invite">Invitation design</h3>
             <p class="price">₦5,000</p>
@@ -326,6 +338,7 @@
               <option value="Business card design" data-svc="card" data-price="5000" data-extras="express" data-optional="1" data-ask="Anything else for the card? (optional)" data-ph="e.g. A short slogan for the back, a second phone number, or a design note">Business card design (₦5,000)</option>
               <option value="Logo design" data-svc="logo" data-price="20000" data-extras="" data-optional="1" data-ask="Anything else about the business? (optional)" data-ph="e.g. Who your customers are, colours you hate, logos you like the style of">Logo design (₦20,000)</option>
               <option value="Brand kit" data-svc="brand" data-price="45000" data-extras="" data-optional="1" data-ask="Anything else about the business? (optional)" data-ph="e.g. Who your customers are, a slogan, logos you like the style of">Brand kit (₦45,000)</option>
+              <option value="Something else (we quote)" data-svc="custom" data-price="0" data-extras="" data-ask="What do you need designed?" data-ph="e.g. A 6ft × 3ft shop banner for my salon, or labels for my zobo bottles (size, how many designs, where it will be printed)">Something else: banner, menu, labels… (we quote)</option>
               <option value="Invitation design" data-svc="invite" data-price="5000" data-extras="express,animated" data-ask="Event details" data-ph="e.g. Type of event, names, date and time, venue, dress code / colours, RSVP numbers, a Bible verse or quote">Invitation design (₦5,000)</option>
               <option value="Launch pack" data-svc="launch" data-price="30000" data-extras="" data-ask="The first offer for your flyer, and anything else" data-ph="e.g. Opening day 10% off everything. Opening hours 8am–8pm, Mon–Sat">Launch pack (₦30,000)</option>
               <option value="Christmas &amp; New Year pack" data-svc="xmas" data-price="12000" data-extras="express,animated" data-ask="What should the 3 designs say?" data-ph="e.g. Christmas sale: 20% off all cakes till 24 Dec. Greetings: from all of us at Bola's Kitchen. New Year: open again from 3 Jan. Phone/WhatsApp">Christmas &amp; New Year pack (₦12,000)</option>
@@ -385,6 +398,7 @@
               <option>Business card</option>
               <option selected>Not sure: please advise</option>
             </select>
+            <p class="ds-tip" id="ds-size-tip" aria-live="polite"></p>
           </div>
           <div class="field">
             <label for="ds-files">Your logo and photos (optional, up to 6)</label>
@@ -412,8 +426,9 @@
           </fieldset>
           <section class="ds-preview" id="ds-preview" hidden aria-label="Live preview">
             <h3>👀 Live preview of your design</h3>
-            <p class="ds-tip">A rough first draft from what you've typed, in 3 different looks. Your designer polishes the one you like, with your photos made brighter and sharper.</p>
+            <p class="ds-tip">A rough first draft from what you've typed, in 3 different looks. Tap the one you like: your designer starts from it and polishes it, with your photos made brighter and sharper.</p>
             <div class="ds-preview-row" id="ds-preview-row"></div>
+            <p class="ds-tip" id="ds-pv-note" aria-live="polite"></p>
           </section>
           <div class="field">
             <label for="ds-name">Your name</label>
@@ -477,7 +492,8 @@
         <h2 id="cta-title">Need something else designed?</h2>
         <p>Banners, menus, price lists, packaging: tell us what you need and we'll quote it.</p>
         <div class="btn-row">
-          <a class="btn btn--gold" href="https://wa.me/2348167550937?text=Hi%2C%20I%20need%20a%20design%20for%20my%20business." target="_blank" rel="noopener">Chat on WhatsApp<span class="visually-hidden"> (opens WhatsApp in a new tab)</span></a>
+          <a class="btn btn--gold" href="/design?d=Something%20else%20(we%20quote)#order-title">Ask for a price here</a>
+          <a class="btn btn--outline-light" href="https://wa.me/2348167550937?text=Hi%2C%20I%20need%20a%20design%20for%20my%20business." target="_blank" rel="noopener">Chat on WhatsApp<span class="visually-hidden"> (opens WhatsApp in a new tab)</span></a>
           <a class="btn btn--outline-light" href="/websites">Need a website too?</a>
         </div>
       </div>

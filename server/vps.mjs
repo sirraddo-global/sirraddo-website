@@ -15,6 +15,10 @@ const PORT = Number(process.env.PORT || 4104);
 const CANONICAL = (process.env.URL || "https://www.sirraddo.com.ng").replace(/\/$/, "");
 const MAX_BODY = 15 * 1024 * 1024;
 
+// ---------- saved keys (Admin → Settings → Keys) into process.env, before anything else runs ----------
+try { const { loadVault } = await import("../api/_lib/vault.mjs"); await loadVault(); }
+catch (e) { console.error("vault: not loaded", e.message); }
+
 // ---------- functions and schedules ----------
 const routes = []; // { exact?: string, prefix?: string, fn }
 const schedules = []; // { cron, fn, name }

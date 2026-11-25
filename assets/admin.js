@@ -3951,7 +3951,7 @@
   // Settings are split into small sections (chips at the top) so there's no long scrolling.
   var SETTINGS_SECTIONS = [
     ['business', 'Bank & invoices'], ['messages', 'WhatsApp messages'], ['handover', 'Handover'],
-    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['ai', 'AI backup'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['docs', 'Company documents'], ['backup', 'Backup']
+    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['keys', 'Keys & connections'], ['ai', 'AI backup'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['docs', 'Company documents'], ['backup', 'Backup']
   ];
   function renderSettings(view) {
     var s = state.settings;
@@ -4006,6 +4006,7 @@
     if (pick === 'email') view.appendChild(emailUsageCard());
     if (pick === 'greetings') view.appendChild(greetingsCard());
     if (pick === 'ai') view.appendChild(aiBackupCard());
+    if (pick === 'keys') view.appendChild(vaultCard());
     if (pick === 'staff') staffSettings(view);
     if (pick === 'docs') companyDocs(view);
     if (pick === 'backup') view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
@@ -4017,6 +4018,70 @@
 
 
   // ---------- Settings → AI backup: a third AI that answers when Gemini and Claude can't ----------
+
+  // Settings → Keys & connections: every service key in one place, saved encrypted in the database (so a move to a new
+  // server only needs the database address and the admin password). Values are never shown, only their last 4 characters.
+  function vaultCard() {
+    var card = el('div', { class: 'admin-card admin-settings admin-vault' }, [
+      el('h2', { text: 'Keys & connections' }),
+      el('p', { class: 'admin-intro', text: 'The keys the website uses to talk to Paystack, email, AI, Cloudflare and Google. They are kept here encrypted, so if the site ever moves to another server it only needs the database address and your admin password: everything below comes along by itself. A new key is tested before it’s saved and works straight away. Keys are never shown again, only their last 4 characters.' })
+    ]);
+    var box = el('div', null, [el('p', { class: 'admin-meta', text: 'Loading…' })]);
+    card.appendChild(box);
+    var tests = {};
+    function draw(j) {
+      if (j.tests) tests = j.tests;
+      box.innerHTML = '';
+      if (j.locked) {
+        var oldPw = el('input', { type: 'password', autocomplete: 'off', placeholder: 'Your previous admin password' });
+        box.appendChild(el('div', { class: 'admin-hint' }, [
+          el('b', { text: '🔒 These keys were saved with your previous admin password.' }),
+          el('p', { text: 'Type the previous password once to unlock them with the new one.' }), oldPw,
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Unlock', onclick: function () {
+            api('POST', { action: 'vault_relock', old: oldPw.value }).then(function (r) { flash('Unlocked ' + r.relocked + ' key(s)'); draw(r); }).catch(fail);
+          } })]));
+      }
+      (j.sealedProblems || []).forEach(function (t) { box.appendChild(el('p', { class: 'admin-error', text: '⚠️ ' + t })); });
+      box.appendChild(el('div', { class: 'admin-actions' }, [
+        el('button', { class: 'admin-btn', type: 'button', text: 'Test all', onclick: function () {
+          this.disabled = true; var b = this; box.querySelectorAll('.vault-test').forEach(function (x) { x.textContent = 'Testing…'; });
+          api('POST', { action: 'vault_test' }).then(draw).catch(fail).then(function () { b.disabled = false; });
+        } }),
+        el('button', { class: 'admin-btn', type: 'button', text: 'Copy keys from the server', title: 'Saves every key the server has into here', onclick: function () {
+          if (!confirm('Copy every key the server has into here (replacing what is saved)?')) return;
+          api('POST', { action: 'vault_import' }).then(function (r) { flash('Copied ' + r.copied + ' key(s)'); draw(r); }).catch(fail);
+        } })
+      ]));
+      var group = '';
+      j.keys.forEach(function (k) {
+        if (k.group !== group) { group = k.group; box.appendChild(el('h3', { class: 'admin-h2', text: group })); }
+        var t = tests[k.key];
+        var state = k.saved ? ['Saved ' + (k.end || ''), 'is-won'] : k.envOnly ? ['On the server only', 'is-new'] : ['Missing', 'is-due'];
+        var inp = k.key === 'GOOGLE_SERVICE_ACCOUNT' ? el('textarea', { rows: 3, autocomplete: 'off', spellcheck: 'false', placeholder: 'Paste the whole JSON key file' })
+          : el('input', { type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: k.saved ? 'Paste a new value to replace it' : 'Paste the key' });
+        var row = el('details', { class: 'admin-fold vault-row' }, [
+          el('summary', null, [el('span', { class: 'admin-fold-title', text: k.label }), badge(state[0], state[1])]),
+          el('p', { class: 'admin-meta vault-test', text: t ? (t.ok === true ? '✅ ' : t.ok === false ? '❌ ' : '• ') + t.note : (k.at ? 'Saved ' + niceDay(k.at.slice(0, 10)) + (k.from === 'server' ? ' (copied from the server)' : '') : '') }),
+          el('p', { class: 'admin-hint', text: 'Where to get it: ' + k.where }),
+          inp,
+          el('div', { class: 'admin-actions' }, [
+            el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Test & save', onclick: function () {
+              var b = this; b.disabled = true; b.textContent = 'Testing…';
+              api('POST', { action: 'vault_save', key: k.key, value: inp.value }).then(function (r) { tests[k.key] = r.test; flash('Saved and working'); draw(r); })
+                .catch(fail).then(function () { b.disabled = false; b.textContent = 'Test & save'; });
+            } }),
+            k.saved ? el('button', { class: 'admin-btn', type: 'button', text: 'Remove', onclick: function () {
+              if (!confirm('Remove the saved ' + k.label + '? The site falls back to the server’s copy, if it has one.')) return;
+              api('POST', { action: 'vault_remove', key: k.key }).then(draw).catch(fail);
+            } }) : null
+          ])
+        ]);
+        box.appendChild(row);
+      });
+    }
+    api('POST', { action: 'vault' }).then(draw).catch(function (e) { box.textContent = ''; box.appendChild(el('p', { class: 'admin-error', text: e.message })); });
+    return card;
+  }
   function aiBackupCard() {
     var card = el('div', { class: 'admin-card admin-settings admin-aib' }, [el('h2', { text: 'AI backup' }),
       el('p', { class: 'admin-intro', text: 'A third AI that answers by itself whenever Gemini and Claude are busy, out of their limit or not working, so the website chat, "Write it for me" and your admin AI tools keep going. Customers don\'t see any difference.' })]);

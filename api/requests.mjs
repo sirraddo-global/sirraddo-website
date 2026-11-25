@@ -759,6 +759,19 @@ export default async function handler(req, res) {
           return res.status(200).json(can(me, "money") ? out : { ...out, agents: out.agents.map((a) => ({ ...a, bank: null, payouts: [], leads: a.leads.map((l) => ({ ...l, paid: null })) })) });
         } catch (e) { if (e instanceof ag.AgentError) throw new Bad(e.message); throw e; }
       }
+      // Settings → Keys & connections (owner only): service keys stored encrypted; values are never sent back.
+      if (String(body.action || "").startsWith("vault")) {
+        if (!can(me, "owner")) return res.status(403).json({ error: NOT_ALLOWED });
+        const vt = await import("./_lib/vault.mjs");
+        try {
+          if (body.action === "vault_save") { const r = await vt.vaultSave(String(body.key || ""), body.value); return res.status(200).json({ ...(await vt.vaultStatus()), test: r.test }); }
+          if (body.action === "vault_remove") { await vt.vaultRemove(String(body.key || "")); return res.status(200).json(await vt.vaultStatus()); }
+          if (body.action === "vault_import") { const n = await vt.vaultImport(); return res.status(200).json({ ...(await vt.vaultStatus()), copied: n }); }
+          if (body.action === "vault_relock") { const n = await vt.vaultRelock(body.old); return res.status(200).json({ ...(await vt.vaultStatus()), relocked: n }); }
+          if (body.action === "vault_test") return res.status(200).json({ ...(await vt.vaultStatus()), tests: await vt.vaultTestAll() });
+          return res.status(200).json(await vt.vaultStatus());
+        } catch (e) { throw new Bad(e.message); }
+      }
       // Settings → AI backup (owner only): the key is stored encrypted and never sent back.
       if (String(body.action || "").startsWith("ai_backup")) {
         if (!can(me, "owner")) return res.status(403).json({ error: NOT_ALLOWED });

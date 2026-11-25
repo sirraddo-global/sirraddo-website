@@ -388,6 +388,18 @@ export default async function handler(req, res) {
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(await getRequest(id));
       }
+      // Remove a photo's background (Design studio). Runs on the VPS's own background remover (BG_KEY, port 4105).
+      if (body.action === "remove_bg") {
+        const m = String(body.image || "").match(/^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/);
+        if (!m) throw new Bad("Send a JPG, PNG or WebP photo");
+        const bytes = Buffer.from(m[2], "base64");
+        if (bytes.length > 10 * 1024 * 1024) throw new Bad("That photo is too big (max 10 MB)");
+        if (!process.env.BG_KEY) throw new Bad("The background remover isn't set up yet (it runs on the VPS: bash vps-app.sh bgremover).");
+        const r = await fetch(`http://127.0.0.1:${process.env.BG_PORT || 4105}/remove`, { method: "POST", headers: { "x-bg-key": process.env.BG_KEY, "content-type": "application/octet-stream" }, body: bytes, signal: AbortSignal.timeout(50000) })
+          .catch(() => { throw new Bad("The background remover isn't answering. On the VPS: pm2 restart bg-remover"); });
+        if (!r.ok) throw new Bad(r.status === 401 ? "Background remover key doesn't match (BG_KEY)." : "Couldn't remove the background from that photo.");
+        return res.status(200).json({ image: "data:image/png;base64," + Buffer.from(await r.arrayBuffer()).toString("base64") });
+      }
       // Logo ideas for the Design studio: 3 original SVG logos from a short brief (nothing is saved).
       if (body.action === "logo_ideas") {
         const result = await logoIdeas(body.brief || {}, FUNCTION_BUDGET_MS() - 2000);

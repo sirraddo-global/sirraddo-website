@@ -620,9 +620,10 @@
     var samples = []; details.replace(/^◦ (.+?): (https?:\/\/\S+)$/gm, function (_, name, url) { samples.push({ name: name, url: url }); return _; });
     var words = (details.split(/\n\n/).filter(function (b) { return /:\s*$/.test(b.split('\n')[0]) && !/^Files \(/.test(b); })[0] || '').split('\n').slice(1).join('\n');
     window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, samples: samples, words: words, business: r.business || '', contact: r.contact || '',
-      colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest) });
+      colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, bgApi: bgApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest) });
   }
   function logoApi(brief) { return api('POST', { action: 'logo_ideas', brief: brief }); }
+  function bgApi(image) { return api('POST', { action: 'remove_bg', image: image }); }
 
   // Mockup maker: drop a design in, get it on a phone, a wall poster and a printed card, ready to send as options.
   function mockupMaker() {
@@ -713,7 +714,7 @@
     if (window.SirStudio) view.appendChild(el('div', { class: 'admin-card' }, [
       el('h2', { text: '🎨 Design studio' }),
       el('p', { class: 'admin-hint', text: 'Make a flyer from scratch: add photos from your phone, type the words, pick colours, download. For an order, use “Instant draft” on the request instead: it fills everything in from what the customer sent.' }),
-      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Open design studio', onclick: function () { window.SirStudio.open({ title: 'New design', logoApi: logoApi }); } })
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Open design studio', onclick: function () { window.SirStudio.open({ title: 'New design', logoApi: logoApi, bgApi: bgApi }); } })
     ]));
     view.appendChild(mockupMaker());
     var boxes = {};

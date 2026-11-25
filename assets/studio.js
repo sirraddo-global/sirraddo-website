@@ -39,6 +39,15 @@
   function rr(c, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
   function cover(c, img, x, y, w, h, fy) {
     if (!img) { c.fillStyle = 'rgba(255,255,255,.15)'; c.fillRect(x, y, w, h); return; }
+    if (img.__cut) { // background removed: show the whole product, centred, with a soft glow and shadow
+      c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
+      var gl = c.createRadialGradient(x + w / 2, y + h * 0.55, 0, x + w / 2, y + h * 0.55, Math.max(w, h) * 0.6);
+      gl.addColorStop(0, 'rgba(255,255,255,.28)'); gl.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gl; c.fillRect(x, y, w, h);
+      var k = Math.min((w * 0.86) / img.width, (h * 0.8) / img.height), iw = img.width * k, ih = img.height * k;
+      c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = Math.max(w, h) * 0.04; c.shadowOffsetY = Math.max(w, h) * 0.02;
+      c.drawImage(img, x + (w - iw) / 2, y + (h - ih) * 0.55, iw, ih);
+      c.restore(); return;
+    }
     var s = Math.max(w / img.width, h / img.height), iw = img.width * s, ih = img.height * s;
     c.drawImage(img, x + (w - iw) / 2, y + (h - ih) * (fy == null ? 0.4 : fy), iw, ih);
   }
@@ -94,6 +103,7 @@
       }
     }
     c.putImageData(d, 0, 0);
+    cv.__cut = !!img.__cut;
     return cv;
   }
 
@@ -371,6 +381,34 @@
       })),
       el('small', { text: 'Its colours are the dashed swatch (used automatically if they gave no colours). Pick the layout closest to it below. Use only the customer\u2019s own words, logo and photos.' }),
     ]) : null;
+    // Remove the main photo's background (runs on our VPS). The original is kept so it can be put back.
+    var bgMsg = el('small', { class: 'st-bgmsg' });
+    var bgBtn = el('button', { class: 'admin-btn', type: 'button', text: '\u2702\uFE0F Remove background', onclick: function () { cutMain(); } });
+    var bgUndo = el('button', { class: 'admin-btn', type: 'button', text: 'Put background back', hidden: '', onclick: function () {
+      var i = state.photoIdx; if (state.orig && state.orig[i]) { state.raw[i] = state.orig[i]; state.orig[i] = null; process(); draw(); } bgUndo.hidden = true; bgMsg.textContent = '';
+    } });
+    var bgRow = el('div', { class: 'st-bgrow' }, [bgBtn, bgUndo, bgMsg]);
+    function cutMain() {
+      var i = state.photoIdx, img = state.raw[i];
+      if (!img) { bgMsg.textContent = 'Choose a photo first.'; return; }
+      if (!o.bgApi) { bgMsg.textContent = 'Works from the admin page.'; return; }
+      var k = Math.min(1, 2000 / Math.max(img.width, img.height)), cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      bgBtn.disabled = true; bgMsg.textContent = 'Removing the background… (about 5–10 seconds)';
+      o.bgApi(cv.toDataURL('image/jpeg', 0.92)).then(function (j) {
+        return new Promise(function (ok, bad) { var im = new Image(); im.onload = function () { ok(im); }; im.onerror = bad; im.src = j.image; });
+      }).then(function (im) {
+        // Trim the empty space where the background was, so the product fills its spot.
+        var full = document.createElement('canvas'); full.width = im.width; full.height = im.height; full.getContext('2d').drawImage(im, 0, 0);
+        var cut = trim(full);
+        cut.__cut = true;
+        state.orig = state.orig || []; state.orig[i] = state.orig[i] || state.raw[i];
+        state.raw[i] = cut; process(); draw();
+        bgUndo.hidden = false; bgMsg.textContent = 'Done. The product now sits on your colours.';
+      }).catch(function (e) { bgMsg.textContent = (e && e.message) || 'Could not remove the background.'; })
+        .then(function () { bgBtn.disabled = false; });
+    }
     function lab(text, input) { return el('label', { class: 'st-field' }, [el('span', { text: text }), input]); }
     var panel = el('div', { class: 'st-panel' }, [
       el('h2', { text: '🎨 Design studio' }),
@@ -380,7 +418,7 @@
       lab('Business name', f.business), lab('Headline (the big words)', f.headline), lab('Details (smaller text)', f.details),
       lab('Offer badge', f.offer), lab('Contact line', f.contact),
       el('div', { class: 'st-field' }, [el('span', { text: 'Colours' }), themeRow, el('div', { class: 'st-custom' }, [c1, c2, el('small', { text: 'or pick your own: main and accent' })])]),
-      lab('Main photo', photoSel), lab('Logo', logoSel),
+      lab('Main photo', photoSel), bgRow, lab('Logo', logoSel),
       el('label', { class: 'st-check' }, [enh, ' Auto-enhance photos (brighter, richer colour, sharper)']),
       lab('Add more photos from this phone', addPhotos),
       el('p', { class: 'admin-hint', text: 'Tip: if a photo has a messy background, choose another photo or ask the customer for one taken against a plain wall in daylight.' }),
@@ -478,7 +516,7 @@
     }
     Object.keys(f).forEach(function (k) { f[k].addEventListener('input', draw); });
     sizeSel.addEventListener('change', function () { state.size = sizeSel.value; draw(); });
-    photoSel.addEventListener('change', function () { state.photoIdx = Number(photoSel.value); draw(); });
+    photoSel.addEventListener('change', function () { state.photoIdx = Number(photoSel.value); bgUndo.hidden = !(state.orig && state.orig[state.photoIdx]); bgMsg.textContent = ''; draw(); });
     logoSel.addEventListener('change', function () { state.logoIdx = Number(logoSel.value); draw(); });
     enh.addEventListener('change', function () { state.enhance = enh.checked; process(); draw(); });
     addPhotos.addEventListener('change', function () {

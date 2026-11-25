@@ -27,7 +27,7 @@ export async function setupStatus() {
       fix: `Add RESEND_API_KEY and LEAD_EMAIL_TO. ${HOST}` },
     { label: "Emails to customers (receipts, forms, previews)", ok: customerEmailConfigured(), note: env.LEAD_EMAIL_FROM ? `From ${env.LEAD_EMAIL_FROM}.` : "",
       fix: `Verify your domain in Resend, then add LEAD_EMAIL_FROM, e.g. SIRRADDO <receipts@sirraddo.com.ng>. ${HOST}` },
-    { label: "Photo and logo uploads (project form)", ok: filesEnabled(), note: "Stored on Netlify with the site (nothing to set up).",
+    { label: "Photo and logo uploads (project form)", ok: filesEnabled(), note: "Stored with the site (Netlify, or the FILES_DIR folder on the VPS).",
       fix: "Uploads work automatically on Netlify. If this shows ✗, the site isn't running on Netlify." },
     { label: "Online payments (Paystack)", ok: paystackConfigured(), warn: paystackConfigured() && !live,
       note: paystackConfigured() ? (live ? "Live key: real payments." : "TEST key: payments are not real. Switch to the live key before customers pay.") +

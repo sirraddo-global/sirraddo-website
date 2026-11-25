@@ -1,0 +1,14 @@
+{
+  "name": "sirraddo-bg-remover",
+  "private": true,
+  "type": "module",
+  "description": "Background remover for the Design studio (VPS only)",
+  "scripts": {
+    "start": "node --env-file=../../.env --expose-gc server.mjs",
+    "model": "mkdir -p models && curl -fL -o models/isnet-general-use.onnx https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx"
+  },
+  "dependencies": {
+    "onnxruntime-node": "^1.22.0",
+    "sharp": "^0.34.0"
+  }
+}

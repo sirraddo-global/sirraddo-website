@@ -22,9 +22,9 @@ test("catalog: unique keys, a guide for each, prices on the pages, new ones star
     const page = readFileSync(join(ROOT, `${s.page}.html`), "utf8");
     assert.ok(page.includes(`<option value="${s.interest.replace("&", "&amp;")}" data-svc="${s.key}"`), `${s.key} in the ${s.page} form`);
     assert.match(page, new RegExp(`<article[^>]*data-svc="${s.key}"`), `${s.key} card`);
-    assert.ok(page.includes(naira(s.price)), `${s.key} price`);
+    if (!s.quote) assert.ok(page.includes(naira(s.price)), `${s.key} price`);
   }
-  assert.deepEqual(visibleKeys({}), ["flyer", "social", "card", "logo", "brand"]);
+  assert.deepEqual(visibleKeys({}), ["flyer", "social", "card", "logo", "brand", "custom"]);
   assert.deepEqual(visibleKeys({ svc_visible: "none" }), []);
   assert.deepEqual(visibleKeys({ svc_visible: "cv,maps,nope" }), ["maps", "cv"]);
 });

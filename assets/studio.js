@@ -926,7 +926,7 @@
       var looks = suggestLooks([o.business, o.words, inf.sell, o.service].join(' ')), custom = themeFrom(o.colours), pt = custom ? null : photoTheme(photos[0]);
       return list.map(function (L, i) {
         var look = lookByName(looks[i]), t = custom || (i === 0 && pt) || (look.theme ? Object.assign({ name: look.name }, look.theme) : THEMES[0]);
-        var W = width, H = mode === 'card' ? Math.round(width * (CARD.h * 2 + 90) / CARD.w) : Math.round(width * 1350 / 1080);
+        var sz = SIZES[o.size] || SIZES.post, W = width, H = mode === 'card' ? Math.round(width * (CARD.h * 2 + 90) / CARD.w) : Math.round(width * sz.h / sz.w);
         var big = 2, cv = document.createElement('canvas'); cv.width = W * big; cv.height = H * big;
         var c = cv.getContext('2d'), F = FONT, S = SERIF, Hd = HEAD;
         FONT = look.font; SERIF = look.serif; HEAD = look.head || null;
@@ -952,6 +952,10 @@
     var cd = parseCard(o);
     state.looks = suggestLooks([o.title, o.business, o.words, (o.info || {}).sell, o.style].join(' '));
     state.themePicked = !!themeFrom(o.colours); state.photoTheme = null;
+    if (o.prefer) { // "Look 2: Split · Festive" from the order form preview
+      var pm = String(o.prefer).match(/^Look (\d): [^·]+(?:· (.+))?$/);
+      if (pm) { state.layout = Math.min(2, Number(pm[1]) - 1); if (pm[2] && lookByName(pm[2].trim()).name === pm[2].trim()) state.looks[state.layout] = pm[2].trim(); }
+    }
     // Each option = a layout + a look; colours come from the customer, else option 1 from their photos, else the look's own.
     function themeFor(i) {
       if (state.themePicked) return state.theme;
@@ -1167,7 +1171,7 @@
         .then(function () { capBtn.disabled = false; });
     }
     function setMode(m) {
-      state.mode = m; state.layout = 0;
+      if (state.mode !== m || !o.prefer) state.layout = 0; state.mode = m;
       Object.keys(modeBtns).forEach(function (k) { modeBtns[k].classList.toggle('admin-btn--primary', k === m); });
       promoBox.hidden = m !== 'promo'; menuBox.hidden = m !== 'menu'; cardBox.hidden = m !== 'card';
       notCard.forEach(function (n) { n.hidden = m === 'card'; });

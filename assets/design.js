@@ -33,6 +33,14 @@
     var key = (o && o.getAttribute('data-svc')) || '';
     document.querySelectorAll('#ds-info [data-for]').forEach(function (f) { f.hidden = !!key && f.getAttribute('data-for').split(',').indexOf(key) === -1; });
     $('ds-words').required = !(o && o.getAttribute('data-optional'));
+    // "Where will you use it?": not asked where the size is fixed; a sensible default and a plain explanation otherwise.
+    var sz = $('ds-size'), szField = sz && sz.closest('.field');
+    if (sz) {
+      var fixed = { card: 'Business card', logo: '', brand: '' };
+      if (key in fixed) { szField.hidden = true; if (fixed[key]) sz.value = fixed[key]; }
+      else { szField.hidden = false; if (key === 'social' && /Not sure|Business card/.test(sz.value)) sz.value = 'WhatsApp / Instagram post (square)'; if (sz.value === 'Business card') sz.value = 'Not sure: please advise'; }
+      sz.dispatchEvent(new Event('change'));
+    }
     if (filesLabel && fl) filesLabel.textContent = /up to 6/.test(fl) ? fl : /\)$/.test(fl) ? fl.replace(/\)$/, ', up to 6)') : fl + ' (up to 6)';
     drawExtras();
   }
@@ -215,7 +223,10 @@
     var orderSec = $('order'); if (!orderSec || !('IntersectionObserver' in window)) return;
     var b = mk('a', 'ds-sticky', '🎨 Order your design · 2 minutes'); b.href = '#order-title'; document.body.appendChild(b);
     var heroSeen = true, orderSeen = false;
-    var upd = function () { b.classList.toggle('is-on', !heroSeen && !orderSeen); };
+    var typing = false;
+    var upd = function () { b.classList.toggle('is-on', !heroSeen && !orderSeen && !typing); };
+    document.addEventListener('focusin', function (e) { typing = !!(e.target.closest && e.target.closest('form')); upd(); });
+    document.addEventListener('focusout', function () { typing = false; setTimeout(upd, 50); });
     new IntersectionObserver(function (e) { orderSeen = e[0].isIntersecting; upd(); }).observe(orderSec);
     var hero = document.querySelector('.hero'); if (hero) new IntersectionObserver(function (e) { heroSeen = e[0].isIntersecting; upd(); }).observe(hero); else heroSeen = false;
   })();
@@ -236,20 +247,43 @@
     sel.dispatchEvent(new Event('change')); fit(); say('Your details from last time are filled in. Change anything, then add the new words.');
   }).catch(function () {});
 
+  var SIZE_TIPS = {
+    'WhatsApp / Instagram post (square)': 'Square, 1080 × 1080: for posts on WhatsApp, Instagram and Facebook.',
+    'WhatsApp / Instagram status (tall)': 'Tall, 1080 × 1920: fills the phone screen on WhatsApp status and Instagram stories.',
+    'Facebook post': '1200 × 1500: fits Facebook and Instagram feeds without being cut.',
+    'A4 print': 'For printing on A4 paper (300 dpi, print-ready PDF any printer can use).',
+    'A5 print (handbill)': 'Half of A4: cheaper to print in bulk for sharing by hand.',
+    'Banner / roll-up': 'Tell us the size in feet in the words box (e.g. 6ft × 3ft). We send a print-ready file.',
+    'Business card': '3.5 × 2 inches, front and back, print-ready.',
+    'Not sure: please advise': 'No problem: you get it as a WhatsApp post AND a status, which covers most uses. Need it printed too? Just say so in the words box.',
+  };
+  if ($('ds-size')) $('ds-size').addEventListener('change', function () { var tip = $('ds-size-tip'); if (tip) tip.textContent = SIZE_TIPS[$('ds-size').value] || ''; });
+  if ($('ds-size')) $('ds-size').dispatchEvent(new Event('change'));
+
   // ---------- Live preview: 3 rough drafts that update as they type ----------
-  var pvBox = $('ds-preview'), pvRow = $('ds-preview-row'), pvTimer = null;
+  var pvBox = $('ds-preview'), pvRow = $('ds-preview-row'), pvTimer = null, pickedLook = '';
   function previewNow() {
     if (!pvBox || !window.SirStudio || !window.SirStudio.preview) return;
     var o = sel.options[sel.selectedIndex], key = (o && o.getAttribute('data-svc')) || '';
-    if (!key || key === 'logo' || key === 'brand') { pvBox.hidden = true; return; }
+    if (!key || key === 'logo' || key === 'brand' || key === 'custom') { pvBox.hidden = true; pickedLook = ''; return; }
     var info = {}; ['sell', 'person', 'title', 'phone', 'bizmail', 'web', 'address', 'socials'].forEach(function (k) { var x = $('ds-' + k); if (x && !x.closest('[hidden]') && x.value.trim()) info[k] = x.value.trim(); });
     info.email = info.bizmail;
     var words = $('ds-words').value.trim();
     if (!words && !$('ds-business').value.trim() && !info.person) { pvBox.hidden = true; return; }
-    window.SirStudio.preview({ kind: key === 'card' ? 'card' : '', service: sel.value, words: words, business: $('ds-business').value.trim(), contact: info.phone || $('ds-contact').value,
+    var szv = $('ds-size') ? $('ds-size').value : '';
+    window.SirStudio.preview({ size: /status/.test(szv) ? 'status' : /square/.test(szv) ? 'square' : 'post', kind: key === 'card' ? 'card' : '', service: sel.value, words: words, business: $('ds-business').value.trim(), contact: info.phone || $('ds-contact').value,
       colours: $('ds-colours').value, info: info, photos: files }, 260).then(function (cvs) {
       pvRow.innerHTML = '';
-      cvs.forEach(function (cv, i) { var f = document.createElement('figure'); f.appendChild(cv); var cap = document.createElement('figcaption'); cap.textContent = 'Look ' + (i + 1) + ': ' + cv.title; f.appendChild(cap); pvRow.appendChild(f); });
+      cvs.forEach(function (cv, i) {
+        var label = 'Look ' + (i + 1) + ': ' + cv.title;
+        var f = document.createElement('button'); f.type = 'button'; f.className = 'ds-pv' + (pickedLook === label ? ' is-on' : ''); f.setAttribute('aria-pressed', pickedLook === label);
+        f.appendChild(cv);
+        var cap = document.createElement('span'); cap.className = 'ds-pv-cap'; cap.textContent = label; f.appendChild(cap);
+        var pick = document.createElement('span'); pick.className = 'ds-pv-pick'; pick.textContent = pickedLook === label ? '✓ Your choice' : 'Choose this look'; f.appendChild(pick);
+        f.addEventListener('click', function () { pickedLook = pickedLook === label ? '' : label; previewNow(); });
+        pvRow.appendChild(f);
+      });
+      var note = $('ds-pv-note'); if (note) note.textContent = pickedLook ? '👍 Got it: we\'ll start from ' + pickedLook.replace(/^Look \d+: /, '') + ' and polish it with your photos.' : 'Tap the look you like best (optional).';
       pvBox.hidden = false;
     }).catch(function () { pvBox.hidden = true; });
   }
@@ -290,7 +324,7 @@
       name: $('ds-name').value, business: $('ds-business').value, contact: $('ds-contact').value,
       email: $('ds-email').value, files: files, samples: samples, website: $('ds-hp').value, extras: chosenExtras(),
       info: (function () { var i = {}; ['sell', 'person', 'title', 'phone', 'bizmail', 'web', 'address', 'socials'].forEach(function (k) { var x = $('ds-' + k); if (x && !x.closest('[hidden]') && x.value.trim()) i[k] = x.value.trim(); }); return i; })(),
-      from: window.sirraddoFrom ? window.sirraddoFrom() : '', ref: refCode,
+      from: window.sirraddoFrom ? window.sirraddoFrom() : '', ref: refCode, look: pvBox && !pvBox.hidden ? pickedLook : '',
     };
     if (!body.service) { $('ds-service').focus(); return say('Please choose a service.', true); }
     btn.disabled = true; say('Sending your order…');
@@ -303,6 +337,7 @@
           if (j.track) { var past = JSON.parse(localStorage.getItem('sirraddo-orders') || '[]'); past.unshift({ ref: j.ref, service: body.service, track: j.track }); localStorage.setItem('sirraddo-orders', JSON.stringify(past.slice(0, 10))); }
         } catch (_) { /* ignore */ }
         if (j.pay) { say('Order saved (' + (j.ref || '') + '). Taking you to payment…'); location.href = j.pay; return; }
+        if (j.quote) { form.innerHTML = '<div class="ds-done"><h3>Request received 🎉</h3><p>' + (j.ref ? 'Your reference is <b>' + j.ref + '</b>. ' : '') + 'We\'ll send your price on WhatsApp within a few hours, before you pay anything.</p>' + (j.track ? '<p><a href="' + j.track + '">Track your request</a> (bookmark it)</p>' : '') + '</div>'; return; }
         var wa = 'https://wa.me/2348167550937?text=' + encodeURIComponent('Hi, I just ordered: ' + body.service + (j.ref ? ' (ref ' + j.ref + ')' : '') + ' on your website.');
         form.innerHTML = '<div class="ds-done"><h3>Order received 🎉</h3><p>' + (j.ref ? 'Your reference is <b>' + j.ref + '</b>. ' : '') +
           'We will message you on WhatsApp to confirm and send your payment link.</p><a class="btn btn--gold" target="_blank" rel="noopener" href="' + wa + '">Message us on WhatsApp now</a>' +

@@ -104,7 +104,7 @@ export default async function handler(req, res) {
   try {
     let row = await getRequest(saved.id);
     // Fixed price, paid in full before we start (small jobs): never over a quote or payment we already have.
-    if (row && row.quote_amount == null && !(row.payments || []).length) {
+    if (row && !order.svc.quote && row.quote_amount == null && !(row.payments || []).length) {
       const price = order.total;
       row = await updateRequest(saved.id, { quote_amount: price, deposit_pct: 100 });
       row = (await applyRules(row, { quote_amount: price })) || row;
@@ -117,5 +117,5 @@ export default async function handler(req, res) {
       if (link) pay = link.replace(/^https?:\/\/[^/]+/, "");
     }
   } catch (e) { console.error("design price/pay failed", e); }
-  return res.status(200).json({ ok: true, ref: r.ref, ...(pay ? { pay } : {}), ...(track ? { track } : {}) });
+  return res.status(200).json({ ok: true, ref: r.ref, ...(order.svc.quote ? { quote: true } : {}), ...(pay ? { pay } : {}), ...(track ? { track } : {}) });
 }

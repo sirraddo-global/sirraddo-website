@@ -17,6 +17,7 @@ test("design page shows the same prices as the order API, and is linked from the
   const page = readFileSync(join(ROOT, "design.html"), "utf8");
   for (const d of DESIGN_SERVICES) {
     assert.ok(page.includes(`<option value="${d.interest.replace("&", "&amp;")}" data-svc="${d.key}"`), `${d.interest} in the form`);
+    if (d.quote) { assert.match(page, /data-svc="custom"[\s\S]*?<p class="price">We quote/, "quote card"); continue; }
     assert.ok(page.includes(`(${naira(d.price)})`), `${d.interest} price ${naira(d.price)} in the form`);
     assert.ok(page.includes(`<p class="price">${naira(d.price)}`), `${d.interest} price card`);
   }
@@ -62,4 +63,13 @@ test("design order: validated, files listed, full price set, pay link; after pay
   const noEmail = await h.call("POST", "/api/design", { name: "Tunde", contact: "08055556666", service: "Logo design", words: "Tunde Motors, car repairs" });
   assert.equal(noEmail.status, 200); assert.equal(noEmail.json.pay, undefined, "without email: we follow up on WhatsApp");
   assert.equal((await h.row(Number(noEmail.json.ref.replace(/\D/g, "")))).quote_amount, 20000);
+});
+
+test("something else (we quote): saved for a quote, no price or pay link; the look picked in the preview is kept", async () => {
+  await h.action({ action: "settings", settings: { svc_visible: "flyer,custom" } });
+  const r = await h.call("POST", "/api/order", { name: "Ada", contact: "08099990000", email: "ada@example.com", service: "Something else (we quote)", words: "A 6ft x 3ft banner for my salon", look: "Look 2: Split · Festive" }, { "x-forwarded-for": "10.8.0.1" });
+  assert.equal(r.status, 200, r.text); assert.equal(r.json.quote, true); assert.equal(r.json.pay, undefined);
+  const row = await h.row(Number(r.json.ref.replace(/\D/g, "")));
+  assert.equal(row.quote_amount, null);
+  assert.match(row.details, /^Look they picked in the preview: Look 2: Split · Festive$/m);
 });

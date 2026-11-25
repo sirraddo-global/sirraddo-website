@@ -290,6 +290,13 @@
       var rest = l.replace(PHONE_RE, '').replace(/@[A-Za-z0-9_.]{2,}/g, '').replace(/^(tel|phone|call|whatsapp|ig|instagram|tiktok|facebook)\s*[:\-]?/i, '').replace(/^[\s,;:/|]+|[\s,;:/|]+$/g, '');
       if (!rest) return;
       if (/\b(ibadan|lagos|abuja|nationwide|located|address|street|road|avenue|state)\b/i.test(rest) && rest.length < 70 && (mode === 'contact' || !/^we /i.test(rest))) { m.place = m.place ? m.place + ' · ' + rest : rest; return; }
+      // "We wash: shirts, trousers, duvets…" → list title + items.
+      var inline = rest.match(/^([^:]{2,30}):\s*(.+)$/);
+      if (inline && inline[2].split(',').length >= 3) {
+        if (!m.listTitle) m.listTitle = inline[1].trim();
+        inline[2].replace(/\band\b/gi, ',').split(',').forEach(function (x) { x = x.trim().replace(/[.]$/, ''); if (x) m.items.push(x.charAt(0).toUpperCase() + x.slice(1)); });
+        return;
+      }
       if (rest.length > 40 || /[.!]\s*$/.test(rest) || /^we\s/i.test(rest)) { m.note = m.note ? m.note + ' ' + rest : rest; return; }
       if (mode === 'contact') return;
       (rest.split(/,(?![^(]*\))/).length >= 3 ? rest.split(',') : [rest]).forEach(function (x) { x = x.trim(); if (x) m.items.push(x.charAt(0).toUpperCase() + x.slice(1)); });
@@ -303,8 +310,9 @@
     b = String(b || '').trim();
     var m = b.match(/^([A-Z0-9][A-Z0-9'’]{2,})\s*([a-z&].*)$/);
     if (m) return { big: m[1], small: m[2].replace(/\s*&\s*/g, ' & ').trim() };
-    var w = b.split(/\s+/);
-    if (w.length >= 3) { var k = Math.ceil(w.length / 2); return { big: w.slice(0, k).join(' '), small: w.slice(k).join(' ') }; }
+    // "Bola's Kitchen & more" → small line "& more"; any other name stays whole.
+    var amp = b.match(/^(.{3,}?)\s+(&\s*more|and\s+more|treats.*|enterprises?|ventures?|limited|ltd\.?|global.*)$/i);
+    if (amp) return { big: amp[1], small: amp[2] };
     return { big: b, small: '' };
   }
   function wrapText(c, text, maxW) {
@@ -335,9 +343,12 @@
       var bs = fitd.size * 0.32;
       c.save(); c.translate(ix + bs, iy + fitd.size * 0.62); c.rotate(Math.PI / 4); c.fillStyle = bullet; c.fillRect(-bs / 2, -bs / 2, bs, bs); c.restore();
       c.fillStyle = color; c.textBaseline = 'alphabetic';
-      var label = it, maxW = fitd.colW - fitd.size * 1.3;
-      while (c.measureText(label).width > maxW && label.length > 3) label = label.slice(0, -2) + '…';
+      var pm = it.match(/^(.*?)\s*[-–:]\s*(\u20A6\s?[\d,]+(?:\s*\/\s*\w+)?|\d[\d,]*\s*naira)\s*$/i);
+      var label = pm ? pm[1] : it, price = pm ? pm[2] : '', maxW = fitd.colW - fitd.size * 1.3;
+      var pw = price ? c.measureText(price).width + fitd.size * 0.6 : 0;
+      while (c.measureText(label).width > maxW - pw && label.length > 3) label = label.slice(0, -2) + '…';
       c.fillText(label, ix + fitd.size * 1.15, iy + fitd.size * 0.98);
+      if (price) { c.fillStyle = bullet; c.textAlign = 'right'; c.fillText(price, ix + fitd.colW - fitd.size * 0.2, iy + fitd.size * 0.98); c.textAlign = 'left'; }
     });
     return y + fitd.rows * fitd.size * (fitd.lh || 1.55);
   }
@@ -546,7 +557,7 @@
       business: el('input', { value: g.business || mp.brand, maxlength: '60' }),
       headline: el('textarea', { rows: '2', maxlength: '120' }),
       details: el('textarea', { rows: '3', maxlength: '240' }),
-      offer: el('input', { value: g.offer, maxlength: '30', placeholder: 'e.g. 20% OFF (leave empty for none)' }),
+      offer: el('input', { value: menuMode ? '' : g.offer, maxlength: '30', placeholder: 'e.g. 20% OFF or Nationwide delivery (empty for none)' }),
       contact: el('input', { value: g.contact, maxlength: '70' }),
     };
     f.headline.value = g.headline; f.details.value = g.details;
@@ -856,5 +867,5 @@
     return { draw: draw, render: render, state: state };
   }
 
-  window.SirStudio = { open: open, guess: guess, themeFrom: themeFrom };
+  window.SirStudio = { open: open, guess: guess, themeFrom: themeFrom, parseMenu: parseMenu };
 })();

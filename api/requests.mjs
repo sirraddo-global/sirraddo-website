@@ -400,6 +400,13 @@ export default async function handler(req, res) {
         if (!r.ok) throw new Bad(r.status === 401 ? "Background remover key doesn't match (BG_KEY)." : "Couldn't remove the background from that photo.");
         return res.status(200).json({ image: "data:image/png;base64," + Buffer.from(await r.arrayBuffer()).toString("base64") });
       }
+      // Photo labels for menu flyers in the Design studio (nothing is saved).
+      if (body.action === "photo_labels") {
+        const { photoLabels } = await import("./_lib/logos.mjs");
+        const result = await photoLabels(body.images, body.items, FUNCTION_BUDGET_MS() - 2000);
+        if (!result.ok) throw new Bad(result.error);
+        return res.status(200).json(result);
+      }
       // Logo ideas for the Design studio: 3 original SVG logos from a short brief (nothing is saved).
       if (body.action === "logo_ideas") {
         const result = await logoIdeas(body.brief || {}, FUNCTION_BUDGET_MS() - 2000);

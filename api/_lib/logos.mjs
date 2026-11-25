@@ -71,3 +71,25 @@ Draw the 3 logos now.`;
     return { ok: false, error: friendlyAiError(err) };
   }
 }
+
+// Labels for flyer photos (Design studio → menu flyers): 1–3 words each, picked from the item list where one fits.
+export async function photoLabels(images = [], items = [], budgetMs = 24000) {
+  const provider = pickProvider();
+  if (!provider) return { ok: false, error: "No AI is set up yet (Admin → Settings → Keys & connections)." };
+  const pics = (Array.isArray(images) ? images : []).slice(0, 6).map((d) => String(d || "").match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/))
+    .filter((m) => m && m[2].length < 700000).map((m) => ({ mime: m[1], data: m[2] }));
+  if (!pics.length) return { ok: false, error: "No photos to name." };
+  const list = (Array.isArray(items) ? items : []).map((x) => clip(x, 40)).filter(Boolean).slice(0, 40);
+  const prompt = `There are ${pics.length} photos, in order. For each one, give a short label (1-3 words, Title Case) naming the food or product it shows${list.length ? `. Use the closest name from this list when one fits, in its plural/natural form (e.g. "Cakes"): ${list.join(", ")}` : ""}. Never invent brand names. Reply with ONLY JSON: {"labels":["…", …]} with exactly ${pics.length} labels.`;
+  try {
+    const out = await provider.call(provider.start([{ role: "user", content: prompt, images: pics }]), "You label product photos for small-business flyers. Reply with JSON only.", [], budgetMs, { maxTokens: 300, attemptMs: budgetMs - 1500 });
+    const t = String(out.text || ""); let labels = [];
+    try { labels = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1)).labels || []; } catch { labels = []; }
+    labels = labels.slice(0, pics.length).map((l) => clip(l, 24));
+    if (!labels.length) return { ok: false, error: "The AI didn't return labels. Type them instead." };
+    return { ok: true, labels };
+  } catch (err) {
+    console.error("photo labels failed", err.code, err.message);
+    return { ok: false, error: friendlyAiError(err) };
+  }
+}

@@ -5,6 +5,7 @@
 (function () {
   'use strict';
   var FONT = 'Inter, "Segoe UI", Arial, sans-serif';
+  var SERIF = 'Georgia, "Noto Serif", "Times New Roman", serif';
   var SIZES = {
     post: { w: 1080, h: 1350, label: 'WhatsApp / Instagram post' },
     square: { w: 1080, h: 1080, label: 'Square post' },
@@ -13,6 +14,7 @@
   };
   var THEMES = [
     { name: 'Navy & gold', bg: '#13254F', accent: '#E8B230', light: '#F4F1E8' },
+    { name: 'Chocolate & gold', bg: '#4A2417', accent: '#D9A85B', light: '#FBF5EC' },
     { name: 'Sunset', bg: '#9A2A0C', accent: '#FDCB3C', light: '#FFF4E6' },
     { name: 'Emerald', bg: '#0E5A3A', accent: '#F4C430', light: '#EEF7F0' },
     { name: 'Royal purple', bg: '#3F1D6B', accent: '#F5B841', light: '#F4EFFA' },
@@ -266,10 +268,283 @@
   ];
 
   // ---------- the editor ----------
+
+  // ---------- menu / price-list flyers (a business with a list of products) ----------
+  var PHONE_RE = /(\+?234|0)[789][01]\d[\s-]?\d{3}[\s-]?\d{4}/g;
+  // Reads the customer's words as a menu: name, list title, items, a note ("We also offer…"), phones, handles, place.
+  function parseMenu(o) {
+    var lines = String(o.words || '').replace(/\r/g, '').split('\n').map(function (l) { return l.replace(/^[\s•\-*◆♦▪·]+/, '').trim(); });
+    var m = { brand: o.business || '', listTitle: '', items: [], note: '', phones: [], socials: [], place: '' };
+    var mode = 'items';
+    lines.forEach(function (l, i) {
+      if (!l) return;
+      if (!m.brand && i === lines.findIndex(function (x) { return x; }) && l.length <= 40 && !PHONE_RE.test(l)) { PHONE_RE.lastIndex = 0; m.brand = l; return; }
+      PHONE_RE.lastIndex = 0;
+      if (/^(contact|call|reach)\s*(us)?\s*(for|on)?\s*:?$/i.test(l) && /for/i.test(l)) { m.listTitle = l.replace(/:$/, ''); mode = 'items'; return; }
+      if (/^(our\s+)?(menu|services|products|price ?list|we (sell|offer|make))\s*:?$/i.test(l)) { m.listTitle = l.replace(/:$/, ''); mode = 'items'; return; }
+      if (/^contact\s*(info|information|us|details)?\s*:?$/i.test(l)) { mode = 'contact'; return; }
+      var phones = l.match(PHONE_RE) || [];
+      phones.forEach(function (p) { var n = p.replace(/[\s-]/g, ''); if (m.phones.indexOf(n) === -1) m.phones.push(n); });
+      var handles = l.match(/@[A-Za-z0-9_.]{2,}/g) || [];
+      handles.forEach(function (h) { if (m.socials.indexOf(h) === -1) m.socials.push(h); });
+      var rest = l.replace(PHONE_RE, '').replace(/@[A-Za-z0-9_.]{2,}/g, '').replace(/^(tel|phone|call|whatsapp|ig|instagram|tiktok|facebook)\s*[:\-]?/i, '').replace(/^[\s,;:/|]+|[\s,;:/|]+$/g, '');
+      if (!rest) return;
+      if (/\b(ibadan|lagos|abuja|nationwide|located|address|street|road|avenue|state)\b/i.test(rest) && rest.length < 70 && (mode === 'contact' || !/^we /i.test(rest))) { m.place = m.place ? m.place + ' · ' + rest : rest; return; }
+      // "We wash: shirts, trousers, duvets…" → list title + items.
+      var inline = rest.match(/^([^:]{2,30}):\s*(.+)$/);
+      if (inline && inline[2].split(',').length >= 3) {
+        if (!m.listTitle) m.listTitle = inline[1].trim();
+        inline[2].replace(/\band\b/gi, ',').split(',').forEach(function (x) { x = x.trim().replace(/[.]$/, ''); if (x) m.items.push(x.charAt(0).toUpperCase() + x.slice(1)); });
+        return;
+      }
+      if (rest.length > 40 || /[.!]\s*$/.test(rest) || /^we\s/i.test(rest)) { m.note = m.note ? m.note + ' ' + rest : rest; return; }
+      if (mode === 'contact') return;
+      (rest.split(/,(?![^(]*\))/).length >= 3 ? rest.split(',') : [rest]).forEach(function (x) { x = x.trim(); if (x) m.items.push(x.charAt(0).toUpperCase() + x.slice(1)); });
+    });
+    if (!m.listTitle) m.listTitle = m.items.length ? 'Contact us for' : '';
+    if (!m.phones.length && o.contact) m.phones.push(String(o.contact).replace(/[^\d+]/g, ''));
+    return m;
+  }
+  // "KASSYtreats&more" → big "KASSY", small "treats & more".
+  function brandParts(b) {
+    b = String(b || '').trim();
+    var m = b.match(/^([A-Z0-9][A-Z0-9'’]{2,})\s*([a-z&].*)$/);
+    if (m) return { big: m[1], small: m[2].replace(/\s*&\s*/g, ' & ').trim() };
+    // "Bola's Kitchen & more" → small line "& more"; any other name stays whole.
+    var amp = b.match(/^(.{3,}?)\s+(&\s*more|and\s+more|treats.*|enterprises?|ventures?|limited|ltd\.?|global.*)$/i);
+    if (amp) return { big: amp[1], small: amp[2] };
+    return { big: b, small: '' };
+  }
+  function wrapText(c, text, maxW) {
+    var words = String(text || '').split(/\s+/), lines = [], cur = '';
+    words.forEach(function (w) { var t = cur ? cur + ' ' + w : w; if (c.measureText(t).width <= maxW || !cur) cur = t; else { lines.push(cur); cur = w; } });
+    if (cur) lines.push(cur);
+    return lines;
+  }
+  // Fits a list into a box: tries 1–3 columns and shrinking sizes. Returns { cols, size, rows }.
+  function listFit(c, items, w, h, maxS, minS, weight, maxCols) {
+    for (var size = maxS; size >= minS; size -= Math.max(1, maxS / 30)) {
+      c.font = weight + ' ' + size + 'px ' + FONT;
+      for (var cols = 1; cols <= (maxCols || 3); cols++) {
+        var gap = size * 1.2, colW = (w - gap * (cols - 1)) / cols, rows = Math.ceil(items.length / cols);
+        if (rows * size * 1.55 > h) continue;
+        if (items.every(function (it) { return c.measureText(it).width + size * 1.4 <= colW; })) return { cols: cols, size: size, rows: rows, colW: colW, gap: gap };
+      }
+    }
+    c.font = weight + ' ' + minS + 'px ' + FONT;
+    var cs = Math.min(maxCols || 3, 2), r = Math.ceil(items.length / cs);
+    return { cols: cs, size: minS, rows: r, colW: (w - minS * 1.2) / cs, gap: minS * 1.2 };
+  }
+  function drawList(c, items, x, y, fitd, color, bullet) {
+    c.font = fitd.weight + ' ' + fitd.size + 'px ' + FONT;
+    items.forEach(function (it, i) {
+      var col = Math.floor(i / fitd.rows), row = i % fitd.rows;
+      var lh = fitd.lh || 1.55, ix = x + col * (fitd.colW + fitd.gap), iy = y + row * fitd.size * lh;
+      var bs = fitd.size * 0.32;
+      c.save(); c.translate(ix + bs, iy + fitd.size * 0.62); c.rotate(Math.PI / 4); c.fillStyle = bullet; c.fillRect(-bs / 2, -bs / 2, bs, bs); c.restore();
+      c.fillStyle = color; c.textBaseline = 'alphabetic';
+      var pm = it.match(/^(.*?)\s*[-–:]\s*(\u20A6\s?[\d,]+(?:\s*\/\s*\w+)?|\d[\d,]*\s*naira)\s*$/i);
+      var label = pm ? pm[1] : it, price = pm ? pm[2] : '', maxW = fitd.colW - fitd.size * 1.3;
+      var pw = price ? c.measureText(price).width + fitd.size * 0.6 : 0;
+      while (c.measureText(label).width > maxW - pw && label.length > 3) label = label.slice(0, -2) + '…';
+      c.fillText(label, ix + fitd.size * 1.15, iy + fitd.size * 0.98);
+      if (price) { c.fillStyle = bullet; c.textAlign = 'right'; c.fillText(price, ix + fitd.colW - fitd.size * 0.2, iy + fitd.size * 0.98); c.textAlign = 'left'; }
+    });
+    return y + fitd.rows * fitd.size * (fitd.lh || 1.55);
+  }
+  function photoGrid(c, tiles, x, y, w, h, cols, gap, frame, t, u) {
+    if (!tiles.length) return;
+    var rows = Math.ceil(tiles.length / cols), tw = (w - gap * (cols - 1)) / cols, th = (h - gap * (rows - 1)) / rows;
+    tiles.forEach(function (tile, i) {
+      var r = Math.floor(i / cols), col = i % cols, inRow = Math.min(cols, tiles.length - r * cols);
+      var off = inRow < cols ? (cols - inRow) * (tw + gap) / 2 : 0; // centre a short last row
+      var tx = x + off + col * (tw + gap), ty = y + r * (th + gap), rad = Math.min(tw, th) * 0.09;
+      c.save(); c.shadowColor = 'rgba(0,0,0,.28)'; c.shadowBlur = 18 * u; c.shadowOffsetY = 6 * u; c.fillStyle = frame; rr(c, tx - 5 * u, ty - 5 * u, tw + 10 * u, th + 10 * u, rad + 5 * u); c.fill(); c.restore();
+      c.save(); rr(c, tx, ty, tw, th, rad); c.clip(); cover(c, tile.img, tx, ty, tw, th, 0.45); c.restore();
+      if (tile.caption) {
+        var fs = Math.max(18 * u, Math.min(30 * u, tw * 0.085));
+        c.font = '700 ' + fs + 'px ' + FONT;
+        var cw = Math.min(tw * 0.86, c.measureText(tile.caption).width + fs * 1.6), chh = fs * 1.75;
+        c.fillStyle = 'rgba(255,255,255,.94)'; rr(c, tx + (tw - cw) / 2, ty + th - chh - fs * 0.55, cw, chh, chh / 2); c.fill();
+        c.fillStyle = '#2B2118'; c.textAlign = 'center';
+        var cap = tile.caption; while (c.measureText(cap).width > cw - fs && cap.length > 3) cap = cap.slice(0, -2) + '…';
+        c.fillText(cap, tx + tw / 2, ty + th - fs * 0.55 - chh / 2 + fs * 0.36); c.textAlign = 'left';
+      }
+    });
+  }
+  function icon(c, kind, x, y, r, bg, fg) {
+    c.fillStyle = bg; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = fg; c.fillStyle = fg; c.lineWidth = r * 0.16;
+    if (kind === 'phone') { rr(c, x - r * 0.32, y - r * 0.52, r * 0.64, r * 1.04, r * 0.14); c.stroke(); c.fillRect(x - r * 0.1, y + r * 0.3, r * 0.2, r * 0.08); }
+    else if (kind === 'place') { c.beginPath(); c.arc(x, y - r * 0.15, r * 0.3, Math.PI, 0); c.lineTo(x, y + r * 0.55); c.closePath(); c.fill(); c.fillStyle = bg; c.beginPath(); c.arc(x, y - r * 0.15, r * 0.12, 0, Math.PI * 2); c.fill(); }
+    else { c.font = '800 ' + r * 1.15 + 'px ' + FONT; c.textAlign = 'center'; c.fillText('@', x, y + r * 0.4); c.textAlign = 'left'; }
+  }
+  // Contact lines: phones, handles, place. Returns the height used (or needed when draw is false).
+  function contactBlock(c, d, x, y, w, size, color, iconBg, iconFg, draw) {
+    var rows = [];
+    // Phones share a line when it fits, otherwise one per line.
+    c.font = '700 ' + size + 'px ' + FONT;
+    if (d.phones.length && c.measureText(d.phones.join(', ')).width <= w - size * 2.2) rows.push(['phone', d.phones.join(', ')]);
+    else d.phones.forEach(function (p) { rows.push(['phone', p]); });
+    d.socials.forEach(function (h) { rows.push(['social', h]); });
+    if (d.place) rows.push(['place', d.place]);
+    var lh = size * 1.75;
+    if (draw) rows.forEach(function (r, i) {
+      var cy = y + i * lh + lh / 2;
+      icon(c, r[0], x + size * 0.75, cy, size * 0.72, iconBg, iconFg);
+      c.font = '700 ' + size + 'px ' + FONT; c.fillStyle = color;
+      var t = r[1]; while (c.measureText(t).width > w - size * 2.2 && t.length > 3) t = t.slice(0, -2) + '…';
+      c.fillText(t, x + size * 1.9, cy + size * 0.36);
+    });
+    return rows.length * lh;
+  }
+  function brandBlock(c, d, x, y, w, t, color, sub, align, maxBig) {
+    var bp = brandParts(d.business), u = w / 500;
+    var big = fit(c, bp.big || 'Your business', w, 1, maxBig, maxBig * 0.35, 800);
+    c.font = '800 ' + big.size + 'px ' + SERIF; c.fillStyle = color; c.textAlign = align || 'left';
+    var bx = align === 'center' ? x + w / 2 : x;
+    while (c.measureText(bp.big).width > w && big.size > 20) { big.size -= 2; c.font = '800 ' + big.size + 'px ' + SERIF; }
+    c.fillText(bp.big || 'Your business', bx, y + big.size * 0.9);
+    var yy = y + big.size * 1.02;
+    if (bp.small) {
+      var ss = big.size * 0.46;
+      c.font = 'italic 400 ' + ss + 'px ' + SERIF; c.fillStyle = sub;
+      while (c.measureText(bp.small).width > w && ss > 14) { ss -= 1; c.font = 'italic 400 ' + ss + 'px ' + SERIF; }
+      c.fillText(bp.small, bx, yy + ss * 0.95); yy += ss * 1.25;
+    }
+    c.textAlign = 'left';
+    return yy;
+  }
+  function tilesOf(d, max) { return d.menuPhotos.slice(0, max); }
+
+  var MENU_LAYOUTS = [
+    { name: 'Classic menu', draw: function (c, W, H, d, t) {
+      var u = W / 1080, pad = 56 * u, tall = H / W > 1.5;
+      c.fillStyle = t.light; c.fillRect(0, 0, W, H);
+      c.fillStyle = t.bg; c.globalAlpha = 0.06; for (var gx = 18 * u; gx < W; gx += 34 * u) for (var gy = 18 * u; gy < H; gy += 34 * u) { c.beginPath(); c.arc(gx, gy, 1.6 * u, 0, Math.PI * 2); c.fill(); } c.globalAlpha = 1;
+      var tiles = tilesOf(d, 6), hasPics = tiles.length > 0;
+      var colW = (hasPics ? W * 0.47 : W - pad * 2) - pad, px = W * 0.49, pTop = H * (tall ? 0.17 : 0.2);
+      if (hasPics) {
+        c.fillStyle = t.bg; c.beginPath(); var R = 90 * u; c.moveTo(px + R, pTop); c.lineTo(W, pTop); c.lineTo(W, H); c.lineTo(px, H); c.lineTo(px, pTop + R); c.arcTo(px, pTop, px + R, pTop, R); c.fill();
+        c.strokeStyle = t.accent; c.lineWidth = 3 * u; c.beginPath(); c.moveTo(px - 14 * u, H); c.lineTo(px - 14 * u, pTop + R + 14 * u); c.arcTo(px - 14 * u, pTop - 14 * u, px + R, pTop - 14 * u, R + 14 * u); c.lineTo(W, pTop - 14 * u); c.stroke();
+        var cols = tiles.length >= 3 ? 2 : 1, gx0 = px + 40 * u, gw = W - gx0 - 36 * u;
+        photoGrid(c, tiles, gx0, pTop + 44 * u, gw, H - pTop - 84 * u, cols, 34 * u, t.accent, t, u);
+      }
+      // top right: logo and/or badge
+      if (d.logo) logoBadge(c, d.logo, W - 150 * u, pTop / 2, Math.min(105 * u, pTop * 0.42));
+      if (d.offer) offerBadge(c, t, d.offer, d.logo ? W - 400 * u : W - 160 * u, pTop / 2, Math.min(98 * u, pTop * 0.42));
+      // left column
+      var y = brandBlock(c, d, pad, pad * 0.9, colW + (hasPics && !d.logo && !d.offer ? 40 * u : 0), t, t.bg, t.accent, 'left', 150 * u);
+      c.strokeStyle = t.bg; c.lineWidth = 2 * u; c.beginPath(); c.moveTo(pad, y + 18 * u); c.lineTo(pad + colW * 0.82, y + 18 * u); c.stroke();
+      c.fillStyle = t.accent; c.beginPath(); c.arc(pad + colW * 0.82 + 12 * u, y + 18 * u, 6 * u, 0, Math.PI * 2); c.fill();
+      y += 46 * u;
+      var cSize = (tall ? 38 : 30) * u, contactH = contactBlock(c, d, 0, 0, colW, cSize, '', '', '', false) + (contactBlock(c, d, 0, 0, 0, cSize, '', '', '', false) ? 70 * u : 0);
+      var noteFont = (tall ? 34 : 27) * u; c.font = '600 ' + noteFont + 'px ' + FONT;
+      var noteLines = d.note ? wrapText(c, d.note, colW - 56 * u) : [], noteH = noteLines.length ? noteLines.length * noteFont * 1.4 + 52 * u : 0;
+      var titleH = d.listTitle ? 70 * u : 0;
+      var listH = H - pad - y - titleH - noteH - contactH - 50 * u;
+      if (d.listTitle) {
+        c.fillStyle = t.bg; rr(c, pad, y, colW * 0.88, 60 * u, 8 * u); c.fill();
+        c.fillStyle = t.accent; c.fillRect(pad, y + 64 * u, colW * 0.88, 4 * u);
+        var lf = fit(c, d.listTitle, colW * 0.8, 1, 32 * u, 18 * u, 700); drawLines(c, lf, pad + 22 * u, y + (60 * u - lf.size) / 2 - lf.size * 0.12, 1, onColour(t.bg), 700);
+        y += titleH + 16 * u;
+      }
+      if (d.items.length) { var fl = listFit(c, d.items, colW, listH, (tall ? 54 : 42) * u, 18 * u, 800, 2); fl.weight = 800; fl.lh = Math.max(1.55, Math.min(2.2, listH / (fl.rows * fl.size))); y = drawList(c, d.items, pad + 6 * u, y, fl, t.bg, t.accent) + 18 * u; }
+      if (noteLines.length) {
+        c.fillStyle = t.bg; rr(c, pad, y, colW, noteH - 18 * u, 18 * u); c.fill();
+        c.strokeStyle = t.accent; c.globalAlpha = 0.6; c.lineWidth = 2 * u; rr(c, pad + 10 * u, y + 10 * u, colW - 20 * u, noteH - 38 * u, 12 * u); c.stroke(); c.globalAlpha = 1;
+        c.font = '600 ' + noteFont + 'px ' + FONT; c.fillStyle = onColour(t.bg);
+        noteLines.forEach(function (l, i) { c.fillText(l, pad + 28 * u, y + 26 * u + noteFont + i * noteFont * 1.4); });
+        y += noteH;
+      }
+      if (contactH) {
+        var g = c.createLinearGradient(pad, 0, pad + colW * 0.6, 0); g.addColorStop(0, t.accent); g.addColorStop(1, lum(t.accent) > 0.5 ? '#F3DDA8' : t.accent);
+        c.fillStyle = g; rr(c, pad, y, colW * 0.62, 52 * u, 26 * u); c.fill();
+        c.font = '800 ' + 26 * u + 'px ' + FONT; c.fillStyle = onColour(t.accent); c.textAlign = 'center'; c.fillText('Contact info', pad + colW * 0.31, y + 35 * u); c.textAlign = 'left';
+        contactBlock(c, d, pad, y + 62 * u, colW + (hasPics ? 0 : 0), cSize, t.bg, t.bg, t.light, true);
+      }
+    } },
+    { name: 'Dark menu', draw: function (c, W, H, d, t) {
+      var u = W / 1080, pad = 60 * u, tall = H / W > 1.5;
+      c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
+      var g = c.createRadialGradient(W * 0.5, 0, 0, W * 0.5, 0, W); g.addColorStop(0, 'rgba(255,255,255,.10)'); g.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+      if (d.logo) logoBadge(c, d.logo, W / 2, pad + 60 * u, 60 * u);
+      var y = brandBlock(c, d, pad, pad + (d.logo ? 140 * u : 10 * u), W - pad * 2, t, onColour(t.bg), t.accent, 'center', 140 * u);
+      if (d.offer) { c.font = '800 ' + 24 * u + 'px ' + FONT; var ow = c.measureText(d.offer).width + 60 * u; c.fillStyle = t.accent; rr(c, (W - ow) / 2, y + 12 * u, ow, 46 * u, 23 * u); c.fill(); c.fillStyle = onColour(t.accent); c.textAlign = 'center'; c.fillText(d.offer, W / 2, y + 43 * u); c.textAlign = 'left'; y += 64 * u; }
+      y += 26 * u;
+      var tiles = tilesOf(d, tall ? 6 : 4);
+      if (tiles.length) {
+        var cols = tall ? Math.min(3, tiles.length) : Math.min(4, tiles.length), rows = Math.ceil(tiles.length / cols);
+        var gh = (tall ? H * 0.40 : H * 0.25) * (rows > 1 && !tall ? 1.6 : 1);
+        photoGrid(c, tiles, pad, y, W - pad * 2, gh, cols, 22 * u, t.accent, t, u);
+        y += gh + 40 * u;
+      }
+      var barH = (d.phones.length || d.socials.length || d.place ? 64 * u + (d.socials.length || d.place ? 44 * u : 0) : 0);
+      c.font = '500 ' + 26 * u + 'px ' + FONT;
+      var noteLines = d.note ? wrapText(c, d.note, W - pad * 2 - 40 * u) : [], noteH = noteLines.length ? noteLines.length * 26 * u * 1.4 + 30 * u : 0;
+      if (d.listTitle) { c.font = '800 ' + 26 * u + 'px ' + FONT; c.fillStyle = t.accent; c.textAlign = 'center'; c.fillText(d.listTitle.toUpperCase().split('').join(String.fromCharCode(8202)), W / 2, y + 26 * u); c.textAlign = 'left'; y += 50 * u; }
+      if (d.items.length) { var avl = H - y - barH - noteH - 50 * u, fl = listFit(c, d.items, W - pad * 2, avl, (tall ? 52 : 40) * u, 18 * u, 700, tall ? 2 : 3); fl.weight = 700; fl.lh = Math.max(1.55, Math.min(2.1, avl / (fl.rows * fl.size))); y = drawList(c, d.items, pad + 10 * u, y, fl, onColour(t.bg), t.accent) + 10 * u; }
+      if (noteLines.length) { c.font = 'italic 500 ' + 26 * u + 'px ' + FONT; c.fillStyle = onColour(t.bg); c.globalAlpha = 0.85; c.textAlign = 'center'; noteLines.forEach(function (l, i) { c.fillText(l, W / 2, y + 26 * u + i * 26 * u * 1.4); }); c.globalAlpha = 1; c.textAlign = 'left'; }
+      if (barH) {
+        c.fillStyle = t.accent; c.fillRect(0, H - barH, W, barH);
+        c.fillStyle = onColour(t.accent); c.textAlign = 'center';
+        c.font = '800 ' + 32 * u + 'px ' + FONT; c.fillText(d.phones.length ? 'Call / WhatsApp: ' + d.phones.join(' · ') : '', W / 2, H - barH + 44 * u);
+        var sub = d.socials.concat(d.place ? [d.place] : []).join('   ·   ');
+        if (sub) { c.font = '600 ' + 24 * u + 'px ' + FONT; c.fillText(sub, W / 2, H - barH + 88 * u, W - pad * 2); }
+        c.textAlign = 'left';
+      }
+    } },
+    { name: 'Photo grid', draw: function (c, W, H, d, t) {
+      var u = W / 1080, pad = 54 * u, tall = H / W > 1.5;
+      c.fillStyle = t.light; c.fillRect(0, 0, W, H);
+      var headH = (tall ? 250 : 210) * u;
+      c.fillStyle = t.bg; c.fillRect(0, 0, W, headH);
+      c.fillStyle = t.accent; c.fillRect(0, headH, W, 8 * u);
+      brandBlock(c, d, pad, (headH - 150 * u) / 2, W - pad * 2 - (d.logo ? 170 * u : 0), t, onColour(t.bg), t.accent, 'left', 110 * u);
+      if (d.logo) logoBadge(c, d.logo, W - pad - 70 * u, headH / 2, 70 * u);
+      var y = headH + 40 * u, tiles = tilesOf(d, 6);
+      if (tiles.length) {
+        var cols = tiles.length >= 5 ? 3 : tiles.length >= 2 ? 2 : 1, rows = Math.ceil(tiles.length / cols);
+        var gh = Math.min(H * (tall ? 0.46 : 0.4), rows * (W - pad * 2) / cols * (tall ? 1.15 : 0.8));
+        photoGrid(c, tiles, pad, y, W - pad * 2, gh, cols, 22 * u, '#FFFFFF', t, u);
+        y += gh + 36 * u;
+      }
+      var barH = d.phones.length || d.socials.length ? 110 * u : 0;
+      if (d.offer) offerBadge(c, t, d.offer, W - pad - 70 * u, headH + 10 * u, 70 * u);
+      if (d.listTitle) { c.font = '800 ' + 30 * u + 'px ' + SERIF; c.fillStyle = t.bg; c.textAlign = 'center'; c.fillText(d.listTitle, W / 2, y + 28 * u); c.textAlign = 'left'; y += 48 * u; }
+      // items as chips
+      var avail = H - y - barH - 30 * u - (d.note ? 80 * u : 0), fs = (tall ? 42 : 30) * u, chips;
+      for (; fs >= 16 * u; fs -= 1 * u) {
+        c.font = '700 ' + fs + 'px ' + FONT; chips = []; var line = [], lw = 0, maxW = W - pad * 2;
+        d.items.forEach(function (it) { var w = c.measureText(it).width + fs * 1.6; if (lw + w > maxW && line.length) { chips.push(line); line = []; lw = 0; } line.push([it, w]); lw += w + fs * 0.5; });
+        if (line.length) chips.push(line);
+        if (chips.length * fs * 2.3 <= avail) break;
+      }
+      var used = (chips || []).length * fs * 2.3 + (d.note ? 80 * u : 0);
+      y += Math.max(0, (H - barH - 30 * u - y - used) / 2);
+      (chips || []).forEach(function (row) {
+        var total = row.reduce(function (a, r) { return a + r[1]; }, 0) + fs * 0.5 * (row.length - 1), x = (W - total) / 2;
+        row.forEach(function (r) { c.fillStyle = t.bg; rr(c, x, y, r[1], fs * 1.8, fs * 0.9); c.fill(); c.fillStyle = onColour(t.bg); c.fillText(r[0], x + fs * 0.8, y + fs * 1.22); x += r[1] + fs * 0.5; });
+        y += fs * 2.3;
+      });
+      if (d.note) { var nf = (tall ? 30 : 24) * u; c.font = 'italic 500 ' + nf + 'px ' + FONT; c.fillStyle = t.bg; c.textAlign = 'center'; wrapText(c, d.note, W - pad * 2).slice(0, 3).forEach(function (l, i) { c.fillText(l, W / 2, y + nf + i * nf * 1.35); }); c.textAlign = 'left'; }
+      if (barH) {
+        c.fillStyle = t.bg; c.fillRect(0, H - barH, W, barH); c.fillStyle = t.accent; c.fillRect(0, H - barH, W, 6 * u);
+        c.textAlign = 'center'; c.fillStyle = onColour(t.bg);
+        c.font = '800 ' + 32 * u + 'px ' + FONT; c.fillText(d.phones.join('  ·  '), W / 2, H - barH + 50 * u, W - pad * 2);
+        var sub = d.socials.concat(d.place ? [d.place] : []).join('   ·   ');
+        if (sub) { c.font = '600 ' + 22 * u + 'px ' + FONT; c.fillStyle = t.accent; c.fillText(sub, W / 2, H - barH + 88 * u, W - pad * 2); }
+        c.textAlign = 'left';
+      }
+    } },
+  ];
+
   function open(o) {
     o = o || {};
-    var g = guess(o);
-    var state = { size: 'post', layout: 0, theme: themeFrom(o.colours) || THEMES[0], enhance: true, photoIdx: 0, logoIdx: -1, photos: [], raw: [] };
+    var g = guess(o), mp = parseMenu(o);
+    var menuMode = mp.items.length >= 4;
+    var state = { size: 'post', layout: 0, mode: menuMode ? 'menu' : 'promo', captions: [], theme: themeFrom(o.colours) || (menuMode ? THEMES[1] : THEMES[0]), enhance: true, photoIdx: 0, logoIdx: -1, photos: [], raw: [] };
+    var layouts = function () { return state.mode === 'menu' ? MENU_LAYOUTS : LAYOUTS; };
     var srcs = (o.photos || []).filter(function (p) { return !/\.pdf(\?|$)/i.test((p.name || '') + ' ' + (p.url || '')) && /\.(jpe?g|png|webp)(\?|$)/i.test(p.name || p.url || '') || /^blob:/.test(p.url); });
     // A file called "logo…" is the logo; the rest are photos.
     var logoGuess = srcs.findIndex(function (p) { return /logo/i.test(p.name || ''); });
@@ -279,13 +554,25 @@
     var preview = el('canvas', { class: 'st-canvas' });
     var thumbs = el('div', { class: 'st-thumbs' });
     var f = {
-      business: el('input', { value: g.business, maxlength: '60' }),
+      business: el('input', { value: g.business || mp.brand, maxlength: '60' }),
       headline: el('textarea', { rows: '2', maxlength: '120' }),
       details: el('textarea', { rows: '3', maxlength: '240' }),
-      offer: el('input', { value: g.offer, maxlength: '30', placeholder: 'e.g. 20% OFF (leave empty for none)' }),
+      offer: el('input', { value: menuMode ? '' : g.offer, maxlength: '30', placeholder: 'e.g. 20% OFF or Nationwide delivery (empty for none)' }),
       contact: el('input', { value: g.contact, maxlength: '70' }),
     };
     f.headline.value = g.headline; f.details.value = g.details;
+    var mf = {
+      listTitle: el('input', { value: mp.listTitle, maxlength: '40', placeholder: 'e.g. Contact us for / Our menu' }),
+      items: el('textarea', { rows: '7', maxlength: '900' }),
+      note: el('textarea', { rows: '3', maxlength: '300', placeholder: 'e.g. We also offer spaghetti, rice dishes and soups' }),
+      phones: el('input', { value: mp.phones.join(', '), maxlength: '80' }),
+      socials: el('input', { value: mp.socials.join(', '), maxlength: '120', placeholder: '@instagram, @tiktok' }),
+      place: el('input', { value: mp.place, maxlength: '70', placeholder: 'e.g. Ibadan · Available nationwide' }),
+    };
+    mf.items.value = mp.items.join('\n'); mf.note.value = mp.note;
+    var captionBox = el('div', { class: 'st-captions' });
+    var capMsg = el('small', { class: 'st-bgmsg' });
+    var capBtn = el('button', { class: 'admin-btn', type: 'button', text: '\u2728 Name the photos with AI', onclick: function () { nameStuff(true); } });
     var sizeSel = el('select', null, Object.keys(SIZES).map(function (k) { return el('option', { value: k, text: SIZES[k].label }); }));
     var themeRow = el('div', { class: 'st-themes' });
     var photoSel = el('select'), logoSel = el('select');
@@ -409,14 +696,53 @@
       }).catch(function (e) { bgMsg.textContent = (e && e.message) || 'Could not remove the background.'; })
         .then(function () { bgBtn.disabled = false; });
     }
+    var modeBtns = {};
+    var modeRow = el('div', { class: 'st-mode' }, [['menu', '\uD83D\uDCCB Menu / price list'], ['promo', '\uD83D\uDCE3 Promo / offer']].map(function (m) {
+      modeBtns[m[0]] = el('button', { type: 'button', class: 'admin-btn', text: m[1], onclick: function () { setMode(m[0]); } });
+      return modeBtns[m[0]];
+    }));
+    // AI labels for each photo (e.g. "Cakes", "Zobo"), picked from the item list where one fits. Runs once by itself.
+    var named = false;
+    function nameStuff(force) {
+      if ((named && !force) || !o.captionApi) return;
+      var idx = []; var imgs = [];
+      state.raw.forEach(function (img, i) {
+        if (!img || i === state.logoIdx) return;
+        var k = Math.min(1, 512 / Math.max(img.width, img.height)), cv = document.createElement('canvas');
+        cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        idx.push(i); imgs.push(cv.toDataURL('image/jpeg', 0.8));
+      });
+      if (!imgs.length) return;
+      named = true; capBtn.disabled = true; capMsg.textContent = 'Naming the photos…';
+      o.captionApi(imgs.slice(0, 6), data().items).then(function (j) {
+        (j.labels || []).forEach(function (l, n) { if (idx[n] != null && l && (force || !state.captions[idx[n]])) state.captions[idx[n]] = String(l).slice(0, 24); });
+        capMsg.textContent = 'Labels added. Change any of them below.'; refreshSelects(); draw();
+      }).catch(function (e) { capMsg.textContent = (e && e.message) || 'Could not name the photos.'; })
+        .then(function () { capBtn.disabled = false; });
+    }
+    function setMode(m) {
+      state.mode = m; state.layout = 0;
+      Object.keys(modeBtns).forEach(function (k) { modeBtns[k].classList.toggle('admin-btn--primary', k === m); });
+      promoBox.hidden = m !== 'promo'; menuBox.hidden = m !== 'menu';
+      if (m === 'menu') nameStuff(false);
+      draw();
+    }
     function lab(text, input) { return el('label', { class: 'st-field' }, [el('span', { text: text }), input]); }
+    var promoBox = el('div', { class: 'st-group' }, [lab('Headline (the big words)', f.headline), lab('Details (smaller text)', f.details), lab('Contact line', f.contact)]);
+    var menuBox = el('div', { class: 'st-group' }, [
+      lab('List title', mf.listTitle), lab('Items (one per line)', mf.items), lab('Extra note (box)', mf.note),
+      lab('Phone numbers', mf.phones), lab('Social handles', mf.socials), lab('Location line', mf.place),
+      el('div', { class: 'st-field' }, [el('span', { text: 'Photo labels' }), captionBox, el('div', { class: 'st-bgrow' }, [capBtn, capMsg])]),
+    ]);
     var panel = el('div', { class: 'st-panel' }, [
       el('h2', { text: '🎨 Design studio' }),
       el('p', { class: 'admin-hint', text: 'Three ready designs from the customer’s photos, words and colours. Change anything below; the designs update as you type. Download, then put them through the Mockup maker and send as Option 1, 2, 3.' }),
       status,
       lab('Size', sizeSel),
-      lab('Business name', f.business), lab('Headline (the big words)', f.headline), lab('Details (smaller text)', f.details),
-      lab('Offer badge', f.offer), lab('Contact line', f.contact),
+      modeRow,
+      lab('Business name', f.business),
+      promoBox, menuBox,
+      lab('Badge (optional)', f.offer),
       el('div', { class: 'st-field' }, [el('span', { text: 'Colours' }), themeRow, el('div', { class: 'st-custom' }, [c1, c2, el('small', { text: 'or pick your own: main and accent' })])]),
       lab('Main photo', photoSel), bgRow, lab('Logo', logoSel),
       el('label', { class: 'st-check' }, [enh, ' Auto-enhance photos (brighter, richer colour, sharper)']),
@@ -465,12 +791,17 @@
       var main = state.photos[state.photoIdx] && state.photoIdx !== state.logoIdx ? state.photos[state.photoIdx] : photos[0] || null;
       return { business: f.business.value.trim(), headline: f.headline.value.trim(), details: f.details.value.trim(), offer: f.offer.value.trim().toUpperCase(), contact: f.contact.value.trim(),
         photo: main, photos: [main].concat(photos.filter(function (p) { return p !== main; })), logo: state.logoIdx >= 0 ? state.raw[state.logoIdx] : null,
-        logoWide: state.logoIdx >= 0 && state.raw[state.logoIdx] ? state.raw[state.logoIdx].width / state.raw[state.logoIdx].height > 1.3 : false };
+        logoWide: state.logoIdx >= 0 && state.raw[state.logoIdx] ? state.raw[state.logoIdx].width / state.raw[state.logoIdx].height > 1.3 : false,
+        listTitle: mf.listTitle.value.trim(), items: mf.items.value.split('\n').map(function (x) { return x.replace(/^[\s•\-*◆♦]+/, '').trim(); }).filter(Boolean),
+        note: mf.note.value.trim(), phones: mf.phones.value.split(/[,;\/]+/).map(function (x) { return x.trim(); }).filter(Boolean),
+        socials: mf.socials.value.split(/[,;\s]+/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { return x.charAt(0) === '@' ? x : '@' + x; }),
+        place: mf.place.value.trim(),
+        menuPhotos: state.photos.map(function (img, i) { return { img: img, caption: state.captions[i] || '', i: i }; }).filter(function (x) { return x.img && x.i !== state.logoIdx; }) };
     }
     function render(i, W, H) {
       var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       var c = cv.getContext('2d'); c.textBaseline = 'alphabetic';
-      LAYOUTS[i].draw(c, W, H, data(), state.theme);
+      layouts()[i].draw(c, W, H, data(), state.theme);
       return cv;
     }
     function draw() {
@@ -479,7 +810,7 @@
       var big = render(state.layout, Math.round(s.w * scale * 2), Math.round(s.h * scale * 2));
       preview.width = big.width; preview.height = big.height; preview.getContext('2d').drawImage(big, 0, 0);
       thumbs.innerHTML = '';
-      LAYOUTS.forEach(function (L, i) {
+      layouts().forEach(function (L, i) {
         var t = render(i, Math.round(s.w * 0.24), Math.round(s.h * 0.24));
         var b = el('button', { type: 'button', class: 'st-thumb' + (i === state.layout ? ' is-on' : ''), title: L.name, onclick: function () { state.layout = i; draw(); } }, [t, el('span', { text: 'Option ' + (i + 1) + ': ' + L.name })]);
         thumbs.appendChild(b);
@@ -500,6 +831,13 @@
         logoSel.appendChild(el('option', { value: String(i), text: (i + 1) + '. ' + (p.name || 'photo') }));
       });
       photoSel.value = String(state.photoIdx); logoSel.value = String(state.logoIdx);
+      captionBox.innerHTML = '';
+      srcs.forEach(function (p, i) {
+        if (i === state.logoIdx) return;
+        var inp = el('input', { value: state.captions[i] || '', maxlength: '24', placeholder: 'Label for photo ' + (i + 1) + ' (e.g. Cakes)' });
+        inp.addEventListener('input', function () { state.captions[i] = inp.value.trim(); draw(); });
+        captionBox.appendChild(inp);
+      });
     }
     function process() { state.photos = state.raw.map(function (img) { return img ? (state.enhance ? enhance(img) : img) : null; }); }
     function loadAll() {
@@ -515,6 +853,7 @@
       });
     }
     Object.keys(f).forEach(function (k) { f[k].addEventListener('input', draw); });
+    Object.keys(mf).forEach(function (k) { mf[k].addEventListener('input', draw); });
     sizeSel.addEventListener('change', function () { state.size = sizeSel.value; draw(); });
     photoSel.addEventListener('change', function () { state.photoIdx = Number(photoSel.value); bgUndo.hidden = !(state.orig && state.orig[state.photoIdx]); bgMsg.textContent = ''; draw(); });
     logoSel.addEventListener('change', function () { state.logoIdx = Number(logoSel.value); draw(); });
@@ -524,9 +863,9 @@
       addPhotos.value = ''; status.textContent = 'Loading photos…'; loadAll();
     });
     var fontsReady = document.fonts && document.fonts.load ? Promise.all([document.fonts.load('900 40px Inter'), document.fonts.load('500 40px Inter'), document.fonts.load('800 40px Inter')]).catch(function () {}) : Promise.resolve();
-    fontsReady.then(loadAll);
+    fontsReady.then(loadAll).then(function () { setMode(state.mode); });
     return { draw: draw, render: render, state: state };
   }
 
-  window.SirStudio = { open: open, guess: guess, themeFrom: themeFrom };
+  window.SirStudio = { open: open, guess: guess, themeFrom: themeFrom, parseMenu: parseMenu };
 })();

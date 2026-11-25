@@ -903,6 +903,46 @@
     } };
   });
 
+
+  // ---------- Quick preview for the public order form: 3 small drafts from what the customer typed ----------
+  var prevCache = {};
+  function previewDesigns(o, width) {
+    o = o || {}; width = width || 300;
+    var mode = o.kind === 'card' ? 'card' : parseMenu(o).items.length >= 4 ? 'menu' : 'promo';
+    var urls = (o.photos || []).filter(function (p) { return /\.(jpe?g|png|webp)(\?|$)/i.test(p.name || p.url || '') || /^blob:/.test(p.url || ''); }).slice(0, 6);
+    return Promise.all([loadLookFonts()].concat(urls.map(function (p) {
+      if (prevCache[p.url]) return prevCache[p.url];
+      return (prevCache[p.url] = load(p.url).then(function (img) { return img ? enhance(img) : null; }));
+    }))).then(function (res) {
+      var imgs = res.slice(1), logoI = urls.findIndex(function (p) { return /logo/i.test(p.name || ''); });
+      var logo = logoI >= 0 ? imgs[logoI] : null, photos = imgs.filter(function (x, i) { return x && i !== logoI; });
+      var g = guess(o), mp = parseMenu(o), cd = parseCard(o), inf = o.info || {};
+      var d = { business: o.business || g.business, headline: g.headline, details: g.details, offer: g.offer, contact: g.contact,
+        photo: photos[0] || null, photos: photos, logo: logo, logoWide: logo ? logo.width / logo.height > 1.3 : false,
+        listTitle: mp.listTitle, items: mp.items, note: mp.note, phones: mp.phones, socials: mp.socials, place: mp.place,
+        menuPhotos: photos.map(function (img) { return { img: img, caption: '' }; }),
+        name: cd.name, title: cd.title, email: cd.email, address: cd.address, tagline: cd.tagline, web: cd.web, cardSocials: cd.socials, cardPhones: cd.phones };
+      var list = mode === 'menu' ? MENU_LAYOUTS : mode === 'card' ? CARD_PREVIEW : LAYOUTS;
+      var looks = suggestLooks([o.business, o.words, inf.sell, o.service].join(' ')), custom = themeFrom(o.colours), pt = custom ? null : photoTheme(photos[0]);
+      return list.map(function (L, i) {
+        var look = lookByName(looks[i]), t = custom || (i === 0 && pt) || (look.theme ? Object.assign({ name: look.name }, look.theme) : THEMES[0]);
+        var W = width, H = mode === 'card' ? Math.round(width * (CARD.h * 2 + 90) / CARD.w) : Math.round(width * 1350 / 1080);
+        var big = 2, cv = document.createElement('canvas'); cv.width = W * big; cv.height = H * big;
+        var c = cv.getContext('2d'), F = FONT, S = SERIF, Hd = HEAD;
+        FONT = look.font; SERIF = look.serif; HEAD = look.head || null;
+        try {
+          L.draw(c, cv.width, cv.height, d, t);
+          if (mode !== 'card') { texture(c, cv.width, cv.height, look.tex); deco(c, cv.width, cv.height, look.deco, t); }
+        } finally { FONT = F; SERIF = S; HEAD = Hd; }
+        // "Preview" mark, so it isn't used as the finished design
+        c.save(); c.translate(cv.width / 2, cv.height / 2); c.rotate(-0.5); c.globalAlpha = 0.16; c.fillStyle = '#FFFFFF'; c.strokeStyle = '#000000'; c.lineWidth = 2;
+        c.font = '900 ' + Math.round(cv.width * 0.12) + 'px Inter, Arial, sans-serif'; c.textAlign = 'center'; c.strokeText('PREVIEW', 0, 0); c.fillText('PREVIEW', 0, 0); c.restore();
+        cv.title = (mode === 'card' ? L.name : L.name + ' · ' + look.name);
+        return cv;
+      });
+    });
+  }
+
   function open(o) {
     o = o || {};
     var g = guess(o), mp = parseMenu(o);
@@ -1433,5 +1473,5 @@
     return { draw: draw, render: render, state: state };
   }
 
-  window.SirStudio = { open: open, guess: guess, themeFrom: themeFrom, parseMenu: parseMenu };
+  window.SirStudio = { open: open, preview: previewDesigns, guess: guess, themeFrom: themeFrom, parseMenu: parseMenu };
 })();

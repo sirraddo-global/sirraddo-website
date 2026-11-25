@@ -148,7 +148,7 @@
         if (type === 'image/jpeg' && !/\.jpe?g$/i.test(name)) name = name.replace(/\.\w+$/, '') + '.jpg';
         return fetch('/api/chat-upload?s=' + encodeURIComponent(session) + '&name=' + encodeURIComponent(name) + '&type=' + encodeURIComponent(type), { method: 'POST', body: blob })
           .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Upload failed'); return j; }); });
-      }).then(function (j) { into.push({ url: j.url, name: j.name }); say(''); })
+      }).then(function (j) { into.push({ url: j.url, name: j.name }); say(''); if (window.sirraddoPreview) window.sirraddoPreview(); })
         .catch(function (e) { say(e.message || 'Upload failed. You can send it on WhatsApp instead.', true); })
         .then(function () { uploading--; draw(); });
     });
@@ -167,6 +167,51 @@
   if (sInput) sInput.addEventListener('change', function () {
     var picked = Array.prototype.slice.call(sInput.files || []); sInput.value = '';
     upload(picked, samples, 2, showSamples);
+  });
+
+  // ---------- Live preview: 3 rough drafts that update as they type ----------
+  var pvBox = $('ds-preview'), pvRow = $('ds-preview-row'), pvTimer = null;
+  function previewNow() {
+    if (!pvBox || !window.SirStudio || !window.SirStudio.preview) return;
+    var o = sel.options[sel.selectedIndex], key = (o && o.getAttribute('data-svc')) || '';
+    if (!key || key === 'logo' || key === 'brand') { pvBox.hidden = true; return; }
+    var info = {}; ['sell', 'person', 'title', 'phone', 'bizmail', 'web', 'address', 'socials'].forEach(function (k) { var x = $('ds-' + k); if (x && !x.closest('[hidden]') && x.value.trim()) info[k] = x.value.trim(); });
+    info.email = info.bizmail;
+    var words = $('ds-words').value.trim();
+    if (!words && !$('ds-business').value.trim() && !info.person) { pvBox.hidden = true; return; }
+    window.SirStudio.preview({ kind: key === 'card' ? 'card' : '', service: sel.value, words: words, business: $('ds-business').value.trim(), contact: info.phone || $('ds-contact').value,
+      colours: $('ds-colours').value, info: info, photos: files }, 260).then(function (cvs) {
+      pvRow.innerHTML = '';
+      cvs.forEach(function (cv, i) { var f = document.createElement('figure'); f.appendChild(cv); var cap = document.createElement('figcaption'); cap.textContent = 'Look ' + (i + 1) + ': ' + cv.title; f.appendChild(cap); pvRow.appendChild(f); });
+      pvBox.hidden = false;
+    }).catch(function () { pvBox.hidden = true; });
+  }
+  function previewSoon() { clearTimeout(pvTimer); pvTimer = setTimeout(previewNow, 700); }
+  form.addEventListener('input', previewSoon); form.addEventListener('change', previewSoon);
+  window.addEventListener('load', previewSoon);
+  window.sirraddoPreview = previewSoon;
+
+  // ---------- "Help me write it": 3 catchy headline ideas from the AI ----------
+  var ideasBtn = $('ds-ideas'), ideasList = $('ds-ideas-list');
+  if (ideasBtn) ideasBtn.addEventListener('click', function () {
+    var words = $('ds-words').value.trim(), what = $('ds-sell') ? $('ds-sell').value.trim() : '';
+    if (words.length < 4 && !what) { ideasList.textContent = 'Write a few words first (your offer, or what you sell), then tap again.'; return; }
+    ideasBtn.disabled = true; ideasList.textContent = 'Writing 3 ideas…';
+    fetch('/api/order', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'ideas', business: $('ds-business').value, what: what, words: words }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Could not get ideas.'); return j; }); })
+      .then(function (j) {
+        ideasList.innerHTML = '<p class="ds-tip">Tap one to use it. You can still change the words.</p>';
+        (j.ideas || []).forEach(function (x) {
+          var b = document.createElement('button'); b.type = 'button'; b.className = 'ds-idea';
+          b.innerHTML = '<b></b><span></span>'; b.firstChild.textContent = x.headline; b.lastChild.textContent = x.line;
+          b.addEventListener('click', function () {
+            var cur = $('ds-words').value.trim(), lines = cur.split('\n');
+            $('ds-words').value = x.headline + '\n' + x.line + (lines.length > 2 ? '\n\n' + cur : '');
+            ideasList.innerHTML = ''; previewSoon();
+          });
+          ideasList.appendChild(b);
+        });
+      }).catch(function (e) { ideasList.textContent = e.message; }).then(function () { ideasBtn.disabled = false; });
   });
 
   form.addEventListener('submit', function (e) {

@@ -24,6 +24,7 @@ function rateLimited(ip) {
 }
 const str = (v, n) => (typeof v === "string" ? v.trim().slice(0, n) : "");
 
+const IDEAS = new Map();
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   let visible;
@@ -37,6 +38,15 @@ export default async function handler(req, res) {
   if (str(body.website, 200)) return res.status(200).json({ ok: true }); // bot
 
   const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  // Headline ideas for the order form (AI), a few per visitor per hour.
+  if (body.action === "ideas") {
+    const now = Date.now(), list = (IDEAS.get(ip) || []).filter((t) => now - t < 3600000);
+    if (list.length >= 6) return res.status(429).json({ error: "That's enough ideas for now. Pick one or write your own." });
+    list.push(now); IDEAS.set(ip, list);
+    const { headlineIdeas } = await import("./_lib/logos.mjs");
+    const r = await headlineIdeas({ business: str(body.business, 80), what: str(body.what, 200), words: str(body.words, 600) }, 15000);
+    return res.status(r.ok ? 200 : 400).json(r.ok ? { ideas: r.ideas } : { error: r.error });
+  }
   if (rateLimited(ip)) return res.status(429).json({ error: "Too many orders for now. Please message us on WhatsApp." });
 
   const name = str(body.name, 120), contact = str(body.contact, 120);

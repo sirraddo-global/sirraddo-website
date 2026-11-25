@@ -63,3 +63,17 @@ test("staff can't see or change keys", async () => {
   const r = await h.call("POST", "/api/requests", { action: "vault" }, { authorization: "Bearer s1.nope" });
   assert.ok([401, 403].includes(r.status));
 });
+
+test("store keys secret is pinned to CRON_SECRET once; Google client ID checked strictly", async () => {
+  await vault.loadVault();
+  const st = await vault.vaultStatus();
+  assert.equal(st.keys.find((k) => k.key === "STORE_KEYS_SECRET").saved, true);
+  assert.equal(process.env.STORE_KEYS_SECRET, process.env.CRON_SECRET);
+  const { testKey } = await import("../api/_lib/keycheck.mjs");
+  assert.equal((await testKey("GOOGLE_SIGNIN_CLIENT_ID", "123-abc.apps.googleusercontent.com")).ok, true);
+  assert.match((await testKey("GOOGLE_SIGNIN_CLIENT_ID", "123-abc.apps.googleusercontent.com extra.apps.googleusercontent.com")).note, /space/);
+  assert.match((await testKey("GOOGLE_SIGNIN_CLIENT_ID", "GOCSPX-abc")).note, /SECRET/);
+  const r = await h.action({ action: "vault_save", key: "GOOGLE_SIGNIN_CLIENT_ID", value: ' "123-abc.apps.googleusercontent.com" ' });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(process.env.GOOGLE_SIGNIN_CLIENT_ID, "123-abc.apps.googleusercontent.com", "quotes and spaces cleaned");
+});

@@ -54,6 +54,8 @@ async function write(items) {
 function clean(name, value) {
   let v = String(value || "").trim();
   if (name === "GOOGLE_SERVICE_ACCOUNT" && v) { try { v = JSON.stringify(JSON.parse(v)); } catch { throw new Error("That isn't the JSON key file: paste all of it."); } }
+  if (name === "GOOGLE_SIGNIN_CLIENT_ID") v = v.replace(/^["'`]+|["'`]+$/g, "").trim();
+  if (name !== "GOOGLE_SERVICE_ACCOUNT" && name !== "LEAD_EMAIL_FROM") v = v.replace(/^["'`]+|["'`]+$/g, "").trim();
   if (v.length > 8000) throw new Error("That's too long for a key.");
   return v;
 }
@@ -71,6 +73,16 @@ export async function loadVault() {
     }
     await write(v.items); await setMeta("vault_imported", new Date().toISOString());
     console.log(`vault: copied ${n} key(s) from the server's settings`);
+  }
+  // Store payment keys are encrypted with STORE_KEYS_SECRET (or CRON_SECRET when it's missing). Pin it once to the
+  // current CRON_SECRET, so changing CRON_SECRET later can never lock store owners' keys again.
+  if (!v.items.STORE_KEYS_SECRET) {
+    const pin = process.env.STORE_KEYS_SECRET || (v.items.CRON_SECRET ? open(v.items.CRON_SECRET.s) : process.env.CRON_SECRET);
+    if (pin && pin.length >= 16 && !masked(pin)) {
+      v.items.STORE_KEYS_SECRET = { s: seal(pin), end: ending(pin), at: new Date().toISOString(), from: "server" };
+      await write(v.items);
+      console.log("vault: store keys secret pinned");
+    }
   }
   let loaded = 0;
   for (const [k, e] of Object.entries(v.items)) {

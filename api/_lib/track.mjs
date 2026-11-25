@@ -1,6 +1,6 @@
 // /track?t=DOC_TOKEN — the customer's order tracker for quick services (flyers, CVs, Maps listing…).
 // Shows where the job is, the promised delivery date, the on-time promise and a pay button while unpaid.
-import { getByDocToken, esc, reference } from "./store.mjs";
+import { getByDocToken, esc, reference, getSettings } from "./store.mjs";
 import { ON_TIME_PROMISE } from "./graphics.mjs";
 import { amountDue, paystackConfigured, payLink } from "./paystack.mjs";
 import { naira, COMPANY } from "./docs.mjs";
@@ -56,7 +56,7 @@ ${body}</div><p class="muted" style="text-align:center">${COMPANY.name} · ${COM
 }
 
 // After delivery: stars, a comment and an optional photo of the design in use. Shown on the site once approved.
-function reviewBox(t) {
+function reviewBox(t, google) {
   return `<form class="rv" id="rv"><b>⭐ How did we do?</b><p class="muted">Your review helps other small businesses find us.</p>
 <div class="stars" role="radiogroup" aria-label="Stars">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-n="${n}" aria-label="${n} star${n > 1 ? "s" : ""}">★</button>`).join("")}</div>
 <textarea id="rvt" maxlength="400" placeholder="What did you like? How did customers react?"></textarea>
@@ -67,13 +67,14 @@ f.querySelectorAll('.stars button').forEach(function(b){b.onclick=function(){n=+
 function shrink(file,cb){if(!file)return cb('');var i=new Image();i.onload=function(){var k=Math.min(1,1400/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=i.width*k;c.height=i.height*k;c.getContext('2d').drawImage(i,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.85));};i.onerror=function(){cb('');};i.src=URL.createObjectURL(file);}
 document.getElementById('rvs').onclick=function(e){e.preventDefault();if(!n){m.textContent='Please tap the stars first.';return;}m.textContent='Sending…';
 shrink(document.getElementById('rvp').files[0],function(photo){fetch('/api/order',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'review',t:${JSON.stringify(t)},stars:n,text:document.getElementById('rvt').value,photo:photo})})
-.then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Could not send.');});}).then(function(){f.innerHTML='<b>🙏 Thank you!</b><p class=muted>Your review has been sent.</p>';}).catch(function(x){m.textContent=x.message;});});};})();</script>`;
+.then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||'Could not send.');});}).then(function(){f.innerHTML='<b>🙏 Thank you!</b><p class=muted>Your review has been sent.</p>'+${JSON.stringify(google ? `<a class="btn btn2" href="${google}">Also leave it on Google (30 seconds)</a>` : "")};}).catch(function(x){m.textContent=x.message;});});};})();</script>`;
 }
 
 export async function trackPage(req, res) {
   const t = String((req.query || {}).t || "").slice(0, 100);
   const row = t ? await getByDocToken(t).catch(() => null) : null;
   if (!row) return page(res, 404, `<h1>Order not found</h1><p class="muted">Please check the link, or <a href="https://wa.me/2348167550937">message us on WhatsApp</a>.</p>`);
+  const google = String((await getSettings().catch(() => ({}))).google_review || "");
   const stage = stageOf(row);
   const at = STAGE_KEYS.indexOf(stage);
   const today = new Date(Date.now() + 3600 * 1000).toISOString().slice(0, 10);
@@ -90,7 +91,7 @@ ${row.deliver_by ? `<div class="due${late ? " late" : ""}"><div>📅</div><div>$
 <ol>${steps}</ol>
 ${pay ? `<a class="btn" href="${esc(pay)}">Pay ${esc(naira(due))} now</a>` : ""}
 <a class="btn btn2" href="${esc(wa)}">Message us on WhatsApp</a>
-${stage === "done" ? reviewBox(t) : ""}
+${stage === "done" ? reviewBox(t, /^https:\/\//.test(google) ? esc(google) : "") : ""}
 ${(row.payments || []).length ? `<div class="share"><b>🎁 Share and save</b><p class="muted">Send this link to a friend: they get ₦1,000 off their first design, and you get ₦1,000 off your next one.</p>
 <input readonly value="https://www.sirraddo.com.ng/design?ref=${esc(ref)}" onclick="this.select()">
 <a class="btn btn2" href="https://wa.me/?text=${encodeURIComponent(`I get my flyers and designs from SIRRADDO. Use my link for ₦1,000 off your first design: https://www.sirraddo.com.ng/design?ref=${ref}`)}">Share on WhatsApp</a></div>` : ""}

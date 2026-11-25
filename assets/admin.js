@@ -748,6 +748,10 @@
             ]),
           ]));
         });
+        var gr = el('input', { type: 'url', placeholder: 'https://g.page/r/…/review', value: (state.settings && state.settings.google_review) || '' });
+        var gm = el('input', { type: 'url', placeholder: 'https://maps.app.goo.gl/…', value: (state.settings && state.settings.google_maps) || '' });
+        box.appendChild(el('div', { class: 'admin-golive' }, [field('Google review link', gr, 'Google Business Profile → “Ask for reviews” → copy link. Shown after customers rate you, and on the design page.'), field('Google Maps link', gm),
+          el('button', { class: 'admin-btn', type: 'button', text: 'Save Google links', onclick: function () { api('POST', { action: 'settings', settings: { google_review: gr.value.trim(), google_maps: gm.value.trim() } }).then(function (k) { state.settings = k.settings; flash('Saved'); }).catch(fail); } })]));
         box.appendChild(el('h3', { text: 'Portfolio (' + j.gallery.length + ')' }));
         box.appendChild(el('p', { class: 'admin-meta', text: 'Tip: in the design studio, “Add to portfolio” saves the chosen option with the customer’s photo in one tap.' }));
         var grid = el('div', { class: 'mk-out' });

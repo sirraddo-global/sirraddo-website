@@ -97,7 +97,7 @@
   // Hide services switched off in admin (Packages → Side services).
   fetch('/api/order').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
     if (!j || !Array.isArray(j.visible)) return;
-    showPortfolio(j.gallery || []); showReviews(j.reviews || []);
+    showPortfolio(j.gallery || []); showReviews(j.reviews || [], j.google || {});
     var on = {}; j.visible.forEach(function (k) { on[k] = 1; });
     var shown = 0;
     document.querySelectorAll('article[data-svc]').forEach(function (c) { var v = !!on[c.getAttribute('data-svc')]; c.hidden = !v; if (v) shown++; });
@@ -193,8 +193,12 @@
     }
     draw('All'); sec.hidden = false;
   }
-  function showReviews(list) {
-    var sec = $('reviews'), grid = $('rv-grid'); if (!sec || !list.length) return;
+  function showReviews(list, google) {
+    var sec = $('reviews'), grid = $('rv-grid'); if (!sec || !(list.length || google.review || google.maps)) return;
+    var links = mk('p', 'rv-google');
+    if (google.review) { var a1 = mk('a', 'btn btn--gold', '⭐ See our Google reviews'); a1.href = google.review; a1.target = '_blank'; a1.rel = 'noopener'; links.appendChild(a1); }
+    if (google.maps) { var a2 = mk('a', 'btn btn--navy', '📍 Find us on Google Maps'); a2.href = google.maps; a2.target = '_blank'; a2.rel = 'noopener'; links.appendChild(a2); }
+    if (links.children.length) grid.parentNode.appendChild(links);
     list.forEach(function (r) {
       var c = mk('figure', 'rv-card');
       if (r.photo) { var im = mk('img'); im.src = r.photo; im.alt = 'Photo from ' + r.name; im.loading = 'lazy'; c.appendChild(im); }
@@ -205,6 +209,16 @@
     });
     sec.hidden = false;
   }
+
+  // ---------- "Order in 2 minutes" button that follows on phones until the order form is on screen ----------
+  (function () {
+    var orderSec = $('order'); if (!orderSec || !('IntersectionObserver' in window)) return;
+    var b = mk('a', 'ds-sticky', '🎨 Order your design · 2 minutes'); b.href = '#order-title'; document.body.appendChild(b);
+    var heroSeen = true, orderSeen = false;
+    var upd = function () { b.classList.toggle('is-on', !heroSeen && !orderSeen); };
+    new IntersectionObserver(function (e) { orderSeen = e[0].isIntersecting; upd(); }).observe(orderSec);
+    var hero = document.querySelector('.hero'); if (hero) new IntersectionObserver(function (e) { heroSeen = e[0].isIntersecting; upd(); }).observe(hero); else heroSeen = false;
+  })();
 
   // ---------- Referral link (?ref=SGL-0017) and "Order again" (?again=token) ----------
   var qs = new URLSearchParams(location.search), refCode = (qs.get('ref') || '').toUpperCase();

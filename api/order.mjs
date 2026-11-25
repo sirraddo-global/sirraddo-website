@@ -42,7 +42,7 @@ export default async function handler(req, res) {
   try { visible = visibleKeys(await getSettings()); } catch { visible = visibleKeys({}); }
   if (req.method === "GET" && /\/track/.test(String(req.url || ""))) return trackPage(req, res);
   if (req.method === "GET" && (req.query || {}).again) return res.status(200).json(await againOrder(String(req.query.again)));
-  if (req.method === "GET") { res.setHeader("Cache-Control", "public, max-age=60"); const [gallery, reviews] = await Promise.all([listGallery().catch(() => []), listReviews().catch(() => [])]); return res.status(200).json({ visible, gallery, reviews, pages: { design: QUICK_SERVICES.some((x) => x.page === "design" && visible.includes(x.key)), services: QUICK_SERVICES.some((x) => x.page === "services" && visible.includes(x.key)) } }); }
+  if (req.method === "GET") { res.setHeader("Cache-Control", "public, max-age=60"); const [gallery, reviews, st] = await Promise.all([listGallery().catch(() => []), listReviews().catch(() => []), getSettings().catch(() => ({}))]); const google = { review: /^https:\/\//.test(st.google_review || "") ? st.google_review : "", maps: /^https:\/\//.test(st.google_maps || "") ? st.google_maps : "" }; return res.status(200).json({ visible, gallery, reviews, google, pages: { design: QUICK_SERVICES.some((x) => x.page === "design" && visible.includes(x.key)), services: QUICK_SERVICES.some((x) => x.page === "services" && visible.includes(x.key)) } }); }
   if (req.method !== "POST") { res.setHeader("Allow", "GET, POST"); return res.status(405).json({ error: "Method not allowed" }); }
   let body = req.body;
   if (typeof body === "string") { try { body = JSON.parse(body); } catch { body = null; } }

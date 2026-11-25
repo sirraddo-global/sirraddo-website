@@ -26,6 +26,7 @@
   <script src="/assets/site.js" defer></script>
   <script src="/assets/chat.js" defer></script>
   <script src="/assets/greeting.js" defer></script>
+        <script src="/assets/studio.js" defer></script>
         <script src="/assets/design.js" defer></script>
 </head>
 <body>
@@ -269,6 +270,28 @@
     </section>
 
     <!-- ===== How it works ===== -->
+    <section class="section section--grey" id="portfolio" aria-labelledby="portfolio-title" hidden>
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow eyebrow--dark">Real work</p>
+          <h2 id="portfolio-title">Before and after</h2>
+          <p>Real orders: the photo the customer sent, and the design we made from it. Drag the slider to compare.</p>
+        </div>
+        <div class="pf-cats" id="pf-cats" role="tablist" aria-label="Categories"></div>
+        <div class="pf-grid" id="pf-grid"></div>
+      </div>
+    </section>
+
+    <section class="section" id="reviews" aria-labelledby="reviews-title" hidden>
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow eyebrow--dark">Reviews</p>
+          <h2 id="reviews-title">What customers say</h2>
+        </div>
+        <div class="rv-grid" id="rv-grid"></div>
+      </div>
+    </section>
+
     <section class="section" aria-labelledby="steps-title">
       <div class="container">
         <div class="section-head">
@@ -346,7 +369,8 @@
             </div>
           </div>
           <div class="field">
-            <label for="ds-words" id="ds-words-label">Words to put on it</label>
+            <div class="ds-wordshead"><label for="ds-words" id="ds-words-label">Words to put on it</label><button type="button" class="ds-ideas-btn" id="ds-ideas">✨ Help me write it</button></div>
+            <div class="ds-ideas" id="ds-ideas-list" aria-live="polite"></div>
             <textarea id="ds-words" maxlength="1200" rows="5" required placeholder="e.g. Business name, the offer or event, prices, date and venue, phone/WhatsApp, address, Instagram handle"></textarea>
           </div>
           <div class="field">
@@ -386,6 +410,11 @@
           <fieldset class="ds-extras" id="ds-extras" hidden>
             <legend>Extras (optional)</legend>
           </fieldset>
+          <section class="ds-preview" id="ds-preview" hidden aria-label="Live preview">
+            <h3>👀 Live preview of your design</h3>
+            <p class="ds-tip">A rough first draft from what you've typed, in 3 different looks. Your designer polishes the one you like, with your photos made brighter and sharper.</p>
+            <div class="ds-preview-row" id="ds-preview-row"></div>
+          </section>
           <div class="field">
             <label for="ds-name">Your name</label>
             <input id="ds-name" maxlength="120" autocomplete="name" required>

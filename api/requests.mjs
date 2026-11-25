@@ -407,6 +407,21 @@ export default async function handler(req, res) {
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(result);
       }
+      // Reviews and portfolio (shown on the website)
+      if (/^sc_(reviews|review_set|gallery|gallery_add|gallery_remove)$/.test(body.action || "")) {
+        const sc = await import("./_lib/showcase.mjs");
+        if (body.action === "sc_reviews") return res.status(200).json({ reviews: await sc.listReviews({ all: true }), gallery: await sc.listGallery(), cats: sc.GALLERY_CATS });
+        if (body.action === "sc_review_set") return res.status(200).json({ reviews: await sc.setReview(String(body.id), String(body.do)) });
+        if (body.action === "sc_gallery") return res.status(200).json({ gallery: await sc.listGallery(), cats: sc.GALLERY_CATS });
+        if (body.action === "sc_gallery_add") return res.status(200).json({ gallery: await sc.addGallery(body) });
+        if (body.action === "sc_gallery_remove") return res.status(200).json({ gallery: await sc.removeGallery(String(body.id)) });
+      }
+      if (body.action === "headline_ideas") {
+        const { headlineIdeas } = await import("./_lib/logos.mjs");
+        const result = await headlineIdeas(body.brief || {}, FUNCTION_BUDGET_MS() - 2000);
+        if (!result.ok) throw new Bad(result.error);
+        return res.status(200).json(result);
+      }
       // Logo ideas for the Design studio: 3 original SVG logos from a short brief (nothing is saved).
       if (body.action === "logo_ideas") {
         const result = await logoIdeas(body.brief || {}, FUNCTION_BUDGET_MS() - 2000);

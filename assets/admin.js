@@ -585,7 +585,16 @@
         var link = location.origin + '/track?t=' + r.doc_token;
         var num = waNumber(r.contact);
         var st = (state.jobStages.filter(function (x) { return x[0] === stage; })[0] || [0, '', ''])[2];
-        var msg = 'Hello ' + String(r.name).split(' ')[0] + ', update on your ' + r.interest + ': ' + st + '\nTrack it any time: ' + link;
+        var first = String(r.name).split(' ')[0];
+        var STAGE_MSG = {
+          received: 'Hello ' + first + ', thank you for your order (' + r.interest + ')! 🙏 We\'ve received your details and files.',
+          paid: 'Hello ' + first + ', payment received, thank you! ✅ Your ' + r.interest + ' is in the queue and we\'re starting now.',
+          designing: 'Hello ' + first + ', quick update: we\'re working on your ' + r.interest + ' right now 🎨',
+          options: 'Hello ' + first + ', your design options are ready! 🎉 Have a look and reply with the number you like best (1, 2 or 3), plus any changes.',
+          changes: 'Hello ' + first + ', we\'re making the changes you asked for. Your final files are coming soon ✍️',
+          done: 'Hello ' + first + ', your final files are ready and sent! 🎉 Thank you for choosing SIRRADDO. If you\'re happy, please leave a quick review here (it really helps us):',
+        };
+        var msg = (STAGE_MSG[stage] || ('Hello ' + first + ', update on your ' + r.interest + ': ' + st)) + '\n' + (stage === 'done' ? '' : 'Track it any time: ') + link;
         box.appendChild(el('div', { class: 'admin-actions' }, [
           el('button', { class: 'admin-btn', type: 'button', text: 'Copy tracking link', onclick: function () {
             (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(function () { flash('Link copied'); }).catch(function () { prompt('Tracking link', link); });
@@ -625,12 +634,13 @@
     if (start >= 0) for (var j = start; j < L.length; j++) if (/^(Files \(\d|Style samples they like)/.test(L[j])) { end = j; break; }
     var words = start >= 0 ? L.slice(start, end).join('\n').trim() : '';
     window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, samples: samples, words: words, business: orderField(details, 'Business name') || r.business || '', contact: r.contact || '',
-      colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, bgApi: bgApi, captionApi: captionApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest),
+      colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, bgApi: bgApi, captionApi: captionApi, ideasApi: ideasApi, mockupApi: mockupApi, galleryApi: galleryApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest),
       set: /Social media designs/.test(r.interest) ? 5 : 0, kind: /Business card/i.test(r.interest) ? 'card' : '',
       info: { sell: orderField(details, 'What they sell'), person: orderField(details, 'Name on card'), title: orderField(details, 'Job title'),
         phone: orderField(details, 'Phone on design'), email: orderField(details, 'Email on design'), web: orderField(details, 'Website'),
         address: orderField(details, 'Address / area'), socials: orderField(details, 'Social handles'), business: orderField(details, 'Business name') }, animated: /Animated WhatsApp status/i.test(details) });
   }
+  function ideasApi(brief) { return api('POST', { action: 'headline_ideas', brief: brief }); }
   function logoApi(brief) { return api('POST', { action: 'logo_ideas', brief: brief }); }
   function bgApi(image) { return api('POST', { action: 'remove_bg', image: image }); }
   function captionApi(images, items) { return api('POST', { action: 'photo_labels', images: images, items: items }); }
@@ -711,6 +721,87 @@
       img.src = url;
     }
     input.addEventListener('change', make); label.addEventListener('change', make);
+    MK = { phone: phone, wall: wall, held: held, label: label };
+    return card;
+  }
+  var MK = null;
+  // Studio → mockups of the chosen option (phone, wall poster, printed), labelled.
+  function mockupApi(cv, text) { if (!MK) mockupMaker(); MK.label.value = text || ''; return [['Phone', MK.phone(cv)], ['Wall poster', MK.wall(cv)], ['Printed', MK.held(cv)]]; }
+  function galleryApi(item) { return api('POST', Object.assign({ action: 'sc_gallery_add' }, item)); }
+  // Reviews customers sent from their tracking page (approve to show on the website) and the before → after portfolio.
+  function showcaseCard() {
+    var card = el('div', { class: 'admin-card' }, [el('h2', { text: '⭐ Reviews & portfolio' }),
+      el('p', { class: 'admin-hint', text: 'Customers can rate a delivered order on their tracking page. Approve the good ones to show them on sirraddo.com.ng/design. The portfolio shows the photo the customer sent next to the finished design: only add work the customer is happy for you to show.' })]);
+    var box = el('div'); card.appendChild(box);
+    function load() {
+      api('POST', { action: 'sc_reviews' }).then(function (j) {
+        box.innerHTML = '';
+        box.appendChild(el('h3', { text: 'Reviews (' + j.reviews.length + ')' }));
+        if (!j.reviews.length) box.appendChild(el('p', { class: 'admin-meta', text: 'No reviews yet. They arrive when an order is marked Delivered and the customer rates it.' }));
+        j.reviews.forEach(function (r) {
+          box.appendChild(el('div', { class: 'admin-golive' }, [
+            r.photo ? el('img', { src: r.photo, alt: '', style: 'width:64px;height:64px;object-fit:cover;border-radius:8px' }) : null,
+            el('div', null, [el('b', { text: '★★★★★'.slice(0, r.stars) + ' ' + r.name + (r.business ? ', ' + r.business : '') }), el('p', { class: 'admin-meta', text: r.service + ' · ' + r.ref + ' · ' + (r.ok ? 'showing on the website' : 'waiting for approval') }), r.text ? el('p', { text: r.text }) : null]),
+            el('div', { class: 'admin-actions' }, [
+              el('button', { class: 'admin-btn' + (r.ok ? '' : ' admin-btn--primary'), type: 'button', text: r.ok ? 'Hide' : 'Approve', onclick: function () { api('POST', { action: 'sc_review_set', id: r.id, do: r.ok ? 'hide' : 'approve' }).then(load).catch(fail); } }),
+              el('button', { class: 'admin-btn', type: 'button', text: 'Remove', onclick: function () { if (confirm('Remove this review?')) api('POST', { action: 'sc_review_set', id: r.id, do: 'remove' }).then(load).catch(fail); } }),
+            ]),
+          ]));
+        });
+        var gr = el('input', { type: 'url', placeholder: 'https://g.page/r/…/review', value: (state.settings && state.settings.google_review) || '' });
+        var gm = el('input', { type: 'url', placeholder: 'https://maps.app.goo.gl/…', value: (state.settings && state.settings.google_maps) || '' });
+        box.appendChild(el('div', { class: 'admin-golive' }, [field('Google review link', gr, 'Google Business Profile → “Ask for reviews” → copy link. Shown after customers rate you, and on the design page.'), field('Google Maps link', gm),
+          el('button', { class: 'admin-btn', type: 'button', text: 'Save Google links', onclick: function () { api('POST', { action: 'settings', settings: { google_review: gr.value.trim(), google_maps: gm.value.trim() } }).then(function (k) { state.settings = k.settings; flash('Saved'); }).catch(fail); } })]));
+        box.appendChild(el('h3', { text: 'Portfolio (' + j.gallery.length + ')' }));
+        box.appendChild(el('p', { class: 'admin-meta', text: 'Tip: in the design studio, “Add to portfolio” saves the chosen option with the customer’s photo in one tap.' }));
+        var grid = el('div', { class: 'mk-out' });
+        j.gallery.forEach(function (g) {
+          grid.appendChild(el('figure', { class: 'mk-fig' }, [el('img', { src: g.after, alt: '' }), el('figcaption', { text: (g.title || '') + ' · ' + g.cat + (g.before ? ' · with before photo' : '') }),
+            el('button', { class: 'admin-btn', type: 'button', text: 'Remove', onclick: function () { if (confirm('Remove from the portfolio?')) api('POST', { action: 'sc_gallery_remove', id: g.id }).then(load).catch(fail); } })]));
+        });
+        box.appendChild(grid);
+        var cat = el('select', null, j.cats.map(function (c) { return el('option', { value: c, text: c }); }));
+        var title = el('input', { maxlength: '60', placeholder: 'e.g. Kassy Treats menu' });
+        var before = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp' }), after = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp' });
+        var msg = el('p', { class: 'admin-meta' });
+        function read(input) { return new Promise(function (ok) { var f = input.files && input.files[0]; if (!f) return ok(''); var im = new Image(); im.onload = function () { var k = Math.min(1, 1400 / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = im.width * k; c.height = im.height * k; c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); ok(c.toDataURL('image/jpeg', .88)); }; im.src = URL.createObjectURL(f); }); }
+        box.appendChild(el('div', { class: 'admin-golive' }, [field('Category', cat), field('Title', title), field('Before (their photo, optional)', before), field('After (finished design)', after),
+          el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Add to portfolio', onclick: function () {
+            msg.textContent = 'Saving…';
+            Promise.all([read(before), read(after)]).then(function (x) { if (!x[1]) throw new Error('Choose the finished design.'); return galleryApi({ cat: cat.value, title: title.value, before: x[0], after: x[1] }); }).then(load).catch(function (e) { msg.textContent = e.message; });
+          } }), msg]));
+      }).catch(function (e) { box.textContent = e.message; });
+    }
+    load();
+    return card;
+  }
+  // Festive reminders: one tap per past customer opens WhatsApp with a ready message (you send it yourself).
+  function festiveCard() {
+    var OCC = [['Christmas & New Year', 'Christmas and New Year'], ['Ramadan & Sallah', 'Ramadan and Sallah'], ['Easter', 'Easter'], ['Independence Day', 'Independence Day (1st October)'], ["Valentine's Day", "Valentine's Day"], ['Black Friday', 'Black Friday sales'], ['Back to school', 'back-to-school season']];
+    var m = new Date().getMonth(), pick = m >= 9 ? 0 : m <= 1 ? 4 : m <= 3 ? 2 : m === 8 ? 3 : 1;
+    var sel = el('select', null, OCC.map(function (o, i) { return el('option', { value: String(i), text: o[0] }); })); sel.value = String(pick);
+    var list = el('div');
+    var card = el('div', { class: 'admin-card' }, [el('h2', { text: '🎉 Festive reminders' }),
+      el('p', { class: 'admin-hint', text: 'Past paying customers, one per number. Tap “Remind” to open WhatsApp with a ready message, then press send. Ticked ones are remembered on this phone so nobody gets it twice.' }),
+      field('Occasion', sel), list]);
+    function draw() {
+      list.innerHTML = '';
+      var occ = OCC[Number(sel.value)], key = 'sir-festive-' + occ[0] + '-' + new Date().getFullYear(), sent = {};
+      try { sent = JSON.parse(localStorage.getItem(key) || '{}'); } catch (e) {}
+      var seen = {}, people = (state.requests || []).filter(function (r) {
+        var d = String(r.contact || '').replace(/\D/g, '').slice(-10);
+        if (d.length < 10 || seen[d] || !(r.payments || []).length || !/^(design|service)$/.test(r.source || '')) return false;
+        seen[d] = 1; return true;
+      });
+      if (!people.length) list.appendChild(el('p', { class: 'admin-meta', text: 'No paying design customers yet.' }));
+      people.forEach(function (r) {
+        var d = String(r.contact).replace(/\D/g, '').slice(-10), num = waNumber(r.contact);
+        var text = 'Hello ' + String(r.name || '').split(' ')[0] + '! ' + occ[1] + ' is coming 🎉 Want your ' + occ[0] + ' flyer or posts ready early, in your brand colours? Order here: https://www.sirraddo.com.ng/design or just reply to this message. (Reply STOP if you don\'t want these reminders.)';
+        list.appendChild(el('div', { class: 'admin-golive' }, [el('div', null, [el('b', { text: r.name + (r.business ? ' · ' + r.business : '') }), el('p', { class: 'admin-meta', text: r.interest + (sent[d] ? ' · reminded ✓' : '') })]),
+          num ? el('a', { class: 'admin-btn' + (sent[d] ? '' : ' admin-btn--wa'), href: 'https://wa.me/' + num + '?text=' + encodeURIComponent(text), target: '_blank', rel: 'noopener', text: sent[d] ? 'Remind again' : 'Remind', onclick: function () { sent[d] = 1; try { localStorage.setItem(key, JSON.stringify(sent)); } catch (e) {} setTimeout(draw, 300); } }) : null]));
+      });
+    }
+    sel.addEventListener('change', draw); draw();
     return card;
   }
   function pkgQuick(view) {
@@ -724,9 +815,11 @@
     if (window.SirStudio) view.appendChild(el('div', { class: 'admin-card' }, [
       el('h2', { text: '🎨 Design studio' }),
       el('p', { class: 'admin-hint', text: 'Make a flyer from scratch: add photos from your phone, type the words, pick colours, download. For an order, use “Instant draft” on the request instead: it fills everything in from what the customer sent.' }),
-      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Open design studio', onclick: function () { window.SirStudio.open({ title: 'New design', logoApi: logoApi, bgApi: bgApi, captionApi: captionApi }); } })
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Open design studio', onclick: function () { window.SirStudio.open({ title: 'New design', logoApi: logoApi, bgApi: bgApi, captionApi: captionApi, ideasApi: ideasApi, mockupApi: mockupApi, galleryApi: galleryApi }); } })
     ]));
     view.appendChild(mockupMaker());
+    view.appendChild(showcaseCard());
+    view.appendChild(festiveCard());
     var boxes = {};
     [['design', 'Flyers & graphics (/design)', function (q) { return q.page === 'design' && !q.worth; }], ['packs', 'Packs: bundles and seasonal (/design)', function (q) { return !!q.worth; }], ['services', 'Quick services (/services)', function (q) { return q.page === 'services'; }]].forEach(function (g) {
       view.appendChild(el('h2', { class: 'admin-h2', text: g[1] }));

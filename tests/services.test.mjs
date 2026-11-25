@@ -126,3 +126,35 @@ test("design form boxes: business name, phone, card name… become labelled line
   assert.ok(!/junk|Anything else/.test(o.details));
   assert.throws(() => cleanOrder({ service: "Flyer design", words: "" }), /Words to put on it/);
 });
+
+test("tracker: order again, referral ₦1,000 off, reviews need approval before showing", async () => {
+  await h.action({ action: "settings", settings: { svc_visible: "flyer,card" } });
+  const a = await h.call("POST", "/api/order", { name: "Bola Ade", contact: "08011112222", email: "bola@example.com", service: "Business card design", words: "",
+    business: "Bola Prints", info: { person: "Bola Ade", title: "CEO", phone: "08011112222" } }, { "x-forwarded-for": "10.9.0.1" });
+  assert.equal(a.status, 200, a.text);
+  const ta = a.json.track.split("t=")[1], idA = Number(a.json.ref.replace(/\D/g, ""));
+  const again = await h.call("GET", "/api/order?again=" + ta);
+  assert.equal(again.json.service, "Business card design"); assert.equal(again.json.business, "Bola Prints"); assert.equal(again.json.info.title, "CEO");
+
+  // Referral only from a paying customer, never yourself
+  const unpaid = await h.call("POST", "/api/order", { name: "Tolu", contact: "08033334444", email: "t@example.com", service: "Flyer design", words: "Grand opening this Saturday", ref: a.json.ref }, { "x-forwarded-for": "10.9.0.2" });
+  assert.equal((await h.row(Number(unpaid.json.ref.replace(/\D/g, "")))).quote_amount, 5000, "no discount: referrer hasn't paid");
+  await h.sql(`UPDATE customer_requests SET payments = '[{"amount":5000}]'::jsonb WHERE id = $1`, [idA]);
+  const friend = await h.call("POST", "/api/order", { name: "Kemi", contact: "08055556666", email: "k@example.com", service: "Flyer design", words: "Cake sale this weekend", ref: a.json.ref }, { "x-forwarded-for": "10.9.0.3" });
+  const rowF = await h.row(Number(friend.json.ref.replace(/\D/g, "")));
+  assert.equal(rowF.quote_amount, 4000); assert.match(rowF.details, /Referred by: SGL-\d+ \(₦1,000 off/);
+  assert.match((await h.row(idA)).notes || "", /Referral: owes ₦1,000 off/);
+  const self = await h.call("POST", "/api/order", { name: "Bola", contact: "+2348011112222", email: "b2@example.com", service: "Flyer design", words: "My own flyer please", ref: a.json.ref }, { "x-forwarded-for": "10.9.0.4" });
+  assert.equal((await h.row(Number(self.json.ref.replace(/\D/g, "")))).quote_amount, 5000, "can't refer yourself");
+
+  // Reviews
+  assert.equal((await h.call("POST", "/api/order", { action: "review", t: ta, stars: 9 })).status, 400);
+  assert.equal((await h.call("POST", "/api/order", { action: "review", t: ta, stars: 5, text: "Lovely cards <b>!" })).status, 200);
+  assert.equal((await h.call("POST", "/api/order", { action: "review", t: ta, stars: 4 })).status, 409, "one review per order");
+  assert.equal((await h.call("GET", "/api/order")).json.reviews.length, 0, "not shown until approved");
+  const list = await h.action({ action: "sc_reviews" });
+  const rid = list.json.reviews[0].id;
+  await h.action({ action: "sc_review_set", id: rid, do: "approve" });
+  const pub = (await h.call("GET", "/api/order")).json.reviews;
+  assert.equal(pub.length, 1); assert.equal(pub[0].name, "Bola"); assert.doesNotMatch(pub[0].text, /</); assert.equal(pub[0].req, undefined, "no internal ids");
+});

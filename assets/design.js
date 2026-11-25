@@ -97,6 +97,7 @@
   // Hide services switched off in admin (Packages → Side services).
   fetch('/api/order').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
     if (!j || !Array.isArray(j.visible)) return;
+    showPortfolio(j.gallery || []); showReviews(j.reviews || [], j.google || {});
     var on = {}; j.visible.forEach(function (k) { on[k] = 1; });
     var shown = 0;
     document.querySelectorAll('article[data-svc]').forEach(function (c) { var v = !!on[c.getAttribute('data-svc')]; c.hidden = !v; if (v) shown++; });
@@ -148,7 +149,7 @@
         if (type === 'image/jpeg' && !/\.jpe?g$/i.test(name)) name = name.replace(/\.\w+$/, '') + '.jpg';
         return fetch('/api/chat-upload?s=' + encodeURIComponent(session) + '&name=' + encodeURIComponent(name) + '&type=' + encodeURIComponent(type), { method: 'POST', body: blob })
           .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Upload failed'); return j; }); });
-      }).then(function (j) { into.push({ url: j.url, name: j.name }); say(''); })
+      }).then(function (j) { into.push({ url: j.url, name: j.name }); say(''); if (window.sirraddoPreview) window.sirraddoPreview(); })
         .catch(function (e) { say(e.message || 'Upload failed. You can send it on WhatsApp instead.', true); })
         .then(function () { uploading--; draw(); });
     });
@@ -169,6 +170,117 @@
     upload(picked, samples, 2, showSamples);
   });
 
+  // ---------- Portfolio (before → after, by category) and reviews, from admin ----------
+  function mk(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function showPortfolio(list) {
+    var sec = $('portfolio'), grid = $('pf-grid'), cats = $('pf-cats'); if (!sec || !list.length) return;
+    var names = ['All'].concat(list.map(function (g) { return g.cat; }).filter(function (c, i, a) { return a.indexOf(c) === i; }));
+    function draw(cat) {
+      grid.innerHTML = ''; cats.innerHTML = '';
+      names.forEach(function (n) { var b = mk('button', 'pf-cat' + (n === cat ? ' is-on' : ''), n); b.type = 'button'; b.setAttribute('role', 'tab'); b.setAttribute('aria-selected', n === cat); b.onclick = function () { draw(n); }; cats.appendChild(b); });
+      list.filter(function (g) { return cat === 'All' || g.cat === cat; }).forEach(function (g) {
+        var fig = mk('figure', 'pf-item'), box = mk('div', 'pf-ba');
+        var after = mk('img'); after.src = g.after; after.alt = (g.title || g.cat) + ': finished design'; after.loading = 'lazy'; box.appendChild(after);
+        if (g.before) {
+          var before = mk('img', 'pf-before'), line = mk('span', 'pf-line'); before.src = g.before; before.alt = 'Before: the photo the customer sent'; before.loading = 'lazy';
+          box.appendChild(before); box.appendChild(line);
+          box.appendChild(mk('span', 'pf-tag pf-tag--b', 'Before')); box.appendChild(mk('span', 'pf-tag pf-tag--a', 'After'));
+          var r = mk('input', 'pf-range'); r.type = 'range'; r.min = 0; r.max = 100; r.value = 50; r.setAttribute('aria-label', 'Compare before and after');
+          var set = function () { before.style.clipPath = 'inset(0 ' + (100 - r.value) + '% 0 0)'; line.style.left = r.value + '%'; }; r.oninput = set; set(); box.appendChild(r);
+        }
+        fig.appendChild(box); fig.appendChild(mk('figcaption', '', (g.title ? g.title + ' · ' : '') + g.cat)); grid.appendChild(fig);
+      });
+    }
+    draw('All'); sec.hidden = false;
+  }
+  function showReviews(list, google) {
+    var sec = $('reviews'), grid = $('rv-grid'); if (!sec || !(list.length || google.review || google.maps)) return;
+    var links = mk('p', 'rv-google');
+    if (google.review) { var a1 = mk('a', 'btn btn--gold', '⭐ See our Google reviews'); a1.href = google.review; a1.target = '_blank'; a1.rel = 'noopener'; links.appendChild(a1); }
+    if (google.maps) { var a2 = mk('a', 'btn btn--navy', '📍 Find us on Google Maps'); a2.href = google.maps; a2.target = '_blank'; a2.rel = 'noopener'; links.appendChild(a2); }
+    if (links.children.length) grid.parentNode.appendChild(links);
+    list.forEach(function (r) {
+      var c = mk('figure', 'rv-card');
+      if (r.photo) { var im = mk('img'); im.src = r.photo; im.alt = 'Photo from ' + r.name; im.loading = 'lazy'; c.appendChild(im); }
+      c.appendChild(mk('div', 'rv-stars', '★★★★★'.slice(0, r.stars) + '☆☆☆☆☆'.slice(0, 5 - r.stars)));
+      if (r.text) c.appendChild(mk('blockquote', '', '“' + r.text + '”'));
+      c.appendChild(mk('figcaption', '', r.name + (r.business ? ', ' + r.business : '') + ' · ' + r.service));
+      grid.appendChild(c);
+    });
+    sec.hidden = false;
+  }
+
+  // ---------- "Order in 2 minutes" button that follows on phones until the order form is on screen ----------
+  (function () {
+    var orderSec = $('order'); if (!orderSec || !('IntersectionObserver' in window)) return;
+    var b = mk('a', 'ds-sticky', '🎨 Order your design · 2 minutes'); b.href = '#order-title'; document.body.appendChild(b);
+    var heroSeen = true, orderSeen = false;
+    var upd = function () { b.classList.toggle('is-on', !heroSeen && !orderSeen); };
+    new IntersectionObserver(function (e) { orderSeen = e[0].isIntersecting; upd(); }).observe(orderSec);
+    var hero = document.querySelector('.hero'); if (hero) new IntersectionObserver(function (e) { heroSeen = e[0].isIntersecting; upd(); }).observe(hero); else heroSeen = false;
+  })();
+
+  // ---------- Referral link (?ref=SGL-0017) and "Order again" (?again=token) ----------
+  var qs = new URLSearchParams(location.search), refCode = (qs.get('ref') || '').toUpperCase();
+  if (/^SGL-\d{1,7}$/.test(refCode)) {
+    try { sessionStorage.setItem('sirraddo-ref', refCode); } catch (e) {}
+  } else { try { refCode = sessionStorage.getItem('sirraddo-ref') || ''; } catch (e) { refCode = ''; } }
+  if (refCode && totalLine) { var rb = mk('p', 'ds-ref', '🎁 A friend referred you: ₦1,000 off this order (taken off when we confirm).'); totalLine.parentNode.insertBefore(rb, totalLine); }
+  if (qs.get('again')) fetch('/api/order?again=' + encodeURIComponent(qs.get('again'))).then(function (r) { return r.json(); }).then(function (j) {
+    if (!j || !j.service) return;
+    Array.prototype.forEach.call(sel.options, function (o) { if (o.value === j.service) sel.value = j.service; });
+    if (j.business) $('ds-business').value = j.business;
+    if (j.colours) $('ds-colours').value = j.colours;
+    if (j.style && $('ds-style')) $('ds-style').value = j.style;
+    Object.keys(j.info || {}).forEach(function (k) { var x = $('ds-' + k); if (x && j.info[k]) x.value = j.info[k]; });
+    sel.dispatchEvent(new Event('change')); fit(); say('Your details from last time are filled in. Change anything, then add the new words.');
+  }).catch(function () {});
+
+  // ---------- Live preview: 3 rough drafts that update as they type ----------
+  var pvBox = $('ds-preview'), pvRow = $('ds-preview-row'), pvTimer = null;
+  function previewNow() {
+    if (!pvBox || !window.SirStudio || !window.SirStudio.preview) return;
+    var o = sel.options[sel.selectedIndex], key = (o && o.getAttribute('data-svc')) || '';
+    if (!key || key === 'logo' || key === 'brand') { pvBox.hidden = true; return; }
+    var info = {}; ['sell', 'person', 'title', 'phone', 'bizmail', 'web', 'address', 'socials'].forEach(function (k) { var x = $('ds-' + k); if (x && !x.closest('[hidden]') && x.value.trim()) info[k] = x.value.trim(); });
+    info.email = info.bizmail;
+    var words = $('ds-words').value.trim();
+    if (!words && !$('ds-business').value.trim() && !info.person) { pvBox.hidden = true; return; }
+    window.SirStudio.preview({ kind: key === 'card' ? 'card' : '', service: sel.value, words: words, business: $('ds-business').value.trim(), contact: info.phone || $('ds-contact').value,
+      colours: $('ds-colours').value, info: info, photos: files }, 260).then(function (cvs) {
+      pvRow.innerHTML = '';
+      cvs.forEach(function (cv, i) { var f = document.createElement('figure'); f.appendChild(cv); var cap = document.createElement('figcaption'); cap.textContent = 'Look ' + (i + 1) + ': ' + cv.title; f.appendChild(cap); pvRow.appendChild(f); });
+      pvBox.hidden = false;
+    }).catch(function () { pvBox.hidden = true; });
+  }
+  function previewSoon() { clearTimeout(pvTimer); pvTimer = setTimeout(previewNow, 700); }
+  form.addEventListener('input', previewSoon); form.addEventListener('change', previewSoon);
+  window.addEventListener('load', previewSoon);
+  window.sirraddoPreview = previewSoon;
+
+  // ---------- "Help me write it": 3 catchy headline ideas from the AI ----------
+  var ideasBtn = $('ds-ideas'), ideasList = $('ds-ideas-list');
+  if (ideasBtn) ideasBtn.addEventListener('click', function () {
+    var words = $('ds-words').value.trim(), what = $('ds-sell') ? $('ds-sell').value.trim() : '';
+    if (words.length < 4 && !what) { ideasList.textContent = 'Write a few words first (your offer, or what you sell), then tap again.'; return; }
+    ideasBtn.disabled = true; ideasList.textContent = 'Writing 3 ideas…';
+    fetch('/api/order', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'ideas', business: $('ds-business').value, what: what, words: words }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Could not get ideas.'); return j; }); })
+      .then(function (j) {
+        ideasList.innerHTML = '<p class="ds-tip">Tap one to use it. You can still change the words.</p>';
+        (j.ideas || []).forEach(function (x) {
+          var b = document.createElement('button'); b.type = 'button'; b.className = 'ds-idea';
+          b.innerHTML = '<b></b><span></span>'; b.firstChild.textContent = x.headline; b.lastChild.textContent = x.line;
+          b.addEventListener('click', function () {
+            var cur = $('ds-words').value.trim(), lines = cur.split('\n');
+            $('ds-words').value = x.headline + '\n' + x.line + (lines.length > 2 ? '\n\n' + cur : '');
+            ideasList.innerHTML = ''; previewSoon();
+          });
+          ideasList.appendChild(b);
+        });
+      }).catch(function (e) { ideasList.textContent = e.message; }).then(function () { ideasBtn.disabled = false; });
+  });
+
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     if (uploading) return say('Please wait: your files are still uploading.', true);
@@ -178,7 +290,7 @@
       name: $('ds-name').value, business: $('ds-business').value, contact: $('ds-contact').value,
       email: $('ds-email').value, files: files, samples: samples, website: $('ds-hp').value, extras: chosenExtras(),
       info: (function () { var i = {}; ['sell', 'person', 'title', 'phone', 'bizmail', 'web', 'address', 'socials'].forEach(function (k) { var x = $('ds-' + k); if (x && !x.closest('[hidden]') && x.value.trim()) i[k] = x.value.trim(); }); return i; })(),
-      from: window.sirraddoFrom ? window.sirraddoFrom() : '',
+      from: window.sirraddoFrom ? window.sirraddoFrom() : '', ref: refCode,
     };
     if (!body.service) { $('ds-service').focus(); return say('Please choose a service.', true); }
     btn.disabled = true; say('Sending your order…');

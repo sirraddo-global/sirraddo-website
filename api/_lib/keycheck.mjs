@@ -1,6 +1,7 @@
 // Tests one key against its real service. Used by Admin → Settings → Keys and by scripts/check-env.mjs.
 // Never returns or logs the key itself. Result: { ok: true|false|null, note }  (null = can't test from here)
 import { createSign } from "node:crypto";
+import { googleClientId } from "./googleid.mjs";
 
 const get = async (url, headers = {}) => {
   const r = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
@@ -61,7 +62,13 @@ export async function testKey(name, v, env = process.env) {
         const j = await r.json().catch(() => ({}));
         return j.access_token ? yes(`works (${sa.client_email})`) : no(`Google refused it (${j.error_description || j.error || r.status}): make a new key`);
       }
-      case "GOOGLE_SIGNIN_CLIENT_ID": return /\.apps\.googleusercontent\.com$/.test(v) ? yes("looks right") : no("should end with .apps.googleusercontent.com");
+      case "GOOGLE_SIGNIN_CLIENT_ID": {
+        if (googleClientId(v)) return yes("looks right");
+        if (/^GOCSPX-/.test(v.trim())) return no("that's the client SECRET; paste the Client ID (ends in .apps.googleusercontent.com)");
+        if (/^https?:/i.test(v.trim())) return no("paste only the Client ID, not a link");
+        if (/\s/.test(v.trim())) return no("it has a space or line break inside: copy just the Client ID");
+        return no("should be only the Client ID, like 1234-abcd.apps.googleusercontent.com (letters, numbers and dashes)");
+      }
       case "LEAD_EMAIL_FROM": case "LEAD_EMAIL_TO": return /@/.test(v) ? yes((v.match(/[^<\s]+@[^>\s]+/) || [v])[0]) : no("should contain an email address");
       case "CRON_SECRET": case "STORE_KEYS_SECRET": return v.length >= 16 ? yes("set") : no("needs 16+ characters");
       default: return { ok: null, note: "set (not tested)" };

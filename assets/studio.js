@@ -1318,6 +1318,42 @@
       vidBtn, vidMsg, vidOut,
     ]);
     dl.parentNode.insertBefore(vidBox, dl.nextSibling); dl.parentNode.insertBefore(setBox, dl.nextSibling);
+    // Mockups of the chosen option, and "Add to portfolio" (before = their photo, after = this design).
+    function shot(i, maxSide) {
+      var s0 = state.mode === 'card' ? { w: CARD.w, h: CARD.h } : SIZES[state.size === 'a4' ? 'post' : state.size], cv;
+      if (state.mode === 'card') { cv = document.createElement('canvas'); cv.width = CARD.w; cv.height = CARD.h; withLook(i, function (L, t) { CARD_PREVIEW[i].side('front', cv.getContext('2d'), CARD.w, CARD.h, data(), t); }); }
+      else cv = render(i, s0.w, s0.h);
+      var k = Math.min(1, (maxSide || 1400) / Math.max(cv.width, cv.height)); if (k === 1) return cv;
+      var out = document.createElement('canvas'); out.width = Math.round(cv.width * k); out.height = Math.round(cv.height * k); out.getContext('2d').drawImage(cv, 0, 0, out.width, out.height); return out;
+    }
+    var mkOut = el('div', { class: 'mk-out' }), pfMsg = el('small', { class: 'st-bgmsg' });
+    var pfCat = el('select', null, ['Food & drinks', 'Fashion & beauty', 'Events & invitations', 'Church & mosque', 'Business & services', 'Sales & offers'].map(function (c) { return el('option', { value: c, text: c }); }));
+    var pfTitle = el('input', { maxlength: '60', placeholder: 'Title, e.g. Kassy Treats menu' });
+    var extraBox = el('div', { class: 'st-set' }, [
+      el('b', { text: 'Show it off' }),
+      el('div', { class: 'admin-actions' }, [
+        el('button', { class: 'admin-btn', type: 'button', text: '🖼️ Mockups of this option', onclick: function () {
+          if (!o.mockupApi) { pfMsg.textContent = 'Works from the admin page.'; return; }
+          mkOut.innerHTML = '';
+          o.mockupApi(shot(state.layout, 1600), 'Option ' + (state.layout + 1)).forEach(function (m) {
+            var data = m[1].toDataURL('image/jpeg', 0.9), name = (f.business.value || 'design').replace(/\W+/g, '-').toLowerCase() + '-option-' + (state.layout + 1) + '-' + m[0].toLowerCase().replace(/\W+/g, '-') + '.jpg';
+            mkOut.appendChild(el('figure', { class: 'mk-fig' }, [el('img', { src: data, alt: m[0] }), el('a', { class: 'admin-btn', href: data, download: name, text: 'Download ' + m[0].toLowerCase() })]));
+          });
+        } }),
+      ]),
+      mkOut,
+      el('div', { class: 'st-bgrow' }, [pfCat, pfTitle]),
+      el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: '⭐ Add to portfolio (website)', onclick: function () {
+        if (!o.galleryApi) { pfMsg.textContent = 'Works from the admin page.'; return; }
+        if (!confirm('Only add work the customer is happy for you to show. Add it to the website portfolio?')) return;
+        var i = state.photoIdx, src = (state.orig && state.orig[i]) || state.raw[i], before = '';
+        if (src && state.mode !== 'card') { var k = Math.min(1, 1400 / Math.max(src.width, src.height)), bc = document.createElement('canvas'); bc.width = Math.round(src.width * k); bc.height = Math.round(src.height * k); bc.getContext('2d').drawImage(src, 0, 0, bc.width, bc.height); try { before = bc.toDataURL('image/jpeg', 0.85); } catch (e) { before = ''; } }
+        pfMsg.textContent = 'Saving…';
+        o.galleryApi({ cat: pfCat.value, title: pfTitle.value || f.business.value, before: before, after: shot(state.layout, 1400).toDataURL('image/jpeg', 0.88) })
+          .then(function () { pfMsg.textContent = 'Added. It shows on sirraddo.com.ng/design under “Before and after”.'; }).catch(function (e) { pfMsg.textContent = (e && e.message) || 'Could not save.'; });
+      } }), pfMsg]),
+    ]);
+    vidBox.parentNode.insertBefore(extraBox, vidBox.nextSibling);
     function pickMime() {
       var list = ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
       for (var i = 0; i < list.length; i++) if (window.MediaRecorder && MediaRecorder.isTypeSupported(list[i])) return list[i];

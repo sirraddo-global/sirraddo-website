@@ -393,6 +393,8 @@
     c.strokeStyle = fg; c.fillStyle = fg; c.lineWidth = r * 0.16;
     if (kind === 'phone') { rr(c, x - r * 0.32, y - r * 0.52, r * 0.64, r * 1.04, r * 0.14); c.stroke(); c.fillRect(x - r * 0.1, y + r * 0.3, r * 0.2, r * 0.08); }
     else if (kind === 'place') { c.beginPath(); c.arc(x, y - r * 0.15, r * 0.3, Math.PI, 0); c.lineTo(x, y + r * 0.55); c.closePath(); c.fill(); c.fillStyle = bg; c.beginPath(); c.arc(x, y - r * 0.15, r * 0.12, 0, Math.PI * 2); c.fill(); }
+    else if (kind === 'mail') { rr(c, x - r * 0.5, y - r * 0.34, r, r * 0.68, r * 0.1); c.stroke(); c.beginPath(); c.moveTo(x - r * 0.46, y - r * 0.28); c.lineTo(x, y + r * 0.06); c.lineTo(x + r * 0.46, y - r * 0.28); c.stroke(); }
+    else if (kind === 'web') { c.beginPath(); c.arc(x, y, r * 0.5, 0, Math.PI * 2); c.stroke(); c.beginPath(); c.ellipse(x, y, r * 0.2, r * 0.5, 0, 0, Math.PI * 2); c.stroke(); c.beginPath(); c.moveTo(x - r * 0.5, y); c.lineTo(x + r * 0.5, y); c.stroke(); }
     else { c.font = '800 ' + r * 1.15 + 'px ' + FONT; c.textAlign = 'center'; c.fillText('@', x, y + r * 0.4); c.textAlign = 'left'; }
   }
   // Contact lines: phones, handles, place. Returns the height used (or needed when draw is false).
@@ -559,12 +561,175 @@
     } },
   ];
 
+
+  // ---------- Business cards (3.5 × 2 in at 300 dpi, front and back) ----------
+  var CARD = { w: 1050, h: 600 };
+  var TITLE_RE = /\b(director|manager|ceo|c\.e\.o|founder|co-founder|owner|officer|secretary|designer|developer|engineer|consultant|chairman|chairperson|president|md|coo|cfo|cto|head|lead|agent|realtor|stylist|chef|baker|caterer|photographer|lawyer|barrister|solicitor|doctor|nurse|pharmacist|accountant|architect|surveyor|tailor|fashion|coordinator|executive|partner|proprietor|proprietress|principal|pastor|teacher|tutor|vendor|sales|marketer|specialist|analyst|administrator|assistant|representative|artist|makeup|planner)\b/i;
+  var ADDR_RE = /\b(no\.?\s*\d+|plot|block|flat|suite|street|st\.|road|rd\.?|avenue|ave|close|crescent|quarters|estate|layout|junction|off|opposite|beside|behind|along|ibadan|lagos|abuja|oyo|ogun|osun|kwara|ondo|ekiti|rivers|port harcourt|kano|kaduna|enugu|anambra|delta|edo|state|nigeria)\b/i;
+  function titleCase(x) { return String(x || '').toLowerCase().replace(/(^|[\s\-\/(])([a-z])/g, function (m, a, b) { return a + b.toUpperCase(); }).replace(/\b(Ceo|Md|Coo|Cfo|Cto)\b/g, function (w) { return w.toUpperCase(); }); }
+  function parseCard(o) {
+    var words = String(o.words || '').replace(/\r/g, '');
+    var d = { name: '', title: '', phones: [], email: '', web: '', socials: [], address: '', tagline: '', business: o.business || '' };
+    (words.match(/[\w.+-]+@[\w-]+\.[\w.]+/g) || []).slice(0, 1).forEach(function (e) { d.email = e.toLowerCase(); });
+    (words.match(PHONE_RE) || []).forEach(function (p) { p = p.replace(/[\s-]/g, ''); if (d.phones.indexOf(p) === -1 && d.phones.length < 3) d.phones.push(p); });
+    var rest = words.replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, ' ').replace(PHONE_RE, ' ');
+    (rest.match(/(?:^|\s)@[A-Za-z0-9_.]{2,}/g) || []).forEach(function (h) { d.socials.push(h.trim()); });
+    var web = rest.match(/\b(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+\.(?:com\.ng|com|ng|org|net|co|io|africa)\b(?:\/\S*)?/i); if (web) d.web = web[0].replace(/^https?:\/\//i, '');
+    rest = rest.replace(/(?:^|\s)@[A-Za-z0-9_.]{2,}/g, ' ').replace(web ? web[0] : /$^/, ' ');
+    var bits = rest.split(/\n|,|·|\||;|\s-\s/).map(function (x) { return x.replace(/^\s*(name|full name|title|position|role|phone|tel|mobile|whatsapp|email|e-mail|address|office|website|web|ig|instagram)\s*[:\-]\s*/i, '').trim(); }).filter(function (x) { return x && /[a-z]/i.test(x); });
+    var addr = [];
+    bits.forEach(function (b) {
+      if (d.business && b.toLowerCase().replace(/\W/g, '') === d.business.toLowerCase().replace(/\W/g, '')) return;
+      if (!d.title && TITLE_RE.test(b) && b.split(/\s+/).length <= 5) { d.title = titleCase(b); return; }
+      if (ADDR_RE.test(b) || addr.length) { if (addr.join(', ').length < 90) addr.push(b); return; }
+      if (!d.business && /\b(limited|ltd|enterprises?|ventures?|global|services|nig\.?|company|stores?|concepts?|& sons)\b/i.test(b)) { d.business = b; return; }
+      if (!d.name && /^[A-Za-z.'\- ]{3,40}$/.test(b) && b.split(/\s+/).length <= 4) { d.name = b; return; }
+      if (!d.tagline && b.length > 8 && b.length < 60) d.tagline = b;
+    });
+    d.address = titleCase(addr.join(', ')).replace(/\bNo\b\.?\s*/g, 'No. ');
+    if (d.name && d.name === d.name.toLowerCase()) d.name = titleCase(d.name);
+    if (!d.phones.length && o.contact) d.phones.push(String(o.contact).replace(/[^\d+]/g, ''));
+    return d;
+  }
+  function fitFam(c, text, maxW, big, small, weight, fam) {
+    var size = big; c.font = weight + ' ' + size + 'px ' + fam;
+    while (c.measureText(text).width > maxW && size > small) { size -= 1; c.font = weight + ' ' + size + 'px ' + fam; }
+    return size;
+  }
+  // Contact rows with icons; returns the y after the last row.
+  function cardRows(c, d, x, y, w, size, color, iconBg, iconFg, measure) {
+    var rows = [];
+    if (d.phones.length) rows.push(['phone', d.phones.join('  ·  ')]);
+    if (d.email) rows.push(['mail', d.email]);
+    if (d.web || d.socials.length) rows.push(['web', [d.web].concat(d.socials).filter(Boolean).join('  ·  ')]);
+    if (d.address) rows.push(['place', d.address]);
+    var lh = size * 1.85;
+    rows.forEach(function (r) {
+      var fs = size, room = w - size * 2; c.font = '600 ' + fs + 'px ' + FONT;
+      while (c.measureText(r[1]).width > room && fs > size * 0.8) { fs -= 1; c.font = '600 ' + fs + 'px ' + FONT; }
+      var lines = c.measureText(r[1]).width > room ? wrapText(c, r[1], room).slice(0, 2) : [r[1]];
+      var h = lines.length > 1 ? lh + fs * 1.15 : lh, cy = y + h / 2;
+      if (measure) { y += h; return; }
+      icon(c, r[0], x + size * 0.6, cy, size * 0.62, iconBg, iconFg);
+      c.fillStyle = color; c.textAlign = 'left';
+      lines.forEach(function (l, k) { c.fillText(l, x + size * 1.6, cy + fs * 0.36 + (k - (lines.length - 1) / 2) * fs * 1.15); });
+      y += h;
+    });
+    return y;
+  }
+  function cardBrand(c, d, cx, cy, maxW, color, sub, big) {
+    if (d.logo) {
+      var lw = d.logo.width, lh2 = d.logo.height, k = Math.min(maxW * 0.7 / lw, big * 2.4 / lh2);
+      c.drawImage(d.logo, cx - lw * k / 2, cy - lh2 * k / 2 - (d.tagline ? big * 0.3 : 0), lw * k, lh2 * k);
+      if (d.tagline) { c.font = 'italic 500 ' + big * 0.36 + 'px ' + SERIF; c.fillStyle = sub; c.textAlign = 'center'; c.fillText(d.tagline, cx, cy + lh2 * k / 2 + big * 0.35, maxW); c.textAlign = 'left'; }
+      return;
+    }
+    var name = d.business || 'Your business', fs = fitFam(c, name, maxW, big, big * 0.4, '800', SERIF), lines = [name];
+    var w = name.split(/\s+/);
+    if (fs < big * 0.78 && w.length > 1) { // long name: two lines read better than tiny letters
+      var half = Math.ceil(w.length / 2); if (w.length === 3 && w[2].length > 6) half = 2;
+      lines = [w.slice(0, half).join(' '), w.slice(half).join(' ')];
+      fs = Math.min(fitFam(c, lines[0], maxW, big, big * 0.4, '800', SERIF), fitFam(c, lines[1], maxW, big, big * 0.4, '800', SERIF));
+    }
+    c.font = '800 ' + fs + 'px ' + SERIF; c.textAlign = 'center'; c.fillStyle = color;
+    var lh = fs * 1.08, y0 = cy + fs * 0.35 - (lines.length - 1) * lh / 2 - (d.tagline ? big * 0.25 : 0);
+    lines.forEach(function (l, i) { c.fillText(l, cx, y0 + i * lh); });
+    var ly = y0 + (lines.length - 1) * lh + fs * 0.42;
+    c.fillStyle = sub; c.fillRect(cx - big * 0.6, ly, big * 1.2, Math.max(3, big * 0.05));
+    if (d.tagline) { c.font = 'italic 500 ' + Math.max(14, big * 0.36) + 'px ' + SERIF; c.fillText(d.tagline, cx, ly + big * 0.6, maxW); }
+    c.textAlign = 'left';
+  }
+  function cardName(c, d, x, y, w, big, color, accent, align, measure) {
+    var fs = fitFam(c, d.name || 'Your Name', w, big, big * 0.5, '800', FONT);
+    if (measure) return y + fs + (d.title ? big * 0.6 : 0);
+    c.textAlign = align || 'left'; c.fillStyle = color; c.fillText(d.name || 'Your Name', x, y + fs);
+    var ty = y + fs;
+    if (d.title) { c.font = '600 ' + big * 0.42 + 'px ' + FONT; c.fillStyle = accent; c.fillText(d.title, x, ty + big * 0.6, w); ty += big * 0.6; }
+    c.textAlign = 'left';
+    return ty;
+  }
+  // Top y that centres name + gap + contact rows between top and bottom.
+  function cardTop(c, d, nameArgs, gap, rowArgs, top, bottom) {
+    var nh = cardName.apply(null, [c, d, 0, 0].concat(nameArgs, [true]));
+    var rh = cardRows.apply(null, [c, d, 0, 0].concat(rowArgs, [null, null, null, true]));
+    return top + Math.max(0, (bottom - top - (nh + gap + rh)) / 2);
+  }
+  var CARD_LAYOUTS = [
+    { name: 'Classic card',
+      front: function (c, W, H, d, t) {
+        var u = W / 1050; c.fillStyle = t.light; c.fillRect(0, 0, W, H);
+        c.fillStyle = t.bg; c.fillRect(0, 0, 22 * u, H); c.fillStyle = t.accent; c.fillRect(22 * u, 0, 8 * u, H);
+        if (d.logo) logoBadge(c, d.logo, W - 95 * u, 95 * u, 55 * u);
+        else if (d.business) { c.font = '800 ' + 22 * u + 'px ' + FONT; c.fillStyle = t.bg; c.textAlign = 'right'; c.fillText(d.business.toUpperCase(), W - 60 * u, 80 * u, W * 0.5); c.textAlign = 'left'; }
+        var nw = W - (d.logo ? 330 : 150) * u, y0 = cardTop(c, d, [nw, 64 * u, t.bg, t.bg, 'left'], 50 * u, [W - 150 * u, 25 * u], 110 * u, H - 50 * u);
+        var y = cardName(c, d, 90 * u, y0, nw, 64 * u, t.bg, darkAccent(t), 'left');
+        c.fillStyle = t.accent; c.fillRect(90 * u, y + 26 * u, 80 * u, 5 * u);
+        cardRows(c, d, 90 * u, y + 50 * u, W - 150 * u, 25 * u, '#1F2937', t.bg, '#FFFFFF');
+      },
+      back: function (c, W, H, d, t) {
+        var u = W / 1050; c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
+        c.strokeStyle = t.accent; c.lineWidth = 3 * u; c.strokeRect(30 * u, 30 * u, W - 60 * u, H - 60 * u);
+        cardBrand(c, d, W / 2, H / 2 - 10 * u, W - 160 * u, onColour(t.bg), t.accent, 84 * u);
+      } },
+    { name: 'Split card',
+      front: function (c, W, H, d, t) {
+        var u = W / 1050, pw = W * 0.36; c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, W, H);
+        c.fillStyle = t.bg; c.beginPath(); c.moveTo(0, 0); c.lineTo(pw + 40 * u, 0); c.lineTo(pw - 40 * u, H); c.lineTo(0, H); c.closePath(); c.fill();
+        c.strokeStyle = t.accent; c.lineWidth = 8 * u; c.beginPath(); c.moveTo(pw + 52 * u, 0); c.lineTo(pw - 28 * u, H); c.stroke();
+        cardBrand(c, d, pw / 2 - 10 * u, H / 2, pw - 90 * u, onColour(t.bg), t.accent, 52 * u);
+        var x = pw + 70 * u, y0 = cardTop(c, d, [W - x - 50 * u, 54 * u, t.bg, t.bg, 'left'], 34 * u, [W - x - 40 * u, 22 * u], 40 * u, H - 40 * u);
+        var y = cardName(c, d, x, y0, W - x - 50 * u, 54 * u, t.bg, darkAccent(t), 'left');
+        cardRows(c, d, x, y + 34 * u, W - x - 40 * u, 22 * u, '#1F2937', t.accent, onColour(t.accent));
+      },
+      back: function (c, W, H, d, t) {
+        var u = W / 1050; c.fillStyle = t.light; c.fillRect(0, 0, W, H);
+        c.fillStyle = t.bg; c.beginPath(); c.moveTo(W * 0.62, 0); c.lineTo(W, 0); c.lineTo(W, H); c.lineTo(W * 0.42, H); c.closePath(); c.fill();
+        c.fillStyle = t.accent; c.beginPath(); c.moveTo(W * 0.58, 0); c.lineTo(W * 0.61, 0); c.lineTo(W * 0.41, H); c.lineTo(W * 0.38, H); c.closePath(); c.fill();
+        cardBrand(c, d, W * 0.24, H / 2, W * 0.36, t.bg, t.accent, 60 * u);
+      } },
+    { name: 'Minimal card',
+      front: function (c, W, H, d, t) {
+        var u = W / 1050; c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, W, H);
+        c.fillStyle = t.bg; c.fillRect(0, H - 18 * u, W, 18 * u); c.fillStyle = t.accent; c.fillRect(0, H - 26 * u, W, 8 * u);
+        var y0 = cardTop(c, d, [W - 160 * u, 60 * u, t.bg, t.bg, 'center'], 52 * u, [W - 300 * u, 22 * u], 40 * u, H - 60 * u);
+        var y = cardName(c, d, W / 2, y0, W - 160 * u, 60 * u, t.bg, darkAccent(t), 'center');
+        c.fillStyle = t.accent; c.beginPath(); c.arc(W / 2, y + 30 * u, 5 * u, 0, Math.PI * 2); c.fill();
+        c.fillRect(W / 2 - 70 * u, y + 29 * u, 50 * u, 2 * u); c.fillRect(W / 2 + 20 * u, y + 29 * u, 50 * u, 2 * u);
+        c.font = '600 ' + 22 * u + 'px ' + FONT;
+        var widest = Math.max.apply(null, [d.phones.join('  ·  '), d.email, [d.web].concat(d.socials).filter(Boolean).join('  ·  '), d.address].map(function (x) { return x ? c.measureText(x).width : 0; }));
+        var rw = Math.min(W - 160 * u, widest + 22 * u * 2.2);
+        cardRows(c, d, (W - rw) / 2, y + 52 * u, rw, 22 * u, '#374151', t.light, t.bg);
+      },
+      back: function (c, W, H, d, t) {
+        var u = W / 1050; c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
+        c.globalAlpha = 0.08; c.fillStyle = t.accent; for (var i = -H; i < W; i += 46 * u) { c.beginPath(); c.moveTo(i, H); c.lineTo(i + H, 0); c.lineTo(i + H + 14 * u, 0); c.lineTo(i + 14 * u, H); c.closePath(); c.fill(); } c.globalAlpha = 1;
+        cardBrand(c, d, W / 2, H / 2 - 10 * u, W - 200 * u, t.accent, onColour(t.bg), 76 * u);
+        if (d.web) { c.font = '600 ' + 22 * u + 'px ' + FONT; c.fillStyle = onColour(t.bg); c.globalAlpha = 0.8; c.textAlign = 'center'; c.fillText(d.web, W / 2, H - 50 * u); c.textAlign = 'left'; c.globalAlpha = 1; }
+      } },
+  ];
+  // Accent text on light card backgrounds: use the accent only if it's dark enough to read, else the main colour.
+  function darkAccent(t) { return lum(t.accent) < 0.55 ? t.accent : t.bg; }
+  function cardData(d) { return { name: d.name, title: d.title, email: d.email, address: d.address, tagline: d.tagline, web: d.web, socials: d.cardSocials || [], phones: d.cardPhones || [], logo: d.logo, business: d.business }; }
+  // Both sides on one preview: front above, back below.
+  var CARD_PREVIEW = CARD_LAYOUTS.map(function (L) {
+    return { name: L.name, side: function (which, c, W, H, d, t) { L[which](c, W, H, cardData(d), t); }, draw: function (c, W, H, d, t) {
+      d = cardData(d);
+      var cw = W, ch = Math.round(W * CARD.h / CARD.w), gap = H - ch * 2;
+      c.fillStyle = '#E5E7EB'; c.fillRect(0, 0, W, H);
+      [[L.front, 0], [L.back, ch + gap]].forEach(function (p) {
+        var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch; p[0](cv.getContext('2d'), cw, ch, d, t);
+        c.save(); c.shadowColor = 'rgba(0,0,0,.25)'; c.shadowBlur = W * 0.02; c.shadowOffsetY = W * 0.008; c.drawImage(cv, 0, p[1]); c.restore();
+      });
+    } };
+  });
+
   function open(o) {
     o = o || {};
     var g = guess(o), mp = parseMenu(o);
     var menuMode = mp.items.length >= 4;
-    var state = { size: 'post', layout: 0, mode: menuMode ? 'menu' : 'promo', captions: [], theme: themeFrom(o.colours) || (menuMode ? THEMES[1] : THEMES[0]), enhance: true, photoIdx: 0, logoIdx: -1, photos: [], raw: [] };
-    var layouts = function () { return state.mode === 'menu' ? MENU_LAYOUTS : LAYOUTS; };
+    var state = { size: 'post', layout: 0, mode: o.kind === 'card' ? 'card' : menuMode ? 'menu' : 'promo', captions: [], theme: themeFrom(o.colours) || (menuMode ? THEMES[1] : THEMES[0]), enhance: true, photoIdx: 0, logoIdx: -1, photos: [], raw: [] };
+    var layouts = function () { return state.mode === 'menu' ? MENU_LAYOUTS : state.mode === 'card' ? CARD_PREVIEW : LAYOUTS; };
+    var cd = parseCard(o);
     var srcs = (o.photos || []).filter(function (p) { return !/\.pdf(\?|$)/i.test((p.name || '') + ' ' + (p.url || '')) && /\.(jpe?g|png|webp)(\?|$)/i.test(p.name || p.url || '') || /^blob:/.test(p.url); });
     // A file called "logo…" is the logo; the rest are photos.
     var logoGuess = srcs.findIndex(function (p) { return /logo/i.test(p.name || ''); });
@@ -731,8 +896,19 @@
       }).catch(function (e) { bgMsg.textContent = (e && e.message) || 'Could not remove the background.'; })
         .then(function () { bgBtn.disabled = false; });
     }
+    var cf = {
+      name: el('input', { value: cd.name, maxlength: '40', placeholder: 'e.g. Adeyemo Ridwan' }),
+      title: el('input', { value: cd.title, maxlength: '50', placeholder: 'e.g. Managing Director' }),
+      phones: el('input', { value: cd.phones.join(', '), maxlength: '60', placeholder: 'e.g. 08112999073, 08167550937' }),
+      email: el('input', { value: cd.email, maxlength: '60', placeholder: 'e.g. info@business.com' }),
+      web: el('input', { value: [cd.web].concat(cd.socials).filter(Boolean).join(' '), maxlength: '70', placeholder: 'e.g. www.business.com @business' }),
+      address: el('textarea', { rows: '2', maxlength: '120', placeholder: 'e.g. No. 12 Atofarati Quarters, Olode, Ibadan' }),
+      tagline: el('input', { value: cd.tagline, maxlength: '50', placeholder: 'Optional line on the back, e.g. Quality you can trust' }),
+    };
+    cf.address.value = cd.address;
+    if (o.kind === 'card' && cd.business && !o.business) f.business.value = cd.business;
     var modeBtns = {};
-    var modeRow = el('div', { class: 'st-mode' }, [['menu', '\uD83D\uDCCB Menu / price list'], ['promo', '\uD83D\uDCE3 Promo / offer']].map(function (m) {
+    var modeRow = el('div', { class: 'st-mode' }, [['menu', '\uD83D\uDCCB Menu / price list'], ['promo', '\uD83D\uDCE3 Promo / offer'], ['card', '\uD83D\uDCB3 Business card']].map(function (m) {
       modeBtns[m[0]] = el('button', { type: 'button', class: 'admin-btn', text: m[1], onclick: function () { setMode(m[0]); } });
       return modeBtns[m[0]];
     }));
@@ -758,28 +934,38 @@
     function setMode(m) {
       state.mode = m; state.layout = 0;
       Object.keys(modeBtns).forEach(function (k) { modeBtns[k].classList.toggle('admin-btn--primary', k === m); });
-      promoBox.hidden = m !== 'promo'; menuBox.hidden = m !== 'menu';
+      promoBox.hidden = m !== 'promo'; menuBox.hidden = m !== 'menu'; cardBox.hidden = m !== 'card';
+      notCard.forEach(function (n) { n.hidden = m === 'card'; });
+      setBox.hidden = m === 'card' || !setN;
       if (m === 'menu') nameStuff(false);
       draw();
     }
     function lab(text, input) { return el('label', { class: 'st-field' }, [el('span', { text: text }), input]); }
     var promoBox = el('div', { class: 'st-group' }, [lab('Headline (the big words)', f.headline), lab('Details (smaller text)', f.details), lab('Contact line', f.contact)]);
+    var cardBox = el('div', { class: 'st-group' }, [
+      lab('Name', cf.name), lab('Job title', cf.title), lab('Phone number(s)', cf.phones), lab('Email', cf.email),
+      lab('Website / social handles', cf.web), lab('Address', cf.address), lab('Line on the back (optional)', cf.tagline),
+      el('p', { class: 'admin-hint', text: 'Print size 3.5 × 2 inches (300 dpi). Downloads give a front and a back for each option. Tap a logo below to put it on the card.' }),
+    ]);
     var menuBox = el('div', { class: 'st-group' }, [
       lab('List title', mf.listTitle), lab('Items (one per line)', mf.items), lab('Extra note (box)', mf.note),
       lab('Phone numbers', mf.phones), lab('Social handles', mf.socials), lab('Location line', mf.place),
       el('div', { class: 'st-field' }, [el('span', { text: 'Photo labels' }), captionBox, el('div', { class: 'st-bgrow' }, [capBtn, capMsg])]),
     ]);
+    var sizeLab = lab('Size', sizeSel), badgeLab = lab('Badge (optional)', f.offer);
+    var mainPhotoLab = el('div', { class: 'st-field' }, [el('span', { text: 'Main photo (tap one)' }), photoTiles]);
+    var notCard = [sizeLab, badgeLab, mainPhotoLab, bgRow];
     var panel = el('div', { class: 'st-panel' }, [
       el('h2', { text: '🎨 Design studio' }),
       el('p', { class: 'admin-hint', text: 'Three ready designs from the customer’s photos, words and colours. Change anything below; the designs update as you type. Download, then put them through the Mockup maker and send as Option 1, 2, 3.' }),
       status,
-      lab('Size', sizeSel),
+      sizeLab,
       modeRow,
       lab('Business name', f.business),
-      promoBox, menuBox,
-      lab('Badge (optional)', f.offer),
+      promoBox, menuBox, cardBox,
+      badgeLab,
       el('div', { class: 'st-field' }, [el('span', { text: 'Colours' }), themeRow, el('div', { class: 'st-custom' }, [c1, c2, el('small', { text: 'or pick your own: main and accent' })])]),
-      el('div', { class: 'st-field' }, [el('span', { text: 'Main photo (tap one)' }), photoTiles]), bgRow, el('div', { class: 'st-field' }, [el('span', { text: 'Logo (tap one)' }), logoTiles]),
+      mainPhotoLab, bgRow, el('div', { class: 'st-field' }, [el('span', { text: 'Logo (tap one)' }), logoTiles]),
       el('label', { class: 'st-check' }, [enh, ' Auto-enhance photos (brighter, richer colour, sharper)']),
       lab('Add more photos from this phone', addPhotos),
       el('p', { class: 'admin-hint', text: 'Tip: if a photo has a messy background, choose another photo or ask the customer for one taken against a plain wall in daylight.' }),
@@ -787,7 +973,7 @@
     ]);
     var dl = el('div', { class: 'admin-actions' }, [
       el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Download this design', onclick: function () { download(state.layout); } }),
-      el('button', { class: 'admin-btn', type: 'button', text: 'Download all 3', onclick: function () { [0, 1, 2].forEach(function (i, n) { setTimeout(function () { download(i); }, n * 400); }); } }),
+      el('button', { class: 'admin-btn', type: 'button', text: 'Download all 3', onclick: function () { [0, 1, 2].forEach(function (i, n) { setTimeout(function () { download(i); }, n * 900); }); } }),
     ]);
     wrap.appendChild(el('div', { class: 'st-box' }, [el('div', { class: 'st-top' }, [el('b', { text: o.title || 'Design studio' }), close]),
       el('div', { class: 'st-body' }, [el('div', { class: 'st-left' }, [sampleBox, preview, thumbs, dl, logoOut]), panel])]));
@@ -841,6 +1027,8 @@
         note: mf.note.value.trim(), phones: mf.phones.value.split(/[,;\/]+/).map(function (x) { return x.trim(); }).filter(Boolean),
         socials: mf.socials.value.split(/[,;\s]+/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { return x.charAt(0) === '@' ? x : '@' + x; }),
         place: mf.place.value.trim(),
+        name: cf.name.value.trim(), title: cf.title.value.trim(), email: cf.email.value.trim(), address: cf.address.value.trim().replace(/\s*\n\s*/g, ', '), tagline: cf.tagline.value.trim(),
+        web: (cf.web.value.match(/[^\s@]+\.[a-z]{2,}[^\s]*/i) || [''])[0], cardSocials: (cf.web.value.match(/@[A-Za-z0-9_.]{2,}/g) || []), cardPhones: cf.phones.value.split(/[,;\/]+/).map(function (x) { return x.trim(); }).filter(Boolean),
         menuPhotos: state.photos.map(function (img, i) { return { img: img, caption: state.captions[i] || '', i: i }; }).filter(function (x) { return x.img && x.i !== state.logoIdx; }) };
     }
     function render(i, W, H, photoIdx) {
@@ -885,6 +1073,7 @@
       return '';
     }
     function makeVideo() {
+      if (state.mode === 'card') { vidMsg.textContent = 'Videos are for posts and flyers, not business cards.'; return; }
       var mime = pickMime();
       if (!mime || !HTMLCanvasElement.prototype.captureStream) { vidMsg.textContent = 'This browser can\'t record video. Open admin in Chrome and try again.'; return; }
       var W = 720, H = 1280, DUR = 12, FPS = 30;
@@ -937,7 +1126,7 @@
     }
     function draw() {
       if (logos.length) drawLogos();
-      var s = SIZES[state.size], scale = 540 / s.w;
+      var s = curSize(), scale = 540 / s.w;
       var big = render(state.layout, Math.round(s.w * scale * 2), Math.round(s.h * scale * 2));
       preview.width = big.width; preview.height = big.height; preview.getContext('2d').drawImage(big, 0, 0);
       drawSet();
@@ -948,7 +1137,25 @@
         thumbs.appendChild(b);
       });
     }
+    function curSize() { return state.mode === 'card' ? { w: CARD.w, h: CARD.h * 2 + 90 } : SIZES[state.size]; }
+    function saveCanvas(cv, name) {
+      cv.toBlob(function (b) {
+        var a = el('a', { href: URL.createObjectURL(b), download: name });
+        document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      }, 'image/png');
+    }
     function download(i, photoIdx, postNo) {
+      if (state.mode === 'card') { // a front and a back, print size
+        var slug = (cf.name.value || f.business.value || 'card').replace(/\W+/g, '-').toLowerCase();
+        ['front', 'back'].forEach(function (side, n) {
+          setTimeout(function () {
+            var cv = document.createElement('canvas'); cv.width = CARD.w; cv.height = CARD.h;
+            CARD_PREVIEW[i].side(side, cv.getContext('2d'), CARD.w, CARD.h, data(), state.theme);
+            saveCanvas(cv, slug + '-card-option-' + (i + 1) + '-' + side + '.png');
+          }, n * 350);
+        });
+        return;
+      }
       var s = SIZES[state.size], cv = render(i, s.w, s.h, photoIdx);
       cv.toBlob(function (b) {
         var a = el('a', { href: URL.createObjectURL(b), download: (f.business.value || 'design').replace(/\W+/g, '-').toLowerCase() + (postNo ? '-post-' + postNo : '-option-' + (i + 1)) + '-' + state.size + '.png' });
@@ -987,6 +1194,7 @@
     }
     Object.keys(f).forEach(function (k) { f[k].addEventListener('input', draw); });
     Object.keys(mf).forEach(function (k) { mf[k].addEventListener('input', draw); });
+    Object.keys(cf).forEach(function (k) { cf[k].addEventListener('input', draw); });
     sizeSel.addEventListener('change', function () { state.size = sizeSel.value; draw(); });
     photoSel.addEventListener('change', function () { state.photoIdx = Number(photoSel.value); bgUndo.hidden = !(state.orig && state.orig[state.photoIdx]); bgMsg.textContent = ''; draw(); });
     logoSel.addEventListener('change', function () { state.logoIdx = Number(logoSel.value); refreshSelects(); draw(); });

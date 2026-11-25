@@ -25,7 +25,8 @@ const api = async (token, path) => {
   if (!r.ok) throw new Error(`Netlify said ${r.status} for ${path}${r.status === 401 ? " (check the token)" : ""}`);
   return r.json();
 };
-const quote = (v) => (/^[\w@%+=:,./-]*$/.test(v) ? v : JSON.stringify(v));
+// Single quotes are read literally by Node's --env-file (double quotes would change \ and " inside the value).
+const quote = (v) => (/^[\w@%+=:,./-]*$/.test(v) ? v : !v.includes("'") && !v.includes("\n") ? `'${v}'` : JSON.stringify(v));
 
 const token = process.env.NETLIFY_AUTH_TOKEN || await askHidden("Netlify personal access token (hidden): ");
 if (!token) { console.error("No token given."); process.exit(1); }

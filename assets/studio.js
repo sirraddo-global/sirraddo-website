@@ -1639,12 +1639,49 @@
       el('p', { class: 'admin-hint', text: 'Tip: if a photo has a messy background, choose another photo or ask the customer for one taken against a plain wall in daylight.' }),
       logoBox,
     ]);
+    // Send to the customer straight from here: WhatsApp (the phone's share sheet attaches the pictures) or email.
+    var sendWhich = el('select', { 'aria-label': 'What to send' }, [el('option', { value: 'this', text: 'This design' }), el('option', { value: 'all', text: 'All options' })]);
+    var sendNote = el('textarea', { rows: '2', maxlength: '600', placeholder: 'Message (optional), e.g. Here are your options. Which one do you like?' });
+    var sendMsg = el('span', { class: 'admin-hint', role: 'status' });
+    function designFiles() {
+      var idx = sendWhich.value === 'all' ? layouts().map(function (L, i) { return i; }) : [state.layout];
+      var slug = (f.business.value || 'design').replace(/\W+/g, '-').toLowerCase(), jobs = [];
+      idx.forEach(function (i) {
+        if (state.mode === 'card') ['front', 'back'].forEach(function (side) { jobs.push({ name: slug + '-card-option-' + (i + 1) + '-' + side + '.jpg', make: function () { var cv = document.createElement('canvas'); cv.width = CARD.w; cv.height = CARD.h; withLook(i, function (L, t) { CARD_PREVIEW[i].side(side, cv.getContext('2d'), CARD.w, CARD.h, data(), t); }); return cv; } }); });
+        else jobs.push({ name: slug + '-option-' + (i + 1) + '.jpg', make: function () { var sz = SIZES[state.size]; return render(i, sz.w, sz.h); } });
+      });
+      return Promise.all(jobs.map(function (j) { return new Promise(function (ok) { j.make().toBlob(function (b) { ok(new File([b], j.name, { type: 'image/jpeg' })); }, 'image/jpeg', 0.9); }); }));
+    }
+    var defaultText = function (n) { return (sendNote.value.trim() || ('Hello' + (o.customer ? ' ' + o.customer : '') + ', here ' + (n > 1 ? 'are your design options. Which one do you like (Option 1, 2, 3…)?' : 'is your design. Let us know if you\'d like any changes.'))) + '\n\nSIRRADDO GLOBAL LIMITED'; };
+    var waBtn = el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: '📲 Send on WhatsApp', onclick: function (e) {
+      var b = e.currentTarget; b.disabled = true; sendMsg.textContent = 'Preparing…';
+      designFiles().then(function (files) {
+        var text = defaultText(files.length);
+        if (navigator.canShare && navigator.canShare({ files: files })) {
+          return navigator.share({ files: files, text: text }).then(function () { sendMsg.textContent = 'Shared ✓ Then set the stage to “Options sent”.'; }, function (er) { sendMsg.textContent = er && er.name === 'AbortError' ? '' : 'Couldn\'t open sharing: downloading instead.'; });
+        }
+        // No file sharing here (e.g. a laptop): download the pictures and open their chat with the message.
+        files.forEach(function (fl, n) { setTimeout(function () { var a = el('a', { href: URL.createObjectURL(fl), download: fl.name }); document.body.appendChild(a); a.click(); setTimeout(function () { a.remove(); }, 1000); }, n * 400); });
+        if (o.phone) window.open('https://wa.me/' + o.phone + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
+        sendMsg.textContent = 'Downloaded. Attach the picture' + (files.length > 1 ? 's' : '') + ' in the WhatsApp chat (📎).';
+      }).catch(function () { sendMsg.textContent = 'Couldn\'t prepare the design.'; }).then(function () { b.disabled = false; });
+    } });
+    var mailBtn = o.emailApi ? el('button', { class: 'admin-btn', type: 'button', text: '✉️ Email to customer', disabled: o.email ? null : '', title: o.email ? 'Send to ' + o.email : 'No email address on this order', onclick: function (e) {
+      var b = e.currentTarget; b.disabled = true; sendMsg.textContent = 'Sending…';
+      designFiles().then(function (files) {
+        return Promise.all(files.map(function (fl) { return new Promise(function (ok) { var rd = new FileReader(); rd.onload = function () { ok({ name: fl.name, data: rd.result }); }; rd.readAsDataURL(fl); }); }))
+          .then(function (imgs) { return o.emailApi(imgs, sendNote.value.trim()); });
+      }).then(function (j) { sendMsg.textContent = 'Emailed to ' + ((j && j.to) || o.email) + ' ✓'; })
+        .catch(function (er) { sendMsg.textContent = (er && er.message) || 'Couldn\'t send the email.'; }).then(function () { b.disabled = !o.email; });
+    } }) : null;
+    var sendBox = el('div', { class: 'st-send' }, [el('b', { text: 'Send to the customer' }), el('div', { class: 'st-bgrow' }, [sendWhich, waBtn, mailBtn]), sendNote, sendMsg,
+      o.email ? null : (o.emailApi ? el('p', { class: 'admin-hint', text: 'No email on this order: WhatsApp only.' }) : null)]);
     var dl = el('div', { class: 'admin-actions' }, [
       el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Download this design', onclick: function () { download(state.layout); } }),
       el('button', { class: 'admin-btn', type: 'button', text: 'Download all', onclick: function () { layouts().forEach(function (L, i) { setTimeout(function () { download(i); }, i * 900); }); } }),
     ]);
     wrap.appendChild(el('div', { class: 'st-box' }, [el('div', { class: 'st-top' }, [el('b', { text: o.title || 'Design studio' }), close]),
-      el('div', { class: 'st-body' }, [el('div', { class: 'st-left' }, [sampleBox, preview, thumbs, dl, logoOut]), panel])]));
+      el('div', { class: 'st-body' }, [el('div', { class: 'st-left' }, [sampleBox, preview, thumbs, dl, sendBox, logoOut]), panel])]));
     document.body.appendChild(wrap); document.body.style.overflow = 'hidden';
 
     THEMES.forEach(function (t) { themeRow.appendChild(el('button', { type: 'button', class: 'st-swatch', title: t.name, style: 'background:linear-gradient(135deg,' + t.bg + ' 60%,' + t.accent + ' 60%)', onclick: function () { state.theme = t; state.themePicked = true; c1.value = t.bg; c2.value = t.accent; draw(); } })); });

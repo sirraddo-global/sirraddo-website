@@ -415,6 +415,27 @@ export default async function handler(req, res) {
         await logStaff(me, "Saved design details", r.id);
         return res.status(200).json(await updateRequest(r.id, { details }));
       }
+      // Design studio "Email to customer": the chosen design(s) as attachments, from our customer email address.
+      if (body.action === "design_send_email") {
+        const r = await getRequest(Number(body.id));
+        if (!r) return res.status(404).json({ error: "Not found" });
+        const to = customerEmail(r);
+        if (!to) throw new Bad("This customer has no email address. Send it on WhatsApp instead.");
+        if (!customerEmailConfigured()) throw new Bad("Customer emails aren't set up (LEAD_EMAIL_FROM).");
+        const imgs = (Array.isArray(body.images) ? body.images : []).slice(0, 6).map((x, i) => ({
+          filename: String(x?.name || `design-${i + 1}.jpg`).replace(/[^\w.-]+/g, "-").slice(0, 80),
+          content: String(x?.data || "").replace(/^data:image\/\w+;base64,/, ""),
+        })).filter((x) => /^[A-Za-z0-9+/=]{100,}$/.test(x.content) && x.content.length < 4_000_000);
+        if (!imgs.length) throw new Bad("No design to send.");
+        const note = String(body.note || "").trim().slice(0, 600);
+        const safe = (t) => t.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+        await sendCustomerEmail(to, `Your ${String(r.interest || "design").toLowerCase()} from SIRRADDO`, customerHtml(r, [
+          note ? safe(note).replace(/\n/g, "<br>") : `Here ${imgs.length > 1 ? `are your design options (${imgs.length})` : "is your design"}, attached to this email.`,
+          imgs.length > 1 ? "Reply with the option you like (Option 1, 2, 3…) and any changes. Two rounds of changes are included." : "Reply here or on WhatsApp if you'd like any changes.",
+        ]), null, null, { attachments: imgs });
+        await logStaff(me, `Emailed ${imgs.length} design${imgs.length > 1 ? "s" : ""}`, r.id);
+        return res.status(200).json({ ok: true, to });
+      }
       // Photo labels for menu flyers in the Design studio (nothing is saved).
       if (body.action === "photo_labels") {
         const { photoLabels } = await import("./_lib/logos.mjs");

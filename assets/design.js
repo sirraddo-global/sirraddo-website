@@ -196,7 +196,13 @@
           var r = mk('input', 'pf-range'); r.type = 'range'; r.min = 0; r.max = 100; r.value = 50; r.setAttribute('aria-label', 'Compare before and after');
           var set = function () { before.style.clipPath = 'inset(0 ' + (100 - r.value) + '% 0 0)'; line.style.left = r.value + '%'; }; r.oninput = set; set(); box.appendChild(r);
         }
-        after.addEventListener('load', function () { if (after.naturalHeight / after.naturalWidth > 1.6) fig.classList.add('pf-item--phone'); });
+        // Show each design where it will be used: tall ones on a phone, square/post ones as an Instagram post, A4/print ones as paper.
+        after.addEventListener('load', function () {
+          var r = after.naturalHeight / after.naturalWidth;
+          if (r > 1.6) fig.classList.add('pf-item--phone');
+          else if (r >= 1.38 || r < 0.75) fig.classList.add('pf-item--print');
+          else if (!g.before) { fig.classList.add('pf-item--ig'); var hd = mk('div', 'pf-ighead'); hd.appendChild(mk('i')); hd.appendChild(mk('b', '', String(g.title || 'yourbusiness').toLowerCase().replace(/[^a-z0-9]+/g, ''))); box.parentNode.insertBefore(hd, box); box.parentNode.insertBefore(mk('div', 'pf-igbar', '\u2661  \uD83D\uDCAC  \u27A4'), box.nextSibling); }
+        });
         fig.appendChild(box); fig.appendChild(mk('figcaption', '', (g.title ? g.title + ' · ' : '') + g.cat));
         var ord = mk('a', 'pf-order', 'Order a design like this');
         ord.href = 'https://wa.me/2348167550937?text=' + encodeURIComponent('Hello SIRRADDO, I\'d like a design like "' + (g.title || g.cat) + '" for my business.'); ord.target = '_blank'; ord.rel = 'noopener';

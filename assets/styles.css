@@ -947,3 +947,13 @@ html.picker-lock, html.picker-lock body { overflow: hidden; }
 .work-preview--shot .dev-phone img { display: block; width: 100%; height: auto; aspect-ratio: 1 / 2; object-fit: cover; object-position: top; border-radius: 11px; }
 .dev:has(.dev-phone) .dev-screen, .dev:has(.dev-phone) .dev-base { margin-right: 12%; width: 80%; }
 .dev:has(.dev-phone) .dev-base { width: 88%; }
+.work-order { margin-top: 12px; align-self: flex-start; }
+.pf-item--ig { background: #fff; border: 1px solid #DBDBDB; border-radius: 12px; padding-bottom: 8px; color: #111; }
+.pf-item--ig .pf-ba { border-radius: 0; box-shadow: none; aspect-ratio: 4 / 5; }
+.pf-ighead { display: flex; align-items: center; gap: 8px; padding: 10px 12px; font-size: 14px; color: #111; }
+.pf-ighead i { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(45deg, #F9CE34, #EE2A7B, #6228D7); }
+.pf-igbar { padding: 8px 12px 0; font-size: 20px; letter-spacing: 6px; color: #111; }
+.pf-item--ig figcaption { padding: 0 12px; color: #111; }
+.pf-item--ig .pf-order { margin: 8px 12px 0; }
+.pf-item--print .pf-ba { background: #fff; padding: 10px; transform: rotate(-1.5deg); box-shadow: 0 16px 34px rgba(0,0,0,.28); border-radius: 2px; aspect-ratio: auto; }
+.pf-item--print .pf-ba img { position: static; height: auto; }

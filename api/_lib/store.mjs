@@ -383,6 +383,8 @@ export const customerEmail = (r) => r.email || (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.tes
 // ---------- Project brief (the form customers fill in after paying the deposit) ----------
 export async function ensureBriefToken(id) {
   await ensureSchema();
+  // Design and other quick-service orders sent everything with the order: they never get a website project form.
+  { const cur = await q(`SELECT interest FROM customer_requests WHERE id = $1`, [id]).catch(() => []); const { isQuick } = await import("./graphics.mjs"); if (cur[0] && isQuick(cur[0].interest)) return null; }
   const token = randomBytes(18).toString("base64url");
   const rows = await q(
     `UPDATE customer_requests SET brief_token = COALESCE(brief_token, $1), updated_at = now() WHERE id = $2

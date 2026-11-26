@@ -310,6 +310,8 @@ export default async function handler(req, res) {
       }
       await logStaff(me, "Edited " + Object.keys(body).filter((k) => k !== "id").join(", "), id);
       const changed = cleanFields(body);
+      // Design and other quick-service orders have no website build, renewal or live site: drop those fields.
+      { const cur = await getRequest(id); if (cur && isQuick(changed.interest ?? cur.interest)) for (const k of ["project_stage", "renewal_due", "renewal_amount", "live_on", "website_url"]) delete changed[k]; }
       let row = await updateRequest(id, changed);
       if (!row) return res.status(404).json({ error: "Not found" });
       row = await applyRules(row, changed); // automatic status, follow-up and renewal dates
@@ -351,6 +353,8 @@ export default async function handler(req, res) {
       if (body.action === "brief_link") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");
+        const cur = await getRequest(id);
+        if (cur && isQuick(cur.interest)) throw new Bad("Design and other side-service orders don't use a project form: everything came with the order.");
         const row = await ensureBriefToken(id);
         return row ? res.status(200).json(row) : res.status(404).json({ error: "Not found" });
       }

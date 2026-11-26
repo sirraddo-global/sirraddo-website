@@ -1359,6 +1359,15 @@ test("a design order paid by hand never gets a website project form", async () =
   const row = (await h.admin("PATCH", "/api/requests", { id, quote_amount: 8000, payments: [{ amount: 8000, date: "2026-11-26", note: "transfer" }], status: "won" })).json;
   assert.ok(!row.brief_token, "no project form link for a flyer");
   assert.ok(!h.newMail(n).some((m) => /project form|project details/i.test(m.subject + m.html)), "no project form email");
+  // Website-only fields can't be set on a design order, and the project form link can't be made for it
+  const r2 = (await h.admin("PATCH", "/api/requests", { id, project_stage: "content", renewal_amount: 25000, renewal_due: "2027-11-26" })).json;
+  assert.ok(!r2.project_stage && !r2.renewal_due && !r2.renewal_amount, "no website stage or renewal on a flyer");
+  assert.ok(!(await h.action({ action: "brief_link", id })).json?.brief_token);
+  // An old link made before the fix shows "no form needed"
+  await h.sql(`UPDATE customer_requests SET brief_token = 'oldflyerlinkoldflyerlink1' WHERE id = $1`, [id]);
+  assert.match((await h.call("GET", "/api/brief?t=oldflyerlinkoldflyerlink1")).json.error, /no form to fill/);
+  const n2 = h.sent.length; await h.daily();
+  assert.ok(!h.newMail(n2).some((m) => /project details|your details/i.test(m.subject)), "no project form reminders for a design order");
 });
 
 test("agent commission stays on hold until the client can't be refunded", async () => {

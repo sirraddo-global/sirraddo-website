@@ -2821,12 +2821,12 @@
       var f = { status: status.value };
       if (status.value === 'won') {
         if (r.quote_amount == null && DEFAULT_QUOTE[r.interest]) f.quote_amount = DEFAULT_QUOTE[r.interest];
-        if (r.renewal_amount == null && DEFAULT_RENEWAL[r.interest]) f.renewal_amount = DEFAULT_RENEWAL[r.interest];
-        if (!r.project_stage) f.project_stage = 'content';
+        if (!isQuickRow(r) && r.renewal_amount == null && DEFAULT_RENEWAL[r.interest]) f.renewal_amount = DEFAULT_RENEWAL[r.interest];
+        if (!isQuickRow(r) && !r.project_stage) f.project_stage = 'content';
         f.follow_up_on = null;
       }
       if (status.value === 'lost') f.follow_up_on = null;
-      update(r, f, status.value === 'won' ? 'Won! It now appears under Clients.' : 'Status saved');
+      update(r, f, status.value === 'won' ? (isQuickRow(r) ? 'Won! Set its stage with the buttons above as you work.' : 'Won! It now appears under Clients.') : 'Status saved');
     });
     var follow = el('input', { type: 'date', value: r.follow_up_on || '' });
     follow.addEventListener('change', function () { update(r, { follow_up_on: follow.value }, 'Follow-up saved'); });
@@ -2861,7 +2861,7 @@
     wrap.appendChild(docsBlock(r));
     }
 
-    wrap.appendChild(briefBlock(r));
+    if (!isQuickRow(r)) wrap.appendChild(briefBlock(r));
 
     // Notes
     var notes = el('textarea', { rows: 2, placeholder: 'Your notes (saved when you leave the box)', value: r.notes || '' });

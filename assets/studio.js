@@ -469,6 +469,7 @@
       if (d.business) { var bf = fit(c, (d.business || '').toUpperCase(), tw - pad * 2, 1, 40 * u, 20 * u, 900); drawLines(c, bf, W / 2, ty + cut + 60 * u, 1, darkAccent(t), 900, 'center'); }
       var cf = fit(c, d.contact, tw - pad * 2, 2, 30 * u, 18 * u, 700); drawLines(c, cf, W / 2, ty + th - 150 * u, 1.3, t.bg, 700, 'center');
     } },
+    { name: 'Sweet boutique', draw: function (c, W, H, d, t) { boutique(c, W, H, d, t, false); } }
   ];
 
   // ---------- the editor ----------
@@ -671,6 +672,97 @@
   }
   function tilesOf(d, max) { return d.menuPhotos.slice(0, max); }
 
+
+  // ---------- "Sweet boutique": sparkle background, script name, tagline ribbon, arched photos, icon contacts,
+  // delivery / occasions strip. For cakes, fashion, beauty and events. Menu mode shows the list; promo the headline.
+  function boutique(c, W, H, d, t, menu) {
+    var u = W / 1080, pad = 54 * u, tall = H / W > 1.5, sq = H / W < 1.1;
+    var own = t && t.name === 'Their colours';
+    var plum = own ? t.bg : '#5B1E4F', gold = own ? t.accent : '#C9A227', blush = own ? (t.light || '#FBF1F4') : '#FCEAF1';
+    var SCRIPT = '"Great Vibes", "Playfair Display", Georgia, serif', SERIFF = '"Playfair Display", Georgia, serif', BODY = '"Poppins", Inter, Arial, sans-serif';
+    // sparkle background
+    var g = c.createRadialGradient(W * 0.75, H * 0.25, 0, W * 0.6, H * 0.4, Math.max(W, H)); g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.45, blush); g.addColorStop(1, own ? blush : '#F3C9DA'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+    var seed = 7; function rnd() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    for (var i = 0; i < 70; i++) { var bx = rnd() * W, by = rnd() * H, br = (8 + rnd() * 46) * u; c.globalAlpha = 0.08 + rnd() * 0.22; c.fillStyle = i % 3 ? '#FFFFFF' : gold; c.beginPath(); c.arc(bx, by, br, 0, Math.PI * 2); c.fill(); }
+    c.globalAlpha = 1;
+    for (i = 0; i < 26; i++) { var sx = rnd() * W, sy = rnd() * H, ss = (4 + rnd() * 9) * u; c.fillStyle = '#FFFFFF'; c.globalAlpha = 0.5 + rnd() * 0.5; c.beginPath(); c.moveTo(sx, sy - ss); c.lineTo(sx + ss * 0.25, sy); c.lineTo(sx, sy + ss); c.lineTo(sx - ss * 0.25, sy); c.closePath(); c.fill(); }
+    c.globalAlpha = 1;
+    var stripH = (tall ? 150 : sq ? 104 : 124) * u;
+    // right: photos (one big arched, two small rounded)
+    var pics = (menu ? (d.menuPhotos || []).map(function (x) { return x.img; }) : (d.photos || [])).filter(Boolean);
+    var hasPics = pics.length > 0, colW = hasPics ? W * 0.52 - pad : W - pad * 2, px = W * 0.54, pw = W - px - pad * 0.8;
+    var top = pad * 0.9, bottom = H - stripH - 30 * u;
+    if (hasPics) {
+      var bigH = pics.length > 1 ? (bottom - top) * 0.6 : bottom - top - 10 * u, arch = pw / 2;
+      c.save(); c.shadowColor = 'rgba(91,30,79,.28)'; c.shadowBlur = 30 * u; c.shadowOffsetY = 10 * u; c.fillStyle = '#FFFFFF';
+      c.beginPath(); c.moveTo(px - 8 * u, top + bigH + 8 * u); c.lineTo(px - 8 * u, top + arch); c.arc(px + pw / 2, top + arch, arch + 8 * u, Math.PI, 0); c.lineTo(px + pw + 8 * u, top + bigH + 8 * u); c.closePath(); c.fill(); c.restore();
+      c.save(); c.beginPath(); c.moveTo(px, top + bigH); c.lineTo(px, top + arch); c.arc(px + pw / 2, top + arch, arch, Math.PI, 0); c.lineTo(px + pw, top + bigH); c.closePath(); c.clip();
+      var ag = c.createLinearGradient(0, top, 0, top + bigH); ag.addColorStop(0, '#FFFFFF'); ag.addColorStop(1, own ? blush : '#F7D3E2'); c.fillStyle = ag; c.fillRect(px, top, pw, bigH);
+      cover(c, pics[0], px, top, pw, bigH, 0.45); c.restore();
+      c.strokeStyle = gold; c.lineWidth = 3 * u; c.beginPath(); c.moveTo(px - 18 * u, top + bigH + 18 * u); c.lineTo(px - 18 * u, top + arch); c.arc(px + pw / 2, top + arch, arch + 18 * u, Math.PI, 0); c.lineTo(px + pw + 18 * u, top + bigH * 0.55); c.stroke();
+      var small = pics.slice(1, 3);
+      if (small.length) {
+        var sy0 = top + bigH + 30 * u, sh = bottom - sy0, sw = small.length > 1 ? (pw - 20 * u) / 2 : pw;
+        small.forEach(function (im, k) {
+          var x0 = px + k * (sw + 20 * u);
+          c.save(); c.shadowColor = 'rgba(91,30,79,.25)'; c.shadowBlur = 18 * u; c.shadowOffsetY = 6 * u; c.fillStyle = '#FFFFFF'; rr(c, x0 - 6 * u, sy0 - 6 * u, sw + 12 * u, sh + 12 * u, 26 * u); c.fill(); c.restore();
+          c.save(); rr(c, x0, sy0, sw, sh, 22 * u); c.clip(); cover(c, im, x0, sy0, sw, sh, 0.45); c.restore();
+        });
+      }
+    }
+    // left: logo, script name, small line with flourishes, ribbon
+    var y = top;
+    if (d.logo) { logoBadge(c, d.logo, pad + 60 * u, y + 60 * u, 60 * u, true); y += 130 * u; }
+    var bp = brandParts(d.business || 'Your business'), nameS = (tall ? 150 : 132) * u;
+    c.font = '400 ' + nameS + 'px ' + SCRIPT; while (c.measureText(bp.big).width > colW && nameS > 60 * u) { nameS -= 4 * u; c.font = '400 ' + nameS + 'px ' + SCRIPT; }
+    if (c.measureText(bp.big).width > colW) { var nf = fit(c, bp.big, colW, 2, 90 * u, 50 * u, 400); nameS = nf.size; c.font = '400 ' + nameS + 'px ' + SCRIPT; nf.lines.forEach(function (l, k) { c.fillStyle = plum; c.fillText(l, pad, y + nameS * (0.95 + k * 0.95)); }); y += nameS * (0.95 * nf.lines.length) + 6 * u; }
+    else { c.fillStyle = plum; c.fillText(bp.big, pad, y + nameS * 0.95); y += nameS * 1.02; }
+    if (bp.small) {
+      var ss2 = 46 * u; c.font = 'italic 700 ' + ss2 + 'px ' + SERIFF; while (c.measureText(bp.small).width > colW * 0.7 && ss2 > 22 * u) { ss2 -= 2 * u; c.font = 'italic 700 ' + ss2 + 'px ' + SERIFF; }
+      var sw2 = c.measureText(bp.small).width; c.font = '400 ' + nameS + 'px ' + SCRIPT; var nw = Math.min(colW, c.measureText(bp.big).width || colW); c.font = 'italic 700 ' + ss2 + 'px ' + SERIFF;
+      var cx2 = Math.max(pad + sw2 / 2 + 100 * u, Math.min(pad + colW - sw2 / 2 - 100 * u, pad + nw * 0.6)); if (sw2 + 200 * u > colW) cx2 = pad + colW / 2;
+      c.fillStyle = gold; c.textAlign = 'center'; c.fillText(bp.small, cx2, y + ss2 * 0.8); c.textAlign = 'left';
+      c.strokeStyle = gold; c.lineWidth = 2 * u; c.beginPath(); c.moveTo(cx2 - sw2 / 2 - 90 * u, y + ss2 * 0.5); c.lineTo(cx2 - sw2 / 2 - 16 * u, y + ss2 * 0.5); c.moveTo(cx2 + sw2 / 2 + 16 * u, y + ss2 * 0.5); c.lineTo(cx2 + sw2 / 2 + 90 * u, y + ss2 * 0.5); c.stroke();
+      y += ss2 * 1.3;
+    }
+    var ribbon = menu ? (d.listTitle && !/^contact us for$/i.test(d.listTitle) ? d.listTitle : 'Freshly made, just for you') : (d.headline || '');
+    if (ribbon) {
+      var rf = fit(c, ribbon, colW - 70 * u, 2, 40 * u, 22 * u, 700), rh = rf.lines.length * rf.size * 1.25 + 34 * u;
+      c.fillStyle = plum; c.beginPath(); c.moveTo(pad, y + 14 * u); c.lineTo(pad + colW - 16 * u, y); c.lineTo(pad + colW, y + rh / 2); c.lineTo(pad + colW - 16 * u, y + rh); c.lineTo(pad + 6 * u, y + rh - 8 * u); c.lineTo(pad + 24 * u, y + rh / 2); c.closePath(); c.fill();
+      c.font = 'italic 700 ' + rf.size + 'px ' + SERIFF; c.fillStyle = '#FFFFFF'; c.textAlign = 'center';
+      rf.lines.forEach(function (l, k) { c.fillText(l, pad + colW / 2 + 6 * u, y + 17 * u + rf.size * (0.95 + k * 1.25)); }); c.textAlign = 'left';
+      y += rh + 24 * u;
+    }
+    var FB = FONT; FONT = BODY;
+    try {
+      // contacts (at the bottom of the column), list/details above them
+      var cSize = (tall ? 34 : sq ? 24 : 28) * u, contactH = contactBlock(c, d, 0, 0, colW, cSize, '', '', '', false);
+      var cTop = bottom - contactH;
+      if (menu && d.items && d.items.length) {
+        var room = cTop - y - 20 * u, fl = listFit(c, d.items, colW, room, (tall ? 40 : 32) * u, 16 * u, 700, 2); fl.weight = 700; fl.lh = Math.max(1.4, Math.min(tall ? 2.4 : 1.9, room / (fl.rows * fl.size)));
+        y = drawList(c, d.items, pad + 4 * u, y, fl, plum, gold) + 10 * u;
+      } else if (!menu && d.details) {
+        var df = fit(c, d.details, colW, 4, (tall ? 38 : 32) * u, 20 * u, 600); y = drawLines(c, df, pad, y, 1.3, '#4A2340', 600) + 20 * u;
+      }
+      if (menu && d.note && cTop - y > 70 * u) { var nf2 = fit(c, d.note, colW, 2, 24 * u, 16 * u, 500); c.globalAlpha = 0.85; drawLines(c, nf2, pad, y, 1.3, '#4A2340', 500); c.globalAlpha = 1; }
+      if (contactH) {
+        c.strokeStyle = gold; c.globalAlpha = 0.6; c.lineWidth = 2 * u; c.beginPath(); c.moveTo(pad, cTop - 12 * u); c.lineTo(pad + colW * 0.9, cTop - 12 * u); c.stroke(); c.globalAlpha = 1;
+        contactBlock(c, d, pad, cTop, colW, cSize, plum, plum, '#FFFFFF', true);
+      }
+      // bottom strip: delivery or place on the left, occasions / order line on the right
+      var sy = H - stripH; c.fillStyle = plum; c.fillRect(0, sy, W, stripH); c.fillStyle = gold; c.fillRect(0, sy, W, 5 * u);
+      var deliv = /nationwide|deliver|dispatch|ship/i.test((d.place || '') + ' ' + (d.note || '') + ' ' + (d.details || '') + ' ' + (d.offer || ''));
+      var leftT = deliv ? 'Delivery available' : (d.offer || 'Order today'), half = W / 2;
+      c.font = '400 ' + (tall ? 62 : 52) * u + 'px ' + SCRIPT; c.fillStyle = gold; c.textAlign = 'center';
+      var ls = (tall ? 62 : 52) * u; while (c.measureText(leftT).width > half - 60 * u && ls > 26 * u) { ls -= 2 * u; c.font = '400 ' + ls + 'px ' + SCRIPT; }
+      c.fillText(leftT, half / 2, sy + stripH / 2 + ls * 0.32);
+      c.strokeStyle = 'rgba(255,255,255,.45)'; c.lineWidth = 2 * u; c.beginPath(); c.moveTo(half, sy + 24 * u); c.lineTo(half, sy + stripH - 20 * u); c.stroke();
+      var rt1 = d.phones && d.phones.length ? 'Order on WhatsApp' : 'Perfect for every occasion', rt2 = d.phones && d.phones.length ? d.phones[0] : 'Birthdays · Weddings · Events';
+      c.font = '700 ' + 28 * u + 'px ' + BODY; c.fillStyle = '#FFFFFF'; c.fillText(rt1, half * 1.5, sy + stripH / 2 - 6 * u, half - 50 * u);
+      c.font = '600 ' + 24 * u + 'px ' + BODY; c.fillStyle = gold; c.fillText(rt2, half * 1.5, sy + stripH / 2 + 30 * u, half - 50 * u); c.textAlign = 'left';
+    } finally { FONT = FB; }
+    if (!menu && d.offer && hasPics) offerBadge(c, t, d.offer, px + pw - 30 * u, top + 60 * u, 90 * u);
+  }
   var MENU_LAYOUTS = [
     { name: 'Classic menu', draw: function (c, W, H, d, t) {
       var u = W / 1080, pad = 56 * u, tall = H / W > 1.5;
@@ -795,6 +887,7 @@
         c.textAlign = 'left';
       }
     } },
+    { name: 'Sweet boutique', draw: function (c, W, H, d, t) { boutique(c, W, H, d, t, true); } }
   ];
 
 
@@ -836,6 +929,7 @@
     { name: 'Sporty', layout: 6, head: SANS('Oswald'), font: SANS('Oswald'), serif: SANS('Oswald'), tex: 'grain', deco: 'speed', theme: { bg: '#0A1931', accent: '#00D1FF', light: '#EEF6FF' }, tags: ['gym', 'fitness', 'sport', 'football', 'delivery', 'logistics', 'dispatch', 'car', 'auto', 'mechanic', 'wash'] },
     { name: 'Kids fun', layout: 9, head: SANS('Fredoka'), font: SANS('Fredoka'), serif: SANS('Fredoka'), tex: '', deco: 'bubbles', theme: { bg: '#FF6B6B', accent: '#FFD23F', light: '#E3F6FF' }, tags: ['school', 'kids', 'children', 'toy', 'creche', 'lesson', 'tutor', 'baby', 'nursery', 'summer'] },
     { name: 'Minimal', layout: 5, head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'paper', deco: '', theme: { bg: '#3B2416', accent: '#B08D57', light: '#F7F3EC' }, tags: ['studio', 'photography', 'architect', 'interior', 'design', 'tech', 'consult', 'portfolio'] },
+    { name: 'Sweet boutique', layout: 12, head: SER('Great Vibes'), font: SANS('Poppins'), serif: SER('Playfair Display'), tex: '', deco: '', theme: { bg: '#5B1E4F', accent: '#C9A227', light: '#FCEAF1' }, tags: ['cake', 'cupcake', 'bakery', 'pastr', 'clothing', 'fashion', 'boutique', 'aso ebi', 'ankara', 'beauty', 'makeup', 'lash', 'nail', 'event', 'decor', 'bouquet', 'gift'] }
   ];
   function lookByName(n) { for (var i = 0; i < LOOKS.length; i++) if (LOOKS[i].name === n) return LOOKS[i]; return LOOKS[0]; }
   // The 3 looks that suit this business best (by words in the order), different from each other.
@@ -1255,7 +1349,7 @@
     state.themePicked = !!themeFrom(o.colours); state.photoTheme = null;
     if (o.prefer) { // "Look 2: Split · Festive" from the order form preview
       var pm = String(o.prefer).match(/^Look (\d): [^·]+(?:· (.+))?$/);
-      if (pm) { state.layout = Math.min(2, Number(pm[1]) - 1); if (pm[2] && lookByName(pm[2].trim()).name === pm[2].trim()) state.looks[state.layout] = pm[2].trim(); }
+      if (pm) { state.layout = Math.min(layouts().length - 1, Number(pm[1]) - 1); if (pm[2] && lookByName(pm[2].trim()).name === pm[2].trim()) state.looks[state.layout] = pm[2].trim(); }
     }
     // Each option = a layout + a look; colours come from the customer, else option 1 from their photos, else the look's own.
     function themeFor(i) {
@@ -1547,7 +1641,7 @@
     ]);
     var dl = el('div', { class: 'admin-actions' }, [
       el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Download this design', onclick: function () { download(state.layout); } }),
-      el('button', { class: 'admin-btn', type: 'button', text: 'Download all 3', onclick: function () { [0, 1, 2].forEach(function (i, n) { setTimeout(function () { download(i); }, n * 900); }); } }),
+      el('button', { class: 'admin-btn', type: 'button', text: 'Download all', onclick: function () { layouts().forEach(function (L, i) { setTimeout(function () { download(i); }, i * 900); }); } }),
     ]);
     wrap.appendChild(el('div', { class: 'st-box' }, [el('div', { class: 'st-top' }, [el('b', { text: o.title || 'Design studio' }), close]),
       el('div', { class: 'st-body' }, [el('div', { class: 'st-left' }, [sampleBox, preview, thumbs, dl, logoOut]), panel])]));

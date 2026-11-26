@@ -986,3 +986,5 @@ html.picker-lock, html.picker-lock body { overflow: hidden; }
 .sc-open { font-weight: 700; color: var(--ink); }
 .sc-note { margin-top: 14px; font-size: 14px; color: var(--muted); }
 @media (max-width: 760px) { .sc-stage { grid-template-columns: minmax(0, 1fr); padding: 16px; } .sc-stage[data-v="both"] .sc-phone { max-width: 260px; margin: 0 auto; width: 100%; } }
+.bundle { margin-top: 24px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 22px; border-radius: 16px; background: var(--navy); color: #fff; border-left: 6px solid var(--gold); }
+.bundle b { font-size: 1.15rem; } .bundle p { margin: 4px 0 0; max-width: 62ch; color: #DCE3F0; } .bundle strong { color: var(--gold); }

@@ -6,6 +6,7 @@
 // by bank transfer and record it here.
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { q, ensureSchema, getSettings, sendEmail, sendCustomerEmail } from "./store.mjs";
+import { isQuick } from "./graphics.mjs";
 import { hashPass, passOk, passwordProblem, newPassword } from "./staff.mjs";
 import { SITE_URL } from "../../site.config.mjs";
 
@@ -128,12 +129,16 @@ export async function changePassword(a, current, next) {
 }
 
 // ---------- Leads and earnings ----------
+// Commission can only be paid out once the client can no longer get a refund: a website or app fully paid (the
+// balance is paid after they approve the preview, and there's no refund after that) or live; a design order once
+// it's delivered. Until then it shows as "on hold".
+const cleared = (r) => r.project_stage === "live" || (isQuick(r.interest) ? r.job_stage === "done" : Number(r.quote_amount) > 0 && r.paid >= Number(r.quote_amount));
 const STAGE = (r, paid) => (r.status === "lost" ? "Not going ahead" : paid > 0 && r.quote_amount && paid >= r.quote_amount ? "Fully paid" : paid > 0 ? "Paid deposit" : r.status === "quoted" ? "Got a quote" : "New: we're talking to them");
 async function leadsOf(agents) {
   if (!agents.length) return {};
   const codes = agents.map((a) => "agent:" + String(a.code || "").toLowerCase()).filter((c) => c !== "agent:");
   if (!codes.length) return {};
-  const rows = await q(`SELECT id, created_at, came_from, name, business, contact, interest, status, quote_amount, payments FROM customer_requests WHERE came_from = ANY($1) ORDER BY created_at DESC`, [codes]);
+  const rows = await q(`SELECT id, created_at, came_from, name, business, contact, interest, status, quote_amount, payments, project_stage, job_stage FROM customer_requests WHERE came_from = ANY($1) ORDER BY created_at DESC`, [codes]);
   const by = {};
   for (const r of rows) (by[r.came_from] ||= []).push(r);
   return by;
@@ -161,7 +166,9 @@ function commissions(a, leads, prog) {
     let sum = 0;
     for (const p of r.pays) { const c = Math.trunc((p.amount * (r.rate || 0)) / 100); sum += c; lines.push({ t: p.t, date: p.date, lead: r, amount: p.amount, rate: r.rate, commission: c }); }
     r.earned = Math.max(0, sum);
+    r.cleared = !r.self && r.earned > 0 && cleared(r);
   }
+  for (const l of lines) l.cleared = l.lead.cleared;
   return { list, paying: paying.length, lines };
 }
 async function payoutsOf(ids) {
@@ -183,7 +190,7 @@ async function invitesOf(ids, prog) {
   const by = {};
   for (const r of recruits) {
     const c = commissions(r, leads["agent:" + r.code.toLowerCase()], prog);
-    const firstLine = c.lines.filter((l) => l.commission > 0).sort((x, y) => x.t - y.t)[0];
+    const firstLine = c.lines.filter((l) => l.commission > 0 && l.cleared).sort((x, y) => x.t - y.t)[0];
     (by[r.invited_by] ||= []).push({ id: r.id, name: r.name, since: r.created_at, status: r.status, earnedYet: Boolean(firstLine), bonus: firstLine ? prog.inviteBonus : 0, t: firstLine ? firstLine.t : null });
   }
   return by;
@@ -191,9 +198,10 @@ async function invitesOf(ids, prog) {
 function summarise(a, leads, pays, prog, bonuses = [], invites = []) {
   const c = commissions(a, leads, prog);
   const earned = c.list.reduce((s2, r) => s2 + r.earned, 0), paidOut = (pays || []).reduce((s2, p) => s2 + p.amount, 0);
+  const ready = c.list.reduce((s2, r) => s2 + (r.cleared ? r.earned : 0), 0), onHold = earned - ready;
   const bonusTotal = (bonuses || []).reduce((s2, x) => s2 + x.amount, 0), inviteTotal = (invites || []).reduce((s2, x) => s2 + x.bonus, 0);
   return { rate: rateOf(a, prog), level: levelOf(a, prog, c.paying), leads: c.list, lines: c.lines, payouts: pays || [], bonuses: bonuses || [], invites: invites || [],
-    earned, bonusTotal, inviteTotal, paidOut, balance: earned + bonusTotal + inviteTotal - paidOut, clients: c.paying, count: c.list.length };
+    earned, onHold, bonusTotal, inviteTotal, paidOut, balance: ready + bonusTotal + inviteTotal - paidOut, clients: c.paying, count: c.list.length };
 }
 const firstName = (s) => String(s || "").trim().split(/\s+/)[0] || "Client";
 // The agent's own view: no phone numbers or emails of the clients; first name / business only.
@@ -211,8 +219,8 @@ export async function dashboard(a0) {
     training: trainingQuiz(),
     link: linkFor(a), inviteLink: `${SITE_URL}/agents?by=${encodeURIComponent(a.code)}`, demoLink: `${SITE_URL}/demo?a=${encodeURIComponent(a.code)}`,
     rate: s.level.rate, level: s.level, tiers: a.rate != null && Number(a.rate) > 0 ? [] : prog.tiers, base: prog.rate, min: prog.min, inviteBonus: prog.inviteBonus,
-    earned: s.earned, bonusTotal: s.bonusTotal, inviteTotal: s.inviteTotal, paidOut: s.paidOut, balance: s.balance, count: s.count, clients: s.clients,
-    leads: s.leads.map((r) => ({ when: r.created_at, who: r.business || firstName(r.name), what: r.interest, stage: r.self ? "Your own business (not counted)" : STAGE(r, r.paid), earned: r.earned, rate: r.rate || null })),
+    earned: s.earned, onHold: s.onHold, bonusTotal: s.bonusTotal, inviteTotal: s.inviteTotal, paidOut: s.paidOut, balance: s.balance, count: s.count, clients: s.clients,
+    leads: s.leads.map((r) => ({ when: r.created_at, who: r.business || firstName(r.name), what: r.interest, stage: r.self ? "Your own business (not counted)" : STAGE(r, r.paid) + (r.earned > 0 && !r.cleared ? (isQuick(r.interest) ? " · on hold until delivered" : " · on hold until fully paid") : ""), earned: r.earned, onHold: r.earned > 0 && !r.cleared, rate: r.rate || null })),
     payouts: s.payouts.map((p) => ({ when: p.created_at, amount: p.amount, ref: p.ref || "" })),
     bonuses: s.bonuses.map((x) => ({ when: x.created_at, amount: x.amount, note: x.note || "" })),
     invites: s.invites.map((x) => ({ who: firstName(x.name), since: x.since, earnedYet: x.earnedYet, bonus: x.bonus })),
@@ -355,7 +363,7 @@ export async function adminList() {
       return { id: a.id, created_at: a.created_at, name: a.name, phone: a.phone, email: a.email, city: a.city, pitch: a.pitch, code: a.code, status: a.status,
         own_rate: a.rate != null ? Number(a.rate) : null, rate: s.level.rate, level: s.level.name, bank: a.bank, note: a.note, payout_requested_at: a.payout_requested_at, last_login_at: a.last_login_at, trained_at: a.trained_at || null,
         invited_by: a.invited_by ? (byId[a.invited_by]?.name || "another agent") : null,
-        link: a.code ? linkFor(a) : "", count: s.count, clients: s.clients, earned: s.earned, bonusTotal: s.bonusTotal, inviteTotal: s.inviteTotal, paidOut: s.paidOut, balance: s.balance,
+        link: a.code ? linkFor(a) : "", count: s.count, clients: s.clients, earned: s.earned, onHold: s.onHold, bonusTotal: s.bonusTotal, inviteTotal: s.inviteTotal, paidOut: s.paidOut, balance: s.balance,
         prospects: proBy[a.id]?.live || 0, invites: s.invites.length,
         leads: s.leads.slice(0, 50).map((r) => ({ id: r.id, when: r.created_at, name: r.name, business: r.business, interest: r.interest, status: r.status, paid: r.paid, earned: r.earned, rate: r.rate || null, self: Boolean(r.self) })),
         payouts: s.payouts, bonuses: s.bonuses };

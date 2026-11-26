@@ -816,7 +816,7 @@ test("agents 2: prospects, levels, bonuses, invites, announcements, leaderboard,
 
   // Levels: Ada's 5th paying client earns 12% (levels 5:12, 15:15)
   const today = new Date().toISOString().slice(0, 10);
-  const pay = async (contact, amount) => { const [r] = await h.sql(`SELECT id FROM customer_requests WHERE contact = $1`, [contact]); await h.sql(`UPDATE customer_requests SET payments = $2::jsonb WHERE id = $1`, [r.id, JSON.stringify([{ date: today, amount, kind: "project" }])]); };
+  const pay = async (contact, amount) => { const [r] = await h.sql(`SELECT id FROM customer_requests WHERE contact = $1`, [contact]); await h.sql(`UPDATE customer_requests SET quote_amount = $3, payments = $2::jsonb WHERE id = $1`, [r.id, JSON.stringify([{ date: today, amount, kind: "project" }]), amount]); };
   await pay("08069990001", 100000); await pay("0806 999 0002", 50000);
   for (let i = 0; i < 3; i++) {
     await h.call("POST", "/api/lead", { source: "form", name: "Client " + i, contact: "0806888000" + i, interest: "Business website", page: "/", from: "agent:" + ada.code.toLowerCase() }, { "x-forwarded-for": "10.7.2." + i });
@@ -1359,4 +1359,24 @@ test("a design order paid by hand never gets a website project form", async () =
   const row = (await h.admin("PATCH", "/api/requests", { id, quote_amount: 8000, payments: [{ amount: 8000, date: "2026-11-26", note: "transfer" }], status: "won" })).json;
   assert.ok(!row.brief_token, "no project form link for a flyer");
   assert.ok(!h.newMail(n).some((m) => /project form|project details/i.test(m.subject + m.html)), "no project form email");
+});
+
+test("agent commission stays on hold until the client can't be refunded", async () => {
+  const ag = (body, token) => h.call("POST", "/api/agent", body, { authorization: "Bearer " + (token || ""), "x-forwarded-for": "10.9.9." + Math.floor(Math.random() * 200) });
+  await ag({ action: "apply", name: "Hold Tester", phone: "08061239999", email: "hold@example.com", password: "secret123", agree: true });
+  const a0 = (await h.action({ action: "agents_list" })).json.agents.find((x) => x.phone === "08061239999");
+  const a = (await h.action({ action: "agent_update", id: a0.id, status: "active" })).json.agents.find((x) => x.id === a0.id);
+  const tok = (await ag({ action: "login", phone: "08061239999", password: "secret123" })).json.token;
+  const today = new Date().toISOString().slice(0, 10);
+  await h.call("POST", "/api/lead", { source: "form", name: "Site Client", contact: "08061238881", interest: "Business website", page: "/", from: "agent:" + a.code.toLowerCase() }, { "x-forwarded-for": "10.9.1.1" });
+  await h.call("POST", "/api/lead", { source: "form", name: "Flyer Client", contact: "08061238882", interest: "Flyer design", page: "/design", from: "agent:" + a.code.toLowerCase() }, { "x-forwarded-for": "10.9.1.2" });
+  const set = (contact, quote, paid, extra = "") => h.sql(`UPDATE customer_requests SET quote_amount = $2, payments = $3::jsonb${extra} WHERE contact = $1`, [contact, quote, JSON.stringify([{ date: today, amount: paid, kind: "project" }])]);
+  await set("08061238881", 100000, 70000); await set("08061238882", 8000, 8000);
+  let d = (await ag({ action: "me" }, tok)).json;
+  assert.equal(d.earned, 7800); assert.equal(d.onHold, 7800); assert.equal(d.balance, 0, "deposit only + design not delivered: nothing to pay out yet");
+  assert.ok(d.leads.some((l) => /on hold until delivered/.test(l.stage)));
+  await h.sql(`UPDATE customer_requests SET job_stage = 'done' WHERE contact = '08061238882'`);
+  await set("08061238881", 100000, 100000);
+  d = (await ag({ action: "me" }, tok)).json;
+  assert.equal(d.onHold, 0); assert.equal(d.balance, 10800);
 });

@@ -475,7 +475,8 @@
     }
     // Stats
     dash.appendChild(el('div', { class: 'ag-stats' }, [stat('Businesses sent', String(d.count)), stat('Paying clients', String(d.clients)), stat('Commission', naira(d.earned)),
-      d.bonusTotal + d.inviteTotal ? stat('Bonuses', naira(d.bonusTotal + d.inviteTotal)) : null, stat('Paid to you', naira(d.paidOut)), stat('Balance', naira(d.balance), 'is-bal')].filter(Boolean)));
+      d.bonusTotal + d.inviteTotal ? stat('Bonuses', naira(d.bonusTotal + d.inviteTotal)) : null, d.onHold ? stat('On hold', naira(d.onHold)) : null, stat('Paid to you', naira(d.paidOut)), stat('Ready to pay out', naira(d.balance), 'is-bal')].filter(Boolean)));
+    if (d.onHold) dash.appendChild(el('p', { class: 'ag-small', text: 'On hold: commission from clients who have only paid a deposit, or whose design isn\'t delivered yet. It moves to Ready to pay out once the website is fully paid (or live) or the design is delivered, so it can never be taken back by a refund.' }));
     // Level
     var lv = d.level, lvBox = el('div', { class: 'ag-level' }, [el('div', null, [el('span', { class: 'ag-small', text: 'Your level' }), el('b', { text: lv.name + ' · ' + lv.rate + '%' })])]);
     if (lv.next) {

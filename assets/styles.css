@@ -1067,3 +1067,15 @@ html.picker-lock, html.picker-lock body { overflow: hidden; }
 .ind-prices h3 { margin: 0 0 4px; } .ind-prices .price { margin: 0 0 8px; font-size: 1.4rem; font-weight: 800; color: var(--ink); }
 .ind-prices p { margin: 0; color: var(--muted); font-size: .92rem; }
 .ind-from { display: block; font-size: .55em; color: var(--gold); margin-top: 6px; }
+.qc-com { font-size: .82rem; color: #F3DDA8; margin: 0 0 12px; }
+.renewal-com { margin: 14px 0 0 !important; font-size: .98rem !important; padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--gold) 14%, var(--surface)); }
+.dom-table { margin-top: 16px; overflow-x: auto; }
+.dom-table table { width: 100%; border-collapse: collapse; font-size: .95rem; background: var(--surface); border-radius: 12px; overflow: hidden; }
+.dom-table caption { text-align: left; font-weight: 800; color: var(--ink); padding: 0 0 8px; }
+.dom-table th, .dom-table td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+.dom-table thead th { background: var(--navy); color: #fff; font-size: .85rem; }
+.dom-table tbody th { color: var(--ink); }
+.dom-table td b { display: block; color: var(--ink); font-size: 1.02rem; }
+.dom-table td small { display: block; color: var(--muted); font-size: .82rem; }
+.dom-table th, .dom-table td { vertical-align: top; }
+.dom-table p { margin: 10px 0 0 !important; font-size: .92rem !important; color: var(--muted) !important; }

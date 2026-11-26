@@ -488,6 +488,26 @@
     });
     return out;
   }
+  // "IG @kassy" → { k: 'ig', t: '@kassy' }: the design shows the platform's little logo, then the handle only.
+  var SOC_KEY = { IG: 'ig', TikTok: 'tt', FB: 'fb', X: 'x', YouTube: 'yt', Snapchat: 'snap' };
+  function socialSplit(h) { var m = String(h).match(/^(IG|TikTok|FB|X|YouTube|Snapchat) (.+)$/); return m ? { k: SOC_KEY[m[1]], t: m[2] } : { k: 'social', t: String(h) }; }
+  // One centred line of handles (each with its logo) and the place, for footer bars.
+  function socialLine(c, socials, place, cx, y, fs, color, maxW, weight) {
+    var items = (socials || []).map(socialSplit); if (place) items.push({ k: 'place', t: place });
+    if (!items.length) return;
+    var gap = fs * 1.1, ic = fs * 1.4, total;
+    for (var tries = 0; tries < 12; tries++) {
+      c.font = (weight || 700) + ' ' + fs + 'px ' + FONT;
+      total = items.reduce(function (a, it) { return a + ic + fs * 0.3 + c.measureText(it.t).width; }, 0) + gap * (items.length - 1);
+      if (total <= maxW) break; fs *= 0.92; gap = fs * 1.1; ic = fs * 1.4;
+    }
+    var x = cx - Math.min(total, maxW) / 2;
+    items.forEach(function (it) {
+      icon(c, it.k, x + ic / 2, y - fs * 0.34, ic / 2, 'rgba(0,0,0,0)', color);
+      c.font = (weight || 700) + ' ' + fs + 'px ' + FONT;
+      x += ic + fs * 0.3; c.fillStyle = color; c.textAlign = 'left'; c.fillText(it.t, x, y); x += c.measureText(it.t).width + gap;
+    });
+  }
   // Reads the customer's words as a menu: name, list title, items, a note ("We also offer…"), phones, handles, place.
   function parseMenu(o) {
     var lines = String(o.words || '').replace(/\r/g, '').split('\n').map(function (l) { return l.replace(/^[\s•\-*◆♦▪·]+/, '').trim(); });
@@ -600,6 +620,12 @@
     else if (kind === 'place') { c.beginPath(); c.arc(x, y - r * 0.15, r * 0.3, Math.PI, 0); c.lineTo(x, y + r * 0.55); c.closePath(); c.fill(); c.fillStyle = bg; c.beginPath(); c.arc(x, y - r * 0.15, r * 0.12, 0, Math.PI * 2); c.fill(); }
     else if (kind === 'mail') { rr(c, x - r * 0.5, y - r * 0.34, r, r * 0.68, r * 0.1); c.stroke(); c.beginPath(); c.moveTo(x - r * 0.46, y - r * 0.28); c.lineTo(x, y + r * 0.06); c.lineTo(x + r * 0.46, y - r * 0.28); c.stroke(); }
     else if (kind === 'web') { c.beginPath(); c.arc(x, y, r * 0.5, 0, Math.PI * 2); c.stroke(); c.beginPath(); c.ellipse(x, y, r * 0.2, r * 0.5, 0, 0, Math.PI * 2); c.stroke(); c.beginPath(); c.moveTo(x - r * 0.5, y); c.lineTo(x + r * 0.5, y); c.stroke(); }
+    else if (kind === 'ig') { rr(c, x - r * 0.48, y - r * 0.48, r * 0.96, r * 0.96, r * 0.28); c.stroke(); c.beginPath(); c.arc(x, y, r * 0.22, 0, Math.PI * 2); c.stroke(); c.beginPath(); c.arc(x + r * 0.27, y - r * 0.27, r * 0.07, 0, Math.PI * 2); c.fill(); }
+    else if (kind === 'tt') { c.lineWidth = r * 0.17; c.beginPath(); c.moveTo(x + r * 0.05, y + r * 0.22); c.lineTo(x + r * 0.05, y - r * 0.52); c.quadraticCurveTo(x + r * 0.12, y - r * 0.22, x + r * 0.46, y - r * 0.2); c.stroke(); c.beginPath(); c.arc(x - r * 0.17, y + r * 0.24, r * 0.22, 0, Math.PI * 2); c.stroke(); }
+    else if (kind === 'fb') { c.font = '900 ' + r * 1.25 + 'px Arial, sans-serif'; c.textAlign = 'center'; c.fillText('f', x + r * 0.04, y + r * 0.45); c.textAlign = 'left'; }
+    else if (kind === 'x') { c.lineWidth = r * 0.17; c.beginPath(); c.moveTo(x - r * 0.4, y - r * 0.42); c.lineTo(x + r * 0.4, y + r * 0.42); c.moveTo(x + r * 0.4, y - r * 0.42); c.lineTo(x - r * 0.4, y + r * 0.42); c.stroke(); }
+    else if (kind === 'yt') { rr(c, x - r * 0.55, y - r * 0.38, r * 1.1, r * 0.76, r * 0.2); c.fill(); c.fillStyle = bg === 'rgba(0,0,0,0)' ? '#fff' : bg; c.beginPath(); c.moveTo(x - r * 0.14, y - r * 0.2); c.lineTo(x + r * 0.22, y); c.lineTo(x - r * 0.14, y + r * 0.2); c.closePath(); c.fill(); }
+    else if (kind === 'snap') { c.beginPath(); c.arc(x, y - r * 0.08, r * 0.34, Math.PI, 0); c.lineTo(x + r * 0.4, y + r * 0.42); c.lineTo(x - r * 0.4, y + r * 0.42); c.closePath(); c.stroke(); }
     else { c.font = '800 ' + r * 1.15 + 'px ' + FONT; c.textAlign = 'center'; c.fillText('@', x, y + r * 0.4); c.textAlign = 'left'; }
   }
   // Contact lines: phones, handles, place. Returns the height used (or needed when draw is false).
@@ -609,12 +635,13 @@
     c.font = '700 ' + size + 'px ' + FONT;
     if (d.phones.length && c.measureText(d.phones.join(', ')).width <= w - size * 2.2) rows.push(['phone', d.phones.join(', ')]);
     else d.phones.forEach(function (p) { rows.push(['phone', p]); });
-    d.socials.forEach(function (h) { rows.push(['social', h]); });
+    d.socials.forEach(function (h) { var sp = socialSplit(h); rows.push([sp.k, sp.t]); });
     if (d.place) rows.push(['place', d.place]);
     var lh = size * 1.75;
     if (draw) rows.forEach(function (r, i) {
       var cy = y + i * lh + lh / 2;
       icon(c, r[0], x + size * 0.75, cy, size * 0.72, iconBg, iconFg);
+      c.font = '700 ' + size + 'px ' + FONT;
       // Too long? Shrink the text a little first, then wrap to a second line, so nothing gets cut.
       var fs = size, room = w - size * 2.2, t = r[1];
       c.font = '700 ' + fs + 'px ' + FONT;
@@ -722,8 +749,7 @@
         c.fillStyle = t.accent; c.fillRect(0, H - barH, W, barH);
         c.fillStyle = onColour(t.accent); c.textAlign = 'center';
         c.font = '800 ' + 32 * u + 'px ' + FONT; c.fillText(d.phones.length ? 'Call / WhatsApp: ' + d.phones.join(' · ') : '', W / 2, H - barH + 44 * u);
-        var sub = d.socials.concat(d.place ? [d.place] : []).join('   ·   ');
-        if (sub) { c.font = '700 ' + 30 * u + 'px ' + FONT; c.fillText(sub, W / 2, H - barH + 96 * u, W - pad * 2); }
+        socialLine(c, d.socials, d.place, W / 2, H - barH + 96 * u, 30 * u, onColour(t.accent), W - pad * 2);
         c.textAlign = 'left';
       }
     } },
@@ -765,8 +791,7 @@
         c.fillStyle = t.bg; c.fillRect(0, H - barH, W, barH); c.fillStyle = t.accent; c.fillRect(0, H - barH, W, 6 * u);
         c.textAlign = 'center'; c.fillStyle = onColour(t.bg);
         c.font = '800 ' + 32 * u + 'px ' + FONT; c.fillText(d.phones.join('  ·  '), W / 2, H - barH + 50 * u, W - pad * 2);
-        var sub = d.socials.concat(d.place ? [d.place] : []).join('   ·   ');
-        if (sub) { c.font = '700 ' + 28 * u + 'px ' + FONT; c.fillStyle = t.accent; c.fillText(sub, W / 2, H - barH + 94 * u, W - pad * 2); }
+        socialLine(c, d.socials, d.place, W / 2, H - barH + 94 * u, 28 * u, t.accent, W - pad * 2);
         c.textAlign = 'left';
       }
     } },
@@ -985,7 +1010,8 @@
     var rows = [];
     if (d.phones.length) rows.push(['phone', d.phones.join('  ·  ')]);
     if (d.email) rows.push(['mail', d.email]);
-    if (d.web || d.socials.length) rows.push(['web', [d.web].concat(d.socials).filter(Boolean).join('  ·  ')]);
+    if (d.web) rows.push(['web', d.web]);
+    (d.socials || []).forEach(function (h) { var sp = socialSplit(h); rows.push([sp.k, sp.t]); });
     if (d.address) rows.push(['place', d.address]);
     var lh = size * 1.85;
     rows.forEach(function (r) {
@@ -995,7 +1021,7 @@
       var h = lines.length > 1 ? lh + fs * 1.15 : lh, cy = y + h / 2;
       if (measure) { y += h; return; }
       icon(c, r[0], x + size * 0.6, cy, size * 0.62, iconBg, iconFg);
-      c.fillStyle = color; c.textAlign = 'left';
+      c.font = '600 ' + fs + 'px ' + FONT; c.fillStyle = color; c.textAlign = 'left';
       lines.forEach(function (l, k) { c.fillText(l, x + size * 1.6, cy + fs * 0.36 + (k - (lines.length - 1) / 2) * fs * 1.15); });
       y += h;
     });
@@ -1107,7 +1133,7 @@
       sv.forEach(function (x, n) { var cx = left + (n % 2) * colW, cy = y + Math.floor(n / 2) * 44 * u; c.fillStyle = acc; c.beginPath(); c.arc(cx + 7 * u, cy - 8 * u, 6 * u, 0, Math.PI * 2); c.fill(); c.fillStyle = dark; c.fillText(x, cx + 24 * u, cy, colW - 30 * u); });
       y += Math.ceil(sv.length / 2) * 44 * u + 18 * u;
     }
-    var handle = (d.socials || [])[0] || d.web || '';
+    var handle = (d.socials || []).length ? socialSplit(d.socials[0]).t : d.web || '';
     if (handle) { c.font = '700 ' + 24 * u + 'px ' + FONT; c.fillStyle = acc; c.fillText(handle, left, Math.min(y + 10 * u, H - 70 * u), lw); }
     if (link) {
       c.save(); c.shadowColor = 'rgba(0,0,0,.18)'; c.shadowBlur = 18 * u; c.fillStyle = '#FFFFFF'; rr(c, qx - 18 * u, qy - 18 * u, qs + 36 * u, qs + 80 * u, 16 * u); c.fill(); c.restore();
@@ -1150,7 +1176,7 @@
     if (d.logo) { var k = Math.min(r * 1.4 / d.logo.width, r * 1.4 / d.logo.height); c.drawImage(d.logo, cx - d.logo.width * k / 2, cy - d.logo.height * k / 2, d.logo.width * k, d.logo.height * k); }
     else { c.font = '800 70px ' + FONT; c.fillStyle = t.accent; c.textAlign = 'center'; c.fillText(String(d.business || '?').replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase(), cx, cy + 25); c.textAlign = 'left'; }
     c.restore();
-    var handle = (d.socials && d.socials[0]) || ('@' + String(d.business || 'yourbusiness').toLowerCase().replace(/[^a-z0-9]+/g, ''));
+    var handle = (d.socials && d.socials[0] && socialSplit(d.socials[0]).t) || ('@' + String(d.business || 'yourbusiness').toLowerCase().replace(/[^a-z0-9]+/g, ''));
     c.fillStyle = '#111'; c.font = '700 40px ' + FONT; c.fillText(handle.replace(/^@/, ''), 260, 110, W - 300);
     c.font = '600 32px ' + FONT; c.fillText(d.business || '', 260, 160, W - 300);
     c.font = '400 28px ' + FONT; c.fillStyle = '#444'; c.fillText(String(d.place || d.special || '').slice(0, 60), 260, 205, W - 300);
@@ -1418,7 +1444,7 @@
       title: el('input', { value: cd.title, maxlength: '50', placeholder: 'e.g. Managing Director' }),
       phones: el('input', { value: cd.phones.join(', '), maxlength: '60', placeholder: 'e.g. 08112999073, 08167550937' }),
       email: el('input', { value: cd.email, maxlength: '60', placeholder: 'e.g. info@business.com' }),
-      web: el('input', { value: [cd.web].concat(cd.socials).filter(Boolean).join(' '), maxlength: '70', placeholder: 'e.g. www.business.com @business' }),
+      web: el('input', { value: [cd.web].concat(cd.socials).filter(Boolean).join(', '), maxlength: '120', placeholder: 'e.g. www.business.com, IG @business, TikTok @business' }),
       address: el('textarea', { rows: '2', maxlength: '120', placeholder: 'e.g. No. 12 Atofarati Quarters, Olode, Ibadan' }),
       special: el('input', { value: (o.info || {}).sell || '', maxlength: '70', placeholder: 'Under the name, e.g. Cakes · Small chops · Parfait · Zobo' }),
       services: el('textarea', { rows: '3', placeholder: 'Back of the card, up to 4 lines, e.g. Birthday cakes' }),
@@ -1488,7 +1514,7 @@
       var info = { 'Business name': f.business.value.trim() };
       if (state.mode === 'menu') { info['Phone on design'] = mf.phones.value.trim(); info['Social handles'] = socialList(mf.socials.value).join(', '); info['Address / area'] = mf.place.value.trim(); }
       else if (state.mode === 'card') { info['Name on card'] = cf.name.value.trim(); info['Job title'] = cf.title.value.trim(); info['Phone on design'] = cf.phones.value.trim(); info['Email on design'] = cf.email.value.trim(); info['Address / area'] = cf.address.value.trim();
-        var hs = cf.web.value.match(/@[A-Za-z0-9_.]{2,}/g) || []; if (hs.length) info['Social handles'] = hs.join(', '); var w = cf.web.value.replace(/@[A-Za-z0-9_.]{2,}/g, '').trim(); info['Website'] = w; }
+        var dd = data(); if (dd.cardSocials.length) info['Social handles'] = dd.cardSocials.join(', '); info['Website'] = dd.web || ''; }
       else { var ph = nums(f.contact.value); if (ph) info['Phone on design'] = ph; info['Address / area'] = f.place.value.trim(); }
       b.disabled = true; saveMsg.textContent = 'Saving…';
       o.saveApi(info).then(function () {
@@ -1577,7 +1603,7 @@
         place: mf.place.value.trim(),
         special: cf.special.value.trim(), services: cf.services.value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4),
         name: cf.name.value.trim(), title: cf.title.value.trim(), email: cf.email.value.trim(), address: cf.address.value.trim().replace(/\s*\n\s*/g, ', '), tagline: cf.tagline.value.trim(),
-        web: (cf.web.value.match(/[^\s@]+\.[a-z]{2,}[^\s]*/i) || [''])[0], cardSocials: (cf.web.value.match(/@[A-Za-z0-9_.]{2,}/g) || []), cardPhones: cf.phones.value.split(/[,;\/]+/).map(function (x) { return x.trim(); }).filter(Boolean),
+        web: (cf.web.value.match(/(?:^|[\s,])((?:https?:\/\/)?(?:www\.)?[a-z0-9-]+\.[a-z]{2,}[^\s,]*)/i) || ['', ''])[1], cardSocials: socialList(cf.web.value.replace(/(?:^|[\s,])(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+\.[a-z]{2,}[^\s,]*/ig, ',').replace(/^[\s,]+/, '')), cardPhones: cf.phones.value.split(/[,;\/]+/).map(function (x) { return x.trim(); }).filter(Boolean),
         menuPhotos: state.photos.map(function (img, i) { return { img: img, caption: state.captions[i] || '', i: i }; }).filter(function (x) { return x.img && x.i !== state.logoIdx; }) };
     }
     function render(i, W, H, photoIdx, over) {

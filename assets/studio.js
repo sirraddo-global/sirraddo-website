@@ -1623,7 +1623,7 @@
     var notCard = [sizeLab, badgeLab, mainPhotoLab, bgRow];
     var panel = el('div', { class: 'st-panel' }, [
       el('h2', { text: '🎨 Design studio' }),
-      el('p', { class: 'admin-hint', text: 'Three ready designs from the customer’s photos, words and colours. Change anything below; the designs update as you type. Download, then put them through the Mockup maker and send as Option 1, 2, 3.' }),
+      el('p', { class: 'admin-hint', text: 'Ready designs from the customer’s photos, words and colours (3 for flyers, 4 for menus and price lists). Change anything below; the designs update as you type. Download the best 2–3, put them through the Mockup maker and send as Option 1, 2, 3.' }),
       status,
       sizeLab,
       modeRow,

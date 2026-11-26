@@ -547,7 +547,7 @@
   function quickGuide(q, extras) {
     var kids = [el('summary', null, [el('span', { class: 'admin-fold-title', text: '📋 How to do it, step by step' })]),
       el('ol', { class: 'admin-mini' }, q.guide.map(function (t) { return el('li', { text: t }); }))];
-    if (q.design || q.key === 'qrmenu') kids.splice(1, 0, el('p', { class: 'admin-hint', text: '⚡ Fast way (no Canva needed): tap “Instant draft” on the request. It makes 3 finished designs from their photos, words and colours; change the words or colours if needed, download, put them through the Mockup maker and send as Option 1, 2, 3. For logos and brand kits, the same button opens ✨ Logo ideas: 3 original logos from their brief to pick from and adjust.' }));
+    if (q.design || q.key === 'qrmenu') kids.splice(1, 0, el('p', { class: 'admin-hint', text: '⚡ Fast way (no Canva needed): tap “Instant draft” on the request. It makes ready designs from their photos, words and colours (3 for flyers, 4 for menus and price lists); change the words or colours if needed, download, put the best ones through the Mockup maker and send as Option 1, 2, 3. For logos and brand kits, the same button opens ✨ Logo ideas: 3 original logos from their brief to pick from and adjust.' }));
     (extras || q.extras || []).forEach(function (x) {
       if (state.extraGuides[x]) kids.push(el('p', { class: 'admin-hint', text: '➕ ' + state.extraGuides[x] }));
     });
@@ -611,7 +611,7 @@
         if (owed) box.appendChild(el('p', { class: 'admin-meta' }, [badge('Owed 20% off this order (we were late last time)', 'is-due')]));
       }
       if ((q.design || q.key === 'qrmenu') && window.SirStudio) {
-        box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: /Logo|Brand kit|Launch pack/.test(q.interest) ? '✨ Logo ideas + designs' : '🎨 Instant draft: 3 designs from their photos', onclick: function () { openStudio(r); } })]));
+        box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: /Logo|Brand kit|Launch pack/.test(q.interest) ? '✨ Logo ideas + designs' : '🎨 Instant draft: designs from their photos', onclick: function () { openStudio(r); } })]));
       }
       box.appendChild(quickGuide(q, extras.length ? extras : []));
     }

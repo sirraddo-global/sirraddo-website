@@ -564,3 +564,12 @@
   }
   if (token()) load(false); else fromHash();
 })();
+
+// "Prefer WhatsApp?": the link carries whatever they've typed in the form.
+(function () {
+  var a = document.getElementById('ag-wa'), f = document.getElementById('apply'); if (!a || !f) return;
+  a.addEventListener('click', function () {
+    var v = function (n) { return (f.elements[n] && f.elements[n].value || '').trim(); };
+    a.href = 'https://wa.me/2348167550937?text=' + encodeURIComponent('Hello SIRRADDO, I would like to join the Partner Program.\n\nName: ' + v('name') + '\nWhatsApp: ' + v('phone') + '\nCity: ' + v('city') + (v('pitch') ? '\nHow I will find clients: ' + v('pitch') : ''));
+  });
+})();

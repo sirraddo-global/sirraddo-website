@@ -10,4 +10,4 @@ export const SITE_URL = "https://www.sirraddo.com.ng";
 export const SHOW_DEMO_CARDS = false;
 
 // Pages listed in sitemap.xml (clean URLs, as visitors see them).
-export const SITEMAP_PAGES = ["/", "/websites", "/design", "/services", "/agents", "/privacy", "/terms"];
+export const SITEMAP_PAGES = ["/", "/websites", "/design", "/services", "/agents", "/school-websites-nigeria", "/real-estate-websites-nigeria", "/ecommerce-online-store-nigeria", "/clinic-hospital-websites-nigeria", "/privacy", "/terms"];

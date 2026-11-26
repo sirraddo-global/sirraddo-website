@@ -351,6 +351,24 @@ export const INFO_FIELDS = [
   ["phone", "Phone on design", 60], ["bizmail", "Email on design", 100], ["web", "Website", 100],
   ["address", "Address / area", 150], ["socials", "Social handles", 120],
 ];
+// The design studio's "Save details to the order": replace (or add, or remove when empty) the labelled info lines.
+const INFO_LABELS = ["Business name", ...INFO_FIELDS.map(([, label]) => label)];
+export function setOrderInfo(details, info = {}) {
+  let lines = String(details || "").split("\n");
+  for (const label of INFO_LABELS) {
+    if (!(label in info)) continue;
+    const max = (INFO_FIELDS.find(([, l]) => l === label) || [0, 0, 200])[2];
+    const v = String(info[label] ?? "").replace(/[\r\n]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+    const at = lines.findIndex((l) => l.startsWith(label + ":"));
+    if (at >= 0) { if (v) lines[at] = `${label}: ${v}`; else lines.splice(at, 1); continue; }
+    if (!v) continue;
+    // New line: after the other info lines, or before the first blank line (the end of the order summary).
+    let pos = -1; lines.forEach((l, i) => { if (INFO_LABELS.some((x) => l.startsWith(x + ":"))) pos = i; });
+    if (pos < 0) { pos = lines.findIndex((l) => !l.trim()); pos = pos < 0 ? lines.length : pos; } else pos += 1;
+    lines.splice(pos, 0, `${label}: ${v}`);
+  }
+  return lines.join("\n");
+}
 const OPTIONAL_WORDS = new Set(["card", "logo", "brand"]);
 export function cleanOrder(body = {}, allowed = QUICK_KEYS) {
   const svc = quickByInterest(body.service);

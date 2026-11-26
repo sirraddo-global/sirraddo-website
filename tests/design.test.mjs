@@ -73,3 +73,12 @@ test("something else (we quote): saved for a quote, no price or pay link; the lo
   assert.equal(row.quote_amount, null);
   assert.match(row.details, /^Look they picked in the preview: Look 2: Split · Festive$/m);
 });
+
+test("design studio 'Save details to the order' updates the labelled lines", async () => {
+  const { setOrderInfo } = await import("../api/_lib/graphics.mjs");
+  const d = "ORDER: Flyer design (₦5,000)\nBusiness name: Kassy\nPhone on design: 0810\n\nWords to put on it:\nCake";
+  const out = setOrderInfo(d, { "Social handles": "IG @kassy, TikTok @k_tt", "Address / area": "Ibadan · Nationwide", "Phone on design": "0810, 0911", "Bogus": "x" });
+  assert.match(out, /^Phone on design: 0810, 0911$/m); assert.match(out, /^Social handles: IG @kassy, TikTok @k_tt$/m); assert.match(out, /^Address \/ area: Ibadan · Nationwide$/m);
+  assert.doesNotMatch(out, /Bogus/); assert.match(out, /\n\nWords to put on it:\nCake$/, "the customer's words stay where they were");
+  assert.doesNotMatch(setOrderInfo(out, { "Social handles": "" }), /Social handles/, "empty removes it");
+});

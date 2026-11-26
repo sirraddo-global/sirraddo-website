@@ -395,8 +395,14 @@
               <input id="ds-address" maxlength="150" placeholder="e.g. Iwo Road, Ibadan · Nationwide">
             </div>
             <div class="field" data-for="flyer,social,card,brand,launch,xmas,sallah,easter,independence">
-              <label for="ds-socials">Instagram / TikTok / Facebook (optional)</label>
-              <input id="ds-socials" maxlength="120" placeholder="e.g. @kassytreats">
+              <span class="ds-soc-title">Social media handles (optional)</span>
+              <div class="ds-soc">
+                <label>Instagram<input id="ds-soc-ig" maxlength="40" placeholder="@kassytreats" autocapitalize="none" spellcheck="false"></label>
+                <label>TikTok<input id="ds-soc-tt" maxlength="40" placeholder="@kassy_tt" autocapitalize="none" spellcheck="false"></label>
+                <label>Facebook<input id="ds-soc-fb" maxlength="40" placeholder="Kassy Treats" spellcheck="false"></label>
+                <label>X (Twitter)<input id="ds-soc-x" maxlength="40" placeholder="@kassy" autocapitalize="none" spellcheck="false"></label>
+              </div>
+              <input id="ds-socials" type="hidden">
             </div>
             <div class="field">
               <label for="ds-colours">Colours (optional)</label>

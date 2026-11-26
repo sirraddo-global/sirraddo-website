@@ -1087,3 +1087,6 @@ body { overflow-x: clip; }
 .field, .ds-info, .field > * { min-width: 0; max-width: 100%; }
 .picker-btn { max-width: 100%; }
 .picker-btn > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ds-soc-title { font-weight: 700; color: var(--ink); }
+.ds-soc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; margin-top: 6px; }
+.ds-soc label { display: grid; gap: 4px; font-size: .85rem; font-weight: 600; color: var(--muted); }

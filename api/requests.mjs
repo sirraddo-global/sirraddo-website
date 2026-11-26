@@ -40,7 +40,7 @@ import { assistantSystem } from "./_lib/assistant.mjs";
 import { pickProvider, friendlyAiError, ensureAiBackup } from "./_lib/providers.mjs";
 import { generateDesign, changeDesignOptions } from "./_lib/design.mjs";
 import { logoIdeas } from "./_lib/logos.mjs";
-import { QUICK_SERVICES, EXTRAS, EXTRA_GUIDES, QUALITY_CHECKS, isQuick } from "./_lib/graphics.mjs";
+import { QUICK_SERVICES, EXTRAS, EXTRA_GUIDES, QUALITY_CHECKS, isQuick, INFO_FIELDS, setOrderInfo } from "./_lib/graphics.mjs";
 import { JOB_STAGES, STAGE_KEYS } from "./_lib/track.mjs";
 import { addDomain, checkHosting, publish, pause, restore, setupEmail, afterProjectPayment, GoLiveError, restorePrevious } from "./_lib/golive.mjs";
 import { cloudflareConfigured } from "./_lib/cloudflare.mjs";
@@ -400,6 +400,16 @@ export default async function handler(req, res) {
           .catch(() => { throw new Bad("The background remover isn't answering. On the VPS: pm2 restart bg-remover"); });
         if (!r.ok) throw new Bad(r.status === 401 ? "Background remover key doesn't match (BG_KEY)." : "Couldn't remove the background from that photo.");
         return res.status(200).json({ image: "data:image/png;base64," + Buffer.from(await r.arrayBuffer()).toString("base64") });
+      }
+      // Design studio "Save details to the order": business name, phone, socials, location… so the next open
+      // starts with them (one labelled line each in the order, the same lines the order form writes).
+      if (body.action === "order_info_set") {
+        const r = await getRequest(Number(body.id));
+        if (!r) return res.status(404).json({ error: "Not found" });
+        const details = setOrderInfo(r.details, body.info || {});
+        if (details === (r.details || "")) return res.status(200).json(r);
+        await logStaff(me, "Saved design details", r.id);
+        return res.status(200).json(await updateRequest(r.id, { details }));
       }
       // Photo labels for menu flyers in the Design studio (nothing is saved).
       if (body.action === "photo_labels") {

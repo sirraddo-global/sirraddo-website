@@ -254,6 +254,7 @@
     if (j.colours) $('ds-colours').value = j.colours;
     if (j.style && $('ds-style')) $('ds-style').value = j.style;
     Object.keys(j.info || {}).forEach(function (k) { var x = $('ds-' + k); if (x && j.info[k]) x.value = j.info[k]; });
+    if (j.info && j.info.socials && window.sirSocialsFill) window.sirSocialsFill(j.info.socials);
     sel.dispatchEvent(new Event('change')); fit(); say('Your details from last time are filled in. Change anything, then add the new words.');
   }).catch(function () {});
 
@@ -270,6 +271,24 @@
   if ($('ds-size')) $('ds-size').addEventListener('change', function () { var tip = $('ds-size-tip'); if (tip) tip.textContent = SIZE_TIPS[$('ds-size').value] || ''; });
   if ($('ds-size')) $('ds-size').dispatchEvent(new Event('change'));
 
+
+  // Social handles: one box per platform, so a handle never ends up under the wrong one. They travel as
+  // "IG @a, TikTok @b, FB name, X @c" (the design studio reads the platform from that).
+  (function () {
+    var hid = $('ds-socials'); if (!hid) return;
+    var P = [['ig', 'IG'], ['tt', 'TikTok'], ['fb', 'FB'], ['x', 'X']];
+    function join() { hid.value = P.map(function (p) { var v = ($('ds-soc-' + p[0]).value || '').trim(); if (!v) return ''; if (p[0] !== 'fb' && v.charAt(0) !== '@') v = '@' + v.replace(/^https?:\/\/\S*\//, ''); return p[1] + ' ' + v; }).filter(Boolean).join(', '); }
+    P.forEach(function (p) { var x = $('ds-soc-' + p[0]); if (x) x.addEventListener('input', join); });
+    // "Order again" fills the hidden box: spread it back over the platform boxes.
+    window.sirSocialsFill = function (text) {
+      String(text || '').split(/\s*[,;\n]\s*/).forEach(function (bit) {
+        var m = bit.match(/^(ig|insta(?:gram)?|tiktok|tt|fb|facebook|x|twitter)\s*[:\-]?\s*(.+)$/i), k = 'ig', v = bit;
+        if (m) { k = /^t(t|iktok)/i.test(m[1]) ? 'tt' : /^f/i.test(m[1]) ? 'fb' : /^(x|twitter)$/i.test(m[1]) ? 'x' : 'ig'; v = m[2]; }
+        var box = $('ds-soc-' + k); if (box && v && !box.value) box.value = v.trim();
+      });
+      join();
+    };
+  })();
   // ---------- Live preview: 3 rough drafts that update as they type ----------
   var pvBox = $('ds-preview'), pvRow = $('ds-preview-row'), pvTimer = null, pickedLook = '';
   function previewNow() {

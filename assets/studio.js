@@ -475,6 +475,19 @@
 
   // ---------- menu / price-list flyers (a business with a list of products) ----------
   var PHONE_RE = /(\+?234|0)[789][01]\d[\s-]?\d{3}[\s-]?\d{4}/g;
+  // Social handles with their platform: "IG @a, TikTok @b, FB Kassy Treats" → ["IG @a", "TikTok @b", "FB Kassy Treats"],
+  // so a handle is always shown with the platform it belongs to. Plain "@a" stays as it is.
+  var SOC = { ig: 'IG', insta: 'IG', instagram: 'IG', tiktok: 'TikTok', tt: 'TikTok', fb: 'FB', facebook: 'FB', x: 'X', twitter: 'X', youtube: 'YouTube', yt: 'YouTube', snap: 'Snapchat', snapchat: 'Snapchat' };
+  function socialList(text) {
+    var out = [];
+    String(text || '').split(/\s*[,;\n]\s*/).forEach(function (bit) {
+      bit = bit.trim(); if (!bit) return;
+      var m = bit.match(/^(ig|insta(?:gram)?|tiktok|tt|fb|facebook|x|twitter|youtube|yt|snap(?:chat)?)(?:\s*[:\-]\s*|\s+)(.+)$/i);
+      if (m) { var v = m[2].trim().replace(/^https?:\/\/\S*\//, ''); var lab = SOC[m[1].toLowerCase()]; if (lab !== 'FB' && v.charAt(0) !== '@' && !/\s/.test(v)) v = '@' + v; v = lab + ' ' + v; if (out.indexOf(v) === -1) out.push(v); return; }
+      bit.split(/\s+/).forEach(function (h) { if (!h) return; h = h.charAt(0) === '@' ? h : '@' + h; if (out.indexOf(h) === -1) out.push(h); });
+    });
+    return out;
+  }
   // Reads the customer's words as a menu: name, list title, items, a note ("We also offer…"), phones, handles, place.
   function parseMenu(o) {
     var lines = String(o.words || '').replace(/\r/g, '').split('\n').map(function (l) { return l.replace(/^[\s•\-*◆♦▪·]+/, '').trim(); });
@@ -508,7 +521,7 @@
     if (!m.listTitle) m.listTitle = m.items.length ? 'Contact us for' : '';
     var inf = o.info || {};
     (inf.phone || '').split(/[,;\/]+/).forEach(function (p) { p = p.replace(/[^\d+]/g, ''); if (p.length >= 10 && m.phones.indexOf(p) === -1) m.phones.unshift(p); });
-    (inf.socials || '').split(/[,;\s]+/).forEach(function (h) { h = h.trim(); if (!h) return; if (h.charAt(0) !== '@') h = '@' + h; if (m.socials.indexOf(h) === -1) m.socials.push(h); });
+    socialList(inf.socials).forEach(function (h) { var bare = h.replace(/^\S+ (?=@)/, ''); m.socials = m.socials.filter(function (x) { return x !== bare; }); if (m.socials.indexOf(h) === -1) m.socials.push(h); });
     if (inf.address) m.place = inf.address;
     if (!m.phones.length && o.contact) m.phones.push(String(o.contact).replace(/[^\d+]/g, ''));
     return m;
@@ -958,7 +971,7 @@
     if (inf.web) d.web = inf.web.replace(/^https?:\/\//i, '');
     if (inf.address) d.address = inf.address;
     if (inf.phone) d.phones = inf.phone.split(/[,;\/]+/).map(function (p) { return p.trim(); }).filter(Boolean).concat(d.phones).filter(function (p, i, a) { return a.indexOf(p) === i; }).slice(0, 3);
-    if (inf.socials) inf.socials.split(/[,;\s]+/).filter(Boolean).forEach(function (h) { h = h.charAt(0) === '@' ? h : '@' + h; if (d.socials.indexOf(h) === -1) d.socials.push(h); });
+    if (inf.socials) socialList(inf.socials).forEach(function (h) { var bare = h.replace(/^\S+ (?=@)/, ''); d.socials = d.socials.filter(function (x) { return x !== bare; }); if (d.socials.indexOf(h) === -1) d.socials.push(h); });
     if (!d.phones.length && o.contact) d.phones.push(String(o.contact).replace(/[^\d+]/g, ''));
     return d;
   }
@@ -1253,7 +1266,7 @@
       items: el('textarea', { rows: '7', maxlength: '900' }),
       note: el('textarea', { rows: '3', maxlength: '300', placeholder: 'e.g. We also offer spaghetti, rice dishes and soups' }),
       phones: el('input', { value: mp.phones.join(', '), maxlength: '80' }),
-      socials: el('input', { value: mp.socials.join(', '), maxlength: '120', placeholder: '@instagram, @tiktok' }),
+      socials: el('input', { value: mp.socials.join(', '), maxlength: '120', placeholder: 'IG @kassytreats, TikTok @kassy_tt, FB Kassy Treats' }),
       place: el('input', { value: mp.place, maxlength: '70', placeholder: 'e.g. Ibadan · Available nationwide' }),
     };
     mf.items.value = mp.items.join('\n'); mf.note.value = mp.note;
@@ -1460,14 +1473,29 @@
     var promoBox = el('div', { class: 'st-group' }, [el('div', { class: 'st-bgrow' }, [ideaBtn, ideaMsg]), ideaRow, lab('Headline (the big words)', f.headline), lab('Details (smaller text)', f.details), lab('Contact line', f.contact)]);
     var cardBox = el('div', { class: 'st-group' }, [
       lab('Name', cf.name), lab('Job title', cf.title), lab('Phone number(s)', cf.phones), lab('Email', cf.email),
-      lab('Website / social handles', cf.web), lab('Address', cf.address), lab('Line under the name (what you do)', cf.special), lab('Services on the back (up to 4, one per line)', cf.services), lab('Line on the back (optional)', cf.tagline),
+      lab('Website / social handles (e.g. www.kassy.com.ng IG @kassy)', cf.web), lab('Address', cf.address), lab('Line under the name (what you do)', cf.special), lab('Services on the back (up to 4, one per line)', cf.services), lab('Line on the back (optional)', cf.tagline),
       el('p', { class: 'admin-hint', text: 'Print size 3.5 × 2 inches (300 dpi). Downloads give a front and a back for each option. Tap a logo below to put it on the card.' }),
     ]);
     var menuBox = el('div', { class: 'st-group' }, [
       lab('List title', mf.listTitle), lab('Items (one per line)', mf.items), el('label', { class: 'st-check' }, [showPrices, ' Show prices (write them like “Cake - from ₦18,000”)']), lab('Extra note (box)', mf.note),
-      lab('Phone numbers', mf.phones), lab('Social handles', mf.socials), lab('Location line', mf.place),
+      lab('Phone numbers', mf.phones), lab('Social handles (write the platform before each: IG, TikTok, FB, X)', mf.socials), lab('Location line', mf.place),
       el('div', { class: 'st-field' }, [el('span', { text: 'Photo labels' }), captionBox, el('div', { class: 'st-bgrow' }, [capBtn, capMsg])]),
     ]);
+    // Save what you corrected here back to the order, so the next time the studio opens it starts with it.
+    var saveMsg = el('span', { class: 'admin-hint', role: 'status' });
+    var saveRow = o.saveApi ? el('div', { class: 'st-bgrow' }, [el('button', { class: 'admin-btn', type: 'button', text: '💾 Save these details to the order', onclick: function (e) {
+      var b = e.currentTarget, nums = function (t) { return (String(t).match(PHONE_RE) || []).map(function (p) { return p.replace(/[\s-]/g, ''); }).join(', '); }; PHONE_RE.lastIndex = 0;
+      var info = { 'Business name': f.business.value.trim() };
+      if (state.mode === 'menu') { info['Phone on design'] = mf.phones.value.trim(); info['Social handles'] = socialList(mf.socials.value).join(', '); info['Address / area'] = mf.place.value.trim(); }
+      else if (state.mode === 'card') { info['Name on card'] = cf.name.value.trim(); info['Job title'] = cf.title.value.trim(); info['Phone on design'] = cf.phones.value.trim(); info['Email on design'] = cf.email.value.trim(); info['Address / area'] = cf.address.value.trim();
+        var hs = cf.web.value.match(/@[A-Za-z0-9_.]{2,}/g) || []; if (hs.length) info['Social handles'] = hs.join(', '); var w = cf.web.value.replace(/@[A-Za-z0-9_.]{2,}/g, '').trim(); info['Website'] = w; }
+      else { var ph = nums(f.contact.value); if (ph) info['Phone on design'] = ph; info['Address / area'] = f.place.value.trim(); }
+      b.disabled = true; saveMsg.textContent = 'Saving…';
+      o.saveApi(info).then(function () {
+        o.info = o.info || {}; if (info['Social handles'] != null) o.info.socials = info['Social handles']; if (info['Address / area'] != null) o.info.address = info['Address / area']; if (info['Phone on design'] != null) o.info.phone = info['Phone on design'];
+        saveMsg.textContent = 'Saved ✓ Next time you open the studio for this order, these are filled in.';
+      }).catch(function (er) { saveMsg.textContent = (er && er.message) || 'Could not save.'; }).then(function () { b.disabled = false; });
+    } }), saveMsg]) : el('span');
     var lookRow = el('div', { class: 'st-chips' }), lookLab = el('div', { class: 'st-field' }, [el('span', { text: 'Look' }), lookRow]);
     var sizeLab = lab('Size', sizeSel), badgeLab = lab('Badge (optional)', f.offer), placeLab = lab('Location line (optional)', f.place);
     var mainPhotoLab = el('div', { class: 'st-field' }, [el('span', { text: 'Main photo (tap one)' }), photoTiles]);
@@ -1482,6 +1510,7 @@
       lookLab,
       lab('Business name', f.business),
       promoBox, menuBox, cardBox,
+      saveRow,
       badgeLab,
       el('div', { class: 'st-field' }, [el('span', { text: 'Colours' }), themeRow, el('div', { class: 'st-custom' }, [c1, c2, el('small', { text: 'or pick your own: main and accent' })])]),
       mainPhotoLab, bgRow, el('div', { class: 'st-field' }, [el('span', { text: 'Logo (tap one)' }), logoTiles]),
@@ -1544,7 +1573,7 @@
         logoWide: state.logoIdx >= 0 && state.raw[state.logoIdx] ? state.raw[state.logoIdx].width / state.raw[state.logoIdx].height > 1.3 : false,
         listTitle: mf.listTitle.value.trim(), items: mf.items.value.split('\n').map(function (x) { x = x.replace(/^[\s•\-*◆♦]+/, '').trim(); return showPrices.checked ? x : x.replace(/\s*[-–—:]\s*(?:from\s+)?\u20A6\s?[\d,]+.*$/i, ''); }).filter(Boolean).filter(notBrand),
         note: mf.note.value.trim(), phones: mf.phones.value.split(/[,;\/]+/).map(function (x) { return x.trim(); }).filter(Boolean),
-        socials: mf.socials.value.split(/[,;\s]+/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { return x.charAt(0) === '@' ? x : '@' + x; }),
+        socials: socialList(mf.socials.value),
         place: mf.place.value.trim(),
         special: cf.special.value.trim(), services: cf.services.value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4),
         name: cf.name.value.trim(), title: cf.title.value.trim(), email: cf.email.value.trim(), address: cf.address.value.trim().replace(/\s*\n\s*/g, ', '), tagline: cf.tagline.value.trim(),

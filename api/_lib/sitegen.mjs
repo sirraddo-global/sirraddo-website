@@ -72,6 +72,8 @@ function luminance(hex) {
 // Colours and heading font by type of business, used when the customer gave no colours, so a bakery never
 // looks like a law firm. New sites only (opts.industry): live sites keep their look until the owner asks.
 const INDUSTRIES = [
+  { key: "hotel", re: /hotel|suites|guest ?house|\blodge\b|serviced apartment|short-?let apartment|resort/i, primary: "#111827", accent: "#D4AF37", head: "Georgia, 'Times New Roman', serif" },
+  { key: "fuel", re: /filling station|fuel station|petrol station|gas station|\bpetrol\b|\bdiesel\b|\bfuel\b|\blpg\b|cooking gas|gas plant|gas refill/i, primary: "#0F172A", accent: "#059669" },
   { key: "food", re: /bak|cake|food|kitchen|restaurant|cater|chops|snack|pastr|drink|zobo|juice|eatery|grill|suya|bread|confection|parfait/i, primary: "#3B2416", accent: "#C8963E", head: "Georgia, 'Times New Roman', serif" },
   { key: "fashion", re: /fashion|hair|wig|beauty|salon|makeup|cosmetic|boutique|cloth|tailor|lash|nail|spa|skincare|perfume|jewel/i, primary: "#1F1A1C", accent: "#C9A27E", head: "Georgia, 'Times New Roman', serif" },
   { key: "property", re: /real estate|property|properties|realtor|construction|building|estate|land|architect|interior/i, primary: "#12372A", accent: "#C9971C" },
@@ -500,7 +502,36 @@ function booking(site) {
   return `${cards}<form class="bk" data-wa="${esc(site.whatsapp)}" data-n="${esc(site.name)}"><h3>Book an appointment</h3><label>Your name<input name="n" required autocomplete="name"></label><label>Phone number<input name="p" type="tel" required autocomplete="tel"></label><label>What for?<select name="s">${site.services.map((s) => `<option>${esc(s.name)}</option>`).join("")}<option>Something else</option></select></label><label>Preferred day<input name="d" type="date"></label><button class="btn" type="submit">Send on WhatsApp</button><p class="bk-note">We reply to confirm the time. Nothing is booked until we confirm.</p></form>
 <script>(function(){var f=document.currentScript.previousElementSibling;f.addEventListener('submit',function(e){e.preventDefault();var g=function(n){return f.elements[n].value.trim()};var t='Hello '+f.dataset.n+', I would like to book an appointment.\\nName: '+g('n')+'\\nPhone: '+g('p')+'\\nFor: '+g('s')+(g('d')?'\\nPreferred day: '+g('d'):'');location.href='https://wa.me/'+f.dataset.wa+'?text='+encodeURIComponent(t)})})();</script>`;
 }
+// Hotels & short-lets: rooms with nightly rates, and a booking request (dates, room, guests) on WhatsApp with the nights worked out.
+function rooms(site) {
+  const cards = `<div class="rm">${site.services.map((s) => `<div class="rm-c"><h3>${esc(s.name)}</h3>${s.details ? `<p>${esc(s.details)}</p>` : ""}${s.price ? `<p class="rm-p">${esc(naira(s.price))} <small>/ night</small></p>` : ""}</div>`).join("")}</div>`;
+  if (!site.whatsapp) return cards;
+  const opts = site.services.map((s) => `<option value="${esc(s.name)}" data-p="${priceAmount(s.price) || ""}">${esc(s.name)}${s.price ? ` · ${esc(naira(s.price))}/night` : ""}</option>`).join("");
+  return `<form class="rb" data-wa="${esc(site.whatsapp)}" data-n="${esc(site.name)}"><h3>Check availability</h3><div class="rb-g"><label>Check-in<input name="i" type="date" required></label><label>Check-out<input name="o" type="date" required></label><label>Room<select name="r">${opts}</select></label><label>Guests<input name="g" type="number" min="1" max="20" value="2"></label></div><p class="rb-est" aria-live="polite"></p><button class="btn" type="submit">Check availability on WhatsApp</button><p class="bk-note">We reply to confirm. Nothing is booked until we confirm.</p></form>
+${cards}<script>(function(){var f=document.currentScript.parentNode.querySelector('.rb');if(!f)return;var d=new Date(),iso=function(x){return x.toISOString().slice(0,10)};f.elements.i.value=iso(d);d.setDate(d.getDate()+1);f.elements.o.value=iso(d);f.elements.i.min=iso(new Date());
+function n(){return Math.max(1,Math.round((new Date(f.elements.o.value)-new Date(f.elements.i.value))/864e5)||1)}function p(){var o=f.elements.r.options[f.elements.r.selectedIndex];return Number(o&&o.dataset.p)||0}
+function est(){var k=n(),t=p()*k;f.querySelector('.rb-est').textContent=k+' night'+(k>1?'s':'')+(t?' · about \u20a6'+t.toLocaleString('en-NG'):'');return t}f.addEventListener('change',est);est();
+f.addEventListener('submit',function(e){e.preventDefault();var k=n(),t=est();var m='Hello '+f.dataset.n+', is this available?\\nRoom: '+f.elements.r.value+'\\nCheck-in: '+f.elements.i.value+'\\nCheck-out: '+f.elements.o.value+' ('+k+' night'+(k>1?'s':'')+')\\nGuests: '+f.elements.g.value+(t?'\\nEstimate: \u20a6'+t.toLocaleString('en-NG'):'');location.href='https://wa.me/'+f.dataset.wa+'?text='+encodeURIComponent(m)})})();</script>`;
+}
+// Filling stations & gas plants: bulk diesel / gas delivery request with the estimate from today's price board.
+function fuelOrder(site) {
+  if (!site.whatsapp || !site.fuel) return "";
+  const items = site.fuel.items.filter((x) => x.status !== "out");
+  if (!items.length) return "";
+  return `<form class="fo" data-wa="${esc(site.whatsapp)}" data-n="${esc(site.name)}"><div class="rb-g"><label>Product<select name="p">${items.map((x) => `<option value="${esc(x.label)}" data-p="${x.price}" data-u="${x.unit === "kg" ? "kg" : "L"}">${esc(x.label)} · ${esc(naira(x.price))}${x.per}</option>`).join("")}</select></label><label><span class="fo-u">Quantity (L)</span><input name="q" type="number" min="1" value="200" inputmode="numeric" required></label><label>Delivery area<input name="a" placeholder="e.g. Bodija, Ibadan" required></label><label>Business or name<input name="b" placeholder="e.g. Greenview Estate"></label></div>
+<p class="rb-est" aria-live="polite"></p><button class="btn" type="submit">Request delivery on WhatsApp</button><p class="bk-note">Estimate at today's price, before delivery. We confirm the final price and delivery fee on WhatsApp.</p></form>
+<script>(function(){var f=document.currentScript.previousElementSibling;function o(){return f.elements.p.options[f.elements.p.selectedIndex]}function est(){var x=o(),u=x.dataset.u,q=Number(f.elements.q.value)||0,t=q*Number(x.dataset.p);f.querySelector('.fo-u').textContent='Quantity ('+u+')';f.querySelector('.rb-est').textContent=q?'Estimate: \u20a6'+Math.round(t).toLocaleString('en-NG'):'';return t}
+f.elements.p.addEventListener('change',function(){f.elements.q.value=o().dataset.u==='kg'?'12.5':'200';est()});f.addEventListener('input',est);est();
+f.addEventListener('submit',function(e){e.preventDefault();var x=o(),t=est();var m='Hello '+f.dataset.n+', I would like a delivery.\\n'+x.value+': '+f.elements.q.value+' '+x.dataset.u+'\\nArea: '+f.elements.a.value.trim()+(f.elements.b.value.trim()?'\\nFor: '+f.elements.b.value.trim():'')+'\\nEstimate: \u20a6'+Math.round(t).toLocaleString('en-NG');location.href='https://wa.me/'+f.dataset.wa+'?text='+encodeURIComponent(m)})})();</script>`;
+}
 export const INDUSTRY_CSS = {
+  hotel: (t) => `.ind-hotel .hero{background:linear-gradient(rgba(17,24,39,.6),rgba(17,24,39,.9)),${t.primary};color:#fff}.ind-hotel .hero h1{color:#fff}.ind-hotel main{background:#FAF9F6}
+.rm{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));margin-top:20px}.rm-c{background:#fff;border-radius:16px;padding:18px;border-top:4px solid ${t.accent};box-shadow:0 8px 24px rgba(17,24,39,.08)}.rm-c h3{margin:0 0 6px}.rm-c p{margin:0 0 6px}.rm-p{font-weight:800;font-size:1.25rem}.rm-p small{font-weight:500;opacity:.7;font-size:.85rem}
+.rb,.fo{display:grid;gap:10px;padding:18px;border-radius:16px;background:#fff;border:1px solid #E5E7EB;box-shadow:0 12px 30px rgba(17,24,39,.08);max-width:860px}.rb h3{margin:0}.rb-g{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.rb label,.fo label{display:grid;gap:4px;font-weight:600;font-size:.9rem}
+.rb input,.rb select,.fo input,.fo select{width:100%;box-sizing:border-box;min-width:0;font:inherit;font-size:16px;padding:11px;border:1px solid #D1D5DB;border-radius:10px;min-height:46px;background:#fff}.rb-est{margin:0;font-weight:700}.bk-note{font-size:.9rem;opacity:.75;margin:0}`,
+  fuel: (t) => `.ind-fuel .hero{background:radial-gradient(circle at 80% 0,#134E4A,transparent 55%),${t.primary};color:#fff}.ind-fuel .hero h1{color:#fff}
+.rb,.fo{display:grid;gap:10px;padding:18px;border-radius:16px;background:#fff;border:1px solid #E2E8F0;box-shadow:0 12px 30px rgba(15,23,42,.08);max-width:860px}.rb-g{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.fo label{display:grid;gap:4px;font-weight:600;font-size:.9rem}
+.fo input,.fo select{width:100%;box-sizing:border-box;min-width:0;font:inherit;font-size:16px;padding:11px;border:1px solid #CBD5E1;border-radius:10px;min-height:46px;background:#fff}.rb-est{margin:0;font-weight:800;color:${t.accent}}.bk-note{font-size:.9rem;opacity:.75;margin:0}`,
   food: (t) => `.ind-food .hero:has(.wrap>img){position:relative;overflow:hidden;padding:110px 0 56px;background:#2B1A10}.ind-food .hero:has(.wrap>img) .wrap{display:block}
 .ind-food .hero .wrap>img{position:absolute;inset:0;width:100%;height:100%;max-height:none;border-radius:0;box-shadow:none;object-fit:cover}
 .ind-food .hero:has(.wrap>img)::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,14,6,.2),rgba(25,14,6,.85))}.ind-food .hero .wrap>div{position:relative;z-index:1;max-width:640px}
@@ -533,6 +564,7 @@ export function industryBlock(site, img) {
   if (k === "fashion") return lookbook(site, img);
   if (k === "property") return listings(site, img);
   if (k === "care") return booking(site);
+  if (k === "hotel") return rooms(site);
   return "";
 }
 
@@ -1083,10 +1115,12 @@ function pageBody(site, page, mode, link, img) {
     if (site.services.length) {
       const sp = find("services", "prices");
       const ib = industryBlock(site, img);
-      const label = { food: "Menu", fashion: "The lookbook", property: "Listings", care: "Our services" }[site.theme?.ind] || "What we offer";
+      const label = { food: "Menu", fashion: "The lookbook", property: "Listings", care: "Our services", hotel: "Rooms & rates" }[site.theme?.ind] || "What we offer";
       if (ib) extra(label, ib);
       else extra("What we offer", serviceCards({ ...site, services: sp ? site.services.slice(0, 3) : site.services }, true) + (sp && site.services.length > 3 ? more(sp, "See all services") : ""));
     }
+    // Filling stations & gas plants: bulk diesel / gas delivery request, priced from today's board.
+    if (site.fuel && !site.products.length) { const fo = fuelOrder(site); if (fo) extra("Bulk diesel & gas delivery", fo); }
     // Every product on the home page, with the search box and category buttons (the same as the Shop page).
     if (site.products.length) extra("Our products", shopSections(site, img));
     // Reviews: the latest approved ones, or (with no Testimonials page) an invitation to leave the first.

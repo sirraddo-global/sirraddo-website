@@ -140,6 +140,123 @@ Any time: admission is open all year.
 ### Visit us
 **Text:** Call or WhatsApp to book a visit.`,
   },
+  realestate: {
+    label: "Real estate & property", icon: "🏡", interest: "Business website",
+    brief: { ...base, business_name: "Crestline Homes & Properties", tagline: "Verified homes, honest prices", style: "Clean and modern",
+      description: "Real estate agency in Ibadan for houses and flats to rent or buy, and land with verified documents.", address: "Bodija, Ibadan", hours: "Mon–Sat 9am–6pm",
+      pages_10: ["Home", "Listings", "About us", "FAQ", "Contact"],
+      services: [{ name: "3-bedroom flat for Rent in Bodija", details: "All rooms en suite, 24hr security, parking for 2 cars", price: "1800000" }, { name: "4-bedroom duplex for Sale in Akobo", details: "Verified C of O, fitted kitchen, BQ", price: "95000000" },
+        { name: "Land for Sale in Jericho", details: "600 sqm plot with C of O, dry land, good road", price: "38000000" }, { name: "Mini flat for Rent in Agodi GRA", details: "New building, prepaid meter", price: "650000" },
+        { name: "Shop space for Lease on Ring Road", details: "Ground floor, busy road, 40 sqm", price: "900000" }, { name: "2-bedroom Shortlet in Jericho", details: "Furnished, Wi-Fi and 24/7 power, per night", price: "45000" }] },
+    files: { photos: [img("property"), img("property-2")] },
+    md: `## Page: Home
+### Hero
+**Headline:** Find your next home in Ibadan
+**Subheadline:** Houses, flats and land with checked documents. Book an inspection on WhatsApp.
+**Button text:** Book an inspection
+### Why buyers trust us
+**Text:** We check the documents of every property before we list it, and we tell you every fee up front.
+## Page: Listings
+### Available now
+**Text:** Filter by rent, sale or land, then ask about any property on WhatsApp.
+## Page: About us
+### About Crestline
+**Text:** Crestline has helped families and businesses find property in Ibadan since 2015.
+## Page: FAQ
+### Questions
+#### Do you charge for inspections?
+Inspections are free. Agency and legal fees are shown before you pay anything.
+#### Can I pay in instalments?
+Some properties allow it. Ask us about the one you like.
+## Page: Contact
+### Visit our office
+**Text:** Call or WhatsApp to book an inspection.`,
+  },
+  clinic: {
+    label: "Clinic & pharmacy", icon: "🩺", interest: "Business website",
+    brief: { ...base, business_name: "OliveCare Specialist Clinic", tagline: "Care you can trust", style: "Clean and modern",
+      description: "Specialist clinic and laboratory in Iwo Road, Ibadan. Most HMO plans accepted.", address: "Iwo Road, Ibadan", hours: "Mon–Sat 8am–8pm · Emergencies 24/7",
+      pages_10: ["Home", "Services", "About us", "FAQ", "Contact"],
+      services: [{ name: "General consultation", details: "Doctor on duty every day", price: "10000" }, { name: "Children's clinic", details: "Paediatrician Monday to Friday", price: "15000" },
+        { name: "Women's health", details: "Antenatal care and scans", price: "18000" }, { name: "Laboratory tests", details: "Full blood count, malaria, sugar; most results in 24 hours", price: "3000" }] },
+    files: { photos: [img("clinic"), img("clinic-2")] },
+    md: `## Page: Home
+### Hero
+**Headline:** See a specialist the same day
+**Subheadline:** Consultations and lab tests in Iwo Road, Ibadan, with clear prices before you come.
+**Button text:** Book an appointment
+### HMO patients welcome
+**Text:** We accept most HMO plans. Bring your HMO card and ID.
+## Page: Services
+### Our services
+**Text:** Departments and tests, with prices.
+## Page: About us
+### About OliveCare
+**Text:** Registered doctors and lab scientists, a clean clinic and short waiting times.
+## Page: FAQ
+### Questions
+#### Do I need an appointment?
+Walk-ins are welcome; booking on WhatsApp saves you waiting.
+#### How do I get my results?
+Most results are ready in 24 hours and can be sent to you on WhatsApp.
+## Page: Contact
+### Find us
+**Text:** Call, WhatsApp or walk in.`,
+  },
+  hotel: {
+    label: "Hotel & short-let", icon: "🏨", interest: "Business website",
+    brief: { ...base, business_name: "RoyalGate Hotel & Suites", tagline: "Quiet luxury in Ibadan", style: "Elegant and classy",
+      description: "Hotel and serviced short-let apartments in Jericho, Ibadan with 24/7 power, Wi-Fi, a pool and an event hall.", address: "Jericho GRA, Ibadan", hours: "Front desk open 24/7",
+      pages_10: ["Home", "Rooms", "Events", "About us", "Contact"],
+      services: [{ name: "Standard Room", details: "Queen bed, smart TV, work desk, breakfast option", price: "25000" }, { name: "Executive Suite", details: "King bed, lounge area, mini bar, city view", price: "45000" },
+        { name: "2-Bed Luxury Short-Let", details: "2 bedrooms, full kitchen, living room; weekly rates", price: "75000" }] },
+    files: { photos: [img("hotel"), img("hotel-2")] },
+    md: `## Page: Home
+### Hero
+**Headline:** Quiet luxury in the heart of Ibadan
+**Subheadline:** Rooms, suites and short-let apartments with 24/7 power, fast Wi-Fi and a pool. Book direct and save.
+**Button text:** Check availability
+### Everything you need
+**Text:** 24/7 power and solar backup, fast Wi-Fi, 24-hour security, a pool and lounge, and secure parking.
+## Page: Rooms
+### Rooms & short-lets
+**Text:** Nightly rates in naira. Weekly and monthly rates on request.
+## Page: Events
+### The Gate Hall
+**Text:** Weddings, birthdays, trainings and AGMs for up to 250 guests, with sound, projector and backup power. Catering on request.
+## Page: About us
+### About RoyalGate
+**Text:** A calm, secure hotel in Jericho GRA, 10 minutes from Dugbe.
+## Page: Contact
+### Find us
+**Text:** Call or WhatsApp the front desk any time.`,
+  },
+  fuel: {
+    label: "Filling station & gas plant", icon: "⛽", interest: "Business website",
+    brief: { ...base, business_name: "PrimeFuel Energy & Gas Plant", tagline: "Fair meters, honest prices", style: "Bold and colourful",
+      description: "Filling station and cooking gas (LPG) plant on Iwo Road and Oluyole, Ibadan. Bulk diesel delivery and fleet accounts.", address: "Iwo Road, Ibadan", hours: "Open daily 6am–10pm",
+      pages_10: ["Home", "Services", "About us", "Contact"],
+      fuel_prices: { pms: { price: "980", status: "available" }, ago: { price: "1150", status: "available" }, lpg: { price: "1200", status: "low" }, updated: "2026-11-26T06:30:00Z" },
+      services: [{ name: "Bulk diesel delivery", details: "For businesses, estates, hotels and schools; from 200 litres" }, { name: "Cooking gas refill & delivery", details: "Any cylinder size, home delivery in Ibadan" },
+        { name: "Fleet fuel accounts", details: "Fuel cards for your drivers and one monthly invoice" }, { name: "POS & transfer", details: "Pay by card, transfer or cash" }] },
+    files: { photos: [img("fuel"), img("fuel-2")] },
+    md: `## Page: Home
+### Hero
+**Headline:** Fuel, diesel and cooking gas. Fair meters, honest prices.
+**Subheadline:** Today's prices below. Order bulk diesel for your business or gas delivered to your home.
+**Button text:** Order on WhatsApp
+### Accurate meter guarantee
+**Text:** Our pumps are checked and sealed, so you get every litre you pay for.
+## Page: Services
+### What we offer
+**Text:** Fuel, gas and delivery for homes and businesses.
+## Page: About us
+### About PrimeFuel
+**Text:** A licensed filling station and gas plant serving Ibadan since 2016.
+## Page: Contact
+### Find the station
+**Text:** Iwo Road and Oluyole, Ibadan. Call or WhatsApp for deliveries.`,
+  },
   shop: {
     label: "Online store", icon: "🛍️", interest: "Online Store",
     brief: { ...base, business_name: "Adire Lane", tagline: "Made-in-Nigeria fashion", colours: "navy and gold", style: "Clean and modern",

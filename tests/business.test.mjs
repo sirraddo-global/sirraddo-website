@@ -1339,3 +1339,16 @@ test("Manage my website: a filling station updates pump prices and stock", async
   assert.match(page, /name="fuel_price_ago" value="1150"/); assert.match(page, /name="fuel_status_ago" value="low" checked/);
   assert.match(await save({ fuel_price_pms: "980", fuel_status_pms: "out", fuel_price_ago: "1150", fuel_status_ago: "low" }), /Saved ✓/);
 });
+
+test("/demo: page background pills; Manage: owner picks the page background", async () => {
+  const d = await h.call("GET", "/demo/hotel?s=dark");
+  assert.equal(d.status, 200); assert.match(d.text, /s-dark"/); assert.match(d.text, /class="pv-pill on" href="\/demo\/hotel\?s=dark"/); assert.match(d.text, /href="\/demo\/hotel\/rooms\?s=dark"/);
+  assert.match((await h.call("GET", "/demo/hotel")).text, /s-tinted"/);
+  const { id } = (await h.action({ action: "create", name: "Femi", contact: "08035557777", business: "Femi Lounge", interest: "Starter website" })).json;
+  await h.sql(`UPDATE customer_requests SET brief = $2 WHERE id = $1`, [id, JSON.stringify({ business_name: "Femi Lounge", phone: "08035557777" })]);
+  const mpath = "/manage?" + (await h.action({ action: "manage_link", id })).json.url.split("?")[1];
+  assert.match((await h.call("GET", mpath)).text, /<option value="tinted" selected>Brand tinted/);
+  const out = await fetch(h.base + mpath, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ phone: "08035557777", surface: "dark" }) }).then((r) => r.text());
+  assert.match(out, /Saved ✓/);
+  assert.equal((await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]))[0].brief.surface, "Midnight dark");
+});

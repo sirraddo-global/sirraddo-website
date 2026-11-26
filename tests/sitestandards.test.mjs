@@ -75,3 +75,23 @@ test("hotels get rooms with nightly rates and a dates booking form; stations get
   assert.match(f, /Today's prices/); assert.match(f, /class="fo"/); assert.match(f, /data-p="1150" data-u="L"/);
   for (const html of [h, f]) for (const js of html.match(/<script>[\s\S]*?<\/script>/g) || []) assert.doesNotThrow(() => new Function(js.slice(8, -9)), "inline scripts are valid");
 });
+
+test("page backgrounds, web fonts and the content fixes on the demos", async () => {
+  const { demoRow } = await import("../api/_lib/demos.mjs");
+  const { surfaceOf } = await import("../api/_lib/sitegen.mjs");
+  assert.equal(surfaceOf("Midnight dark"), "dark"); assert.equal(surfaceOf("Warm cream & gold"), "cream"); assert.equal(surfaceOf("Crisp light"), "light"); assert.equal(surfaceOf(""), "tinted");
+  const page = (k, o) => renderPage(buildSiteModel(demoRow(k, o)), "index", { mode: "export", link: (s) => s });
+  const hotel = page("hotel");
+  assert.match(hotel, /class="[^"]*s-tinted"/); assert.match(hotel, /fonts\.googleapis\.com\/css2\?family=Plus\+Jakarta\+Sans[^"]*Playfair\+Display/);
+  { const dk = page("hotel", { surface: "dark" }); assert.match(dk, /body\.s-dark\{background:#0B1120/); assert.match(dk, /<body class="[^"]*s-dark"/); }
+  assert.match(hotel, /Events &amp; Conference Hall/); assert.match(hotel, /from ₦150,000\/day/);
+  assert.match(page("fuel"), /'Outfit'/);
+  const church = page("church");
+  assert.match(church, /Worshipped with Grace Assembly Ibadan\? Share a testimony/); assert.match(church, /Online giving · Tithes &amp; offerings/); assert.match(church, /Copy account details/);
+  assert.match(page("school"), />Book a school visit</);
+  assert.match(page("restaurant"), /Ibadan delivery zones/);
+  const re = page("realestate");
+  assert.match(re, /value="100000000">Up to ₦100m/); assert.doesNotMatch(re, />No listing matches/);
+  assert.doesNotMatch(page("shop"), />No products match/);
+  const salon = page("salon"); assert.doesNotMatch(salon, />Our work</, "the lookbook already shows the photos");
+});

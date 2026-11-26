@@ -105,7 +105,58 @@ export function themeFor(brief, opts = {}) {
     else if (!dark.length) base.accent = picked[0];
   }
   base.accentText = luminance(base.accent) > 0.35 ? "#1A1A1A" : "#FFFFFF";
+  // Real web fonts (a phone's own font, e.g. a handwriting font set by its owner, never changes the website):
+  // Playfair Display for elegant/serif looks, Outfit for bold ones, Plus Jakarta Sans for everything else.
+  const headFont = /serif/i.test(base.head || "") && !/sans-serif/i.test(base.head || "") ? "Playfair Display" : base.weight >= 900 || ["fuel", "tech"].includes(base.ind) ? "Outfit" : "Plus Jakarta Sans";
+  base.headFont = headFont;
+  base.head = `'${headFont}', ${headFont === "Playfair Display" ? "Georgia, 'Times New Roman', serif" : "Roboto, 'Helvetica Neue', Arial, sans-serif"}`;
+  base.body = "'Plus Jakarta Sans', Roboto, 'Helvetica Neue', Arial, sans-serif";
+  base.surface = surfaceOf(brief?.surface);
   return base;
+}
+// Page background chosen in the project form or Manage my website.
+export const SURFACES = { tinted: "Brand tinted (recommended)", dark: "Midnight dark", cream: "Warm cream & gold", light: "Crisp light" };
+export function surfaceOf(v) {
+  const t = String(v || "").toLowerCase();
+  return /dark|midnight/.test(t) ? "dark" : /cream|gold/.test(t) ? "cream" : /crisp|light/.test(t) ? "light" : "tinted";
+}
+export function fontsUrl(t) {
+  const fam = ["Plus+Jakarta+Sans:wght@400;600;700;800"];
+  if (t.headFont === "Playfair Display") fam.push("Playfair+Display:wght@700;800");
+  if (t.headFont === "Outfit") fam.push("Outfit:wght@700;800;900");
+  return `https://fonts.googleapis.com/css2?${fam.map((f) => "family=" + f).join("&")}&display=swap`;
+}
+const WARM = ["food", "fashion", "hotel"];
+// The four page backgrounds. Added after the base and industry styles, so they win.
+function surfaceCss(t) {
+  const s = t.surface || "tinted", P = t.primary;
+  const glow = luminance(t.accent) > 0.12 ? t.accent : "#E8C268";
+  const pattern = "radial-gradient(rgba(255,255,255,.09) 1px,transparent 1.6px)";
+  const boxes = ":is(.card,.rm-c,.ls,.bk,.rb,.fo,blockquote,details.faq,.lb-list li)";
+  const shadow = "0 8px 24px rgba(15,23,42,.06)";
+  const heroPattern = `.hero{background-image:${pattern},linear-gradient(135deg,${P},${P}E6);background-size:22px 22px,auto}`;
+  if (s === "dark") return `
+body.s-dark{background:#0B1120;color:#CBD5E1}body.s-dark main{background:transparent}body.s-dark h1,body.s-dark h2,body.s-dark h3,body.s-dark .card h3,body.s-dark .rm-c h3{color:#F8FAFC}body.s-dark :is(p,li,dd,.contact) a:not(.btn):not(.mq-order){color:${glow}}body.s-dark .trust span{background:#1E293B;border-color:#334155;color:#E2E8F0}
+body.s-dark .top{background:#070B16;border-bottom:1px solid #1E293B}body.s-dark .btn{color:${luminance(glow) > 0.35 ? "#111" : "#fff"};background:${glow}}body.s-dark .btn--ghost{background:transparent;color:#fff}
+body.s-dark .hero{background-image:${pattern},radial-gradient(1200px 520px at 85% -10%,${P} 0%,#0B1120 70%);background-size:22px 22px,auto;color:#fff}body.s-dark .hero h1{color:#fff}
+body.s-dark .page-head{background:#070B16;border-bottom:3px solid ${glow}}body.s-dark section.block:nth-of-type(even){background:#0F172A}
+body.s-dark ${boxes}{background:#1E293B;border-color:#334155;color:#E2E8F0;box-shadow:0 8px 24px rgba(0,0,0,.3)}body.s-dark :is(.card .price,.rm-p,.mq-price){color:${glow}}
+body.s-dark :is(input,select,textarea,.shop-search){background:#0F172A!important;color:#E2E8F0!important;border-color:#334155!important}body.s-dark .cat-nav a{background:#1E293B;color:#E2E8F0;border-color:#334155}
+body.s-dark .trust{border-color:#1E293B}body.s-dark .mq-row{border-color:#334155}body.s-dark footer{background:#050810;border-top:1px solid #1E293B}body.s-dark .contact dt{color:#F8FAFC}`;
+  if (s === "cream") return `
+body.s-cream{background:#FDF8F2;color:#3B2A1E}body.s-cream main{background:transparent}body.s-cream h1,body.s-cream h2,body.s-cream h3,body.s-cream .card h3{color:#3B2A1E}body.s-cream :is(p,li,dd,.contact) a:not(.btn):not(.mq-order){color:#8A6420}
+body.s-cream .top{background:#3B2A1E}body.s-cream .btn{background:#C8A15A;color:#2B1D12}body.s-cream .btn--ghost{background:transparent;color:#fff}
+body.s-cream .hero{background-image:${pattern},linear-gradient(135deg,#3B2A1E,#5A4030);background-size:22px 22px,auto;color:#fff}body.s-cream .hero h1{color:#fff}body.s-cream .page-head{background:#3B2A1E}
+body.s-cream section.block:nth-of-type(even){background:#F7EEDF}body.s-cream ${boxes}{background:#FFFDF9;border-color:#E9D9B8;box-shadow:${shadow}}
+body.s-cream :is(.card .price,.rm-p,.mq-price){color:#8A6420}body.s-cream footer{background:#2B1D12}body.s-cream .cta{background:#C8A15A;color:#2B1D12}body.s-cream .cta .btn{background:#3B2A1E;color:#fff}`;
+  if (s === "light") return `
+body.s-light{background:#fff}${heroPattern}
+body.s-light section.block:nth-of-type(even){background:color-mix(in srgb,${P} 10%,#fff);border-block:3px solid color-mix(in srgb,${P} 22%,#fff)}
+body.s-light ${boxes}{background:#fff;box-shadow:${shadow}}`;
+  return `
+body.s-tinted{background:${WARM.includes(t.ind) ? "#FAF6F0" : "#F3F6FA"}}body.s-tinted main{background:transparent}${heroPattern}
+body.s-tinted section.block:nth-of-type(even){background:rgba(255,255,255,.7)}
+body.s-tinted ${boxes}{background:#fff;border-color:rgba(15,23,42,.06);box-shadow:${shadow}}`;
 }
 
 // ---------- Helpers ----------
@@ -196,10 +247,16 @@ function bizEmail(row) {
 }
 // Bump this whenever the look or layout of customer sites changes: the 7am job then republishes every live site
 // still built with an older version (text the owner hasn't published yet is never pushed).
-export const SITE_LOOK = "2026-11-21";
+export const SITE_LOOK = "2026-11-26";
 // What the website owner sees in the "your website was improved" email: plain words, newest look first.
 // Add an entry here every time SITE_LOOK changes.
 export const SITE_LOOK_NOTES = {
+  "2026-11-26": [
+    "A richer look: your page now has a soft brand-tinted background, a patterned colour banner at the top and cards that stand out with a gentle shadow, instead of plain white.",
+    "New page backgrounds you can choose in Manage my website: Brand tinted, Midnight dark, Warm cream & gold or Crisp light.",
+    "Sharper, more professional lettering that looks the same on every phone.",
+    "Schools: the booking form now says “Book a school visit”. Churches: the review box invites testimonies, and you can show online giving details.",
+  ],
   "2026-11-21": [
     "Your website can now be installed like an app: visitors tap “Install our app” (or Add to home screen) and get your own app icon on their phone, with no app store.",
     "On phones, a bar at the bottom gives one-tap Call, WhatsApp, Directions and your main page.",
@@ -255,7 +312,7 @@ function fuelBoardHtml(site) {
   const when = fb.updated ? new Date(fb.updated).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Africa/Lagos" }) : "";
   return `<section class="fuel" aria-labelledby="fuel-h"><div class="wrap"><div class="fb"><div class="fb-top"><h2 id="fuel-h">Today's prices</h2>${when ? `<span>Updated ${esc(when)}</span>` : ""}</div>
 ${fb.items.map((x) => `<div class="fb-row fb-${x.status}"><b>${esc(x.label)}</b><span class="fb-p">${esc(naira(x.price))}<small>${x.per}</small></span><span class="fb-s">${esc(FUEL_STATUS[x.status])}</span></div>`).join("")}</div></div>
-<style>.fuel{padding:28px 0}.fb{background:#0B1220;color:#E2E8F0;border-radius:18px;padding:16px;max-width:640px;box-shadow:0 14px 36px rgba(15,23,42,.25)}.fb-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}.fb-top h2{margin:0;color:#fff;font-size:1.2rem}.fb-top span{font-size:.85rem;color:#94A3B8}
+<style>.fuel{padding:28px 0}.fb{background:#0B1220;color:#E2E8F0;border-radius:18px;padding:16px;max-width:640px;box-shadow:0 14px 36px rgba(15,23,42,.25)}.fb-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}.fuel .fb-top h2{margin:0;color:#fff;font-size:1.2rem}.fb-top span{font-size:.85rem;color:#94A3B8}
 .fb-row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;padding:12px;border-radius:12px;background:#111A2E;margin-top:8px;border-left:4px solid #059669}.fb-row b{color:#fff}.fb-p{grid-row:span 2;font-weight:800;font-size:1.7rem;color:#F59E0B;white-space:nowrap}.fb-p small{font-size:.9rem;color:#FCD34D;margin-left:2px}
 .fb-s{justify-self:start;font-size:.8rem;font-weight:700;border-radius:999px;padding:2px 10px;background:rgba(5,150,105,.2);color:#6EE7B7}.fb-low{border-left-color:#F59E0B}.fb-low .fb-s{background:rgba(245,158,11,.2);color:#FCD34D}.fb-out{border-left-color:#EF4444}.fb-out .fb-s{background:rgba(239,68,68,.2);color:#FCA5A5}.fb-out .fb-p{color:#64748B;text-decoration:line-through}</style></section>`;
 }
@@ -306,6 +363,10 @@ export function buildSiteModel(row) {
     tagline: b.tagline || "",
     notice: String(b.site_notice || "").trim().slice(0, 200), // short note from the owner (Manage my store)
     fuel: fuelBoard(b), // filling stations & gas plants: price board the owner updates in Manage my website
+    worship: /church|ministr|mosque|parish|chapel|cathedral|fellowship|\bassembly\b/i.test([b.business_name, b.description, b.gbp_category].join(" ")),
+    school: /school|academy|college|creche|nursery|kindergarten/i.test([b.business_name, b.description, b.gbp_category].join(" ")),
+    giving: String(b.giving || "").trim().slice(0, 600),
+    givingLink: /^https:\/\//.test(String(b.giving_link || "").trim()) ? String(b.giving_link).trim().slice(0, 300) : "",
     phone: b.phone || row.contact || "",
     whatsapp: waNumber(b.whatsapp || b.phone || row.contact),
     // Once email forwarding works, the site shows their business address (info@theirdomain) instead of their Gmail.
@@ -358,7 +419,7 @@ footer{background:#07090C;border-top:1px solid #1C222C}`;
 
 // ---------- Rendering ----------
 export function css(t) {
-  return `*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#1F2933;line-height:1.6;background:#fff}
+  return `*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;font-family:${t.body || "system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif"};color:#1F2933;line-height:1.6;background:#fff}
 img{max-width:100%;display:block}a{color:${t.primary}}
 h1,h2,h3{font-family:${t.head};font-weight:${t.weight};line-height:1.2;color:${t.primary};margin:0 0 .5em}
 h1{font-size:clamp(2rem,6vw,3.2rem)}h2{font-size:clamp(1.5rem,4vw,2.1rem)}h3{font-size:1.2rem}
@@ -429,7 +490,7 @@ footer{background:#111827;color:#D1D5DB;padding:32px 0 90px;font-size:.95rem}foo
 mark.todo{background:#FFF1B8;color:#5C4400;padding:1px 4px;border-radius:4px}
 article.post{margin-bottom:28px}
 li.qa{margin-bottom:12px}h3+p{margin-top:-.2em}
-section.block:empty,section.block .wrap:empty{display:none}${t.ind && INDUSTRY_CSS[t.ind] ? "\n" + INDUSTRY_CSS[t.ind](t) : ""}`;
+section.block:empty,section.block .wrap:empty{display:none}${t.ind && INDUSTRY_CSS[t.ind] ? "\n" + INDUSTRY_CSS[t.ind](t) : ""}${surfaceCss(t)}`;
 }
 
 // Applied last, after any AI design: keeps every page usable on small phones whatever the design does.
@@ -493,14 +554,14 @@ function listings(site, img) {
     return `<article class="ls" data-t="${esc(text.toLowerCase())}" data-p="${priceAmount(s.price) || 0}">${p ? `<img src="${img(p.url)}" alt="" loading="lazy" decoding="async">` : `<div class="ls-ph"></div>`}<div class="ls-b">${s.price ? `<span class="ls-price">${esc(naira(s.price))}</span>` : ""}<h3>${esc(s.name)}</h3>${place ? `<p class="ls-loc">\ud83d\udccd ${esc(place)}</p>` : ""}${s.details ? `<p>${esc(cut(s.details, 120))}</p>` : ""}${site.whatsapp ? `<a class="btn" href="${waLink(site, `Hello ${site.name}, I'm interested in: ${s.name}`)}">Ask about it</a>` : ""}</div></article>`;
   }).join("");
   const chips = types.length ? `<div class="lf-chips" role="group" aria-label="Type"><button type="button" class="on" data-k="">All</button>${types.map((w) => `<button type="button" data-k="${w.toLowerCase()}">${w}</button>`).join("")}</div>` : "";
-  return `<div class="lf"><input type="search" placeholder="Search by area or type" aria-label="Search listings"><select aria-label="Most you want to pay"><option value="0">Any price</option><option value="1000000">Up to ₦1m</option><option value="5000000">Up to ₦5m</option><option value="20000000">Up to ₦20m</option><option value="50000000">Up to ₦50m</option></select></div>${chips}<div class="lsg">${cards}</div><p class="lf-none" hidden>No listing matches. Try another search, or ask us on WhatsApp.</p>
-<script>(function(){var b=document.currentScript.parentNode,q=b.querySelector('.lf input'),m=b.querySelector('.lf select'),k='';function go(){var t=q.value.toLowerCase().trim(),max=+m.value,n=0;b.querySelectorAll('.ls').forEach(function(c){var ok=(!t||c.dataset.t.indexOf(t)>-1)&&(!k||c.dataset.t.indexOf(k)>-1)&&(!max||!+c.dataset.p||+c.dataset.p<=max);c.hidden=!ok;if(ok)n++});b.querySelector('.lf-none').hidden=n>0}q.addEventListener('input',go);m.addEventListener('change',go);b.querySelectorAll('.lf-chips button').forEach(function(x){x.addEventListener('click',function(){k=x.dataset.k;b.querySelectorAll('.lf-chips button').forEach(function(y){y.classList.toggle('on',y===x)});go()})})})();</script>`;
+  return `<div class="lf"><input type="search" placeholder="Search by area or type" aria-label="Search listings"><select aria-label="Most you want to pay"><option value="0">Any price</option><option value="1000000">Up to ₦1m</option><option value="5000000">Up to ₦5m</option><option value="20000000">Up to ₦20m</option><option value="50000000">Up to ₦50m</option><option value="100000000">Up to ₦100m</option></select></div>${chips}<div class="lsg">${cards}</div><p class="lf-none" hidden data-m="No listing matches. Try another search, or ask us on WhatsApp."></p>
+<script>(function(){var b=document.currentScript.parentNode,q=b.querySelector('.lf input'),m=b.querySelector('.lf select'),k='';function go(){var t=q.value.toLowerCase().trim(),max=+m.value,n=0;b.querySelectorAll('.ls').forEach(function(c){var ok=(!t||c.dataset.t.indexOf(t)>-1)&&(!k||c.dataset.t.indexOf(k)>-1)&&(!max||!+c.dataset.p||+c.dataset.p<=max);c.hidden=!ok;if(ok)n++});var z=b.querySelector('.lf-none');z.hidden=n>0;if(!n)z.textContent=z.dataset.m}q.addEventListener('input',go);m.addEventListener('change',go);b.querySelectorAll('.lf-chips button').forEach(function(x){x.addEventListener('click',function(){k=x.dataset.k;b.querySelectorAll('.lf-chips button').forEach(function(y){y.classList.toggle('on',y===x)});go()})})})();</script>`;
 }
 function booking(site) {
   const cards = `<div class="cards care">${site.services.map((s) => `<div class="card"><h3>\u2714\ufe0e ${esc(s.name)}</h3>${s.details ? `<p>${esc(s.details)}</p>` : ""}${s.price ? `<p class="price">${esc(naira(s.price))}</p>` : ""}</div>`).join("")}</div>`;
   if (!site.whatsapp) return cards;
-  return `${cards}<form class="bk" data-wa="${esc(site.whatsapp)}" data-n="${esc(site.name)}"><h3>Book an appointment</h3><label>Your name<input name="n" required autocomplete="name"></label><label>Phone number<input name="p" type="tel" required autocomplete="tel"></label><label>What for?<select name="s">${site.services.map((s) => `<option>${esc(s.name)}</option>`).join("")}<option>Something else</option></select></label><label>Preferred day<input name="d" type="date"></label><button class="btn" type="submit">Send on WhatsApp</button><p class="bk-note">We reply to confirm the time. Nothing is booked until we confirm.</p></form>
-<script>(function(){var f=document.currentScript.previousElementSibling;f.addEventListener('submit',function(e){e.preventDefault();var g=function(n){return f.elements[n].value.trim()};var t='Hello '+f.dataset.n+', I would like to book an appointment.\\nName: '+g('n')+'\\nPhone: '+g('p')+'\\nFor: '+g('s')+(g('d')?'\\nPreferred day: '+g('d'):'');location.href='https://wa.me/'+f.dataset.wa+'?text='+encodeURIComponent(t)})})();</script>`;
+  return `${cards}<form class="bk" data-wa="${esc(site.whatsapp)}" data-n="${esc(site.name)}" data-v="${site.school ? "a school visit" : "an appointment"}"><h3>${site.school ? "Book a school visit" : "Book an appointment"}</h3><label>Your name<input name="n" required autocomplete="name"></label><label>Phone number<input name="p" type="tel" required autocomplete="tel"></label><label>What for?<select name="s">${site.services.map((s) => `<option>${esc(s.name)}</option>`).join("")}<option>Something else</option></select></label><label>Preferred day<input name="d" type="date"></label><button class="btn" type="submit">Send on WhatsApp</button><p class="bk-note">We reply to confirm the time. Nothing is booked until we confirm.</p></form>
+<script>(function(){var f=document.currentScript.previousElementSibling;f.addEventListener('submit',function(e){e.preventDefault();var g=function(n){return f.elements[n].value.trim()};var t='Hello '+f.dataset.n+', I would like to book '+f.dataset.v+'.\\nName: '+g('n')+'\\nPhone: '+g('p')+'\\nFor: '+g('s')+(g('d')?'\\nPreferred day: '+g('d'):'');location.href='https://wa.me/'+f.dataset.wa+'?text='+encodeURIComponent(t)})})();</script>`;
 }
 // Hotels & short-lets: rooms with nightly rates, and a booking request (dates, room, guests) on WhatsApp with the nights worked out.
 function rooms(site) {
@@ -539,7 +600,7 @@ export const INDUSTRY_CSS = {
 .mq-name b{display:block;font-size:1.05rem}.mq-name span{font-size:.9rem;opacity:.75}.mq-row i{border-bottom:2px dotted #C9B39E;height:0;align-self:center}.mq-price{font-weight:800;color:${t.primary};white-space:nowrap}
 .mq-order{background:${t.accent};color:${t.accentText};text-decoration:none;font-weight:700;border-radius:999px;padding:8px 14px;min-height:40px;display:inline-flex;align-items:center}.mq-note{opacity:.8;font-size:.95rem}
 @media(max-width:560px){.mq-row{grid-template-columns:1fr auto;}.mq-row i{display:none}.mq-order{grid-column:1/-1;justify-content:center}}`,
-  fashion: (t) => `.ind-fashion .hero{background:#F6F1EC;color:#1F1A1C}.ind-fashion .hero h1{color:#1F1A1C;font-size:clamp(2.2rem,5vw,3.4rem)}.ind-fashion .hero p{opacity:.8}.ind-fashion .hero .btn{border-radius:0;background:#1F1A1C;color:#fff}
+  fashion: (t) => `.ind-fashion .hero{background:radial-gradient(rgba(31,26,28,.07) 1px,transparent 1.6px) 0 0/20px 20px,linear-gradient(135deg,#F6F1EC,#EADFD3);color:#1F1A1C;border-bottom:4px solid ${t.accent}}.ind-fashion .hero h1{color:#1F1A1C;font-size:clamp(2.2rem,5vw,3.4rem)}.ind-fashion .hero p{opacity:.8}.ind-fashion .hero .btn{border-radius:0;background:#1F1A1C;color:#fff}
 @media(min-width:820px){.ind-fashion .hero .wrap{grid-template-columns:.9fr 1.1fr}.ind-fashion .hero .wrap>img{order:-1;aspect-ratio:4/5;max-height:600px;border-radius:0;box-shadow:none}}
 .ind-fashion main h2{text-transform:uppercase;letter-spacing:.14em;font-size:1.05rem}.ind-fashion .card{border-radius:0;border-color:#E8DFD6}
 .lb{display:grid;grid-template-columns:repeat(2,1fr);grid-auto-rows:190px;grid-auto-flow:dense;gap:10px}@media(min-width:760px){.lb{grid-template-columns:repeat(4,1fr);grid-auto-rows:240px}}.lb-i{margin:0;position:relative;overflow:hidden}.lb-i img{width:100%;height:100%;object-fit:cover}.lb-tall{grid-row:span 2}
@@ -550,7 +611,7 @@ export const INDUSTRY_CSS = {
 .lf-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}.lf-chips button{font:inherit;font-weight:700;border:1.5px solid #CBD5E1;background:#fff;border-radius:999px;padding:8px 14px;min-height:40px;cursor:pointer}.lf-chips button.on{background:${t.primary};border-color:${t.primary};color:#fff}
 .lsg{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}.ls{border:1px solid #E2E8F0;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.06)}.ls[hidden]{display:none}
 .ls img,.ls-ph{width:100%;aspect-ratio:16/10;object-fit:cover;background:#E2E8F0}.ls-b{padding:14px 16px 16px;position:relative}.ls-price{display:inline-block;background:${t.accent};color:${t.accentText};font-weight:800;border-radius:8px;padding:4px 10px;margin-bottom:8px}.ls-loc{font-weight:600;opacity:.8;margin:0 0 6px}`,
-  care: (t) => `.ind-care .hero{background:linear-gradient(180deg,#EAF6F6,#fff);color:${t.primary}}.ind-care .hero h1{color:${t.primary}}.ind-care .hero p{opacity:.85}
+  care: (t) => `.ind-care .hero{background-image:radial-gradient(rgba(255,255,255,.1) 1px,transparent 1.6px),linear-gradient(135deg,${t.primary},${t.accent});background-size:22px 22px,auto;color:#fff}.ind-care .hero h1{color:#fff}.ind-care .hero p{opacity:.95}
 .ind-care .trust{background:#EAF6F6}.ind-care .trust span{background:#fff;border:1px solid #CFE8E8;border-radius:999px;padding:6px 12px}
 .cards.care .card{border-radius:16px;border-color:#CFE8E8}.cards.care h3{color:${t.primary}}
 .bk{display:grid;gap:12px;max-width:520px;margin-top:24px;padding:20px;border-radius:16px;background:#F4FBFB;border:1px solid #CFE8E8}.bk h3{margin:0}.bk label{display:grid;gap:4px;font-weight:600}.bk input,.bk select{font:inherit;font-size:16px;padding:12px;border:1px solid #B6D9D9;border-radius:10px;min-height:46px;background:#fff}.bk-note{font-size:.9rem;opacity:.75;margin:0}`,
@@ -668,7 +729,7 @@ if(cats.length&&'IntersectionObserver' in window){var io=new IntersectionObserve
 var q=tools.querySelector('.shop-search'),none=document.querySelector('.shop-none');if(q)q.addEventListener('input',function(){var w=q.value.trim().toLowerCase(),n=0;
 document.querySelectorAll('.cards.products .card').forEach(function(c){var hit=w?c.textContent.toLowerCase().indexOf(w)>=0:!(c.hasAttribute('data-more')&&!c.parentNode.classList.contains('open'));c.hidden=!hit;if(hit)n++});
 document.querySelectorAll('.cat-more-row').forEach(function(b){b.hidden=!!w||b.previousElementSibling.classList.contains('open')});
-cats.forEach(function(s){s.hidden=!!w&&!s.querySelector('.card:not([hidden])')});links.forEach(function(a){var s=document.querySelector(a.getAttribute('href'));a.hidden=!!s&&s.hidden});none.hidden=n>0;});}
+cats.forEach(function(s){s.hidden=!!w&&!s.querySelector('.card:not([hidden])')});links.forEach(function(a){var s=document.querySelector(a.getAttribute('href'));a.hidden=!!s&&s.hidden});none.hidden=n>0;if(!n)none.textContent=none.dataset.m;});}
 document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('.cat-more');if(!b)return;var row=b.parentNode,g=row.previousElementSibling;g.classList.add('open');g.querySelectorAll('[data-more]').forEach(function(c){c.hidden=false});row.hidden=true});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();})();</script>`;
 // The shop page: one section per category (with quick links at the top) when there are 2 or more.
@@ -682,7 +743,7 @@ function shopSections(site, img) {
   }
   const id = (c) => "cat-" + slugify(c.name);
   const search = site.products.length > 1 ? `<input class="shop-search" type="search" placeholder="Search ${site.products.length} products" aria-label="Search products" autocomplete="off">` : "";
-  const tools = (nav) => search || nav ? `<div class="shop-tools" id="categories">${search}${nav}</div><p class="shop-none" hidden>No products match. Try another word.</p>${SHOP_JS}` : "";
+  const tools = (nav) => search || nav ? `<div class="shop-tools" id="categories">${search}${nav}</div><p class="shop-none" hidden data-m="No products match. Try another word."></p>${SHOP_JS}` : "";
   // Big stores: a few per category at first ("See all"), so the page opens fast; search still finds every product.
   const big = site.products.length > 60;
   if (cats.length < 2) return tools("") + productCards(site, img, big ? 48 : 0);
@@ -848,7 +909,7 @@ function cartScript(site, mode) {
 <label for="cb-addr">Delivery address</label><select id="cb-saved" hidden aria-label="Your saved addresses"></select><textarea id="cb-addr" rows="2" autocomplete="street-address"></textarea><label for="cb-zone" class="zl" hidden>Delivery area</label><select id="cb-zone" hidden></select><p class="note dnote" hidden></p></div>
 ${(() => { const cut = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, "") + "\u2026" : t; };
   const help = waLink(site, `Hello ${site.name}, I need help with my order.`);
-  return `<div class="trust"><p class="tr-pay" hidden>\ud83d\udd12 <b>Safe checkout</b> \u00b7 online payments go through <span class="tr-by">Paystack</span>. Your card details are never seen by the store.</p>${site.delivery ? `<p>\ud83d\ude9a <b>Delivery</b> \u00b7 ${esc(cut(site.delivery, 110))}</p>` : ""}${site.returns ? `<p>\u21a9\ufe0f <b>Returns</b> \u00b7 ${esc(cut(site.returns, 110))}</p>` : ""}${help ? `<p>\ud83d\udcac <b>Need help?</b> <a href="${help}" target="_blank" rel="noopener">Chat with ${esc(site.name)} on WhatsApp</a></p>` : ""}</div>`; })()}<div class="acts"><button class="pay" type="button" hidden data-m="paystack">Pay online now</button><button class="pay pay2" type="button" hidden data-m="flutterwave">Pay online now</button><button class="pay ptr" type="button" hidden data-m="transfer">Pay by bank transfer</button><button class="pay pod" type="button" hidden data-m="delivery">Pay on delivery</button><button class="pay pin" type="button" hidden data-m="instalment">Pay small-small</button><button class="waorder" type="button">Order on WhatsApp</button></div>
+  return `<div class="trust"><p class="tr-pay" hidden>\ud83d\udd12 <b>Safe checkout</b> \u00b7 online payments go through <span class="tr-by">Paystack</span>. Your card details are never seen by the store.</p>${site.delivery ? `<p>\ud83d\ude9a <b>Delivery</b> \u00b7 ${esc(cut(site.delivery, 110))}</p>` : ""}${site.returns ? `<p>\u21a9\ufe0f <b>Returns</b> \u00b7 ${esc(cut(site.returns, 110))}</p>` : ""}${help ? `<p>\ud83d\udcac <b>Need help?</b> <a href="${help}" target="_blank" rel="noopener">Chat with ${esc(site.name)} on WhatsApp</a></p>` : ""}</div>`; })()}<div class="acts"><button class="pay" type="button" hidden data-m="paystack">Pay online now</button><button class="pay pay2" type="button" hidden data-m="flutterwave">Pay online (Flutterwave)</button><button class="pay ptr" type="button" hidden data-m="transfer">Pay by bank transfer</button><button class="pay pod" type="button" hidden data-m="delivery">Pay on delivery</button><button class="pay pin" type="button" hidden data-m="instalment">Pay small-small</button><button class="waorder" type="button">Order on WhatsApp</button></div>
 <p class="note msg" role="status"></p></div></div></div>
 <script>(function(){var C=${JSON.stringify(cfg).replace(/</g, "\\u003c")};window.__shopC=C;var M={};
 var B=[];try{B=JSON.parse(localStorage.getItem(C.key)||'[]')}catch(e){}
@@ -878,7 +939,7 @@ $('.cart .sum').textContent=money(Q.total);$('.cart .dl').textContent=Z.length&&
 else{$('.cart .sum').textContent=money(sub()+(any&&fee&&!Z.length?fee:0));$('.cart .dl').textContent=Z.length?'Choose your delivery area to see the delivery fee.':fee&&any?'Includes delivery: '+money(fee):'Delivery cost, if any, is confirmed by the store.';}
 $('.cart .brk').innerHTML=brk;var fr=$('.cart .free'),gs=Q?Q.subtotal-Q.discount:sub();fr.hidden=!FO||!B.length;if(FO)fr.textContent=gs>=FO?'\u2713 You get free delivery':'Add '+money(FO-gs)+' more for free delivery';
 Array.prototype.forEach.call(pays,function(b){b.hidden=!M[b.getAttribute('data-m')];b.disabled=!B.length});$('.cart .acts').classList.toggle('two',!!(M.transfer&&M.delivery));var pin=$('.cart .pin');if(pin&&M.instalment&&window.__shopCfg){var tot=Q?Q.total:sub();pin.textContent='Pay small-small (first '+money(Math.ceil(tot*(window.__shopCfg.firstPct||30)/10000)*100)+')'}
-if(M.paystack&&M.flutterwave){$('.cart .pay2').textContent='Pay online (Flutterwave)'}
+if(!M.paystack&&M.flutterwave){$('.cart .pay2').textContent='Pay online now'}
 $('.cart .em-l').textContent=(M.paystack||M.flutterwave)?'Email (needed to pay online)':'Email (optional)';
 $('.cart .waorder').hidden=!C.wa;$('.cart .waorder').disabled=!B.length;}
 function mx(i,v){var vs=window.__shopCfg&&window.__shopCfg.vstock&&window.__shopCfg.vstock[i];if(v&&vs&&vs[v]!==undefined)return +vs[v];var a=document.querySelector('.btn.add[data-i="'+i+'"],.btn.add-opt[data-i="'+i+'"]'),m=a&&a.getAttribute('data-max');return m===null||m===undefined||m===''?99:+m}
@@ -991,7 +1052,7 @@ function reviewsHtml(site, mode, { all = false, form = true } = {}) {
   const summary = R.count ? `<p class="rv-sum">${star(Math.round(R.average))} <b>${R.average.toFixed(1)}</b> out of 5 from ${R.count} review${R.count === 1 ? "" : "s"}</p>` : "";
   const live = mode === "export" && site.statsKey;
   const box = !form ? "" : `<details class="rv-write"${R.count ? "" : " open"}><summary class="btn">${R.count ? "Write a review" : "Be the first to leave a review"}</summary>
-<form class="rv-form card" novalidate><p>${R.count ? "Tell other customers how it went." : `Shopped or worked with ${esc(site.name)}? Tell other customers how it went.`}</p>
+<form class="rv-form card" novalidate><p>${site.worship ? `Worshipped with ${esc(site.name)}? Share a testimony or tell first-time guests what to expect.` : R.count ? "Tell other customers how it went." : `Shopped or worked with ${esc(site.name)}? Tell other customers how it went.`}</p>
 <p class="rv-lbl" id="rv-lbl">Your rating</p><fieldset class="rv-pick" aria-labelledby="rv-lbl">${[5, 4, 3, 2, 1].map((n) => `<input type="radio" name="stars" id="rv${n}" value="${n}"><label for="rv${n}" title="${n} star${n === 1 ? "" : "s"}">\u2605<span class="vh">${n} star${n === 1 ? "" : "s"}</span></label>`).join("")}</fieldset>
 <label for="rv-name">Your name</label><input id="rv-name" name="name" maxlength="50" autocomplete="name">
 <label for="rv-text">Your review (optional)</label><textarea id="rv-text" name="text" maxlength="600" rows="3"></textarea>
@@ -1119,6 +1180,8 @@ function pageBody(site, page, mode, link, img) {
       if (ib) extra(label, ib);
       else extra("What we offer", serviceCards({ ...site, services: sp ? site.services.slice(0, 3) : site.services }, true) + (sp && site.services.length > 3 ? more(sp, "See all services") : ""));
     }
+    // Churches and charities: online giving (bank details with Copy, and their own Paystack giving page).
+    if (site.giving || site.givingLink) extra("Online giving · Tithes & offerings", `<div class="card give">${site.giving ? `<p class="give-d">${esc(site.giving)}</p><button class="btn btn--line" type="button" onclick="var b=this;try{navigator.clipboard.writeText(this.previousElementSibling.textContent).then(function(){b.textContent='Copied ✓'})}catch(e){}">Copy account details</button>` : ""}${site.givingLink ? ` <a class="btn" href="${esc(site.givingLink)}" target="_blank" rel="noopener">Give online (card, transfer, USSD)</a>` : ""}<p class="give-n">Thank you for giving. Please add your name and what it's for (tithe, offering, project) in the transfer note.</p></div><style>.give{max-width:640px}.give-d{white-space:pre-line;font-weight:700;font-size:1.05rem}.btn--line{background:transparent;color:inherit;border:2px solid currentColor}.give-n{margin:12px 0 0;font-size:.92rem;opacity:.8}</style>`);
     // Filling stations & gas plants: bulk diesel / gas delivery request, priced from today's board.
     if (site.fuel && !site.products.length) { const fo = fuelOrder(site); if (fo) extra("Bulk diesel & gas delivery", fo); }
     // Every product on the home page, with the search box and category buttons (the same as the Shop page).
@@ -1127,7 +1190,8 @@ function pageBody(site, page, mode, link, img) {
     const tp = find("testimonials");
     if (site.reviews.count) extra("What customers say", reviewsHtml(site, mode, { all: false, form: !tp }) + more(tp, `Read all ${site.reviews.count} review${site.reviews.count === 1 ? "" : "s"}`));
     else if (!tp) extra("", reviewsHtml(site, mode, { all: false, form: true }));
-    if (site.photos.length > 1) {
+    // (A fashion lookbook already shows these photos on the home page.)
+    if (site.photos.length > 1 && !(site.theme?.ind === "fashion" && site.services.length && !site.products.length)) {
       const gp = find("gallery");
       extra(gp ? "Our work" : "", gallery(site.photos.slice(1, gp ? 5 : 7), img) + more(gp, "See the gallery"));
     }
@@ -1234,9 +1298,10 @@ export function renderPage(site, slug, { mode = "export", link, img = (u) => u, 
 ${seoHead(site, page, { title, desc, img, preview, notFound })}
 ${preview || notFound || orderPage ? '<meta name="robots" content="noindex, nofollow">' : ""}<meta name="theme-color" content="${site.theme.primary}">
 ${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}${mode === "export" && !notFound ? `<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="${site.logo ? img(site.logo.url) : "/app-icon.svg"}"><meta name="mobile-web-app-capable" content="yes">` : ""}
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${fontsUrl(site.theme)}">
 <style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}
 <style id="guard">${GUARD_CSS}${KIT_CSS}${hasCart(site) ? CART_CSS + ACCOUNT_CSS : ""}</style></head>
-<body class="page-${page.kind} kind-${site.kind}${site.theme?.ind ? " ind-" + site.theme.ind : ""}">${preview ? `<div class="pv-top">${top ?? `Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}`}</div>` : ""}
+<body class="page-${page.kind} kind-${site.kind}${site.theme?.ind ? " ind-" + site.theme.ind : ""} s-${site.theme?.surface || "tinted"}">${preview ? `<div class="pv-top">${top ?? `Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}`}</div>` : ""}
 ${site.notice ? `<div class="site-notice" role="status">${esc(site.notice)}</div>` : ""}${header(site, page, link, img)}
 <main>${orderPage ? orderBody() : notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
 ${preview ? panel ?? previewPanel(row, token, choice) : ""}

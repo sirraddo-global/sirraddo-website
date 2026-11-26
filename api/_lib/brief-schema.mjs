@@ -33,6 +33,8 @@ export const SECTIONS = [
       { key: "description", label: "What do you do, and who are your customers?", type: "textarea", required: true, hint: "A few sentences in your own words. We will polish the wording." },
       { key: "started", label: "Year you started (optional)", type: "text" },
       { key: "cac", label: "CAC registration number (optional)", type: "text", hint: "e.g. RC 1234567 or BN 7654321. Shown as \"CAC registered\" to build trust." },
+      { key: "giving", label: "Online giving details (churches, mosques and charities, optional)", type: "textarea", hint: "Bank name, account number and account name for tithes, offerings or donations. Shown with a Copy button." },
+      { key: "giving_link", label: "Online giving link (optional)", type: "text", hint: "Your own Paystack or Flutterwave payment page link, e.g. https://paystack.com/pay/your-church" },
     ],
   },
   {
@@ -68,6 +70,7 @@ export const SECTIONS = [
         hint: "No logo yet? Leave this empty and we will make a simple text logo." },
       { key: "colours", label: "Brand colours", type: "text", hint: "e.g. navy and gold, or \"use the colours in my logo\"" },
       { key: "style", label: "Style you like", type: "select", options: ["Clean and modern", "Bold and colourful", "Elegant and classy", "Simple and friendly", "Not sure – you decide"] },
+      { key: "surface", label: "Page background", type: "select", options: ["Brand tinted (recommended)", "Midnight dark", "Warm cream & gold", "Crisp light", "Not sure – you decide"], hint: "Brand tinted: a soft tint of your colours. Midnight dark: dark pages with gold or green touches. Warm cream & gold: ivory and champagne gold. Crisp light: white with bold coloured bands." },
       { key: "examples", label: "Websites you like (optional)", type: "textarea", hint: "Links, and what you like about them" },
       { key: "example_shots", label: "Screenshots of what you like (optional)", type: "files", max: 3, accept: "image/*",
         hint: "Take screenshots of the parts you like on those websites (the top of the page, colours, a section). We'll make yours in the same spirit, in your own brand." },

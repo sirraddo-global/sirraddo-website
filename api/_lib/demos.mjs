@@ -14,7 +14,7 @@ export const DEMOS = {
       services: [{ name: "Knotless braids", details: "Medium or small, waist length", price: "25000" }, { name: "Wig installation", details: "Frontal or closure, with styling", price: "15000" },
         { name: "Natural hair treatment", details: "Wash, steam and deep conditioning", price: "8000" }, { name: "Gel nails", details: "Hands, with your choice of colour", price: "6000" }],
       testimonials: "Bisi A.: My braids lasted 6 weeks and still looked fresh!\nTolu O.: Very neat and on time. Booking on WhatsApp was easy." },
-    files: { photos: [img("salon"), img("salon-2")] },
+    files: { photos: [img("salon"), img("salon-2"), img("salon-3"), img("salon-4")] },
     md: `## Page: Home
 ### Hero
 **Headline:** Beautiful hair, done right
@@ -56,6 +56,8 @@ export const DEMOS = {
 **Button text:** Order on WhatsApp
 ### Fresh every day
 **Text:** We cook fresh every morning with clean ingredients and generous portions.
+### Ibadan delivery zones
+**Text:** Ring Road & Oluyole ₦1,000 · Bodija & Akobo ₦1,500. Order before 11am for lunch.
 ## Page: Menu
 ### Our menu
 **Text:** Pick your meal and send us a WhatsApp message to order.
@@ -67,14 +69,14 @@ export const DEMOS = {
 **Text:** Some of today's dishes.
 ## Page: Delivery
 ### Delivery
-**Text:** We deliver across Ibadan from ₦1,000. Orders before 11am arrive for lunch.
+**Text:** Ring Road & Oluyole ₦1,000 · Bodija & Akobo ₦1,500 · other parts of Ibadan from ₦2,000. Orders before 11am arrive for lunch.
 ## Page: Contact
 ### Find us
 **Text:** Eat in, take away, or order for delivery.`,
   },
   church: {
     label: "Church & ministry", icon: "⛪", interest: "Business website",
-    brief: { ...base, business_name: "Grace Assembly Ibadan", tagline: "A family of faith", colours: "royal blue and gold", style: "Simple and friendly",
+    brief: { ...base, business_name: "Grace Assembly Ibadan", giving: "Tithes & offerings: Example Bank · 0123456789 · Grace Assembly Ibadan\nBuilding project: Example Bank · 0123456780 · Grace Assembly Building Fund", tagline: "A family of faith", colours: "royal blue and gold", style: "Simple and friendly",
       description: "A friendly church in Agodi, Ibadan with Sunday services, Bible study, youth and children's church.", address: "20 Agodi Road, Ibadan", hours: "Sunday 8am & 10am · Wednesday 6pm",
       pages_10: ["Home", "About us", "Services", "Events", "Gallery", "Contact"],
       services: [{ name: "Sunday service", details: "8am and 10am, with children's church" }, { name: "Bible study", details: "Wednesdays at 6pm" },
@@ -218,12 +220,14 @@ Most results are ready in 24 hours and can be sent to you on WhatsApp.
 **Button text:** Check availability
 ### Everything you need
 **Text:** 24/7 power and solar backup, fast Wi-Fi, 24-hour security, a pool and lounge, and secure parking.
+### Events & Conference Hall
+**Text:** Up to 150 guests, from ₦150,000/day: weddings, birthdays, trainings and AGMs, with sound, projector and backup power.
 ## Page: Rooms
 ### Rooms & short-lets
 **Text:** Nightly rates in naira. Weekly and monthly rates on request.
 ## Page: Events
 ### The Gate Hall
-**Text:** Weddings, birthdays, trainings and AGMs for up to 250 guests, with sound, projector and backup power. Catering on request.
+**Text:** Weddings, birthdays, trainings and AGMs for up to 150 guests, from ₦150,000/day, with sound, projector and backup power. Catering on request.
 ## Page: About us
 ### About RoyalGate
 **Text:** A calm, secure hotel in Jericho GRA, 10 minutes from Dugbe.
@@ -286,9 +290,9 @@ Most results are ready in 24 hours and can be sent to you on WhatsApp.
   },
 };
 
-export function demoRow(key) {
+export function demoRow(key, { surface } = {}) {
   const d = DEMOS[key];
   if (!d) return null;
-  return { id: 0, name: "Demo", business: d.brief.business_name, interest: d.interest, status: "won", brief: d.brief, brief_files: d.files,
+  return { id: 0, name: "Demo", business: d.brief.business_name, interest: d.interest, status: "won", brief: surface ? { ...d.brief, surface } : d.brief, brief_files: d.files,
     draft_md: `# Website text: ${d.brief.business_name}\n\n${d.md}` };
 }

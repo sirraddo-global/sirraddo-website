@@ -6,6 +6,7 @@ import { q, ensureSchema, getMeta, setMeta, getRequest, updateRequest, getSettin
 import { pickProvider, friendlyAiError, ensureAiBackup } from "./providers.mjs";
 import { themeFor, buildSiteModel, productPhotoFor } from "./sitegen.mjs";
 import { kindFor } from "./brief-schema.mjs";
+import { isQuick } from "./graphics.mjs";
 import { shownReviews, listReviews, OUR_ID } from "./reviews.mjs";
 import { FUNCTION_BUDGET_MS } from "./platform.mjs";
 
@@ -66,7 +67,8 @@ export async function referralInfo(id) {
   if (!code) return null;
   const r = await getRequest(id);
   const list = await q(`SELECT id, name, business, interest, status, quote_amount, created_at FROM customer_requests WHERE came_from = $1 AND id <> $2 ORDER BY created_at DESC LIMIT 50`, ["referral:" + code.toLowerCase(), id]);
-  const paid = list.filter((x) => x.status === "won").length;
+  // The reward ("₦5,000 off your renewal") is for businesses that paid for a website, not a design order.
+  const paid = list.filter((x) => x.status === "won" && !isQuick(x.interest)).length;
   return { code, link: refLink(code), list, paid, used: r.ref_used || 0, reward: await rewardText() };
 }
 export async function useReward(id, n) {

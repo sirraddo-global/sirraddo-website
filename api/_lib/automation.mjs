@@ -1,7 +1,7 @@
 // Everything that runs by itself: status rules on every change, customer emails, and the daily run
 // (morning summary with one-tap WhatsApp links, reminders, client site checks, Monday report + backup).
 import tls from "node:tls";
-import { quickByInterest, addWorkdays } from "./graphics.mjs";
+import { quickByInterest, addWorkdays, isQuick } from "./graphics.mjs";
 import { servicesOf, addPeriod } from "./services.mjs";
 import { randomBytes } from "node:crypto";
 import {
@@ -201,7 +201,7 @@ export async function acknowledgeLead(r) {
 
 // The project form link, as soon as it exists.
 export async function emailBriefLink(r) {
-  if (!r.brief_token || r.brief_submitted_at || (r.project_stage && r.project_stage !== "content")) return false;
+  if (!r.brief_token || isQuick(r.interest) || r.brief_submitted_at || (r.project_stage && r.project_stage !== "content")) return false;
   try {
     return await sendOnce(r, "brief-link", "Next step: your project details", customerHtml(r, [
       "Thank you for your deposit. To build your website we need a few details: your business information, pages, photos and logo.",
@@ -268,7 +268,7 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
   // 2. Follow-ups due
   const due = all.filter((r) => isOpen(r) && r.follow_up_on && r.follow_up_on <= today);
   // 3. Won but project form not sent back after 2+ days
-  const waitingForm = (r) => r.status === "won" && r.brief_token && !r.brief_submitted_at && (!r.project_stage || r.project_stage === "content");
+  const waitingForm = (r) => r.status === "won" && !isQuick(r.interest) && r.brief_token && !r.brief_submitted_at && (!r.project_stage || r.project_stage === "content");
   const formsWaiting = all.filter((r) => waitingForm(r) && r.follow_up_on && r.follow_up_on <= today);
   // 4. Balances owed on finished sites
   const owing = all.filter((r) => r.status === "won" && r.project_stage === "live" && (balance(r) || 0) > 0);

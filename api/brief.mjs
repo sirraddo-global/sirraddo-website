@@ -2,6 +2,7 @@
 //   GET  ?t=TOKEN                       -> the questions for their package, saved answers and files
 //   POST { t, answers, submit?, remove_file?: { field, url } }
 // The token in the link is the only key, so it is long and random. No other login is needed.
+import { isQuick } from "./_lib/graphics.mjs";
 import { getBrief, saveBrief, removeBriefFile, sendEmail, emailConfigured, esc } from "./_lib/store.mjs";
 import { kindFor, KIND_LABEL, schemaFor, cleanAnswers, missingRequired, fileField } from "./_lib/brief-schema.mjs";
 import { IDEA_LABELS } from "./_lib/ideas.mjs";
@@ -126,6 +127,7 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       const row = await getBrief(String(query.t || ""));
       if (!row) return res.status(404).json({ error: "This link is not valid. Please ask us for a new one on WhatsApp." });
+      if (isQuick(row.interest)) return res.status(404).json({ error: "Your design order already has everything we need, so there is no form to fill. Follow your order with the tracking link we sent, or message us on WhatsApp." });
       await (await import("./_lib/providers.mjs")).ensureAiBackup();
       return res.status(200).json(publicView(row));
     }
@@ -134,6 +136,7 @@ export default async function handler(req, res) {
       const token = String(body.t || "");
       const row = await getBrief(token);
       if (!row) return res.status(404).json({ error: "This link is not valid. Please ask us for a new one on WhatsApp." });
+      if (isQuick(row.interest)) return res.status(404).json({ error: "This order doesn't use a project form." });
       const kind = kindFor(row.interest);
 
       if (body.remove_file) {

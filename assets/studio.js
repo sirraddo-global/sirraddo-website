@@ -388,6 +388,84 @@
       if (d.details) { var df = fit(c, d.details.replace(/\n/g, ' · '), W - pad * 2, 2, 34 * u, 20 * u, 500); drawLines(c, df, pad, y + 18 * u, 1.3, onColour(t.bg) === '#FFFFFF' ? 'rgba(255,255,255,.85)' : '#374151', 500); }
       pill(c, t, d.contact, W / 2, H - 120 * u, W - 120 * u, 32 * u);
     } },
+    { name: 'Poster type', draw: function (c, W, H, d, t) {
+      var u = W / 1080, pad = 60 * u, tall = H / W > 1.5;
+      c.fillStyle = t.accent; c.fillRect(0, 0, W, H);
+      var ph = H * (tall ? 0.42 : 0.4), py = H - ph - 130 * u;
+      if (d.business) { c.font = '800 ' + 26 * u + 'px ' + FONT; c.fillStyle = onColour(t.accent); c.fillText(d.business.toUpperCase(), pad, 80 * u, W - pad * 2); }
+      var room = py - 30 * u - 110 * u, k = 1, hf, df, block;
+      do { // shrink until the words fit above the photo
+        hf = fit(c, String(d.headline).toUpperCase(), W - pad * 2, 4, (tall ? 170 : 140) * u * k, 40 * u * k, 900);
+        df = d.details ? fit(c, d.details.replace(/\n/g, ' \u00B7 '), W - pad * 2, 2, 34 * u * k, 18 * u, 600) : null;
+        block = hf.size * (1 + (hf.lines.length - 1) * 0.95) + (df ? 16 * u + df.size * (1 + (df.lines.length - 1) * 1.3) : 0); k -= 0.06;
+      } while (block > room && k > 0.4);
+      var y = drawLines(c, hf, pad, 110 * u, 0.95, t.bg, 900);
+      if (df) drawLines(c, df, pad, y + 16 * u, 1.3, onColour(t.accent) === '#FFFFFF' ? 'rgba(255,255,255,.9)' : '#1F2937', 600);
+      c.save(); c.beginPath(); c.rect(0, py, W, ph); c.clip(); c.fillStyle = t.bg; c.fillRect(0, py, W, ph); cover(c, d.photo, 0, py, W, ph, 0.45); c.restore();
+      if (d.offer) sticker(c, t, d.offer, W - 150 * u, py, 110 * u);
+      c.fillStyle = t.bg; c.fillRect(0, H - 130 * u, W, 130 * u);
+      var cf = fit(c, d.contact, W - pad * 2, 1, 34 * u, 18 * u, 800); drawLines(c, cf, W / 2, H - 130 * u + (130 * u - cf.size) / 2 - cf.size * 0.12, 1, onColour(t.bg), 800, 'center');
+    } },
+    { name: 'Magazine cover', draw: function (c, W, H, d, t) {
+      var u = W / 1080, pad = 56 * u;
+      c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
+      if (d.photo && d.photo.__cut) { var gb = c.createRadialGradient(W / 2, H * 0.55, 0, W / 2, H * 0.55, W * 0.75); gb.addColorStop(0, t.accent); gb.addColorStop(1, t.bg); c.globalAlpha = 0.45; c.fillStyle = gb; c.fillRect(0, 0, W, H); c.globalAlpha = 1; cover(c, d.photo, 0, H * 0.2, W, H * 0.62); }
+      else cover(c, d.photo, 0, 0, W, H, 0.4);
+      var g = c.createLinearGradient(0, 0, 0, H * 0.3); g.addColorStop(0, 'rgba(0,0,0,.6)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, W, H * 0.3);
+      var mf = fit(c, (d.business || '').toUpperCase(), W - pad * 2, 1, 150 * u, 50 * u, 900); drawLines(c, mf, W / 2, 40 * u, 1, t.accent, 900, 'center');
+      var g2 = c.createLinearGradient(0, H * 0.55, 0, H); g2.addColorStop(0, 'rgba(0,0,0,0)'); g2.addColorStop(1, 'rgba(0,0,0,.85)'); c.fillStyle = g2; c.fillRect(0, H * 0.55, W, H * 0.45);
+      var hf = fit(c, d.headline, W * 0.62, 4, 80 * u, 34 * u, 900), dfh = d.details ? fit(c, d.details.replace(/\n/g, ' · '), W * 0.62, 3, 30 * u, 18 * u, 500) : null;
+      var block = hf.size * (1 + (hf.lines.length - 1) * 1.05) + (dfh ? 18 * u + dfh.size * (1 + (dfh.lines.length - 1) * 1.3) : 0), y = H - 150 * u - block;
+      c.fillStyle = t.accent; c.fillRect(pad, y - 22 * u, 60 * u, 6 * u);
+      y = drawLines(c, hf, pad, y, 1.05, '#FFFFFF', 900); if (dfh) drawLines(c, dfh, pad, y + 18 * u, 1.3, 'rgba(255,255,255,.85)', 500);
+      if (d.offer) sticker(c, t, d.offer, W - 160 * u, H - 330 * u, 110 * u);
+      pill(c, t, d.contact, W / 2, H - 112 * u, W - 112 * u, 30 * u);
+    } },
+    { name: 'Polaroid', draw: function (c, W, H, d, t) {
+      var u = W / 1080, pad = 60 * u, tall = H / W > 1.5;
+      c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
+      c.fillStyle = t.accent; c.globalAlpha = 0.18; for (var k = 0; k < 9; k++) { c.beginPath(); c.arc((k * 173 % 1000) * u + 40 * u, (k * 311 % 1300) * u * H / 1350 / u * u, (30 + k * 7) * u, 0, Math.PI * 2); c.fill(); } c.globalAlpha = 1;
+      var pw = W * 0.62, phh = pw * 1.05, cx = W / 2, cy = (tall ? H * 0.32 : H * 0.36);
+      c.save(); c.translate(cx, cy); c.rotate(-0.06); c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 36 * u; c.shadowOffsetY = 18 * u; c.fillStyle = '#FFFFFF'; c.fillRect(-pw / 2 - 22 * u, -phh / 2 - 22 * u, pw + 44 * u, phh + 120 * u); c.shadowColor = 'transparent';
+      c.save(); c.beginPath(); c.rect(-pw / 2, -phh / 2, pw, phh); c.clip(); c.fillStyle = '#F3EEE6'; c.fillRect(-pw / 2, -phh / 2, pw, phh); cover(c, d.photo, -pw / 2, -phh / 2, pw, phh, 0.45); c.restore();
+      if (d.business) { var bf = fit(c, d.business, pw, 1, 46 * u, 22 * u, 700); c.font = '700 ' + bf.size + 'px ' + SERIF; c.fillStyle = '#333'; c.textAlign = 'center'; c.fillText(d.business, 0, phh / 2 + 70 * u, pw); c.textAlign = 'left'; }
+      c.restore();
+      if (d.offer) sticker(c, t, d.offer, cx + pw / 2, cy - phh / 2, 100 * u);
+      var hf = fit(c, d.headline, W - pad * 2, 2, (tall ? 100 : 80) * u, 36 * u, 900), df = d.details ? fit(c, d.details.replace(/\n/g, ' \u00B7 '), W - pad * 2, 2, 30 * u, 18 * u, 500) : null;
+      var block = hf.size * (1 + (hf.lines.length - 1) * 1.04) + (df ? 14 * u + df.size * (1 + (df.lines.length - 1) * 1.3) : 0);
+      var y = Math.min(cy + phh / 2 + 160 * u, H - 110 * u - 36 * u - block);
+      y = drawLines(c, hf, W / 2, y, 1.04, onColour(t.bg), 900, 'center');
+      if (df) drawLines(c, df, W / 2, y + 14 * u, 1.3, onColour(t.bg) === '#FFFFFF' ? 'rgba(255,255,255,.85)' : '#374151', 500, 'center');
+      pill(c, t, d.contact, W / 2, H - 110 * u, W - 120 * u, 30 * u);
+    } },
+    { name: 'Side band', draw: function (c, W, H, d, t) {
+      var u = W / 1080, band = 150 * u, pad = 56 * u;
+      c.fillStyle = t.light; c.fillRect(0, 0, W, H);
+      c.fillStyle = t.bg; c.fillRect(0, 0, band, H);
+      c.save(); c.translate(band / 2 + 16 * u, H - 60 * u); c.rotate(-Math.PI / 2); var bf = fit(c, (d.business || '').toUpperCase(), H - 120 * u, 1, 70 * u, 30 * u, 900); c.font = '900 ' + bf.size + 'px ' + fam(900); c.fillStyle = t.accent; c.fillText((d.business || '').toUpperCase(), 0, 0, H - 120 * u); c.restore();
+      var x = band + pad, w = W - x - pad, ph = H * 0.46;
+      c.save(); rr(c, x, pad, w, ph, 18 * u); c.clip(); c.fillStyle = '#EFE7DA'; c.fillRect(x, pad, w, ph); cover(c, d.photo, x, pad, w, ph, 0.45); c.restore();
+      if (d.offer) sticker(c, t, d.offer, x + w - 60 * u, pad + ph - 40 * u, 90 * u);
+      var y = pad + ph + 60 * u, hf = fit(c, d.headline, w, 3, 86 * u, 34 * u, 900);
+      y = drawLines(c, hf, x, y, 1.04, t.bg, 900);
+      if (d.details) { var df = fit(c, d.details.replace(/\n/g, ' · '), w, 3, 30 * u, 20 * u, 500); drawLines(c, df, x, y + 16 * u, 1.35, '#4B5563', 500); }
+      var cf = fit(c, d.contact, w, 2, 30 * u, 18 * u, 800); c.fillStyle = t.bg; c.fillRect(x, H - 150 * u, w, 2 * u); drawLines(c, cf, x, H - 120 * u, 1.2, t.bg, 800);
+    } },
+    { name: 'Ticket', draw: function (c, W, H, d, t) {
+      var u = W / 1080, pad = 70 * u, m = 46 * u;
+      c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
+      var tx = m, ty = m, tw = W - m * 2, th = H - m * 2, cut = H * 0.6;
+      c.save(); c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 30 * u; c.fillStyle = t.light; rr(c, tx, ty, tw, th, 26 * u); c.fill(); c.restore();
+      c.fillStyle = t.bg; [tx, tx + tw].forEach(function (x) { c.beginPath(); c.arc(x, ty + cut, 34 * u, 0, Math.PI * 2); c.fill(); });
+      c.strokeStyle = t.bg; c.setLineDash([14 * u, 12 * u]); c.lineWidth = 3 * u; c.beginPath(); c.moveTo(tx + 50 * u, ty + cut); c.lineTo(tx + tw - 50 * u, ty + cut); c.stroke(); c.setLineDash([]);
+      var px = tx + 30 * u, py = ty + 30 * u, pw = tw - 60 * u, ph = cut * 0.52;
+      c.save(); rr(c, px, py, pw, ph, 18 * u); c.clip(); c.fillStyle = '#EFE7DA'; c.fillRect(px, py, pw, ph); cover(c, d.photo, px, py, pw, ph, 0.45); c.restore();
+      if (d.offer) sticker(c, t, d.offer, px + pw - 50 * u, py + 50 * u, 84 * u);
+      var y = py + ph + 50 * u, hf = fit(c, d.headline, tw - pad * 2, 2, 78 * u, 34 * u, 900); y = drawLines(c, hf, W / 2, y, 1.04, t.bg, 900, 'center');
+      if (d.details) { var df = fit(c, d.details.replace(/\n/g, ' · '), tw - pad * 2, 2, 28 * u, 18 * u, 500); drawLines(c, df, W / 2, y + 12 * u, 1.3, '#4B5563', 500, 'center'); }
+      if (d.business) { var bf = fit(c, (d.business || '').toUpperCase(), tw - pad * 2, 1, 40 * u, 20 * u, 900); drawLines(c, bf, W / 2, ty + cut + 60 * u, 1, darkAccent(t), 900, 'center'); }
+      var cf = fit(c, d.contact, tw - pad * 2, 2, 30 * u, 18 * u, 700); drawLines(c, cf, W / 2, ty + th - 150 * u, 1.3, t.bg, 700, 'center');
+    } },
   ];
 
   // ---------- the editor ----------
@@ -701,15 +779,15 @@
     { name: 'Bold street', layout: 6, head: SANS('Bebas Neue'), font: SANS('Oswald'), serif: SANS('Bebas Neue'), tex: 'grain', deco: 'slashes', theme: { bg: '#141414', accent: '#FF5A1F', light: '#F2F2F2' }, tags: ['barber', 'shoe', 'sneaker', 'clothing', 'wear', 'gym', 'music', 'phone', 'gadget', 'shawarma', 'burger', 'grill', 'thrift', 'okrika'] },
     { name: 'Clean corporate', layout: 1, head: SANS('Montserrat'), font: SANS('Montserrat'), serif: SER('Lora'), tex: '', deco: 'lines', theme: { bg: '#0B3C5D', accent: '#3FC1C9', light: '#F3F7FA' }, tags: ['consult', 'finance', 'account', 'school', 'limited', 'ltd', 'law', 'legal', 'logistics', 'property', 'agency', 'tech', 'software', 'training', 'clinic', 'pharmacy', 'hospital'] },
     { name: 'Warm bakery', layout: 4, head: SER('DM Serif Display'), font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: 'paper', deco: 'dots', theme: { bg: '#6B3E26', accent: '#F4A261', light: '#FFF6EC' }, tags: ['cake', 'bread', 'snack', 'chops', 'pastry', 'kitchen', 'food', 'meat pie', 'doughnut', 'chin chin', 'treat', 'bakery', 'pizza', 'cookies'] },
-    { name: 'Afro print', layout: 0, head: SER('DM Serif Display'), font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: 'paper', deco: 'ankara', theme: { bg: '#1B4332', accent: '#F4A300', light: '#FFF8E7' }, tags: ['ankara', 'tailor', 'fashion', 'adire', 'aso', 'native', 'african', 'culture', 'amala', 'buka', 'canteen', 'restaurant', 'event'] },
+    { name: 'Afro print', layout: 10, head: SER('DM Serif Display'), font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: 'paper', deco: 'ankara', theme: { bg: '#1B4332', accent: '#F4A300', light: '#FFF8E7' }, tags: ['ankara', 'tailor', 'fashion', 'adire', 'aso', 'native', 'african', 'culture', 'amala', 'buka', 'canteen', 'restaurant', 'event'] },
     { name: 'Fresh & natural', layout: 2, font: SANS('Poppins'), serif: SER('Lora'), tex: 'paper', deco: 'leaves', theme: { bg: '#2D6A4F', accent: '#B7E4C7', light: '#F1FAF3' }, tags: ['juice', 'zobo', 'smoothie', 'farm', 'organic', 'salad', 'skin', 'herbal', 'natural', 'soap', 'fruit', 'vegetable', 'tigernut', 'parfait', 'water'] },
-    { name: 'Party pop', layout: 6, font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: '', deco: 'confetti', theme: { bg: '#3A0CA3', accent: '#FFD60A', light: '#FFF9E6' }, tags: ['party', 'birthday', 'celebration', 'kids', 'balloon', 'event', 'surprise', 'money bouquet', 'gift', 'small chops'] },
-    { name: 'Night glow', layout: 3, head: SANS('Montserrat'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'glow', theme: { bg: '#0D0221', accent: '#FF2E88', light: '#F6F1FF' }, tags: ['club', 'lounge', 'bar', 'music', 'concert', 'show', 'night', 'drinks', 'cocktail', 'hookah', 'shawarma', 'grill', 'suya'] },
-    { name: 'Royal', layout: 4, head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'ornate', theme: { bg: '#2B124C', accent: '#E0B354', light: '#F7F2FB' }, tags: ['church', 'wedding', 'royal', 'king', 'queen', 'gala', 'award', 'luxury', 'hotel', 'anniversary', 'coronation'] },
+    { name: 'Party pop', layout: 9, font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: '', deco: 'confetti', theme: { bg: '#3A0CA3', accent: '#FFD60A', light: '#FFF9E6' }, tags: ['party', 'birthday', 'celebration', 'kids', 'balloon', 'event', 'surprise', 'money bouquet', 'gift', 'small chops'] },
+    { name: 'Night glow', layout: 8, head: SANS('Montserrat'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'glow', theme: { bg: '#0D0221', accent: '#FF2E88', light: '#F6F1FF' }, tags: ['club', 'lounge', 'bar', 'music', 'concert', 'show', 'night', 'drinks', 'cocktail', 'hookah', 'shawarma', 'grill', 'suya'] },
+    { name: 'Royal', layout: 11, head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'ornate', theme: { bg: '#2B124C', accent: '#E0B354', light: '#F7F2FB' }, tags: ['church', 'wedding', 'royal', 'king', 'queen', 'gala', 'award', 'luxury', 'hotel', 'anniversary', 'coronation'] },
     { name: 'Faith & calm', layout: 5, head: SER('Playfair Display'), font: SER('Lora'), serif: SER('Playfair Display'), tex: 'paper', deco: 'rays', theme: { bg: '#1D3557', accent: '#F1C40F', light: '#F5F7FB' }, tags: ['church', 'mosque', 'ministry', 'crusade', 'revival', 'prayer', 'ramadan', 'jumat', 'service', 'worship', 'fellowship', 'thanksgiving', 'easter'] },
-    { name: 'Festive', layout: 4, head: SER('Playfair Display'), font: SANS('Poppins'), serif: SER('Playfair Display'), tex: '', deco: 'sparkle', theme: { bg: '#8B0000', accent: '#FFD166', light: '#FFF7EB' }, tags: ['christmas', 'xmas', 'december', 'new year', 'sallah', 'eid', 'easter', 'independence', 'valentine', 'festive', 'season', 'holiday', 'black friday', 'sale'] },
+    { name: 'Festive', layout: 7, head: SER('Playfair Display'), font: SANS('Poppins'), serif: SER('Playfair Display'), tex: '', deco: 'sparkle', theme: { bg: '#8B0000', accent: '#FFD166', light: '#FFF7EB' }, tags: ['christmas', 'xmas', 'december', 'new year', 'sallah', 'eid', 'easter', 'independence', 'valentine', 'festive', 'season', 'holiday', 'black friday', 'sale'] },
     { name: 'Sporty', layout: 6, head: SANS('Oswald'), font: SANS('Oswald'), serif: SANS('Oswald'), tex: 'grain', deco: 'speed', theme: { bg: '#0A1931', accent: '#00D1FF', light: '#EEF6FF' }, tags: ['gym', 'fitness', 'sport', 'football', 'delivery', 'logistics', 'dispatch', 'car', 'auto', 'mechanic', 'wash'] },
-    { name: 'Kids fun', layout: 4, head: SANS('Fredoka'), font: SANS('Fredoka'), serif: SANS('Fredoka'), tex: '', deco: 'bubbles', theme: { bg: '#FF6B6B', accent: '#FFD23F', light: '#E3F6FF' }, tags: ['school', 'kids', 'children', 'toy', 'creche', 'lesson', 'tutor', 'baby', 'nursery', 'summer'] },
+    { name: 'Kids fun', layout: 9, head: SANS('Fredoka'), font: SANS('Fredoka'), serif: SANS('Fredoka'), tex: '', deco: 'bubbles', theme: { bg: '#FF6B6B', accent: '#FFD23F', light: '#E3F6FF' }, tags: ['school', 'kids', 'children', 'toy', 'creche', 'lesson', 'tutor', 'baby', 'nursery', 'summer'] },
     { name: 'Minimal', layout: 5, head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'paper', deco: '', theme: { bg: '#3B2416', accent: '#B08D57', light: '#F7F3EC' }, tags: ['studio', 'photography', 'architect', 'interior', 'design', 'tech', 'consult', 'portfolio'] },
   ];
   function lookByName(n) { for (var i = 0; i < LOOKS.length; i++) if (LOOKS[i].name === n) return LOOKS[i]; return LOOKS[0]; }
@@ -1038,6 +1116,46 @@
     });
   }
   function withPlace(contact, place) { return contact && place ? contact + '  \u00B7  ' + place : contact || place || ''; }
+
+  // Instagram profile preview: the set as it would sit on their profile grid (4:5 tiles, newest first).
+  function igGrid(posts, d, t) {
+    var W = 1080, head = 330, tile = (W - 8) / 3, th = tile * 1.25, rows = Math.ceil(posts.length / 3), H = head + rows * (th + 4);
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d');
+    c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, W, H);
+    var cx = 130, cy = 140, r = 90;
+    c.save(); c.beginPath(); c.arc(cx, cy, r + 8, 0, Math.PI * 2); var ring = c.createLinearGradient(cx - r, cy + r, cx + r, cy - r); ring.addColorStop(0, '#F9CE34'); ring.addColorStop(0.5, '#EE2A7B'); ring.addColorStop(1, '#6228D7'); c.fillStyle = ring; c.fill(); c.restore();
+    c.save(); c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.clip(); c.fillStyle = t.bg; c.fillRect(cx - r, cy - r, r * 2, r * 2);
+    if (d.logo) { var k = Math.min(r * 1.4 / d.logo.width, r * 1.4 / d.logo.height); c.drawImage(d.logo, cx - d.logo.width * k / 2, cy - d.logo.height * k / 2, d.logo.width * k, d.logo.height * k); }
+    else { c.font = '800 70px ' + FONT; c.fillStyle = t.accent; c.textAlign = 'center'; c.fillText(String(d.business || '?').replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase(), cx, cy + 25); c.textAlign = 'left'; }
+    c.restore();
+    var handle = (d.socials && d.socials[0]) || ('@' + String(d.business || 'yourbusiness').toLowerCase().replace(/[^a-z0-9]+/g, ''));
+    c.fillStyle = '#111'; c.font = '700 40px ' + FONT; c.fillText(handle.replace(/^@/, ''), 260, 110, W - 300);
+    c.font = '600 32px ' + FONT; c.fillText(d.business || '', 260, 160, W - 300);
+    c.font = '400 28px ' + FONT; c.fillStyle = '#444'; c.fillText(String(d.place || d.special || '').slice(0, 60), 260, 205, W - 300);
+    c.fillStyle = '#EFEFEF'; c.fillRect(40, 250, W - 80, 56); c.fillStyle = '#111'; c.font = '700 26px ' + FONT; c.textAlign = 'center'; c.fillText('Follow', W / 2, 287); c.textAlign = 'left';
+    posts.forEach(function (p, i) {
+      var x = (i % 3) * (tile + 4), y = head + Math.floor(i / 3) * (th + 4);
+      var k = Math.max(tile / p.width, th / p.height), w = p.width * k, h = p.height * k;
+      c.save(); c.beginPath(); c.rect(x, y, tile, th); c.clip(); c.drawImage(p, x + (tile - w) / 2, y + (th - h) / 2, w, h); c.restore();
+    });
+    return cv;
+  }
+  // Business cards printed and lying on a table: back card tilted behind, front card on top, soft shadows.
+  function cardMockup(front, back, t) {
+    var W = 1600, H = 1100, cv = document.createElement('canvas'); cv.width = W; cv.height = H; var c = cv.getContext('2d');
+    var g = c.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#E9E1D6'); g.addColorStop(1, '#CFC3B3'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+    c.globalAlpha = 0.06; c.globalCompositeOperation = 'multiply'; c.fillStyle = c.createPattern(noise(), 'repeat'); c.fillRect(0, 0, W, H); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
+    function place(img, x, y, a, s) {
+      c.save(); c.translate(x, y); c.rotate(a); var w = img.width * s, h = img.height * s;
+      c.shadowColor = 'rgba(40,25,10,.35)'; c.shadowBlur = 40; c.shadowOffsetX = 14; c.shadowOffsetY = 24; c.fillStyle = '#fff'; c.fillRect(-w / 2, -h / 2, w, h);
+      c.shadowColor = 'transparent'; c.drawImage(img, -w / 2, -h / 2, w, h);
+      var sh = c.createLinearGradient(-w / 2, -h / 2, w / 2, h / 2); sh.addColorStop(0, 'rgba(255,255,255,.18)'); sh.addColorStop(0.5, 'rgba(255,255,255,0)'); sh.addColorStop(1, 'rgba(0,0,0,.06)'); c.fillStyle = sh; c.fillRect(-w / 2, -h / 2, w, h);
+      c.restore();
+    }
+    place(back, W * 0.6, H * 0.4, 0.12, 0.85);
+    place(front, W * 0.42, H * 0.6, -0.08, 0.9);
+    return cv;
+  }
   // ---------- Quick preview for the public order form: 3 small drafts from what the customer typed ----------
   var prevCache = {};
   function previewDesigns(o, width) {
@@ -1439,7 +1557,7 @@
     // ---------- Set of N (e.g. 5 social media posts): same look, a different photo on each ----------
     var setN = Math.max(0, Math.min(10, Number(o.set) || 0));
     // Each post can have its own words (empty = the main headline); the AI can write them from the photo labels.
-    var setMsg = el('small', { class: 'st-bgmsg' }), setText = [], setWords = el('div', { class: 'st-setwords' });
+    var igOut = el('div', { class: 'st-vid' }), setMsg = el('small', { class: 'st-bgmsg' }), setText = [], setWords = el('div', { class: 'st-setwords' });
     for (var sn = 0; sn < setN; sn++) (function (n) {
       var h = el('input', { maxlength: '60', placeholder: 'Post ' + (n + 1) + ' headline (empty = main headline)' }), l = el('input', { maxlength: '110', placeholder: 'Post ' + (n + 1) + ' line' });
       h.addEventListener('input', function () { drawSet(); }); l.addEventListener('input', function () { drawSet(); });
@@ -1458,6 +1576,13 @@
     var setRow = el('div', { class: 'st-thumbs' }), setBox = el('div', { class: 'st-set', hidden: setN ? null : '' }, [
       el('b', { text: 'The set of ' + setN + ' (same look as the chosen option, a different photo on each)' }), setRow,
       el('div', { class: 'st-bgrow' }, [el('button', { class: 'admin-btn', type: 'button', text: '\u2728 Write different words for each post (AI)', onclick: writeSet }), setMsg]), setWords,
+      el('button', { class: 'admin-btn', type: 'button', text: '\uD83D\uDCF1 Instagram grid preview', onclick: function () {
+        var posts = setOrder().map(function (pi, n) { return render(state.layout, 540, 675, pi, setOver(n)); }).reverse();
+        var dd = data(), cv = igGrid(posts, { logo: dd.logo, business: dd.business, socials: (dd.socials || []).concat(dd.cardSocials || []), place: dd.place || f.place.value, special: (o.info || {}).sell }, themeFor(state.layout));
+        var url = cv.toDataURL('image/jpeg', 0.9); igOut.innerHTML = '';
+        igOut.appendChild(el('img', { src: url, alt: 'Instagram grid preview', style: 'max-width:320px;width:100%;border-radius:12px;border:1px solid #ddd' }));
+        igOut.appendChild(el('a', { class: 'admin-btn', href: url, download: 'instagram-grid-preview.jpg', text: 'Download preview' }));
+      } }), igOut,
       el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Download the set of ' + setN, onclick: function () { setOrder().forEach(function (pi, n) { setTimeout(function () { download(state.layout, pi, n + 1, setOver(n)); }, n * 450); }); } }),
       el('small', { class: 'admin-hint', text: 'Change the words between downloads if each post needs its own message.' }),
     ]);
@@ -1498,8 +1623,14 @@
       el('b', { text: 'Show it off' }),
       el('div', { class: 'admin-actions' }, [
         el('button', { class: 'admin-btn', type: 'button', text: '🖼️ Mockups of this option', onclick: function () {
-          if (!o.mockupApi) { pfMsg.textContent = 'Works from the admin page.'; return; }
           mkOut.innerHTML = '';
+          if (state.mode === 'card') { // print mockup of the chosen card: front and back on a table
+            var sides = ['front', 'back'].map(function (side) { var cv = document.createElement('canvas'); cv.width = CARD.w; cv.height = CARD.h; withLook(state.layout, function (L, t) { CARD_PREVIEW[state.layout].side(side, cv.getContext('2d'), CARD.w, CARD.h, data(), t); }); return cv; });
+            var mk = cardMockup(sides[0], sides[1], themeFor(state.layout)).toDataURL('image/jpeg', 0.9);
+            mkOut.appendChild(el('figure', { class: 'mk-fig' }, [el('img', { src: mk, alt: 'Printed business cards' }), el('a', { class: 'admin-btn', href: mk, download: 'business-card-mockup.jpg', text: 'Download mockup' })]));
+            return;
+          }
+          if (!o.mockupApi) { pfMsg.textContent = 'Works from the admin page.'; return; }
           o.mockupApi(shot(state.layout, 1600), 'Option ' + (state.layout + 1)).forEach(function (m) {
             var data = m[1].toDataURL('image/jpeg', 0.9), name = (f.business.value || 'design').replace(/\W+/g, '-').toLowerCase() + '-option-' + (state.layout + 1) + '-' + m[0].toLowerCase().replace(/\W+/g, '-') + '.jpg';
             mkOut.appendChild(el('figure', { class: 'mk-fig' }, [el('img', { src: data, alt: m[0] }), el('a', { class: 'admin-btn', href: data, download: name, text: 'Download ' + m[0].toLowerCase() })]));

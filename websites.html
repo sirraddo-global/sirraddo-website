@@ -191,7 +191,8 @@
     <!-- ===== Our work =====
          The Restaurant/School/Shop demo cards are switched on or off with SHOW_DEMO_CARDS in site.config.mjs.
          To show a real project in a placeholder card: replace the "Preview coming soon" div with
-         a work-preview div with an img of the site (saved in assets/work/),
+         a work-preview div with an img of the site (saved in assets/work/), inside .dev (laptop);
+         add <div class="dev-phone"><img …-mobile.jpg></div> after .dev-base when a phone screenshot (390×780) exists,
          change the badge, title and text, and add a link like the ZAPPI PAY card. -->
     <section class="section section--grey" id="work" aria-labelledby="work-title">
       <div class="container">
@@ -201,7 +202,7 @@
         </div>
         <div class="grid grid--3">
           <article class="card work">
-            <div class="work-preview work-preview--shot"><img src="/assets/work/zappi-pay.jpg" alt="Home page of the ZAPPI PAY website" width="960" height="600" loading="lazy" decoding="async"></div>
+            <div class="work-preview work-preview--shot"><div class="dev" aria-hidden="false"><div class="dev-screen"><span class="dev-bar" aria-hidden="true"><i></i><i></i><i></i></span><img src="/assets/work/zappi-pay.jpg" alt="Home page of the ZAPPI PAY website" width="960" height="600" loading="lazy" decoding="async"></div><div class="dev-base" aria-hidden="true"></div></div></div>
             <div class="work-body">
               <h3>ZAPPI PAY</h3>
               <p>Bill payment app for airtime, data, electricity, cable TV and exam PINs.</p>
@@ -209,7 +210,7 @@
             </div>
           </article>
           <article class="card work">
-            <div class="work-preview work-preview--shot"><img src="/assets/work/demo-store.jpg" alt="Home page of the SIRRADDO DEMO STORE website" width="960" height="600" loading="lazy" decoding="async"></div>
+            <div class="work-preview work-preview--shot"><div class="dev" aria-hidden="false"><div class="dev-screen"><span class="dev-bar" aria-hidden="true"><i></i><i></i><i></i></span><img src="/assets/work/demo-store.jpg" alt="Home page of the SIRRADDO DEMO STORE website" width="960" height="600" loading="lazy" decoding="async"></div><div class="dev-base" aria-hidden="true"></div></div></div>
             <div class="work-body">
               <h3>SIRRADDO DEMO STORE</h3>
               <p>Our sample Online Store: 90 products in categories, search, cart, card or transfer payments by Paystack and WhatsApp orders. Try it.</p>
@@ -217,7 +218,7 @@
             </div>
           </article>
           <article class="card work">
-            <div class="work-preview work-preview--shot"><img src="/assets/work/sirraddo.jpg" alt="Home page of the SIRRADDO GLOBAL LIMITED website" width="960" height="600" loading="lazy" decoding="async"></div>
+            <div class="work-preview work-preview--shot"><div class="dev" aria-hidden="false"><div class="dev-screen"><span class="dev-bar" aria-hidden="true"><i></i><i></i><i></i></span><img src="/assets/work/sirraddo.jpg" alt="Home page of the SIRRADDO GLOBAL LIMITED website" width="960" height="600" loading="lazy" decoding="async"></div><div class="dev-base" aria-hidden="true"></div><div class="dev-phone"><img src="/assets/work/sirraddo-mobile.jpg" alt="The same website on a phone" width="390" height="780" loading="lazy" decoding="async"></div></div></div>
             <div class="work-body">
               <h3>SIRRADDO GLOBAL LIMITED</h3>
               <p>This website: our company site, with registration and compliance details.</p>

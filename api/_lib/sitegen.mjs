@@ -72,11 +72,11 @@ function luminance(hex) {
 // Colours and heading font by type of business, used when the customer gave no colours, so a bakery never
 // looks like a law firm. New sites only (opts.industry): live sites keep their look until the owner asks.
 const INDUSTRIES = [
-  { re: /bak|cake|food|kitchen|restaurant|cater|chops|snack|pastr|drink|zobo|juice|eatery|grill|suya|bread|confection|parfait/i, primary: "#3B2416", accent: "#C8963E", head: "Georgia, 'Times New Roman', serif" },
-  { re: /fashion|hair|wig|beauty|salon|makeup|cosmetic|boutique|cloth|tailor|lash|nail|spa|skincare|perfume|jewel/i, primary: "#1F1A1C", accent: "#C9A27E", head: "Georgia, 'Times New Roman', serif" },
-  { re: /real estate|property|properties|realtor|construction|building|estate|land|architect|interior/i, primary: "#12372A", accent: "#C9971C" },
-  { re: /clinic|hospital|pharmac|health|medical|dental|lab|school|academy|college|tutor|lesson|creche|nursery/i, primary: "#0B3C5D", accent: "#0FA3A3" },
-  { re: /tech|software|fintech|it services|computer|digital|app|consult|finance|account|legal|law|logistics|limited|ltd/i, primary: "#111827", accent: "#2563EB" },
+  { key: "food", re: /bak|cake|food|kitchen|restaurant|cater|chops|snack|pastr|drink|zobo|juice|eatery|grill|suya|bread|confection|parfait/i, primary: "#3B2416", accent: "#C8963E", head: "Georgia, 'Times New Roman', serif" },
+  { key: "fashion", re: /fashion|hair|wig|beauty|salon|makeup|cosmetic|boutique|cloth|tailor|lash|nail|spa|skincare|perfume|jewel/i, primary: "#1F1A1C", accent: "#C9A27E", head: "Georgia, 'Times New Roman', serif" },
+  { key: "property", re: /real estate|property|properties|realtor|construction|building|estate|land|architect|interior/i, primary: "#12372A", accent: "#C9971C" },
+  { key: "care", re: /clinic|hospital|pharmac|health|medical|dental|lab|school|academy|college|tutor|lesson|creche|nursery/i, primary: "#0B3C5D", accent: "#0FA3A3" },
+  { key: "tech", re: /tech|software|fintech|it services|computer|digital|app|consult|finance|account|legal|law|logistics|limited|ltd/i, primary: "#111827", accent: "#2563EB" },
 ];
 export function industryOf(brief) {
   const text = [brief?.gbp_category, brief?.description, brief?.business_name, brief?.tagline].filter(Boolean).join(" ");
@@ -84,8 +84,9 @@ export function industryOf(brief) {
 }
 export function themeFor(brief, opts = {}) {
   const base = { ...(THEMES[brief?.style] || THEMES["Clean and modern"]) };
-  const ind = opts.industry && !String(brief?.colours || "").trim() ? industryOf(brief) : null;
-  if (ind) { base.primary = ind.primary; base.accent = ind.accent; if (ind.head) base.head = ind.head; }
+  const ind0 = opts.industry ? industryOf(brief) : null, ind = ind0 && !String(brief?.colours || "").trim() ? ind0 : null;
+  if (ind0) base.ind = ind0.key;
+  if (ind) { base.primary = ind.primary; base.accent = ind.accent; if (ind.head) base.head = ind.head; base.ind = ind.key; }
   const text = String(brief?.colours || "").toLowerCase();
   const found = [];
   for (const name of Object.keys(COLOURS).sort((a, b) => b.length - a.length)) {
@@ -393,7 +394,7 @@ footer{background:#111827;color:#D1D5DB;padding:32px 0 90px;font-size:.95rem}foo
 mark.todo{background:#FFF1B8;color:#5C4400;padding:1px 4px;border-radius:4px}
 article.post{margin-bottom:28px}
 li.qa{margin-bottom:12px}h3+p{margin-top:-.2em}
-section.block:empty,section.block .wrap:empty{display:none}`;
+section.block:empty,section.block .wrap:empty{display:none}${t.ind && INDUSTRY_CSS[t.ind] ? "\n" + INDUSTRY_CSS[t.ind](t) : ""}`;
 }
 
 // Applied last, after any AI design: keeps every page usable on small phones whatever the design does.
@@ -432,6 +433,76 @@ function contactCard(site, mode) {
   if (!rows.length) return mode === "preview" ? `<p><mark class="todo">To be added: contact details</mark></p>` : "";
   return `<div class="card contact"><dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl>${site.whatsapp ? `<a class="btn" href="${waLink(site)}">Message us on WhatsApp</a>` : ""}</div>`;
 }
+const cut = (t, n) => { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1).replace(/\s+\S*$/, "") + "\u2026" : t; };
+// ---------- Page structure by type of business (new sites, see themeFor) ----------
+// Food: a menu with prices and an Order button per dish. Fashion/beauty: an editorial lookbook grid.
+// Property: listing cards with a search and filters. Clinics/schools: services + a booking form that opens WhatsApp.
+function menuQuick(site) {
+  const rows = site.services.map((s) => {
+    const msg = `Hello ${site.name}, I'd like to order: ${s.name}${s.price ? ` (${naira(s.price)})` : ""}`;
+    return `<li class="mq-row"><div class="mq-name"><b>${esc(s.name)}</b>${s.details ? `<span>${esc(s.details)}</span>` : ""}</div><i aria-hidden="true"></i>${s.price ? `<span class="mq-price">${esc(naira(s.price))}</span>` : ""}${site.whatsapp ? `<a class="mq-order" href="${waLink(site, msg)}">Order</a>` : ""}</li>`;
+  }).join("");
+  return `<ul class="mq">${rows}</ul>${site.whatsapp ? `<p class="mq-note">Tap <b>Order</b> and your message is ready on WhatsApp. ${site.delivery ? esc(cut(site.delivery, 90)) : ""}</p>` : ""}`;
+}
+function lookbook(site, img) {
+  const pics = site.photos.slice(1, 9);
+  const grid = pics.length ? `<div class="lb">${pics.map((p, i) => `<figure class="lb-i${i % 3 === 0 ? " lb-tall" : ""}"><img src="${img(p.url)}" alt="" loading="lazy" decoding="async">${site.services[i] ? `<figcaption>${esc(site.services[i].name)}</figcaption>` : ""}</figure>`).join("")}</div>` : "";
+  const list = site.services.length ? `<ul class="lb-list">${site.services.map((s) => `<li><span>${esc(s.name)}</span>${s.price ? `<b>${esc(naira(s.price))}</b>` : ""}</li>`).join("")}</ul>` : "";
+  return grid + list;
+}
+function listings(site, img) {
+  const types = ["Rent", "Sale", "Land", "Shortlet", "Lease", "Duplex", "Flat", "Bungalow", "Office", "Shop"].filter((w) => site.services.some((s) => new RegExp(`\\b${w}`, "i").test(`${s.name} ${s.details}`)));
+  const cards = site.services.map((s, i) => {
+    const text = `${s.name} ${s.details || ""}`, place = (String(s.name).match(/\b(?:in|at)\s+([A-Z][\w'-]+(?:\s(?!For\b|With\b)[A-Z][\w'-]+)?)\s*$/) || [])[1] || "";
+    const p = site.photos[i + 1] || site.photos[0];
+    return `<article class="ls" data-t="${esc(text.toLowerCase())}" data-p="${priceAmount(s.price) || 0}">${p ? `<img src="${img(p.url)}" alt="" loading="lazy" decoding="async">` : `<div class="ls-ph"></div>`}<div class="ls-b">${s.price ? `<span class="ls-price">${esc(naira(s.price))}</span>` : ""}<h3>${esc(s.name)}</h3>${place ? `<p class="ls-loc">\ud83d\udccd ${esc(place)}</p>` : ""}${s.details ? `<p>${esc(cut(s.details, 120))}</p>` : ""}${site.whatsapp ? `<a class="btn" href="${waLink(site, `Hello ${site.name}, I'm interested in: ${s.name}`)}">Ask about it</a>` : ""}</div></article>`;
+  }).join("");
+  const chips = types.length ? `<div class="lf-chips" role="group" aria-label="Type"><button type="button" class="on" data-k="">All</button>${types.map((w) => `<button type="button" data-k="${w.toLowerCase()}">${w}</button>`).join("")}</div>` : "";
+  return `<div class="lf"><input type="search" placeholder="Search by area or type" aria-label="Search listings"><select aria-label="Most you want to pay"><option value="0">Any price</option><option value="1000000">Up to ₦1m</option><option value="5000000">Up to ₦5m</option><option value="20000000">Up to ₦20m</option><option value="50000000">Up to ₦50m</option></select></div>${chips}<div class="lsg">${cards}</div><p class="lf-none" hidden>No listing matches. Try another search, or ask us on WhatsApp.</p>
+<script>(function(){var b=document.currentScript.parentNode,q=b.querySelector('.lf input'),m=b.querySelector('.lf select'),k='';function go(){var t=q.value.toLowerCase().trim(),max=+m.value,n=0;b.querySelectorAll('.ls').forEach(function(c){var ok=(!t||c.dataset.t.indexOf(t)>-1)&&(!k||c.dataset.t.indexOf(k)>-1)&&(!max||!+c.dataset.p||+c.dataset.p<=max);c.hidden=!ok;if(ok)n++});b.querySelector('.lf-none').hidden=n>0}q.addEventListener('input',go);m.addEventListener('change',go);b.querySelectorAll('.lf-chips button').forEach(function(x){x.addEventListener('click',function(){k=x.dataset.k;b.querySelectorAll('.lf-chips button').forEach(function(y){y.classList.toggle('on',y===x)});go()})})})();</script>`;
+}
+function booking(site) {
+  const cards = `<div class="cards care">${site.services.map((s) => `<div class="card"><h3>\u2714\ufe0e ${esc(s.name)}</h3>${s.details ? `<p>${esc(s.details)}</p>` : ""}${s.price ? `<p class="price">${esc(naira(s.price))}</p>` : ""}</div>`).join("")}</div>`;
+  if (!site.whatsapp) return cards;
+  return `${cards}<form class="bk" data-wa="${esc(site.whatsapp)}" data-n="${esc(site.name)}"><h3>Book an appointment</h3><label>Your name<input name="n" required autocomplete="name"></label><label>Phone number<input name="p" type="tel" required autocomplete="tel"></label><label>What for?<select name="s">${site.services.map((s) => `<option>${esc(s.name)}</option>`).join("")}<option>Something else</option></select></label><label>Preferred day<input name="d" type="date"></label><button class="btn" type="submit">Send on WhatsApp</button><p class="bk-note">We reply to confirm the time. Nothing is booked until we confirm.</p></form>
+<script>(function(){var f=document.currentScript.previousElementSibling;f.addEventListener('submit',function(e){e.preventDefault();var g=function(n){return f.elements[n].value.trim()};var t='Hello '+f.dataset.n+', I would like to book an appointment.\\nName: '+g('n')+'\\nPhone: '+g('p')+'\\nFor: '+g('s')+(g('d')?'\\nPreferred day: '+g('d'):'');location.href='https://wa.me/'+f.dataset.wa+'?text='+encodeURIComponent(t)})})();</script>`;
+}
+export const INDUSTRY_CSS = {
+  food: (t) => `.ind-food .hero:has(.wrap>img){position:relative;overflow:hidden;padding:110px 0 56px;background:#2B1A10}.ind-food .hero:has(.wrap>img) .wrap{display:block}
+.ind-food .hero .wrap>img{position:absolute;inset:0;width:100%;height:100%;max-height:none;border-radius:0;box-shadow:none;object-fit:cover}
+.ind-food .hero:has(.wrap>img)::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(25,14,6,.2),rgba(25,14,6,.85))}.ind-food .hero .wrap>div{position:relative;z-index:1;max-width:640px}
+.ind-food main{background:#FBF5EC}.mq{list-style:none;margin:0;padding:0;display:grid;gap:4px;max-width:820px}.mq-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:12px 0;border-bottom:1px dashed #D9C6AE}
+.mq-name b{display:block;font-size:1.05rem}.mq-name span{font-size:.9rem;opacity:.75}.mq-row i{border-bottom:2px dotted #C9B39E;height:0;align-self:center}.mq-price{font-weight:800;color:${t.primary};white-space:nowrap}
+.mq-order{background:${t.accent};color:${t.accentText};text-decoration:none;font-weight:700;border-radius:999px;padding:8px 14px;min-height:40px;display:inline-flex;align-items:center}.mq-note{opacity:.8;font-size:.95rem}
+@media(max-width:560px){.mq-row{grid-template-columns:1fr auto;}.mq-row i{display:none}.mq-order{grid-column:1/-1;justify-content:center}}`,
+  fashion: (t) => `.ind-fashion .hero{background:#F6F1EC;color:#1F1A1C}.ind-fashion .hero h1{color:#1F1A1C;font-size:clamp(2.2rem,5vw,3.4rem)}.ind-fashion .hero p{opacity:.8}.ind-fashion .hero .btn{border-radius:0;background:#1F1A1C;color:#fff}
+@media(min-width:820px){.ind-fashion .hero .wrap{grid-template-columns:.9fr 1.1fr}.ind-fashion .hero .wrap>img{order:-1;aspect-ratio:4/5;max-height:600px;border-radius:0;box-shadow:none}}
+.ind-fashion main h2{text-transform:uppercase;letter-spacing:.14em;font-size:1.05rem}.ind-fashion .card{border-radius:0;border-color:#E8DFD6}
+.lb{display:grid;grid-template-columns:repeat(2,1fr);grid-auto-rows:190px;grid-auto-flow:dense;gap:10px}@media(min-width:760px){.lb{grid-template-columns:repeat(4,1fr);grid-auto-rows:240px}}.lb-i{margin:0;position:relative;overflow:hidden}.lb-i img{width:100%;height:100%;object-fit:cover}.lb-tall{grid-row:span 2}
+.lb-i figcaption{position:absolute;left:0;bottom:0;background:#fff;color:#1F1A1C;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;padding:6px 10px}
+.lb-list{list-style:none;padding:0;margin:24px 0 0;max-width:720px}.lb-list li{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #E8DFD6}.lb-list b{white-space:nowrap}`,
+  property: (t) => `.ind-property .hero .wrap>div{border-left:4px solid ${t.accent};padding-left:20px}
+.lf{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:10px}.lf input,.lf select{font:inherit;font-size:16px;padding:12px;border:1px solid #CBD5E1;border-radius:10px;min-height:46px;background:#fff}
+.lf-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}.lf-chips button{font:inherit;font-weight:700;border:1.5px solid #CBD5E1;background:#fff;border-radius:999px;padding:8px 14px;min-height:40px;cursor:pointer}.lf-chips button.on{background:${t.primary};border-color:${t.primary};color:#fff}
+.lsg{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}.ls{border:1px solid #E2E8F0;border-radius:14px;overflow:hidden;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.06)}.ls[hidden]{display:none}
+.ls img,.ls-ph{width:100%;aspect-ratio:16/10;object-fit:cover;background:#E2E8F0}.ls-b{padding:14px 16px 16px;position:relative}.ls-price{display:inline-block;background:${t.accent};color:${t.accentText};font-weight:800;border-radius:8px;padding:4px 10px;margin-bottom:8px}.ls-loc{font-weight:600;opacity:.8;margin:0 0 6px}`,
+  care: (t) => `.ind-care .hero{background:linear-gradient(180deg,#EAF6F6,#fff);color:${t.primary}}.ind-care .hero h1{color:${t.primary}}.ind-care .hero p{opacity:.85}
+.ind-care .trust{background:#EAF6F6}.ind-care .trust span{background:#fff;border:1px solid #CFE8E8;border-radius:999px;padding:6px 12px}
+.cards.care .card{border-radius:16px;border-color:#CFE8E8}.cards.care h3{color:${t.primary}}
+.bk{display:grid;gap:12px;max-width:520px;margin-top:24px;padding:20px;border-radius:16px;background:#F4FBFB;border:1px solid #CFE8E8}.bk h3{margin:0}.bk label{display:grid;gap:4px;font-weight:600}.bk input,.bk select{font:inherit;font-size:16px;padding:12px;border:1px solid #B6D9D9;border-radius:10px;min-height:46px;background:#fff}.bk-note{font-size:.9rem;opacity:.75;margin:0}`,
+  tech: (t) => `.ind-tech .hero{background:radial-gradient(900px 400px at 50% -20%,${t.accent}55,transparent),${t.primary}}@media(min-width:820px){.ind-tech .hero .wrap{grid-template-columns:1fr;text-align:center;justify-items:center}.ind-tech .hero .wrap>img{max-width:900px}}
+.ind-tech .card{border-radius:14px;transition:transform .2s,box-shadow .2s}.ind-tech .card:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(17,24,39,.12)}@media(prefers-reduced-motion:reduce){.ind-tech .card{transition:none}}`,
+};
+export function industryBlock(site, img) {
+  const k = site.theme?.ind;
+  if (!site.services.length || site.products.length) return "";
+  if (k === "food") return menuQuick(site);
+  if (k === "fashion") return lookbook(site, img);
+  if (k === "property") return listings(site, img);
+  if (k === "care") return booking(site);
+  return "";
+}
+
 function serviceCards(site, showPrice) {
   if (!site.services.length) return "";
   return `<div class="cards">${site.services.map((s) => `<div class="card"><h3>${esc(s.name)}</h3>${s.details ? `<p>${esc(s.details)}</p>` : ""}${showPrice && s.price ? `<p class="price">${esc(naira(s.price))}</p>` : ""}</div>`).join("")}</div>`;
@@ -977,7 +1048,10 @@ function pageBody(site, page, mode, link, img) {
     const more = (p, label) => (p ? `<p style="margin-top:16px"><a class="btn" href="${link(p.slug)}">${label}</a></p>` : "");
     if (site.services.length) {
       const sp = find("services", "prices");
-      extra("What we offer", serviceCards({ ...site, services: sp ? site.services.slice(0, 3) : site.services }, true) + (sp && site.services.length > 3 ? more(sp, "See all services") : ""));
+      const ib = industryBlock(site, img);
+      const label = { food: "Menu", fashion: "The lookbook", property: "Listings", care: "Our services" }[site.theme?.ind] || "What we offer";
+      if (ib) extra(label, ib);
+      else extra("What we offer", serviceCards({ ...site, services: sp ? site.services.slice(0, 3) : site.services }, true) + (sp && site.services.length > 3 ? more(sp, "See all services") : ""));
     }
     // Every product on the home page, with the search box and category buttons (the same as the Shop page).
     if (site.products.length) extra("Our products", shopSections(site, img));
@@ -990,7 +1064,7 @@ function pageBody(site, page, mode, link, img) {
       extra(gp ? "Our work" : "", gallery(site.photos.slice(1, gp ? 5 : 7), img) + more(gp, "See the gallery"));
     }
   }
-  if (page.kind === "services" || page.kind === "prices") extra("", serviceCards(site, true));
+  if (page.kind === "services" || page.kind === "prices") extra("", industryBlock(site, img) || serviceCards(site, true));
   // No gallery photos yet: a store shows its product photos instead of an empty page.
   const galleryPhotos = site.photos.length ? site.photos : site.productPhotos.slice(0, 12);
   if (page.kind === "gallery") extra("", galleryPhotos.length ? gallery(galleryPhotos, img) : mode === "preview" ? `<p><mark class="todo">To be added: photos</mark></p>` : "");
@@ -1094,7 +1168,7 @@ ${preview || notFound || orderPage ? '<meta name="robots" content="noindex, nofo
 ${site.logo ? `<link rel="icon" href="${img(site.logo.url)}">` : ""}${mode === "export" && !notFound ? `<link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="${site.logo ? img(site.logo.url) : "/app-icon.svg"}"><meta name="mobile-web-app-capable" content="yes">` : ""}
 <style>${css(site.theme)}${preview ? PREVIEW_CSS : ""}</style>${site.designCss ? `\n${fontLinks(site.designCss)}<style id="design">${site.designCss}</style>` : ""}
 <style id="guard">${GUARD_CSS}${KIT_CSS}${hasCart(site) ? CART_CSS + ACCOUNT_CSS : ""}</style></head>
-<body class="page-${page.kind} kind-${site.kind}">${preview ? `<div class="pv-top">${top ?? `Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}`}</div>` : ""}
+<body class="page-${page.kind} kind-${site.kind}${site.theme?.ind ? " ind-" + site.theme.ind : ""}">${preview ? `<div class="pv-top">${top ?? `Preview of your new website. It is not live yet. <a href="#review">Approve or ask for changes</a>${switcher}`}</div>` : ""}
 ${site.notice ? `<div class="site-notice" role="status">${esc(site.notice)}</div>` : ""}${header(site, page, link, img)}
 <main>${orderPage ? orderBody() : notFound ? notFoundBody(site, link) : pageBody(site, page, mode, link, img)}</main>
 ${preview ? panel ?? previewPanel(row, token, choice) : ""}

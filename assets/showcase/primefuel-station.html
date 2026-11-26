@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>PrimeFuel Energy &amp; Gas Plant · sample website</title>
+<style>
+@font-face{font-family:Oswald;src:url(/assets/fonts/looks/oswald-latin-700-normal.woff2) format("woff2");font-weight:700}
+@font-face{font-family:Poppins;src:url(/assets/fonts/looks/poppins-latin-500-normal.woff2) format("woff2");font-weight:500}
+@font-face{font-family:Poppins;src:url(/assets/fonts/looks/poppins-latin-700-normal.woff2) format("woff2");font-weight:700}
+:root{--slate:#0F172A;--green:#059669;--amber:#F59E0B}
+*{box-sizing:border-box;min-width:0}body{margin:0;background:#fff;color:#0F172A;font:500 15px/1.55 Poppins,Arial,sans-serif}
+.demo{background:#000;color:#E5E7EB;font-size:12px;text-align:center;padding:6px 12px;margin:0}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 5vw;background:var(--slate);color:#fff}
+.logo{display:flex;gap:10px;align-items:center;font:700 22px/1 Oswald,Impact,sans-serif;letter-spacing:.03em}.logo i{width:36px;height:36px;border-radius:10px;background:var(--green);display:grid;place-items:center;font-style:normal;color:var(--amber)}
+.logo small{display:block;font:700 10px Poppins,sans-serif;letter-spacing:.2em;color:#94A3B8;margin-top:3px}
+.hbtn{font:700 14px Poppins,sans-serif;background:var(--amber);color:var(--slate);border:0;border-radius:10px;padding:10px 14px;cursor:pointer}
+.hero{background:radial-gradient(circle at 80% 0,#134E4A,transparent 55%),var(--slate);color:#fff;padding:34px 5vw 40px;display:grid;grid-template-columns:1fr 1.05fr;gap:28px;align-items:center}
+@media(max-width:860px){.hero{grid-template-columns:1fr}}
+.kick{color:var(--amber);font-weight:700;font-size:12px;letter-spacing:.22em;text-transform:uppercase}
+h1{font:700 clamp(32px,4.6vw,52px)/1.05 Oswald,Impact,sans-serif;margin:10px 0 12px;text-transform:uppercase}
+.hero p{color:#CBD5E1;margin:0 0 6px;max-width:44ch}
+.board{background:#020617;border-radius:18px;padding:16px;border:2px solid #1E293B;box-shadow:0 0 0 6px rgba(5,150,105,.12),0 20px 50px rgba(0,0,0,.45)}
+.bhead{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#94A3B8;margin-bottom:10px;gap:8px}.live{color:#34D399;font-weight:700}.live:before{content:"●";margin-right:6px;animation:blink 1.6s infinite}@keyframes blink{50%{opacity:.25}}
+.row{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:12px;border-radius:12px;background:#0B1220;margin-bottom:8px;border-left:4px solid var(--green)}
+.row b{font:700 16px Poppins,sans-serif;color:#E2E8F0}.row small{color:#64748B;font-size:12px}
+.led{font:700 34px/1 Oswald,Impact,sans-serif;color:var(--amber);text-shadow:0 0 12px rgba(245,158,11,.55);letter-spacing:.04em;grid-row:span 2;text-align:right}.led small{font-size:14px;color:#FCD34D;text-shadow:none}
+.tag{justify-self:start;font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;background:rgba(5,150,105,.18);color:#6EE7B7}.tag.fill{background:rgba(245,158,11,.18);color:#FCD34D}
+.upd{font-size:12px;color:#94A3B8;margin:6px 2px 0}
+.trust{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#E2E8F0}@media(max-width:760px){.trust{grid-template-columns:1fr 1fr}}
+.trust div{background:#fff;padding:16px;display:grid;gap:2px;text-align:center}.trust b{color:var(--slate)}.trust span{font-size:12px;color:#64748B}.trust i{font-style:normal;font-size:22px}
+section{padding:40px 5vw}h2{font:700 30px/1.1 Oswald,Impact,sans-serif;text-transform:uppercase;margin:0 0 6px}.sub{margin:0 0 20px;color:#64748B}
+.calc{display:grid;grid-template-columns:1.1fr .9fr;gap:20px}@media(max-width:860px){.calc{grid-template-columns:1fr}}
+.cbox{border:1px solid #E2E8F0;border-radius:18px;padding:18px;display:grid;gap:12px;background:#F8FAFC}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}.seg label{border:2px solid #E2E8F0;border-radius:12px;padding:12px;cursor:pointer;background:#fff;font-weight:700;display:flex;gap:8px;align-items:center}.seg label:has(input:checked){border-color:var(--green);background:#ECFDF5}
+.cbox>label{display:grid;gap:4px;font-size:13px;font-weight:700;color:#334155}.cbox input[type=number],.cbox select,.cbox input[type=text]{font:500 16px Poppins,sans-serif;padding:11px;border:1px solid #CBD5E1;border-radius:10px;min-height:46px;background:#fff}
+.quick{display:flex;flex-wrap:wrap;gap:6px}.quick button{font:700 13px Poppins,sans-serif;border:1px solid #CBD5E1;background:#fff;border-radius:999px;padding:6px 12px;cursor:pointer}
+.sum{background:var(--slate);color:#E2E8F0;border-radius:18px;padding:20px;display:grid;gap:10px;align-content:start;border-top:5px solid var(--amber)}
+.sum dl{margin:0;display:grid;gap:8px}.sum dl div{display:flex;justify-content:space-between;gap:10px}.sum dt{color:#94A3B8}.sum dd{margin:0;font-weight:700}
+.sum .tot dd{font:700 30px Oswald,Impact,sans-serif;color:var(--amber)}.sum p{margin:0;font-size:12px;color:#94A3B8}
+.sum button{font:700 15px Poppins,sans-serif;background:var(--green);color:#fff;border:0;border-radius:12px;padding:14px;cursor:pointer}
+.fleet{background:#ECFDF5;border-radius:18px;padding:22px;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center;margin:0 5vw 40px}
+.fleet h3{margin:0;font:700 24px Oswald,Impact,sans-serif;text-transform:uppercase}.fleet p{margin:4px 0 0;color:#065F46;max-width:56ch}
+.fleet button{font:700 14px Poppins,sans-serif;background:var(--slate);color:#fff;border:0;border-radius:12px;padding:13px 16px;cursor:pointer}
+.toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);background:#111;color:#fff;border-radius:14px;padding:12px 16px;max-width:92vw;font-size:14px;white-space:pre-line;z-index:9}.toast[hidden]{display:none}
+footer{background:var(--slate);color:#94A3B8;padding:22px 5vw;font-size:13px}footer b{color:#fff}
+</style></head><body>
+<p class="demo">Sample website made by SIRRADDO · the station, prices and zones are examples</p>
+<header><div class="logo"><i>⛽</i><div>PRIMEFUEL<small>ENERGY &amp; GAS PLANT</small></div></div><button class="hbtn" type="button" id="call">Call the station</button></header>
+<section class="hero"><div><div class="kick">Iwo Road · Oluyole · Ibadan</div><h1>Fuel, diesel &amp; cooking gas. Fair meters, honest prices.</h1><p>Today's pump prices below. Order bulk diesel for your business or estate, or gas delivered to your home.</p></div>
+<div class="board" aria-label="Today's pump prices"><div class="bhead"><span>TODAY'S PRICES</span><span class="live">Live</span></div>
+<div class="row"><b>PMS · Petrol</b><div class="led">₦980<small>/L</small></div><span class="tag">● Available</span></div>
+<div class="row"><b>AGO · Diesel</b><div class="led">₦1,150<small>/L</small></div><span class="tag">● In stock</span></div>
+<div class="row"><b>LPG · Cooking gas</b><div class="led">₦1,200<small>/kg</small></div><span class="tag fill">● Refilling now</span></div>
+<p class="upd">Updated today at 7:30am by the station manager.</p></div></section>
+<div class="trust"><div><i>✅</i><b>Accurate meter guarantee</b><span>Pumps checked and sealed</span></div><div><i>🚚</i><b>Fleet fuel accounts</b><span>Monthly invoicing for companies</span></div><div><i>💳</i><b>POS &amp; transfer ready</b><span>Card, transfer or cash</span></div><div><i>📜</i><b>NMDPRA licensed</b><span>Licence shown at the station</span></div></div>
+<section id="order"><h2>Bulk diesel &amp; home gas delivery</h2><p class="sub">Enter what you need and your area to see the estimated total, then send the request.</p>
+<div class="calc"><form class="cbox" id="calc">
+<div class="seg" role="radiogroup" aria-label="Product"><label><input type="radio" name="p" value="ago" checked> Diesel (AGO)</label><label><input type="radio" name="p" value="lpg"> Cooking gas (LPG)</label></div>
+<label><span id="qlabel">Litres needed (minimum 200)</span><input type="number" name="q" min="1" value="500" inputmode="numeric"></label>
+<div class="quick" id="quick"></div>
+<label>Delivery zone<select name="z"><option value="0">Pick up at the station · free</option><option value="5000" selected>Ibadan: Iwo Road, Bodija, Agodi · ₦5,000</option><option value="7000">Ibadan: Oluyole, Ring Road, Challenge · ₦7,000</option><option value="12000">Ibadan outskirts: Moniya, Akobo, Apata · ₦12,000</option><option value="45000">Lagos (diesel 1,000 L and above) · ₦45,000</option></select></label>
+<label>Business, estate or name<input type="text" name="n" placeholder="e.g. Greenview Estate, Bodija"></label></form>
+<aside class="sum" aria-live="polite"><dl><div><dt id="sline">Diesel × 500 L</dt><dd id="sprod"></dd></div><div><dt>Delivery</dt><dd id="sdel"></dd></div><div class="tot"><dt>Estimated total</dt><dd id="stot"></dd></div></dl>
+<p id="snote">Final price is confirmed on WhatsApp at today's price. Pay by transfer or POS on delivery.</p><button type="button" id="send">Request Bulk Delivery on WhatsApp</button></aside></div></section>
+<div class="fleet"><div><h3>Corporate fleet &amp; generator accounts</h3><p>Fuel cards for your drivers, one monthly invoice, and scheduled diesel top-ups for offices, hotels, schools and estates.</p></div><button type="button" id="fleet">Open a fleet account</button></div>
+<p class="toast" hidden></p><footer><b>PrimeFuel Energy &amp; Gas Plant</b> · Iwo Road &amp; Oluyole, Ibadan · Sample website by SIRRADDO</footer>
+<script>
+{
+const P={ago:{name:'Diesel',unit:'L',price:1150,min:200,quick:[200,500,1000,2000]},lpg:{name:'Cooking gas',unit:'kg',price:1200,min:3,quick:[6,12.5,25,50]}};
+const f=document.getElementById('calc'),n=v=>'₦'+Math.round(v).toLocaleString('en-NG'),$=id=>document.getElementById(id);
+const toast=document.querySelector('.toast'),show=t=>{toast.textContent=t;toast.hidden=false;clearTimeout(show.t);show.t=setTimeout(()=>toast.hidden=true,6500)};
+let last='ago';
+function calc(){const k=f.elements.p.value,p=P[k];if(k!==last){f.elements.q.value=k==='ago'?500:12.5;last=k;}
+$('qlabel').textContent=k==='ago'?'Litres needed (minimum 200)':'Kilograms of gas (e.g. 12.5 kg cylinder)';
+$('quick').innerHTML=p.quick.map(q=>`<button type="button" data-q="${q}">${q} ${p.unit}</button>`).join('');
+const lagos=f.elements.z.value==='45000';[...f.elements.z.options].forEach(o=>{if(o.value==='45000')o.disabled=k!=='ago';});if(lagos&&k!=='ago')f.elements.z.value='5000';
+const q=Math.max(0,+f.elements.q.value||0),prod=q*p.price,del=+f.elements.z.value;
+$('sline').textContent=`${p.name} × ${q.toLocaleString('en-NG')} ${p.unit}`;$('sprod').textContent=n(prod);$('sdel').textContent=del?n(del):'Free (pick up)';$('stot').textContent=n(prod+del);
+const low=q<p.min;$('snote').textContent=low?`Minimum for delivery is ${p.min} ${p.unit}.`:(f.elements.z.value==='45000'&&q<1000?'Lagos delivery is for 1,000 L and above.':'Final price is confirmed on WhatsApp at today\'s price. Pay by transfer or POS on delivery.');
+return{p,q,del,prod};}
+f.addEventListener('input',calc);f.addEventListener('change',calc);
+$('quick').addEventListener('click',e=>{const b=e.target.closest('button');if(b){f.elements.q.value=b.dataset.q;calc();}});
+$('send').addEventListener('click',()=>{const c=calc(),z=f.elements.z.options[f.elements.z.selectedIndex].text;show(`Sample website: on the real site this opens WhatsApp with:\n\nHello PrimeFuel, I'd like a delivery.\n${c.p.name}: ${c.q} ${c.p.unit} at ${n(c.p.price)}/${c.p.unit}\nZone: ${z}\nFor: ${f.elements.n.value.trim()||'(name)'}\nEstimated total: ${n(c.prod+c.del)}`)});
+$('fleet').addEventListener('click',()=>show('Sample website: on the real site this opens WhatsApp with:\n\nHello PrimeFuel, I\'d like to open a fleet fuel account for my company.'));
+$('call').addEventListener('click',()=>show('Sample website: on the real site this calls the station.'));
+calc();
+}
+</script></body></html>

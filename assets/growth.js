@@ -26,6 +26,8 @@
       zainab: ['Zainab Luxe Atelier', 'Zainab Luxe'],
       olivecare: ['OliveCare Specialist Clinic', 'OliveCare Clinic', 'OliveCare'],
       brightpath: ['BrightPath International Schools', 'BrightPath'],
+      'royalgate-hotel': ['RoyalGate Hotel & Suites', 'RoyalGate'],
+      'primefuel-station': ['PrimeFuel Energy & Gas Plant', 'PrimeFuel'],
     };
     var CITY_RE = /Ibadan & Lagos|Ibadan|Lagos/gi;
     var sc = $('showcase');

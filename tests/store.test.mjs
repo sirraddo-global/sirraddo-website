@@ -178,6 +178,15 @@ test("My store: owner login with a temporary password (must change), orders, con
   await h.action({ action: "store_login", id, do: "active", active: false });
   assert.equal((await my(ownerLogin("kemiwears", reset.password))("me")).status, 401);
   assert.ok(otherLogin.password);
+  // You set a password yourself (e.g. the demo store): works at once, no forced change; short ones refused.
+  assert.equal((await h.action({ action: "store_login", id, do: "set", password: "short" })).status, 400);
+  assert.equal((await h.action({ action: "store_login", id, do: "set", password: "DemoStore2026" })).status, 200);
+  assert.equal((await my(ownerLogin("kemiwears", reset.password))("me")).status, 401, "old password stops");
+  const me2 = (await my(ownerLogin("kemiwears", "DemoStore2026"))("me")).json.me;
+  assert.equal(me2.must_change, false);
+  const all = (await h.action({ action: "store_logins_all" })).json.logins;
+  assert.ok(all.some((L) => L.username === "kemiwears" && L.request_id === id && L.active));
+  assert.ok(all.every((L) => !("pass_hash" in L)), "no password hashes in the list");
 });
 
 test("Standard Store: buyer accounts (phone + password, Google), saved addresses, order history, reset code from the owner", async () => {

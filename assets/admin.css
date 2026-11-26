@@ -428,3 +428,26 @@ a.admin-btn--wa, a.admin-btn--wa:visited, a.admin-btn--wa:hover { color: #fff; t
 .st-idea { border-radius: 12px; display: grid; gap: 2px; text-align: left; max-width: 100%; }
 .st-idea span { font-weight: 500; opacity: .8; }
 .st-lookname { font-weight: 600; opacity: .7; font-size: 11px; }
+
+/* Order ticket (design and side-service orders) */
+.ov { display: grid; gap: 10px; margin: 0 0 12px; padding: 14px; border: 1px solid var(--line, #2A3A5C); border-radius: 14px; background: rgba(255,255,255,.03); }
+.ov-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.ov-k { display: block; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .65; }
+.ov-svc { font-size: 1.15rem; }
+.ov-price { text-align: right; } .ov-price b { font-size: 1.25rem; color: #E8B230; }
+.ov-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ov-chip { font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line, #2A3A5C); }
+.ov-chip--gold { border-color: #D9A21B; background: rgba(217,162,27,.12); }
+.ov-h { margin: 6px 0 0; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; opacity: .75; }
+.ov-hrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ov-copy { padding: 4px 12px; min-height: 0; font-size: 13px; }
+.ov-dl { display: grid; grid-template-columns: minmax(96px, 34%) 1fr; gap: 6px 12px; margin: 0; }
+.ov-dl dt { opacity: .7; font-size: 14px; } .ov-dl dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.ov-words { white-space: pre-wrap; padding: 12px; border-radius: 10px; background: rgba(0,0,0,.18); border-left: 3px solid #D9A21B; line-height: 1.5; overflow-wrap: anywhere; }
+.ov-files { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.ov-file { display: grid; gap: 4px; text-decoration: none; color: inherit; }
+.ov-file img, .ov-doc { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--line, #2A3A5C); display: grid; place-items: center; font-weight: 800; background: rgba(255,255,255,.05); }
+.ov-file small { font-size: 11px; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-raw summary { cursor: pointer; font-size: 13px; opacity: .7; }
+.ov-raw pre { white-space: pre-wrap; font-size: 12px; overflow-wrap: anywhere; }
+.admin-details { white-space: pre-wrap; }

@@ -622,6 +622,10 @@ export default async function handler(req, res) {
         } catch (e) { throw new Bad(e.message); }
       }
       // The store owner's own login for My store (/mystore): create, reset (temporary password), switch off/on, rename, remove.
+      if (body.action === "store_logins_all") {
+        const sa = await import("./_lib/storeaccounts.mjs");
+        return res.status(200).json({ logins: await sa.allOwnerLogins() });
+      }
       if (body.action === "store_login") {
         const id = Number(body.id);
         if (!Number.isInteger(id) || id <= 0) throw new Bad("Missing id");
@@ -630,6 +634,7 @@ export default async function handler(req, res) {
           if (body.do === "get") return res.status(200).json({ login: await sa.ownerLogin(id), suggest: sa.suggestOwnerUsername(await sa.storeRow(id)) });
           if (body.do === "create") return res.status(200).json(await sa.createOwnerLogin(id, { username: body.username }));
           if (body.do === "reset") return res.status(200).json(await sa.resetOwnerLogin(id));
+          if (body.do === "set") return res.status(200).json(await sa.adminSetOwnerPassword(id, body.password));
           if (body.do === "active") return res.status(200).json({ login: await sa.updateOwnerLogin(id, { active: Boolean(body.active) }) });
           if (body.do === "username") return res.status(200).json({ login: await sa.updateOwnerLogin(id, { username: body.username }) });
           if (body.do === "delete") { await sa.deleteOwnerLogin(id); return res.status(200).json({ login: null }); }

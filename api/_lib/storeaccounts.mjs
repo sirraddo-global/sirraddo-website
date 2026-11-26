@@ -64,6 +64,21 @@ export async function resetOwnerLogin(requestId) {
   if (!row) throw new Error("This store has no login yet");
   return { login: ownerPub(row), password, temp_days: TEMP_DAYS };
 }
+/** You choose the store owner's password yourself (e.g. the demo store): it works straight away, no forced change. */
+export async function adminSetOwnerPassword(requestId, password) {
+  await ensureSchema();
+  const bad = passwordProblem(String(password || ""));
+  if (bad) throw new Error(bad);
+  const [row] = await q(`UPDATE store_users SET pass_hash = $1, must_change = false, temp_expires = NULL, active = true, password_changed_at = now() WHERE request_id = $2 RETURNING *`, [hashPass(String(password)), Number(requestId)]);
+  if (!row) throw new Error("This store has no login yet");
+  return { login: ownerPub(row) };
+}
+/** Every store owner login, for the Settings list. */
+export async function allOwnerLogins() {
+  await ensureSchema();
+  const rows = await q(`SELECT u.*, r.business AS store_business, r.name AS store_name FROM store_users u LEFT JOIN customer_requests r ON r.id = u.request_id ORDER BY u.request_id`);
+  return rows.map((u) => ({ ...ownerPub(u), request_id: u.request_id, store: u.store_business || u.store_name || "" }));
+}
 export async function updateOwnerLogin(requestId, { active, username }) {
   await ensureSchema();
   const cur = await ownerLogin(requestId);

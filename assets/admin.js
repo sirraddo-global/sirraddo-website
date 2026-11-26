@@ -805,6 +805,63 @@
     sel.addEventListener('change', draw); draw();
     return card;
   }
+  // A design/side-service order laid out like a work ticket: what they ordered, their details, their words
+  // (line breaks kept, copy button), photos as thumbnails. "Show as text" keeps the original.
+  function orderView(details) {
+    var lines = String(details).split('\n'), i = 0, head = {}, info = [], words = [], wordsLabel = '', files = [], samples = [], sec = '';
+    var HEAD = /^(ORDER|Extras|Size \/ where it's used|Needed by|Colours|Style \/ ideas|Look they picked in the preview|Referred by)$/;
+    for (; i < lines.length; i++) {
+      var L = lines[i], m = L.match(/^([^:•◦]{2,60}?):\s*(.*)$/);
+      if (/^Files \(\d+\):/.test(L)) { sec = 'files'; continue; }
+      if (/^Style samples/.test(L)) { sec = 'samples'; continue; }
+      var f = L.match(/^[•◦]\s*(.+?):\s*(https?:\/\/\S+)\s*$/);
+      if (f && (sec === 'files' || sec === 'samples')) { (sec === 'files' ? files : samples).push({ name: f[1], url: f[2] }); continue; }
+      if (sec === 'words') { words.push(L); continue; }
+      if (m && !m[2] && i > 0 && lines[i - 1] === '') { sec = 'words'; wordsLabel = m[1]; continue; }
+      if (m && HEAD.test(m[1])) { head[m[1]] = m[2]; continue; }
+      if (m && m[2]) { info.push([m[1], m[2]]); continue; }
+    }
+    while (words.length && !words[words.length - 1].trim()) words.pop();
+    var ext = head.Extras || '', total = (ext.match(/Total (₦[\d,]+)/) || [])[1], order = head.ORDER || '';
+    var box = el('div', { class: 'ov' });
+    box.appendChild(el('div', { class: 'ov-top' }, [
+      el('div', null, [el('span', { class: 'ov-k', text: 'Order' }), el('b', { class: 'ov-svc', text: order.replace(/\s*\(₦[\d,]+\)$/, '') })]),
+      el('div', { class: 'ov-price' }, [el('span', { class: 'ov-k', text: 'Total' }), el('b', { text: total || (order.match(/₦[\d,]+/) || ['Quote'])[0] })]),
+    ]));
+    var chips = el('div', { class: 'ov-chips' });
+    ext.replace(/\s*·\s*Total.*$/, '').split(/\s*·\s*|,\s*(?=[A-Z])/).forEach(function (x) { if (x.trim()) chips.appendChild(el('span', { class: 'ov-chip ov-chip--gold', text: '➕ ' + x.trim() })); });
+    if (head['Size / where it\'s used']) chips.appendChild(el('span', { class: 'ov-chip', text: '📐 ' + head['Size / where it\'s used'].replace('Not sure: please advise', 'Not sure → post + status') }));
+    if (head['Needed by']) chips.appendChild(el('span', { class: 'ov-chip', text: '📅 Needed by ' + head['Needed by'] }));
+    if (head['Look they picked in the preview']) chips.appendChild(el('span', { class: 'ov-chip ov-chip--gold', text: '👍 Picked: ' + head['Look they picked in the preview'] }));
+    if (head['Referred by']) chips.appendChild(el('span', { class: 'ov-chip', text: '🎁 Referred by ' + head['Referred by'] }));
+    if (chips.children.length) box.appendChild(chips);
+    var rows = info.slice();
+    if (head.Colours) rows.push(['Colours', head.Colours]);
+    if (head['Style / ideas']) rows.push(['Style / ideas', head['Style / ideas']]);
+    if (rows.length) {
+      box.appendChild(el('h5', { class: 'ov-h', text: 'Details for the design' }));
+      box.appendChild(el('dl', { class: 'ov-dl' }, rows.reduce(function (a, r) { a.push(el('dt', { text: r[0] })); a.push(el('dd', { text: r[1] })); return a; }, [])));
+    }
+    if (words.length) {
+      var txt = words.join('\n').trim();
+      box.appendChild(el('div', { class: 'ov-hrow' }, [el('h5', { class: 'ov-h', text: wordsLabel || 'Their words' }),
+        el('button', { class: 'admin-btn ov-copy', type: 'button', text: 'Copy', onclick: function (e) { var b = e.currentTarget; (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { b.textContent = 'Copied ✓'; setTimeout(function () { b.textContent = 'Copy'; }, 1500); }).catch(function () {}); } })]));
+      box.appendChild(el('div', { class: 'ov-words', text: txt }));
+    }
+    function gallery(list, title) {
+      if (!list.length) return;
+      box.appendChild(el('h5', { class: 'ov-h', text: title + ' (' + list.length + ')' }));
+      box.appendChild(el('div', { class: 'ov-files' }, list.map(function (x) {
+        var img = /\.(jpe?g|png|webp|gif)$/i.test(x.url);
+        return el('a', { class: 'ov-file', href: x.url, target: '_blank', rel: 'noopener', title: x.name }, [img ? el('img', { src: x.url, alt: x.name, loading: 'lazy' }) : el('span', { class: 'ov-doc', text: (x.name.split('.').pop() || 'file').toUpperCase() }), el('small', { text: x.name })]);
+      })));
+    }
+    gallery(files, 'Their photos & files');
+    gallery(samples, 'Style samples they like (match the look, never copy)');
+    var raw = el('details', { class: 'ov-raw' }, [el('summary', { text: 'Show as text' }), el('pre', { text: details })]);
+    box.appendChild(raw);
+    return box;
+  }
   function pkgQuick(view) {
     var list = state.quick || [];
     var vis = quickVisible();
@@ -2667,7 +2724,7 @@
 
     var meta = el('p', { class: 'admin-meta' }, [r.contact + (r.email && r.email !== r.contact ? ' · ' + r.email : '') + ' · ' + (r.business || 'No business given') + ' · ' + when(r.created_at)]);
     card.appendChild(meta);
-    card.appendChild(el('p', { class: 'admin-details', text: r.details }));
+    card.appendChild(/^ORDER: /.test(r.details || '') ? orderView(r.details) : el('p', { class: 'admin-details', text: r.details }));
     var ideas = r.chat_ideas || {}, ik = Object.keys(IDEA_LABELS).filter(function (k) { return ideas[k]; });
     if (ik.length) {
       var idd = el('details', { class: 'admin-ideas' }, [el('summary', { text: 'From the chat (' + ik.length + ')' + (ideas.recommended ? ' · suggested: ' + ideas.recommended.split(':')[0] : '') })]);
@@ -3372,6 +3429,10 @@
           if (!window.confirm('Give them a new temporary password? They are logged out everywhere and must choose a new one.')) return;
           api('POST', { action: 'store_login', id: r.id, do: 'reset' }).then(function (k) { draw(k, sendBox(k)); }).catch(fail);
         } }),
+        el('button', { class: 'admin-btn', type: 'button', text: 'Set a password myself', onclick: function () {
+          var pw = window.prompt('New password for ' + L.username + ' (at least 8 characters). It works straight away; tell them privately.'); if (!pw) return;
+          api('POST', { action: 'store_login', id: r.id, do: 'set', password: pw }).then(function (k) { draw(k); flash('Password changed'); }).catch(fail);
+        } }),
         el('button', { class: 'admin-btn', type: 'button', text: 'Change username', onclick: function () {
           var nu = window.prompt('New username (they log in with it at /mystore):', L.username); if (!nu || nu === L.username) return;
           api('POST', { action: 'store_login', id: r.id, do: 'username', username: nu }).then(function (k) { draw(k); flash('Username changed: tell them on WhatsApp'); }).catch(fail);
@@ -4055,7 +4116,7 @@
   // Settings are split into small sections (chips at the top) so there's no long scrolling.
   var SETTINGS_SECTIONS = [
     ['business', 'Bank & invoices'], ['messages', 'WhatsApp messages'], ['handover', 'Handover'],
-    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['keys', 'Keys & connections'], ['ai', 'AI backup'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['docs', 'Company documents'], ['backup', 'Backup']
+    ['notices', 'Service notices'], ['reviews', 'Reviews'], ['email', 'Email usage'], ['keys', 'Keys & connections'], ['storelogins', 'Store logins'], ['ai', 'AI backup'], ['greetings', 'Festive greetings'], ['staff', 'Staff'], ['docs', 'Company documents'], ['backup', 'Backup']
   ];
   function renderSettings(view) {
     var s = state.settings;
@@ -4111,6 +4172,7 @@
     if (pick === 'greetings') view.appendChild(greetingsCard());
     if (pick === 'ai') view.appendChild(aiBackupCard());
     if (pick === 'keys') view.appendChild(vaultCard());
+    if (pick === 'storelogins') view.appendChild(storeLoginsCard());
     if (pick === 'staff') staffSettings(view);
     if (pick === 'docs') companyDocs(view);
     if (pick === 'backup') view.appendChild(el('div', { class: 'admin-card admin-settings' }, [
@@ -4125,6 +4187,43 @@
 
   // Settings → Keys & connections: every service key in one place, saved encrypted in the database (so a move to a new
   // server only needs the database address and the admin password). Values are never shown, only their last 4 characters.
+  // All store owner logins (My store) in one place: reset, set a password yourself, switch on/off.
+  function storeLoginsCard() {
+    var list = el('div');
+    var card = el('div', { class: 'admin-card' }, [el('h2', { text: 'Store owner logins (My store)' }),
+      el('p', { class: 'admin-hint', text: 'Every store owner who logs in at sirraddo.com.ng/mystore. “Reset password” gives a temporary one to send on WhatsApp (they choose their own when they log in). “Set a password myself” works straight away, e.g. for the demo store. To create a login, open the store’s client card → Online store → Store owner login.' }), list]);
+    function draw() {
+      api('POST', { action: 'store_logins_all' }).then(function (j) {
+        list.innerHTML = '';
+        if (!j.logins.length) list.appendChild(el('p', { class: 'admin-meta', text: 'No store logins yet.' }));
+        j.logins.forEach(function (L) {
+          var out = el('div');
+          list.appendChild(el('div', { class: 'admin-golive' }, [
+            el('div', null, [el('b', { text: (L.store || 'Store') + ' · SGL-' + String(L.request_id).padStart(4, '0') }),
+              el('p', { class: 'admin-meta' }, [badge(!L.active ? 'Switched off' : L.must_change ? 'Waiting to choose their password' : 'Active', !L.active ? 'is-due' : L.must_change ? 'is-new' : 'is-won'), ' Username: ' + L.username + ' · last seen ' + (L.last_seen_at ? when(L.last_seen_at) : 'never')])]),
+            el('div', { class: 'admin-actions' }, [
+              el('button', { class: 'admin-btn', type: 'button', text: 'Reset password', onclick: function () {
+                if (!window.confirm('Give ' + L.username + ' a new temporary password? They are logged out everywhere.')) return;
+                api('POST', { action: 'store_login', id: L.request_id, do: 'reset' }).then(function (k) {
+                  out.innerHTML = ''; out.appendChild(el('p', { class: 'admin-label', text: 'Temporary password (shown once): ' }));
+                  out.appendChild(el('p', { class: 'staff-pass', text: k.password }));
+                  out.appendChild(el('p', { class: 'admin-hint', text: 'Send it privately on WhatsApp. It works for ' + (k.temp_days || 3) + ' days.' }));
+                }).catch(fail);
+              } }),
+              el('button', { class: 'admin-btn', type: 'button', text: 'Set a password myself', onclick: function () {
+                var pw = window.prompt('New password for ' + L.username + ' (at least 8 characters). It works straight away.'); if (!pw) return;
+                api('POST', { action: 'store_login', id: L.request_id, do: 'set', password: pw }).then(function () { flash('Password changed'); draw(); }).catch(fail);
+              } }),
+              el('button', { class: 'admin-btn', type: 'button', text: L.active ? 'Switch off' : 'Switch on', onclick: function () {
+                api('POST', { action: 'store_login', id: L.request_id, do: 'active', active: !L.active }).then(function () { draw(); }).catch(fail);
+              } }),
+            ]), out]));
+        });
+      }).catch(function (e) { list.textContent = e.message; });
+    }
+    draw();
+    return card;
+  }
   function vaultCard() {
     var card = el('div', { class: 'admin-card admin-settings admin-vault' }, [
       el('h2', { text: 'Keys & connections' }),

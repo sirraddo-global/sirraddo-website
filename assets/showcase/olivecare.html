@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>OliveCare Specialist Clinic · sample website</title>
+<style>
+@font-face{font-family:Poppins;src:url(/assets/fonts/looks/poppins-latin-500-normal.woff2) format("woff2");font-weight:500}
+@font-face{font-family:Poppins;src:url(/assets/fonts/looks/poppins-latin-700-normal.woff2) format("woff2");font-weight:700}
+:root{--teal:#0D9488;--navy:#1E3A8A;--mint:#ECFDF8}
+*{box-sizing:border-box;min-width:0}body{margin:0;background:#fff;color:#0F172A;font:16px/1.55 Poppins,Arial,sans-serif}
+.demo{background:var(--navy);color:#DBEAFE;font-size:12px;text-align:center;padding:6px 12px;margin:0}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 5vw;border-bottom:1px solid #E2E8F0}
+.logo{display:flex;gap:10px;align-items:center;font-weight:700;color:var(--navy)}.logo i{width:34px;height:34px;border-radius:10px;background:var(--teal);display:grid;place-items:center;color:#fff;font-style:normal;font-weight:700}
+.call{font-weight:700;color:var(--teal);text-decoration:none}
+.hero{display:grid;grid-template-columns:1.1fr .9fr;gap:28px;padding:40px 5vw;background:linear-gradient(180deg,var(--mint),#fff)}
+.pill{display:inline-flex;gap:8px;align-items:center;background:#fff;border:1px solid #CCEDE7;border-radius:999px;padding:6px 12px;font-size:14px;font-weight:700;color:var(--teal)}
+h1{font-size:clamp(30px,4.2vw,48px);line-height:1.1;margin:14px 0 12px;color:var(--navy)}
+.hero p{color:#475569;max-width:46ch;margin:0 0 18px}
+.ticks{display:grid;gap:8px;margin:0;padding:0;list-style:none;font-weight:500}.ticks li::before{content:"✓";color:var(--teal);font-weight:700;margin-right:8px}
+@media(max-width:820px){.hero{grid-template-columns:1fr}}
+.book{background:#fff;border:1px solid #D7EFEA;border-radius:18px;padding:20px;box-shadow:0 16px 40px rgba(13,148,136,.12);display:grid;gap:12px;align-self:start}
+.book h2{margin:0;font-size:20px;color:var(--navy)}.book label{display:grid;gap:4px;font-size:14px;font-weight:700;color:#334155}
+.book input,.book select{font:500 16px Poppins,sans-serif;padding:11px;border:1px solid #CBD5E1;border-radius:10px;min-height:46px;background:#fff}
+.book button{font:700 16px Poppins,sans-serif;background:var(--teal);color:#fff;border:0;border-radius:12px;padding:13px;min-height:50px;cursor:pointer}.book small{color:#64748B}
+.trust{display:flex;flex-wrap:wrap;gap:10px 26px;justify-content:center;padding:16px 5vw;background:var(--navy);color:#E0E7FF;font-weight:500;font-size:14px}.trust b{color:#5EEAD4}
+.depts{padding:40px 5vw 50px}.depts h2{margin:0 0 4px;color:var(--navy);font-size:28px}.depts>p{margin:0 0 20px;color:#64748B}
+.g2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}@media(max-width:640px){.g2{grid-template-columns:1fr}}
+.d{border:1px solid #E2E8F0;border-radius:16px;padding:18px;display:grid;gap:8px;background:#fff}
+.d header{all:unset;display:flex;justify-content:space-between;align-items:center;gap:10px}.d h3{margin:0;font-size:18px;color:var(--navy)}
+.st{font-size:13px;font-weight:700;border-radius:999px;padding:4px 10px;white-space:nowrap}.st.on{background:#DCFCE7;color:#166534}.st.off{background:#FEF3C7;color:#92400E}
+.rates{margin:0;padding:0;list-style:none;display:grid;gap:6px}.rates li{display:flex;justify-content:space-between;gap:10px;border-bottom:1px dashed #E2E8F0;padding-bottom:6px}.rates b{white-space:nowrap;color:var(--teal)}
+.toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);background:#111;color:#fff;border-radius:14px;padding:12px 16px;max-width:92vw;font-size:14px;white-space:pre-line;z-index:9}.toast[hidden]{display:none}
+footer{background:#0F172A;color:#CBD5E1;padding:22px 5vw;font-size:14px}
+</style></head><body>
+<p class="demo">Sample website made by SIRRADDO · the clinic, doctors and prices are examples</p>
+<header><div class="logo"><i>+</i>OliveCare Clinic</div><a class="call" href="#book">Book a visit</a></header>
+<section class="hero"><div><span class="pill">● Open today · 8am – 8pm</span><h1>Specialist care and lab tests, the same day</h1><p>See a specialist in Ibadan without the long wait. Clear prices before you come, results on WhatsApp.</p>
+<ul class="ticks"><li>Registered doctors and lab scientists</li><li>Most HMO plans accepted</li><li>Results in 24 hours for most tests</li></ul></div>
+<form class="book" id="book"><h2>Book a same-day appointment</h2><label>Full name<input name="n" required autocomplete="name"></label><label>Phone number<input name="p" type="tel" required autocomplete="tel"></label>
+<label>Department<select name="d"><option>General consultation</option><option>Paediatrics</option><option>Women's health</option><option>Laboratory test</option></select></label><label>Preferred time<select name="t"><option>Morning</option><option>Afternoon</option><option>Evening</option></select></label>
+<button type="submit">Send booking on WhatsApp</button><small>We confirm your time by reply. Nothing is booked until we confirm.</small></form></section>
+<div class="trust"><span><b>✓</b> HMO patients welcome</span><span><b>✓</b> Registered with the medical council</span><span><b>✓</b> Private, respectful care</span><span><b>✓</b> Iwo Road, Ibadan</span></div>
+<section class="depts"><h2>Departments &amp; lab tests</h2><p>Transparent prices. HMO cover may reduce what you pay.</p><div class="g2"></div></section>
+<p class="toast" hidden></p><footer>OliveCare Specialist Clinic &amp; Diagnostics · Ibadan · Sample website by SIRRADDO</footer>
+<script>
+{
+const D=[["General consultation",1,"Dr on duty till 8pm",[["Consultation","₦10,000"],["Follow-up visit","₦5,000"]]],["Paediatrics",1,"Specialist in today",[["Child consultation","₦15,000"],["Vaccination visit","₦8,000"]]],
+["Women's health",0,"Next: tomorrow 9am",[["Consultation","₦18,000"],["Pelvic scan","₦20,000"]]],["Laboratory",1,"Walk in, no booking",[["Full blood count","₦6,500"],["Malaria test","₦3,000"],["Fasting sugar","₦2,500"]]]];
+document.querySelector('.g2').innerHTML=D.map(d=>`<article class="d"><header><h3>${d[0]}</h3><span class="st ${d[1]?'on':'off'}">${d[1]?'● Available today':'○ '+d[2]}</span></header>${d[1]?`<small style="color:#64748B">${d[2]}</small>`:''}<ul class="rates">${d[3].map(r=>`<li><span>${r[0]}</span><b>${r[1]}</b></li>`).join('')}</ul></article>`).join('');
+const f=document.getElementById('book'),toast=document.querySelector('.toast');
+f.addEventListener('submit',e=>{e.preventDefault();const g=n=>f.elements[n].value.trim();toast.textContent=`Sample website: on the real site this opens WhatsApp with:\n\nHello OliveCare, I'd like a same-day appointment.\nName: ${g('n')}\nPhone: ${g('p')}\nDepartment: ${g('d')}\nTime: ${g('t')}`;toast.hidden=false;setTimeout(()=>toast.hidden=true,6000)});
+}
+</script></body></html>

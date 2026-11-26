@@ -796,7 +796,7 @@ p { margin: 0 0 1em; }
 .ds-sample figcaption { margin-top: 10px; font-weight: 700; font-size: 14px; color: var(--ink); text-align: center; }
 @media (max-width: 900px) { .ds-gallery { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 600px) {
-  .ds-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 14px; padding-bottom: 8px; margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
+  .ds-gallery { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 14px; padding-bottom: 8px; margin: 0; }
   .ds-gallery .ds-sample { flex: 0 0 68%; scroll-snap-align: start; }
 }
 .ds-feature { display: grid; grid-template-columns: 300px 1fr; gap: 48px; align-items: center; }
@@ -1020,10 +1020,10 @@ html.picker-lock, html.picker-lock body { overflow: hidden; }
 .qc { display: grid; gap: 22px; }
 @media (min-width: 900px) { .qc { grid-template-columns: 1.4fr 1fr; align-items: start; } }
 .qc-steps { display: grid; gap: 16px; }
-.qc fieldset { margin: 0; border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: var(--surface); display: grid; gap: 8px; }
+.qc fieldset { min-width: 0; margin: 0; border: 1px solid var(--line); border-radius: 14px; padding: 14px; background: var(--surface); display: grid; gap: 8px; }
 .qc legend { font-weight: 800; color: var(--ink); padding: 0 6px; display: flex; gap: 8px; align-items: center; }
 .qc legend span { width: 26px; height: 26px; border-radius: 50%; background: var(--navy); color: #fff; display: grid; place-items: center; font-size: .85rem; }
-.qc label { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; background: var(--bg-soft); }
+.qc label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; background: var(--bg-soft); }
 .qc label:has(input:checked) { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 12%, var(--surface)); }
 .qc label.is-off { opacity: .5; cursor: not-allowed; }
 .qc label input { width: 20px; height: 20px; accent-color: #16A34A; margin: 0; }
@@ -1079,3 +1079,11 @@ html.picker-lock, html.picker-lock body { overflow: hidden; }
 .dom-table td small { display: block; color: var(--muted); font-size: .82rem; }
 .dom-table th, .dom-table td { vertical-align: top; }
 .dom-table p { margin: 10px 0 0 !important; font-size: .92rem !important; color: var(--muted) !important; }
+
+/* Never let anything push the page sideways on small phones or with large text. */
+body { overflow-x: clip; }
+@media (max-width: 600px) { .site-footer { padding-bottom: 96px; } }
+/* Form fields never wider than the phone, even with large text */
+.field, .ds-info, .field > * { min-width: 0; max-width: 100%; }
+.picker-btn { max-width: 100%; }
+.picker-btn > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

@@ -69,8 +69,23 @@ function luminance(hex) {
   const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
   return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
 }
-export function themeFor(brief) {
+// Colours and heading font by type of business, used when the customer gave no colours, so a bakery never
+// looks like a law firm. New sites only (opts.industry): live sites keep their look until the owner asks.
+const INDUSTRIES = [
+  { re: /bak|cake|food|kitchen|restaurant|cater|chops|snack|pastr|drink|zobo|juice|eatery|grill|suya|bread|confection|parfait/i, primary: "#3B2416", accent: "#C8963E", head: "Georgia, 'Times New Roman', serif" },
+  { re: /fashion|hair|wig|beauty|salon|makeup|cosmetic|boutique|cloth|tailor|lash|nail|spa|skincare|perfume|jewel/i, primary: "#1F1A1C", accent: "#C9A27E", head: "Georgia, 'Times New Roman', serif" },
+  { re: /real estate|property|properties|realtor|construction|building|estate|land|architect|interior/i, primary: "#12372A", accent: "#C9971C" },
+  { re: /clinic|hospital|pharmac|health|medical|dental|lab|school|academy|college|tutor|lesson|creche|nursery/i, primary: "#0B3C5D", accent: "#0FA3A3" },
+  { re: /tech|software|fintech|it services|computer|digital|app|consult|finance|account|legal|law|logistics|limited|ltd/i, primary: "#111827", accent: "#2563EB" },
+];
+export function industryOf(brief) {
+  const text = [brief?.gbp_category, brief?.description, brief?.business_name, brief?.tagline].filter(Boolean).join(" ");
+  return INDUSTRIES.find((x) => x.re.test(text)) || null;
+}
+export function themeFor(brief, opts = {}) {
   const base = { ...(THEMES[brief?.style] || THEMES["Clean and modern"]) };
+  const ind = opts.industry && !String(brief?.colours || "").trim() ? industryOf(brief) : null;
+  if (ind) { base.primary = ind.primary; base.accent = ind.accent; if (ind.head) base.head = ind.head; }
   const text = String(brief?.colours || "").toLowerCase();
   const found = [];
   for (const name of Object.keys(COLOURS).sort((a, b) => b.length - a.length)) {
@@ -260,6 +275,7 @@ export function buildSiteModel(row) {
     // Once email forwarding works, the site shows their business address (info@theirdomain) instead of their Gmail.
     email: bizEmail(row) || b.email || "",
     address: b.address || "",
+    cac: String(b.cac || "").replace(/[^A-Za-z0-9 ]/g, "").trim().slice(0, 20),
     hours: b.hours || "",
     socials,
     logo: (files.logo || []).find(isImage) || null,
@@ -279,7 +295,8 @@ export function buildSiteModel(row) {
     delivery: b.delivery_areas || "",
     returns: b.returns || "",
     blogPosts,
-    theme: themeFor(b),
+    // Industry colours for requests from 26 Nov 2026 on, so older sites never change colour by themselves.
+    theme: themeFor(b, { industry: new Date(row.created_at || Date.now()).toISOString().slice(0, 10) >= "2026-11-26" || Boolean(row.hosting?.industryLook) }),
     pages: outPages,
     designCss: row.design_css || "",
   };
@@ -371,6 +388,7 @@ blockquote{margin:0;background:#fff;border-left:4px solid ${t.accent};padding:16
 .cta .btn{background:${t.primary};color:#fff}
 footer{background:#111827;color:#D1D5DB;padding:32px 0 90px;font-size:.95rem}footer a{color:#fff}footer .wrap{display:grid;gap:12px}
 .credit{font-size:.8rem;opacity:.7}
+.hero .where{font-weight:600;opacity:.9;margin:6px 0 14px}
 .wa{position:fixed;right:16px;bottom:16px;z-index:9;background:#25D366;color:#fff;font-weight:700;text-decoration:none;padding:13px 18px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 mark.todo{background:#FFF1B8;color:#5C4400;padding:1px 4px;border-radius:4px}
 article.post{margin-bottom:28px}
@@ -400,6 +418,7 @@ function header(site, page, link, img) {
   const btn = many ? `<button class="menu-btn" type="button" aria-expanded="false" aria-controls="mainnav" onclick="var n=document.getElementById('mainnav'),o=n.classList.toggle('open');this.setAttribute('aria-expanded',o);this.textContent=o?'\u2715 Close':'\u2630 Menu'">\u2630 Menu</button>` : "";
   return `<header class="top"><div class="wrap"><a class="brand" href="${link("index")}">${site.logo ? `<img src="${img(site.logo.url)}" alt="${esc(site.name)} logo">` : ""}<span>${esc(site.name)}</span></a>${btn}<nav aria-label="Main" id="mainnav"${many ? ' class="many"' : ""}>${nav}</nav></div></header>`;
 }
+function waHello(site) { return `Hello ${site.name}, I found you on your website and I'd like to ask about your products and prices.`; }
 function waLink(site, text) {
   return site.whatsapp ? `https://wa.me/${site.whatsapp}${text ? "?text=" + encodeURIComponent(text) : ""}` : "";
 }
@@ -860,6 +879,7 @@ function trustPoints(site) {
   else if (site.whatsapp) t.push("Quick replies on WhatsApp");
   if (site.hours && site.hours.length <= 34) t.push(site.hours);
   if (city && city.length <= 30) t.push(`Visit us in ${city.replace(/\s+nigeria$/i, "")}`);
+  if (site.cac) t.unshift(`CAC registered (${site.cac})`);
   return t.slice(0, 4);
 }
 // The moving banner at the top of a store's home page: the products the owner ticked "Show at the top" in My store,
@@ -915,10 +935,14 @@ function pageBody(site, page, mode, link, img) {
     sections = sections.filter((s) => s !== heroSec);
     const headline = heroSec?.fields.headline || site.name;
     const sub = heroSec?.fields.subheadline || site.tagline;
-    const btn = heroSec?.fields["button text"] || "Contact us";
+    const btn = heroSec?.fields["button text"] || (site.whatsapp ? "Order on WhatsApp" : "Contact us");
     const contactPage = site.pages.find((p) => p.kind === "contact");
-    const href = site.whatsapp ? waLink(site) : contactPage ? link(contactPage.slug) : "#";
-    out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}<a class="btn" href="${href}">${inline(btn, mode)}</a>${openBadge(site)}</div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}" fetchpriority="high" decoding="async">` : site.productPhotos.length >= 4 ? `<div class="hero-grid">${site.productPhotos.slice(0, 4).map((p, k) => `<img src="${img(p.url)}" alt=""${k ? ' loading="lazy"' : ' fetchpriority="high"'} decoding="async">`).join("")}</div>` : ""}</div></section>`);
+    const href = site.whatsapp ? waLink(site, waHello(site)) : contactPage ? link(contactPage.slug) : "#";
+    // Where they work, under the hero words (only from the form: city from the address, delivery note)
+    const city = String(site.address || "").split(/\n|,/).map((x) => x.trim()).filter(Boolean).pop() || "";
+    const where = [city && city.length <= 30 ? city.replace(/\s+nigeria$/i, "") : "", site.delivery ? (/nationwide|all states|across nigeria|anywhere in nigeria/i.test(site.delivery) ? "Delivery nationwide" : "") : ""].filter(Boolean).join(" \u00b7 ");
+    const whereHtml = where && !(sub || "").toLowerCase().includes(where.split(" ")[0].toLowerCase()) ? `<p class="where">\ud83d\udccd ${esc(where)}</p>` : "";
+    out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}${whereHtml}<a class="btn" href="${href}">${inline(btn, mode)}</a>${openBadge(site)}</div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}" fetchpriority="high" decoding="async">` : site.productPhotos.length >= 4 ? `<div class="hero-grid">${site.productPhotos.slice(0, 4).map((p, k) => `<img src="${img(p.url)}" alt=""${k ? ' loading="lazy"' : ' fetchpriority="high"'} decoding="async">`).join("")}</div>` : ""}</div></section>`);
     const trust = trustPoints(site);
     if (trust.length) out.push(`<div class="trust"><div class="wrap">${trust.map((t) => `<span>\u2713 ${esc(t)}</span>`).join("")}</div></div>`);
     const car = topCarousel(site, img);
@@ -1000,7 +1024,7 @@ function footer(site, link) {
 <span>${[site.phone && esc(site.phone), site.email && `<a href="mailto:${esc(site.email)}">${esc(site.email)}</a>`, site.address && esc(site.address.split("\n")[0])].filter(Boolean).join(" · ")}</span>
 ${socials ? `<span>${socials}</span>` : ""}${kitButtons()}<span>© ${new Date().getFullYear()} ${esc(site.name)}</span>
 ${site.noCredit ? "" : `<span class="credit">Website by <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">SIRRADDO</a> · <a href="https://www.sirraddo.com.ng/websites?utm_source=client-site&amp;utm_campaign=${esc(site.creditTag || "site")}" rel="noopener">Get a website like this</a></span>`}</div></footer>
-${site.whatsapp ? `<a class="wa" href="${waLink(site)}" aria-label="Chat on WhatsApp">WhatsApp</a>` : ""}`;
+${site.whatsapp ? `<a class="wa" href="${waLink(site, waHello(site))}" aria-label="Chat on WhatsApp">WhatsApp</a>` : ""}`;
 }
 
 function previewPanel(row, token, choice) {

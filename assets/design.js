@@ -196,7 +196,11 @@
           var r = mk('input', 'pf-range'); r.type = 'range'; r.min = 0; r.max = 100; r.value = 50; r.setAttribute('aria-label', 'Compare before and after');
           var set = function () { before.style.clipPath = 'inset(0 ' + (100 - r.value) + '% 0 0)'; line.style.left = r.value + '%'; }; r.oninput = set; set(); box.appendChild(r);
         }
-        fig.appendChild(box); fig.appendChild(mk('figcaption', '', (g.title ? g.title + ' · ' : '') + g.cat)); grid.appendChild(fig);
+        after.addEventListener('load', function () { if (after.naturalHeight / after.naturalWidth > 1.6) fig.classList.add('pf-item--phone'); });
+        fig.appendChild(box); fig.appendChild(mk('figcaption', '', (g.title ? g.title + ' · ' : '') + g.cat));
+        var ord = mk('a', 'pf-order', 'Order a design like this');
+        ord.href = 'https://wa.me/2348167550937?text=' + encodeURIComponent('Hello SIRRADDO, I\'d like a design like "' + (g.title || g.cat) + '" for my business.'); ord.target = '_blank'; ord.rel = 'noopener';
+        fig.appendChild(ord); grid.appendChild(fig);
       });
     }
     draw('All'); sec.hidden = false;

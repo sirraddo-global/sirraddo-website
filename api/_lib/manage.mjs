@@ -18,7 +18,7 @@ async function load(id) {
 }
 import { cloudflareConfigured } from "./cloudflare.mjs";
 import { setReviewStatuses } from "./reviews.mjs";
-import { SITE_LOOK, SITE_LOOK_NOTES } from "./sitegen.mjs";
+import { SITE_LOOK, SITE_LOOK_NOTES, FUEL, FUEL_STATUS } from "./sitegen.mjs";
 
 // Stores call it "Manage my store"; other websites "Manage my website" (hours, numbers, notice, slogan, reviews).
 // For the Manage page: is a newer version of the website waiting, and what's in it.
@@ -98,6 +98,21 @@ export async function applyManage(r, input) {
     if (v && "top" in v) { const top = v.top === true || v.top === "1" || v.top === "on"; if (top !== Boolean(p.top)) { changes.push(`${p.name}: ${top ? "shown at the top of the home page" : "no longer at the top"}`); if (top) p.top = true; else delete p.top; } }
   }
   const patch = { products };
+  // Filling stations & gas plants: today's prices and stock (an empty price = not sold, nothing shows).
+  if (input.fuel && typeof input.fuel === "object") {
+    const before = b.fuel_prices || {}, next = {}, fuelChanges = [];
+    for (const f of FUEL) {
+      const v = input.fuel[f.k] || {};
+      const raw = String(v.price ?? "").replace(/[₦,\s]/g, "");
+      if (raw && !/^\d{2,7}$/.test(raw)) throw new Error(`${f.label}: write the price as a number, e.g. 980`);
+      const status = FUEL_STATUS[v.status] ? v.status : "available";
+      const was = before[f.k] || {}, wasPrice = String(was.price || ""), wasStatus = FUEL_STATUS[was.status] ? was.status : "available";
+      if (raw) next[f.k] = { price: raw, status };
+      if (raw !== wasPrice) fuelChanges.push(`${f.label}: ${raw ? `₦${Number(raw).toLocaleString("en-NG")}` : "not shown"}${wasPrice ? ` (was ₦${Number(wasPrice).toLocaleString("en-NG")})` : ""}`);
+      else if (raw && status !== wasStatus) fuelChanges.push(`${f.label}: ${FUEL_STATUS[status]}`);
+    }
+    if (fuelChanges.length) { changes.push(...fuelChanges); patch.fuel_prices = { ...next, updated: new Date().toISOString() }; }
+  }
   for (const [key, label, max] of [["hours", "Opening hours", 120], ["phone", "Phone", 30], ["whatsapp", "WhatsApp", 30], ["site_notice", "Notice on the website", 200], ["tagline", "Slogan", 100]]) {
     if (!(key in input)) continue;
     const v = clean(input[key], max);

@@ -2,6 +2,7 @@
 // notice themselves. Save updates their live site and emails us what changed. Works on phones; no login.
 import { dbConfigured, esc } from "./_lib/store.mjs";
 import { findManageRequest, applyManage, afterManage, manageTitle, lookStatus, gbpAsk } from "./_lib/manage.mjs";
+import { FUEL, FUEL_STATUS, isFuelBusiness } from "./_lib/sitegen.mjs";
 import { listReviews, starsText } from "./_lib/reviews.mjs";
 import { COMPANY } from "./_lib/docs.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
@@ -56,6 +57,24 @@ function lookCard(r) {
 ${L.waiting ? `<div class="rv"><b>A new version of your website is ready:</b><ul>${L.notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul><label class="ck"><input type="checkbox" name="update_look" value="1"> Update my website to the new version</label><p class="m">Saving any other change here also updates it to the new version.</p></div>` : ""}</div>`;
 }
 
+// Filling stations & gas plants: update today's prices and stock in seconds (shown first on the page).
+function fuelCard(r) {
+  const b = r.brief || {};
+  if (!isFuelBusiness(b)) return "";
+  const fp = b.fuel_prices || {};
+  const when = fp.updated ? new Date(fp.updated).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Africa/Lagos" }) : "";
+  const rows = FUEL.map((f) => {
+    const v = fp[f.k] || {}, st = FUEL_STATUS[v.status] ? v.status : "available";
+    return `<div class="fu"><label for="fuel_price_${f.k}">${esc(f.label)} <span class="m">₦ per ${f.unit}</span></label>
+<div class="fu-in"><span>₦</span><input type="text" inputmode="numeric" pattern="[0-9,]*" id="fuel_price_${f.k}" name="fuel_price_${f.k}" value="${esc(v.price || "")}" placeholder="Not sold"></div>
+<div class="fu-st" role="radiogroup" aria-label="${esc(f.label)} stock">${Object.entries(FUEL_STATUS).map(([k, t]) => `<label class="fu-${k}"><input type="radio" name="fuel_status_${f.k}" value="${k}"${st === k ? " checked" : ""}> ${t}</label>`).join("")}</div></div>`;
+  }).join("");
+  return `<div class="c fuelc"><h2>⛽ Update my pump prices &amp; stock</h2><p class="m">Type today's prices and tap the stock status, then <b>Save changes</b>. Your website's price board updates within a minute${when ? `. Last updated: <b>${esc(when)}</b>` : ""}. Leave a price empty if you don't sell it.</p>${rows}
+<style>.fu{padding:12px 0;border-bottom:1px solid #EEF1F5}.fu:last-of-type{border:0}.fu>label{margin:0 0 6px}.fu-in{display:flex;align-items:center;gap:6px}.fu-in span{font-weight:800;font-size:1.2rem}.fu-in input{font-size:1.3rem!important;font-weight:800;max-width:180px}
+.fu-st{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.fu-st label{margin:0;display:flex;gap:6px;align-items:center;justify-content:center;text-align:center;border:2px solid #E1E6EF;border-radius:10px;padding:10px 6px;font-size:.85rem;cursor:pointer;min-height:46px}.fu-st input{width:18px;height:18px;flex:none}
+.fu-st label:has(input:checked){border-color:#059669;background:#ECFDF5}.fu-st .fu-low:has(input:checked){border-color:#D97706;background:#FFFBEB}.fu-st .fu-out:has(input:checked){border-color:#DC2626;background:#FEF2F2}</style></div>`;
+}
+
 function form(r, token, note) {
   const b = r.brief || {};
   const items = (b.products || []).map((p, i) => ({ ...p, i })).filter((p) => p.name);
@@ -65,8 +84,9 @@ function form(r, token, note) {
 <label class="st">In stock <input type="text" inputmode="numeric" pattern="[0-9]*" name="stock_${p.i}" value="${esc(String(p.stock ?? ""))}" aria-label="How many ${esc(p.name)} in stock" placeholder="not counted"></label>
 <label class="so"><input type="checkbox" name="sold_${p.i}"${p.soldout ? " checked" : ""} onchange="this.closest('.p').classList.toggle('is-sold',this.checked)"> Sold out</label></div>`).join("");
   return `<div class="c"><h1>${esc(manageTitle(r))}</h1><p>${esc(b.business_name || r.business || r.name)}${r.website_url ? ` · <a href="${esc(r.website_url)}">${esc(r.website_url.replace(/^https?:\/\//, ""))}</a>` : ""}</p>
-<p class="m">${r.interest === "Online Store" ? "Change prices, set how many you have in stock (online orders take it down; at 0 it shows Sold out), mark items sold out, update" : "Update"} your hours and numbers, slogan and notice, and choose which customer reviews show. Tap <b>Save changes</b> at the bottom: your website updates within a minute. For new ${r.interest === "Online Store" ? "products, " : ""}photos or text, use your "Request a change" link.</p>${note || ""}</div>
+<p class="m">${r.interest === "Online Store" ? "Change prices, set how many you have in stock (online orders take it down; at 0 it shows Sold out), mark items sold out, update" : isFuelBusiness(b) ? "Update today's pump prices and stock, and" : "Update"} your hours and numbers, slogan and notice, and choose which customer reviews show. Tap <b>Save changes</b> at the bottom: your website updates within a minute. For new ${r.interest === "Online Store" ? "products, " : ""}photos or text, use your "Request a change" link.</p>${note || ""}</div>
 <form method="post" action="/manage?t=${esc(token)}">
+${fuelCard(r)}
 ${items.length ? `<div class="c"><h2>Products (${items.length})</h2><p class="m">Stock: type how many you have, or leave it empty to not count. Paid online orders take it down by themselves. WhatsApp and in-shop sales don't, so adjust the number here. You are responsible for keeping prices and stock right.</p>${items.length > 8 ? `<input type="search" placeholder="Find a product" aria-label="Find a product" oninput="var w=this.value.toLowerCase();document.querySelectorAll('.p').forEach(function(x){x.hidden=w&&x.getAttribute('data-s').indexOf(w)<0})">` : ""}${rows}</div>` : ""}
 <div class="c"><h2>Shop details</h2>
 <label for="tagline">Slogan (shows at the bottom of every page)</label><input type="text" id="tagline" name="tagline" maxlength="100" value="${esc(b.tagline || "")}" placeholder="e.g. Fresh bread every morning in Ibadan">
@@ -136,10 +156,11 @@ export default async function handler(req, res) {
       if ((m = k.match(/^stock_(\d{1,3})$/))) (products[m[1]] ||= {}).stock = v;
     }
     for (const p of (r.brief?.products || []).map((p, i) => ({ ...p, i }))) (products[p.i] ||= {}).soldout = body[`sold_${p.i}`] === "on";
+    const fuel = isFuelBusiness(r.brief || {}) ? Object.fromEntries(FUEL.map((f) => [f.k, { price: body[`fuel_price_${f.k}`], status: body[`fuel_status_${f.k}`] }])) : null;
     const reviews = {};
     for (const [k, v] of Object.entries(body)) { const m = k.match(/^rv_(\d{1,9})$/); if (m) reviews[m[1]] = String(v); }
     try {
-      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice, tagline: body.tagline, reviews, lookMode: body.look_mode, updateLook: body.update_look === "1", gbpVerified: body.gbp_verified === "1" });
+      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice, tagline: body.tagline, fuel, reviews, lookMode: body.look_mode, updateLook: body.update_look === "1", gbpVerified: body.gbp_verified === "1" });
       row.reviews = await listReviews(row.id).catch(() => []);
       if (!changes.length) return shell(res, 200, manageTitle(row), form(row, token, `<p class="ok">Nothing changed.</p>`));
       const live = await afterManage(row, changes);

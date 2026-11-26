@@ -48,3 +48,16 @@ test("websites page showcase: 5 sample sites, framable only by our own site, eac
   }
   assert.match(readFileSync(new URL("../netlify.toml", import.meta.url), "utf8"), /for = "\/assets\/showcase\/\*"[\s\S]*?X-Frame-Options = "SAMEORIGIN"/);
 });
+
+test("filling stations: the owner updates pump prices and stock in Manage; the website shows the price board", async () => {
+  const { FUEL, isFuelBusiness } = await import("../api/_lib/sitegen.mjs");
+  assert.ok(isFuelBusiness({ business_name: "PrimeFuel", description: "Filling station and cooking gas plant" }));
+  assert.ok(!isFuelBusiness({ description: "Bakery: we opened 10 years ago" }));
+  assert.equal(FUEL.length, 3);
+  const site = buildSiteModel(row({ business_name: "PrimeFuel", description: "Filling station", fuel_prices: { pms: { price: "980", status: "available" }, ago: { price: "1150", status: "low" }, lpg: { price: "", status: "out" }, updated: "2026-11-26T06:30:00Z" } }));
+  const html = renderPage(site, "index", { mode: "export", link: (s) => s });
+  assert.match(html, /Today's prices/); assert.match(html, /₦980<small>\/L/); assert.match(html, /fb-low[\s\S]*Low stock/);
+  assert.doesNotMatch(html, /Cooking gas \(LPG\)/, "not sold = not shown");
+  assert.match(html, /Updated 26 Nov, 7:30 am/i);
+  assert.doesNotMatch(renderPage(buildSiteModel(row({})), "index", { mode: "export", link: (s) => s }), /Today's prices/);
+});

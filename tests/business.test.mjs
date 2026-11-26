@@ -1322,3 +1322,20 @@ test("monthly report: change on the month before and a renewal heads-up", async 
   const plain = reportHtml({ ...r, renewal_due: "2027-06-01" }, s, "November 2026");
   assert.doesNotMatch(plain, /on October|renewal/, "no comparison or renewal note when not due");
 });
+
+test("Manage my website: a filling station updates pump prices and stock", async () => {
+  const { id } = (await h.action({ action: "create", name: "Musa", contact: "08035556666", business: "PrimeFuel", interest: "Starter website" })).json;
+  await h.sql(`UPDATE customer_requests SET brief = $2 WHERE id = $1`, [id, JSON.stringify({ business_name: "PrimeFuel", description: "Filling station and gas plant", phone: "08035556666" })]);
+  const link = (await h.action({ action: "manage_link", id })).json.url;
+  const mpath = "/manage?" + link.split("?")[1];
+  assert.match((await h.call("GET", mpath)).text, /Update my pump prices &amp; stock/);
+  const save = (o) => fetch(h.base + mpath, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ phone: "08035556666", ...o }) }).then((r) => r.text());
+  assert.match(await save({ fuel_price_pms: "nine", fuel_status_pms: "available" }), /write the price as a number/);
+  assert.match(await save({ fuel_price_pms: "₦980", fuel_status_pms: "available", fuel_price_ago: "1,150", fuel_status_ago: "low", fuel_price_lpg: "", fuel_status_lpg: "out" }), /Saved ✓/);
+  const fp = (await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]))[0].brief.fuel_prices;
+  assert.deepEqual([fp.pms, fp.ago, fp.lpg], [{ price: "980", status: "available" }, { price: "1150", status: "low" }, undefined]);
+  assert.ok(fp.updated);
+  const page = (await h.call("GET", mpath)).text;
+  assert.match(page, /name="fuel_price_ago" value="1150"/); assert.match(page, /name="fuel_status_ago" value="low" checked/);
+  assert.match(await save({ fuel_price_pms: "980", fuel_status_pms: "out", fuel_price_ago: "1150", fuel_status_ago: "low" }), /Saved ✓/);
+});

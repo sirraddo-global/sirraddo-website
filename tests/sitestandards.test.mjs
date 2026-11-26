@@ -24,3 +24,16 @@ test("home hero: Order on WhatsApp with a ready message, city under the words, C
   assert.match(html, /CAC registered \(RC 1234567\)/);
   assert.match(html, /class="wa" href="https:\/\/wa\.me\/2348031234567\?text=/);
 });
+
+test("each industry gets its own page structure on the home page", () => {
+  const svc = (list) => list.map(([name, price]) => ({ name, details: "", price }));
+  const page = (brief) => renderPage(buildSiteModel(row(brief)), "index", { mode: "export", link: (s) => s });
+  const food = page({ services: svc([["Birthday cake", "18000"], ["Meat pie", "1200"]]) });
+  assert.match(food, /class="page-home[^"]*ind-food/); assert.match(food, /class="mq-order" href="https:\/\/wa\.me\/2348031234567\?text=Hello%20Kemi%20Cakes%2C%20I'd%20like%20to%20order%3A%20Meat%20pie/);
+  const fashion = page({ business_name: "Glam by Tolu", description: "Hair salon and makeup", services: svc([["Knotless braids", "15000"]]) });
+  assert.match(fashion, /ind-fashion/); assert.match(fashion, /class="lb-list"/);
+  const homes = page({ business_name: "Oak Homes", description: "Real estate agency", services: svc([["3-bedroom flat for Rent in Bodija", "1500000"], ["Land for Sale in Akobo", "12000000"]]) });
+  assert.match(homes, /class="lf"/); assert.match(homes, /data-k="rent"/); assert.match(homes, /📍 Bodija/);
+  const clinic = page({ business_name: "Bright Smile Dental Clinic", description: "Dental clinic", services: svc([["Check-up", "10000"]]) });
+  assert.match(clinic, /<form class="bk"/); assert.match(clinic, />Book an appointment</);
+});

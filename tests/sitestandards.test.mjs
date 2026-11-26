@@ -95,3 +95,12 @@ test("page backgrounds, web fonts and the content fixes on the demos", async () 
   assert.doesNotMatch(page("shop"), />No products match/);
   const salon = page("salon"); assert.doesNotMatch(salon, />Our work</, "the lookbook already shows the photos");
 });
+
+test("agents' dashboard shows every demo, and the chat knows the new prices and layouts", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { DEMOS } = await import("../api/_lib/demos.mjs");
+  const js = readFileSync(new URL("../assets/agents.js", import.meta.url), "utf8");
+  for (const k of Object.keys(DEMOS)) assert.match(js, new RegExp(`\\['${k}',`), `agents dashboard lists the ${k} demo`);
+  const { SYSTEM_PROMPT } = await import("../api/_lib/knowledge.mjs");
+  for (const t of ["₦18,000 per year", "Monthly Care & Growth Plan", "Midnight dark", "filling stations", "hotels/short-lets", "/hotel-websites-nigeria"]) assert.ok(SYSTEM_PROMPT.includes(t), t);
+});

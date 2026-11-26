@@ -267,7 +267,8 @@
     return box;
   }
   // ----- Demo websites by trade (opened with their link) -----
-  var DEMO_LIST = [['salon', '💇🏾‍♀️', 'Hair & beauty salon'], ['restaurant', '🍲', 'Restaurant & food'], ['church', '⛪', 'Church & ministry'], ['school', '🏫', 'School'], ['shop', '🛍️', 'Online store']];
+  // Keep in step with DEMOS in api/_lib/demos.mjs (a test checks).
+  var DEMO_LIST = [['salon', '💇🏾‍♀️', 'Hair & beauty salon'], ['restaurant', '🍲', 'Restaurant & food'], ['church', '⛪', 'Church & ministry'], ['school', '🏫', 'School'], ['realestate', '🏡', 'Real estate & property'], ['clinic', '🩺', 'Clinic & pharmacy'], ['hotel', '🏨', 'Hotel & short-let'], ['fuel', '⛽', 'Filling station & gas plant'], ['shop', '🛍️', 'Online store']];
   function demoBox(d) {
     var box = el('details', { class: 'ag-box ag-more' }, [el('summary', null, [el('h3', { text: '📱 Demo websites to show' })])]);
     box.appendChild(el('p', { class: 'ag-small', text: 'Open one on your phone and show the business owner "a website like yours". "Get one like this" on the demo goes to your link.' }));

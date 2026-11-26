@@ -1,7 +1,7 @@
 // SIRRADDO agents: people who bring us clients and earn a commission.
 // An agent applies on /agents, we approve them in Admin → Marketing → Agents, and they share their own link
 // (sirraddo.com.ng/?a=CODE). Requests that come through it are theirs: they earn a share (default 10%) of what that
-// client actually pays for their website build in the first 12 months (deposit + balance, minus refunds; not
+// client actually pays for their website, app or design order in the first 12 months (deposit + balance, minus refunds; not
 // renewals or monthly services). They see their leads and earnings on their dashboard and ask for a payout; we pay
 // by bank transfer and record it here.
 import { createHash, createHmac, randomBytes } from "node:crypto";
@@ -230,7 +230,7 @@ export async function dashboard(a0) {
 const TRAINING_QUIZ = [
   { q: "A business owner wants to pay. Where does the money go?", options: ["To you, then you pass it on", "Straight to SIRRADDO, by the invoice link or bank transfer", "Half to you, half to SIRRADDO"], answer: 1 },
   { q: "What does a Starter website cost in the first year?", options: ["₦50,000, with the domain and hosting included", "₦50,000 plus hosting", "₦25,000 a month"], answer: 0 },
-  { q: "When do you earn commission?", options: ["When the business owner says yes", "When the client pays SIRRADDO for their website", "Every time you share your link"], answer: 1 },
+  { q: "When do you earn commission?", options: ["When the business owner says yes", "When the client pays SIRRADDO for their website or design", "Every time you share your link"], answer: 1 },
   { q: "You registered a business in your dashboard. How long is it counted as yours?", options: ["7 days", "30 days", "90 days"], answer: 2 },
   { q: "An owner says \"What if I don't like it?\" What is true?", options: ["They must pay in full first", "They see their website before paying the balance, and can ask for changes", "There are no changes after the deposit"], answer: 1 },
   { q: "Which of these is NOT allowed?", options: ["Showing a demo website on your phone", "Following up after 2–3 days", "Promising a price or discount SIRRADDO hasn't offered"], answer: 2 },
@@ -421,7 +421,7 @@ export async function adminUpdate(id, input) {
     const prog = await programme();
     await sendCustomerEmail(b.email, "You're now a SIRRADDO agent 🎉", agentMail(b, [
       `Welcome, ${esc(firstName(b.name))}! Your agent account is approved.`,
-      `Your link: <a href="${linkFor(b)}">${linkFor(b)}</a>. Share it with business owners who need a website or app. When they pay for their website, you earn <b>${rateOf(b, prog)}%</b> of it.`,
+      `Your link: <a href="${linkFor(b)}">${linkFor(b)}</a>. Share it with business owners who need a website, app, flyers or a logo. When they pay for it (not renewals), you earn <b>${rateOf(b, prog)}%</b> of it.`,
       `Log in to your dashboard with your WhatsApp number and the password you chose, to see your clients and earnings.`,
     ], { url: `${SITE_URL}/agents#login`, label: "Open my dashboard" })).catch(() => {});
   }

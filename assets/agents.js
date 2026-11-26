@@ -316,7 +316,7 @@
     return [
       ['1. How it works', [
         'Share your link, or register a business in "Businesses I\'m talking to", so the client counts as yours (for 90 days).',
-        'When your client pays SIRRADDO for their website, you earn ' + d.base + '% of what they pay in their first 12 months. More paying clients move you up a level and a higher rate.',
+        'When your client pays SIRRADDO for a website, app or design (flyers, cards, logos), you earn ' + d.base + '% of what they pay in their first 12 months. More paying clients move you up a level and a higher rate.',
         'Ask for your money from "Get paid" once you have ' + naira(d.min) + ' or more. We pay into your bank account.']],
       ['2. Who to talk to', [
         'Start with people who already trust you: shops on your street, your church or mosque, school owners, hairdressers, caterers, old classmates.',
@@ -451,7 +451,7 @@
       '<p><b>' + e(s.agent.name) + '</b> · Agent code ' + e(s.agent.code) + ' · ' + e(s.agent.phone) + (s.agent.bank ? '<br>Paid to: ' + e(s.agent.bank.bank) + ' · ' + e(s.agent.bank.account_no) + ' · ' + e(s.agent.bank.account_name) : '') + '</p>' +
       '<div class="sum"><div><span>Brought forward</span><b>' + naira(s.opening) + '</b></div><div><span>Earned this month</span><b>' + naira(s.earned) + '</b></div><div><span>Paid to you</span><b>' + naira(s.paid) + '</b></div><div><span>Balance at month end</span><b>' + naira(s.closing) + '</b></div></div>' +
       '<table><thead><tr><th>Date</th><th>Type</th><th>Details</th><th class="n">Amount</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-      '<button class="pr" onclick="print()">Print or save as PDF</button><p class="ft">SIRRADDO GLOBAL LIMITED · RC 9939920 · www.sirraddo.com.ng · Commission is on what clients you introduced paid for their website build in their first 12 months.</p></div></body></html>';
+      '<button class="pr" onclick="print()">Print or save as PDF</button><p class="ft">SIRRADDO GLOBAL LIMITED · RC 9939920 · www.sirraddo.com.ng · Commission is on what clients you introduced paid for websites, apps and designs in their first 12 months (not renewals).</p></div></body></html>';
   }
 
   function stat(label, value, cls) { return el('div', { class: 'ag-stat' + (cls ? ' ' + cls : '') }, [el('span', { text: label }), el('b', { text: value })]); }
@@ -486,7 +486,7 @@
     dash.appendChild(lvBox);
     // Link + messages
     var link = el('input', { value: d.link, readonly: true, 'aria-label': 'Your link' });
-    var share = el('div', { class: 'ag-box' }, [el('h3', { text: 'Your link' }), el('p', { class: 'ag-small', text: 'Everyone who contacts us through this link is counted as yours. You earn ' + d.rate + '% when they pay for their website.' }),
+    var share = el('div', { class: 'ag-box' }, [el('h3', { text: 'Your link' }), el('p', { class: 'ag-small', text: 'Everyone who contacts us through this link is counted as yours. You earn ' + d.rate + '% when they pay for a website, app or design (not renewals).' }),
       el('div', { class: 'ag-linkrow' }, [link, el('button', { type: 'button', class: 'btn btn--navy', text: 'Copy', onclick: function (e) { copy(d.link, e.currentTarget); } })])]);
     share.appendChild(el('h4', { text: 'Ready messages: tap to share on WhatsApp' }));
     messages(d).forEach(function (m) {

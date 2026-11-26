@@ -2,7 +2,7 @@
 // /demo → the list; /demo/salon → its home page; /demo/salon/contact → another page.
 // ?a=CODE (from an agent's dashboard) is kept on every link and "Get one like this" goes to that agent's link.
 import { DEMOS, demoRow } from "./_lib/demos.mjs";
-import { buildSiteModel, renderPage } from "./_lib/sitegen.mjs";
+import { buildSiteModel, renderPage, SURFACES } from "./_lib/sitegen.mjs";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -16,12 +16,17 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "public, max-age=300");
   res.setHeader("X-Robots-Tag", "noindex");
   if (!parts.length) return res.status(200).send(listPage(keep, getOne));
-  const key = parts[0], row = demoRow(key);
+  // ?s= page background (tinted, dark, cream, light): the pills in the top bar switch it.
+  const surface = SURFACES[req.query?.s] ? req.query.s : "tinted";
+  const key = parts[0], row = demoRow(key, { surface });
   if (!row) return res.status(404).send(listPage(keep, getOne));
   const site = buildSiteModel(row);
   const slug = parts[1] || "index";
-  const link = (s) => `/demo/${key}${s === "index" ? "" : "/" + encodeURIComponent(s)}${keep}`;
-  const top = `Demo website by SIRRADDO (the business is made up). <a href="${getOne}">Get one like this →</a> · <a href="/demo${keep}">More demos</a>`;
+  const qs = (sv) => { const p = new URLSearchParams(); if (code) p.set("a", code); if (sv !== "tinted") p.set("s", sv); const t = p.toString(); return t ? "?" + t : ""; };
+  const link = (s) => `/demo/${key}${s === "index" ? "" : "/" + encodeURIComponent(s)}${qs(surface)}`;
+  const here = `/demo/${key}${slug === "index" ? "" : "/" + encodeURIComponent(slug)}`;
+  const pills = Object.entries(SURFACES).map(([k, t]) => `<a class="pv-pill${k === surface ? " on" : ""}" href="${here}${qs(k)}"${k === surface ? ' aria-current="true"' : ""}>${esc(t.replace(" (recommended)", ""))}</a>`).join("");
+  const top = `Demo website by SIRRADDO (the business is made up). <a href="${getOne}">Get one like this →</a> · <a href="/demo${keep}">More demos</a><span class="pv-pills" role="group" aria-label="Page background">${pills}</span><style>.pv-pills{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-top:8px}.pv-pill{padding:5px 11px;border-radius:999px;border:1px solid #C9A227;background:#fff;color:#3D2E00;text-decoration:none;font-size:13px;font-weight:700}.pv-pill.on{background:#13254F;border-color:#13254F;color:#fff}</style>`;
   return res.status(200).send(renderPage(site, slug, { mode: "preview", link, top, panel: "" }));
 }
 

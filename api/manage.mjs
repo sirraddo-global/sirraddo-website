@@ -2,7 +2,7 @@
 // notice themselves. Save updates their live site and emails us what changed. Works on phones; no login.
 import { dbConfigured, esc } from "./_lib/store.mjs";
 import { findManageRequest, applyManage, afterManage, manageTitle, lookStatus, gbpAsk } from "./_lib/manage.mjs";
-import { FUEL, FUEL_STATUS, isFuelBusiness } from "./_lib/sitegen.mjs";
+import { FUEL, FUEL_STATUS, isFuelBusiness, SURFACES, surfaceOf } from "./_lib/sitegen.mjs";
 import { listReviews, starsText } from "./_lib/reviews.mjs";
 import { COMPANY } from "./_lib/docs.mjs";
 import { DARK_PAGE_CSS } from "./_lib/darkcss.mjs";
@@ -93,7 +93,9 @@ ${items.length ? `<div class="c"><h2>Products (${items.length})</h2><p class="m"
 <label for="hours">Opening hours</label><input type="text" id="hours" name="hours" maxlength="120" value="${esc(b.hours || "")}" placeholder="e.g. Mon–Sat 8am–6pm">
 <label for="phone">Phone number</label><input type="tel" id="phone" name="phone" maxlength="30" value="${esc(b.phone || "")}">
 <label for="whatsapp">WhatsApp number</label><input type="tel" id="whatsapp" name="whatsapp" maxlength="30" value="${esc(b.whatsapp || "")}" placeholder="If different from the phone number">
-<label for="site_notice">Notice at the top of your website (optional)</label><textarea id="site_notice" name="site_notice" rows="2" maxlength="200" placeholder="e.g. Closed for Sallah, back on Monday. Leave empty to remove it.">${esc(b.site_notice || "")}</textarea></div>
+<label for="site_notice">Notice at the top of your website (optional)</label><textarea id="site_notice" name="site_notice" rows="2" maxlength="200" placeholder="e.g. Closed for Sallah, back on Monday. Leave empty to remove it.">${esc(b.site_notice || "")}</textarea>
+<label for="surface">Page background</label><select id="surface" name="surface" style="width:100%;font:inherit;font-size:16px;padding:12px;border:1px solid #C9D1DE;border-radius:10px;background:#fff;color:inherit">${Object.entries(SURFACES).map(([k, t]) => `<option value="${k}"${surfaceOf(b.surface) === k ? " selected" : ""}>${esc(t)}</option>`).join("")}</select>
+<p class="m">Brand tinted: a soft tint of your colours. Midnight dark: dark pages with gold or green touches. Warm cream &amp; gold: ivory and champagne gold. Crisp light: white with bold coloured bands.</p></div>
 ${reviewsCard(r.reviews)}
 ${lookCard(r)}
 ${gbpAsk(r) ? gbpCard(r) : ""}
@@ -160,7 +162,7 @@ export default async function handler(req, res) {
     const reviews = {};
     for (const [k, v] of Object.entries(body)) { const m = k.match(/^rv_(\d{1,9})$/); if (m) reviews[m[1]] = String(v); }
     try {
-      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice, tagline: body.tagline, fuel, reviews, lookMode: body.look_mode, updateLook: body.update_look === "1", gbpVerified: body.gbp_verified === "1" });
+      const { changes, row } = await applyManage(r, { products, hours: body.hours, phone: body.phone, whatsapp: body.whatsapp, site_notice: body.site_notice, tagline: body.tagline, surface: body.surface, fuel, reviews, lookMode: body.look_mode, updateLook: body.update_look === "1", gbpVerified: body.gbp_verified === "1" });
       row.reviews = await listReviews(row.id).catch(() => []);
       if (!changes.length) return shell(res, 200, manageTitle(row), form(row, token, `<p class="ok">Nothing changed.</p>`));
       const live = await afterManage(row, changes);

@@ -18,7 +18,7 @@ async function load(id) {
 }
 import { cloudflareConfigured } from "./cloudflare.mjs";
 import { setReviewStatuses } from "./reviews.mjs";
-import { SITE_LOOK, SITE_LOOK_NOTES, FUEL, FUEL_STATUS } from "./sitegen.mjs";
+import { SITE_LOOK, SITE_LOOK_NOTES, FUEL, FUEL_STATUS, SURFACES, surfaceOf } from "./sitegen.mjs";
 
 // Stores call it "Manage my store"; other websites "Manage my website" (hours, numbers, notice, slogan, reviews).
 // For the Manage page: is a newer version of the website waiting, and what's in it.
@@ -120,6 +120,8 @@ export async function applyManage(r, input) {
     if ((key === "phone" || key === "whatsapp") && v && !/^\+?[\d\s()-]{7,20}$/.test(v)) throw new Error(`${label}: please write a phone number, e.g. 0803 123 4567`);
     if (v !== String(b[key] || "")) { changes.push(`${label}: ${v || "(removed)"}`); patch[key] = v; }
   }
+  // Page background (Brand tinted / Midnight dark / Warm cream & gold / Crisp light).
+  if (input.surface && SURFACES[input.surface] && input.surface !== surfaceOf(b.surface)) { changes.push(`Page background: ${SURFACES[input.surface]}`); patch.surface = SURFACES[input.surface]; }
   changes.push(...(await setReviewStatuses(r.id, input.reviews))); // after the checks above, so a bad phone number saves nothing
   // Website improvements: "auto" (default) or "ask" (email first; they update here when ready).
   const h = r.hosting || {};

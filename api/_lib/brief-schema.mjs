@@ -32,6 +32,7 @@ export const SECTIONS = [
       { key: "tagline", label: "Slogan or tagline", type: "text", hint: "One short line, e.g. \"Fresh bread every morning in Ibadan\"" },
       { key: "description", label: "What do you do, and who are your customers?", type: "textarea", required: true, hint: "A few sentences in your own words. We will polish the wording." },
       { key: "started", label: "Year you started (optional)", type: "text" },
+      { key: "cac", label: "CAC registration number (optional)", type: "text", hint: "e.g. RC 1234567 or BN 7654321. Shown as \"CAC registered\" to build trust." },
     ],
   },
   {

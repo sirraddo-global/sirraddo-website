@@ -3948,12 +3948,14 @@
 
   // ---------- Clients (won) and renewals ----------
   function renderClients(view) {
-    var won = state.requests.filter(function (r) { return r.status === 'won'; });
+    // Website, store and app clients only: design and other side-service orders have no website, handover or
+    // renewal; they are followed in Requests (stages: Working on it → Delivered).
+    var won = state.requests.filter(function (r) { return r.status === 'won' && !isQuickRow(r); });
     won.sort(function (a, b) {
       var da = a.renewal_due || '9999', db = b.renewal_due || '9999';
       return da < db ? -1 : da > db ? 1 : 0;
     });
-    view.appendChild(el('p', { class: 'admin-intro', text: 'Customers you have won. Track each build, then the yearly renewal. Renewals due in the next 30 days are also in the daily email.' }));
+    view.appendChild(el('p', { class: 'admin-intro', text: 'Website, store and app customers you have won. Track each build, then the yearly renewal. Renewals due in the next 30 days are also in the daily email. Design and other side-service orders stay in Requests, with their stage buttons.' }));
     if (!won.length) { view.appendChild(el('p', { class: 'admin-empty', text: 'No clients yet. Set a request to "won" and it appears here.' })); return; }
     var list = el('div', { class: 'admin-list' });
     won.forEach(function (r) { list.appendChild(clientCard(r)); });

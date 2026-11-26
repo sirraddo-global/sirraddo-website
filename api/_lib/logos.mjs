@@ -100,12 +100,14 @@ export async function headlineIdeas(brief = {}, budgetMs = 20000) {
   if (!provider) return { ok: false, error: "No AI is set up yet (Admin → Settings → Keys & connections)." };
   const b = { business: clip(brief.business, 80), what: clip(brief.what, 200), words: clip(brief.words, 600) };
   if (!b.words && !b.what) return { ok: false, error: "Write a few words first (the offer, or what the business sells)." };
-  const prompt = `Business: ${b.business || "(not given)"}\nWhat they sell: ${b.what || "(see message)"}\nTheir message: ${b.words || "(none)"}\n\nWrite 3 different options for a flyer/WhatsApp post. Each has a HEADLINE (max 6 words, punchy, can use the offer like "20% OFF") and a LINE (max 12 words: the key detail, date or call to action). Keep every fact they gave (prices, dates, offer); never invent prices, dates, discounts or claims. Simple English Nigerians use; no slang that could offend; no other company names. Reply with ONLY JSON: {"ideas":[{"headline":"…","line":"…"},{…},{…}]}`;
+  const topics = Array.isArray(brief.topics) ? brief.topics.slice(0, 10).map((t) => clip(t, 40)) : null, count = topics ? topics.length : 3;
+  const plan = topics ? `Write ${count} DIFFERENT posts for a set, one per post, in this order. Each post's photo shows: ${topics.map((t, i) => `post ${i + 1}: ${t || "one of their products"}`).join("; ")}. Make each headline about that post's product; never repeat a headline.` : "Write 3 different options for a flyer/WhatsApp post.";
+  const prompt = `Business: ${b.business || "(not given)"}\nWhat they sell: ${b.what || "(see message)"}\nTheir message: ${b.words || "(none)"}\n\n${plan} Each has a HEADLINE (max 6 words, punchy, can use the offer like "20% OFF") and a LINE (max 12 words: the key detail, date or call to action). Keep every fact they gave (prices, dates, offer); never invent prices, dates, discounts or claims. Simple English Nigerians use; no slang that could offend; no other company names. Reply with ONLY JSON: {"ideas":[{"headline":"…","line":"…"}, …]} with exactly ${count} items.`;
   try {
-    const out = await provider.call(provider.start([{ role: "user", content: prompt }]), "You write short, honest, catchy ad copy for small Nigerian businesses. Reply with JSON only.", [], budgetMs, { maxTokens: 400, attemptMs: budgetMs - 1500 });
+    const out = await provider.call(provider.start([{ role: "user", content: prompt }]), "You write short, honest, catchy ad copy for small Nigerian businesses. Reply with JSON only.", [], budgetMs, { maxTokens: 900, attemptMs: budgetMs - 1500 });
     const t = String(out.text || ""); let ideas = [];
     try { ideas = JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1)).ideas || []; } catch { ideas = []; }
-    ideas = ideas.slice(0, 3).map((x) => ({ headline: clip(x?.headline, 60), line: clip(x?.line, 110) })).filter((x) => x.headline);
+    ideas = ideas.slice(0, count).map((x) => ({ headline: clip(x?.headline, 60), line: clip(x?.line, 110) })).filter((x) => x.headline);
     if (!ideas.length) return { ok: false, error: "The AI didn't return ideas. Try again." };
     return { ok: true, ideas };
   } catch (err) {

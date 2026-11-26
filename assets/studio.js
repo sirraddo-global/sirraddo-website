@@ -108,6 +108,7 @@
     }
     c.putImageData(d, 0, 0);
     cv.__cut = !!img.__cut;
+    if (!cv.__cut && decheck(cv)) cv.__cut = true;
     return cv;
   }
 
@@ -188,12 +189,53 @@
   }
   function pill(c, t, text, cx, y, maxW, size) {
     if (!text) return;
-    var f = fit(c, text, maxW - size * 2, 1, size, size * 0.6, 800);
-    c.font = '800 ' + f.size + 'px ' + FONT; var w = c.measureText(f.lines[0]).width + f.size * 2.2, h = f.size * 2.3;
+    var fs = size; c.font = '800 ' + fs + 'px ' + FONT; // measured in the font it is drawn in
+    while (c.measureText(text).width > maxW - fs * 2.2 && fs > size * 0.5) { fs -= 1; c.font = '800 ' + fs + 'px ' + FONT; }
+    var f = { size: fs, lines: [text] }, w = Math.min(maxW, c.measureText(text).width + fs * 2.2), h = fs * 2.3;
     c.fillStyle = t.accent; rr(c, cx - w / 2, y, w, h, h / 2); c.fill();
     c.fillStyle = onColour(t.accent); c.textAlign = 'center'; c.fillText(f.lines[0], cx, y + h / 2 + f.size * 0.36); c.textAlign = 'left';
   }
 
+  function sticker(c, t, text, x, y, r) {
+    c.save(); c.translate(x, y); c.rotate(-0.18);
+    c.fillStyle = t.accent; c.beginPath();
+    for (var k = 0; k < 24; k++) { var a = k * Math.PI / 12, rr2 = k % 2 ? r * 0.9 : r; c.lineTo(Math.cos(a) * rr2, Math.sin(a) * rr2); }
+    c.closePath(); c.shadowColor = 'rgba(0,0,0,.3)'; c.shadowBlur = r * 0.2; c.fill(); c.shadowColor = 'transparent';
+    var words = String(text).split(' '), lines = words.length > 2 ? [words.slice(0, Math.ceil(words.length / 2)).join(' '), words.slice(Math.ceil(words.length / 2)).join(' ')] : [text];
+    var Hd0 = HEAD; HEAD = null; var f = fit(c, lines.reduce(function (a, b) { return a.length > b.length ? a : b; }), r * 1.5, 1, r * 0.42, r * 0.16, 900); HEAD = Hd0;
+    c.font = '900 ' + f.size + 'px ' + FONT; c.fillStyle = onColour(t.accent); c.textAlign = 'center';
+    lines.forEach(function (l, n) { c.fillText(l, 0, f.size * 0.35 + (n - (lines.length - 1) / 2) * f.size * 1.1); });
+    c.restore(); c.textAlign = 'left';
+  }
+  // Photos saved from the internet often have a grey-and-white check pattern printed in (a fake "transparent"
+  // background). Find it from the edges and clear it, so the product shows on the design's own background.
+  function decheck(cv) {
+    var w = cv.width, h = cv.height, c = cv.getContext('2d'), d, p;
+    try { d = c.getImageData(0, 0, w, h); } catch (e) { return false; }
+    p = d.data;
+    function light(i) { var r = p[i], g = p[i + 1], b = p[i + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b); return mx - mn < 22 && mn > 175; }
+    var white = 0, grey = 0, n = 0, step = Math.max(1, Math.floor((w + h) / 400));
+    function edge(x, y) { var i = (y * w + x) * 4; n++; if (light(i)) { if (p[i] > 238) white++; else grey++; } }
+    for (var x = 0; x < w; x += step) { edge(x, 0); edge(x, h - 1); }
+    for (var y = 0; y < h; y += step) { edge(0, y); edge(w - 1, y); }
+    if (n < 20 || (white + grey) / n < 0.6 || white / n < 0.15 || grey / n < 0.15) return false;
+    var seen = new Uint8Array(w * h), stack = [], k;
+    for (x = 0; x < w; x++) { stack.push(x, (h - 1) * w + x); }
+    for (y = 0; y < h; y++) { stack.push(y * w, y * w + w - 1); }
+    var cleared = 0;
+    while (stack.length) {
+      k = stack.pop(); if (seen[k]) continue; seen[k] = 1;
+      if (!light(k * 4)) continue;
+      p[k * 4 + 3] = 0; cleared++;
+      var px = k % w, py = (k - px) / w;
+      if (px > 0) stack.push(k - 1); if (px < w - 1) stack.push(k + 1); if (py > 0) stack.push(k - w); if (py < h - 1) stack.push(k + w);
+    }
+    if (cleared < w * h * 0.08) return false;
+    // soften the cut edge: half-clear light pixels touching the cleared area
+    for (k = w; k < w * h - w; k++) if (p[k * 4 + 3] && light(k * 4) && (!p[(k - 1) * 4 + 3] || !p[(k + 1) * 4 + 3] || !p[(k - w) * 4 + 3] || !p[(k + w) * 4 + 3])) p[k * 4 + 3] = 90;
+    c.putImageData(d, 0, 0);
+    return true;
+  }
   var LAYOUTS = [
     { name: 'Bold photo', draw: function (c, W, H, d, t) {
       var u = W / 1080, tall = H / W > 1.5, photoH = H * (tall ? 0.6 : 0.56), pad = 60 * u;
@@ -284,6 +326,68 @@
       var cf = fit(c, d.contact, W - pad * 2, 1, 40 * u, 24 * u, 800);
       drawLines(c, cf, W / 2, H - bottomBar + (bottomBar - cf.size) / 2 - cf.size * 0.12, 1, onColour(t.bg), 800, 'center');
     } },
+    { name: 'Full-bleed overlay', draw: function (c, W, H, d, t) {
+      var u = W / 1080, pad = 64 * u, tall = H / W > 1.5;
+      c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
+      if (d.photo && d.photo.__cut) { var gb = c.createRadialGradient(W / 2, H * 0.38, 0, W / 2, H * 0.38, W * 0.8); gb.addColorStop(0, t.accent); gb.addColorStop(1, t.bg); c.globalAlpha = 0.35; c.fillStyle = gb; c.fillRect(0, 0, W, H); c.globalAlpha = 1; cover(c, d.photo, 0, 60 * u, W, H * 0.62); }
+      else cover(c, d.photo, 0, 0, W, H, 0.35);
+      var g = c.createLinearGradient(0, H * 0.38, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.55, 'rgba(0,0,0,.62)'); g.addColorStop(1, 'rgba(0,0,0,.88)'); c.fillStyle = g; c.fillRect(0, H * 0.38, W, H * 0.62);
+      if (d.business && !d.logoWide) { c.font = '800 ' + 28 * u + 'px ' + FONT; c.fillStyle = '#fff'; c.fillText(d.business.toUpperCase(), pad, 90 * u, W - pad * 2 - (d.logo ? 130 * u : 0)); }
+      logoBadge(c, d.logo, W - 100 * u, 100 * u, 56 * u);
+      if (d.offer) sticker(c, t, d.offer, W - 190 * u, H * 0.42, 130 * u);
+      // words sit just above the WhatsApp button, however many lines they take
+      var hf = fit(c, d.headline, W - pad * 2, 3, (tall ? 120 : 100) * u, 44 * u, 900);
+      var df = d.details ? fit(c, d.details.replace(/\n/g, ' \u00B7 '), W - pad * 2, 2, 36 * u, 22 * u, 500) : null;
+      var block = 34 * u + hf.size * (1 + (hf.lines.length - 1) * 1.04) + (df ? 22 * u + df.size * (1 + (df.lines.length - 1) * 1.3) : 0);
+      var y = H - 130 * u - 50 * u - block;
+      c.fillStyle = t.accent; c.fillRect(pad, y, 120 * u, 6 * u);
+      y = drawLines(c, hf, pad, y + 28 * u, 1.04, '#FFFFFF', 900);
+      if (df) drawLines(c, df, pad, y + 22 * u, 1.3, 'rgba(255,255,255,.85)', 500);
+      pill(c, t, d.contact, W / 2, H - 130 * u, W - 120 * u, 34 * u);
+    } },
+    { name: 'Centered hero', draw: function (c, W, H, d, t) {
+      var u = W / 1080, pad = 60 * u, tall = H / W > 1.5;
+      c.fillStyle = t.light; c.fillRect(0, 0, W, H);
+      c.fillStyle = t.bg; c.fillRect(0, 0, W, H * (tall ? 0.42 : 0.47));
+      if (d.business) { var bf = fit(c, d.business, W - pad * 2, 1, 40 * u, 22 * u, 800); drawLines(c, bf, W / 2, 70 * u, 1, t.accent, 800, 'center'); }
+      var r = Math.min(W * (tall ? 0.34 : 0.27), H * 0.2), cx = W / 2, cy = H * (tall ? 0.36 : 0.4);
+      c.save(); c.shadowColor = 'rgba(0,0,0,.3)'; c.shadowBlur = 40 * u; c.shadowOffsetY = 16 * u; c.fillStyle = '#fff'; c.beginPath(); c.arc(cx, cy, r + 14 * u, 0, Math.PI * 2); c.fill(); c.restore();
+      c.strokeStyle = t.accent; c.lineWidth = 6 * u; c.beginPath(); c.arc(cx, cy, r + 14 * u, 0, Math.PI * 2); c.stroke();
+      c.save(); c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.clip(); if (d.photo && d.photo.__cut) { c.fillStyle = t.light; c.fillRect(cx - r, cy - r, r * 2, r * 2); } cover(c, d.photo, cx - r, cy - r, r * 2, r * 2, 0.45); c.restore();
+      if (d.offer) sticker(c, t, d.offer, cx + r * 0.82, cy - r * 0.72, 92 * u);
+      var y = cy + r + 70 * u, hf = fit(c, d.headline, W - pad * 2, 2, (tall ? 104 : 86) * u, 40 * u, 900);
+      y = drawLines(c, hf, W / 2, y, 1.04, t.bg, 900, 'center');
+      if (d.details) { var df = fit(c, d.details.replace(/\n/g, ' · '), W - pad * 3, 2, 34 * u, 22 * u, 500); drawLines(c, df, W / 2, y + 20 * u, 1.3, '#4B5563', 500, 'center'); }
+      pill(c, t, d.contact, W / 2, H - 120 * u, W - 120 * u, 34 * u);
+    } },
+    { name: 'Editorial', draw: function (c, W, H, d, t) {
+      var u = W / 1080, pad = 70 * u, tall = H / W > 1.5;
+      c.fillStyle = t.light; c.fillRect(0, 0, W, H);
+      c.strokeStyle = t.bg; c.lineWidth = 2 * u; c.strokeRect(34 * u, 34 * u, W - 68 * u, H - 68 * u);
+      c.font = '600 ' + 22 * u + 'px ' + FONT; c.fillStyle = t.bg; c.fillText((d.business || '').toUpperCase().split('').join(String.fromCharCode(8202)), pad, 100 * u, W - pad * 2);
+      c.fillRect(pad, 120 * u, W - pad * 2, 1.5 * u);
+      var hf = fit(c, d.headline, W - pad * 2, tall ? 4 : 3, (tall ? 112 : 92) * u, 40 * u, 900), y = drawLines(c, hf, pad, 160 * u, 1.02, t.bg, 900);
+      if (d.details) { var df = fit(c, d.details.replace(/\n/g, ' · '), W - pad * 2, 2, 32 * u, 20 * u, 500); y = drawLines(c, df, pad, y + 16 * u, 1.35, '#4B4038', 500); }
+      var py = y + 36 * u, ph = H - py - 200 * u;
+      c.save(); rr(c, pad, py, W - pad * 2, ph, 4 * u); c.clip(); if (d.photo && d.photo.__cut) { c.fillStyle = '#EFE7DA'; c.fillRect(pad, py, W - pad * 2, ph); } cover(c, d.photo, pad, py, W - pad * 2, ph, 0.45); c.restore();
+      c.strokeStyle = t.bg; c.lineWidth = 2 * u; c.strokeRect(pad, py, W - pad * 2, ph);
+      if (d.offer) sticker(c, t, d.offer, W - pad - 70 * u, py + 70 * u, 86 * u);
+      c.fillStyle = t.bg; c.fillRect(pad, H - 150 * u, W - pad * 2, 1.5 * u);
+      var cf = fit(c, d.contact, W - pad * 2, 1, 32 * u, 18 * u, 700); drawLines(c, cf, W / 2, H - 125 * u, 1, t.bg, 700, 'center');
+    } },
+    { name: 'Diagonal sticker', draw: function (c, W, H, d, t) {
+      var u = W / 1080, pad = 64 * u, tall = H / W > 1.5;
+      c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
+      c.save(); c.beginPath(); c.moveTo(0, 0); c.lineTo(W, 0); c.lineTo(W, H * 0.5); c.lineTo(0, H * 0.62); c.closePath(); c.clip(); cover(c, d.photo, 0, 0, W, H * 0.62, 0.4); c.restore();
+      c.fillStyle = t.accent; c.beginPath(); c.moveTo(0, H * 0.62); c.lineTo(W, H * 0.5); c.lineTo(W, H * 0.5 + 22 * u); c.lineTo(0, H * 0.62 + 22 * u); c.closePath(); c.fill();
+      if (d.business && !d.logoWide) { c.fillStyle = t.bg; c.font = '800 ' + 26 * u + 'px ' + FONT; var bw = c.measureText(d.business.toUpperCase()).width + 40 * u; rr(c, pad, 60 * u, Math.min(bw, W - pad * 2), 54 * u, 27 * u); c.fill(); c.fillStyle = onColour(t.bg); c.fillText(d.business.toUpperCase(), pad + 20 * u, 96 * u, W - pad * 2 - 40 * u); }
+      logoBadge(c, d.logo, W - 100 * u, 100 * u, 56 * u);
+      if (d.offer) { c.save(); c.translate(W - 230 * u, H * 0.5 - 40 * u); c.rotate(-0.12); c.fillStyle = t.accent; rr(c, -150 * u, -46 * u, 300 * u, 92 * u, 14 * u); c.fill(); var of = fit(c, d.offer, 260 * u, 1, 40 * u, 18 * u, 900); drawLines(c, of, 0, -of.size * 0.42, 1, onColour(t.accent), 900, 'center'); c.restore(); }
+      var y = H * 0.62 + 70 * u, hf = fit(c, d.headline, W - pad * 2, 3, (tall ? 110 : 92) * u, 40 * u, 900);
+      y = drawLines(c, hf, pad, y, 1.02, onColour(t.bg), 900);
+      if (d.details) { var df = fit(c, d.details.replace(/\n/g, ' · '), W - pad * 2, 2, 34 * u, 20 * u, 500); drawLines(c, df, pad, y + 18 * u, 1.3, onColour(t.bg) === '#FFFFFF' ? 'rgba(255,255,255,.85)' : '#374151', 500); }
+      pill(c, t, d.contact, W / 2, H - 120 * u, W - 120 * u, 32 * u);
+    } },
   ];
 
   // ---------- the editor ----------
@@ -324,7 +428,7 @@
     var inf = o.info || {};
     (inf.phone || '').split(/[,;\/]+/).forEach(function (p) { p = p.replace(/[^\d+]/g, ''); if (p.length >= 10 && m.phones.indexOf(p) === -1) m.phones.unshift(p); });
     (inf.socials || '').split(/[,;\s]+/).forEach(function (h) { h = h.trim(); if (!h) return; if (h.charAt(0) !== '@') h = '@' + h; if (m.socials.indexOf(h) === -1) m.socials.push(h); });
-    if (inf.address && !m.place) m.place = inf.address;
+    if (inf.address) m.place = inf.address;
     if (!m.phones.length && o.contact) m.phones.push(String(o.contact).replace(/[^\d+]/g, ''));
     return m;
   }
@@ -366,7 +470,7 @@
       var bs = fitd.size * 0.32;
       c.save(); c.translate(ix + bs, iy + fitd.size * 0.62); c.rotate(Math.PI / 4); c.fillStyle = bullet; c.fillRect(-bs / 2, -bs / 2, bs, bs); c.restore();
       c.fillStyle = color; c.textBaseline = 'alphabetic';
-      var pm = it.match(/^(.*?)\s*[-–:]\s*(\u20A6\s?[\d,]+(?:\s*\/\s*\w+)?|\d[\d,]*\s*naira)\s*$/i);
+      var pm = it.match(/^(.*?)\s*[-–—:]\s*((?:from\s+)?\u20A6\s?[\d,]+(?:\s*\/\s*\w+)?|\d[\d,]*\s*naira)\s*$/i);
       var label = pm ? pm[1] : it, price = pm ? pm[2] : '', maxW = fitd.colW - fitd.size * 1.3;
       var pw = price ? c.measureText(price).width + fitd.size * 0.6 : 0;
       while (c.measureText(label).width > maxW - pw && label.length > 3) label = label.slice(0, -2) + '…';
@@ -503,8 +607,8 @@
       y += 26 * u;
       var tiles = tilesOf(d, tall ? 6 : 4);
       if (tiles.length) {
-        var cols = tall ? Math.min(3, tiles.length) : Math.min(4, tiles.length), rows = Math.ceil(tiles.length / cols);
-        var gh = (tall ? H * 0.40 : H * 0.25) * (rows > 1 && !tall ? 1.6 : 1);
+        var cols = tall ? Math.min(3, tiles.length) : tiles.length === 4 ? 2 : Math.min(3, tiles.length), rows = Math.ceil(tiles.length / cols);
+        var gh = tall ? H * 0.40 : rows > 1 ? H * 0.34 : H * 0.25;
         photoGrid(c, tiles, pad, y, W - pad * 2, gh, cols, 22 * u, t.accent, t, u);
         y += gh + 40 * u;
       }
@@ -576,7 +680,7 @@
     ['Poppins', 500, 'poppins-latin-500-normal'], ['Poppins', 700, 'poppins-latin-700-normal'], ['Poppins', 800, 'poppins-latin-800-normal'],
     ['Montserrat', 500, 'montserrat-latin-500-normal'], ['Montserrat', 800, 'montserrat-latin-800-normal'], ['Montserrat', 900, 'montserrat-latin-900-normal'],
     ['Bebas Neue', 400, 'bebas-neue-latin-400-normal'], ['Great Vibes', 400, 'great-vibes-latin-400-normal'], ['DM Serif Display', 400, 'dm-serif-display-latin-400-normal'],
-    ['Oswald', 500, 'oswald-latin-500-normal'], ['Oswald', 700, 'oswald-latin-700-normal'], ['Lora', 500, 'lora-latin-500-normal'], ['Lora', 700, 'lora-latin-700-normal'],
+    ['Oswald', 500, 'oswald-latin-500-normal'], ['Oswald', 700, 'oswald-latin-700-normal'], ['Lora', 500, 'lora-latin-500-normal'], ['Lora', 700, 'lora-latin-700-normal'], ['Fredoka', 600, 'fredoka-latin-600-normal'], ['Fredoka', 700, 'fredoka-latin-700-normal'],
   ];
   var looksFontsReady = null;
   function loadLookFonts() {
@@ -591,22 +695,22 @@
   var SANS = function (n) { return '"' + n + '", Inter, Arial, sans-serif'; }, SER = function (n) { return '"' + n + '", Georgia, serif'; };
   // tags: words in the order that suggest this look. theme: its own colours (used when the customer gave none).
   var LOOKS = [
-    { name: 'Classic', font: FONT, serif: SERIF, tex: '', deco: '', tags: [] },
-    { name: 'Luxury gold', head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'goldframe', theme: { bg: '#111111', accent: '#D4AF37', light: '#F8F4EA' }, tags: ['cake', 'perfume', 'jewel', 'hair', 'wig', 'beauty', 'luxury', 'fashion', 'boutique', 'event', 'real estate', 'property', 'spa', 'lash', 'nail'] },
-    { name: 'Elegant script', head: SER('DM Serif Display'), font: SANS('Poppins'), serif: SER('Great Vibes'), tex: 'paper', deco: 'flourish', theme: { bg: '#5B1A2A', accent: '#E9C46A', light: '#FBF5EC' }, tags: ['wedding', 'bridal', 'cake', 'makeup', 'beauty', 'bakery', 'event', 'decor', 'flower', 'bouquet'] },
-    { name: 'Bold street', head: SANS('Bebas Neue'), font: SANS('Oswald'), serif: SANS('Bebas Neue'), tex: 'grain', deco: 'slashes', theme: { bg: '#141414', accent: '#FF5A1F', light: '#F2F2F2' }, tags: ['barber', 'shoe', 'sneaker', 'clothing', 'wear', 'gym', 'music', 'phone', 'gadget', 'shawarma', 'burger', 'grill', 'thrift', 'okrika'] },
-    { name: 'Clean corporate', head: SANS('Montserrat'), font: SANS('Montserrat'), serif: SER('Lora'), tex: '', deco: 'lines', theme: { bg: '#0B3C5D', accent: '#3FC1C9', light: '#F3F7FA' }, tags: ['consult', 'finance', 'account', 'school', 'limited', 'ltd', 'law', 'legal', 'logistics', 'property', 'agency', 'tech', 'software', 'training', 'clinic', 'pharmacy', 'hospital'] },
-    { name: 'Warm bakery', head: SER('DM Serif Display'), font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: 'paper', deco: 'dots', theme: { bg: '#6B3E26', accent: '#F4A261', light: '#FFF6EC' }, tags: ['cake', 'bread', 'snack', 'chops', 'pastry', 'kitchen', 'food', 'meat pie', 'doughnut', 'chin chin', 'treat', 'bakery', 'pizza', 'cookies'] },
-    { name: 'Afro print', head: SER('DM Serif Display'), font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: 'paper', deco: 'ankara', theme: { bg: '#1B4332', accent: '#F4A300', light: '#FFF8E7' }, tags: ['ankara', 'tailor', 'fashion', 'adire', 'aso', 'native', 'african', 'culture', 'amala', 'buka', 'canteen', 'restaurant', 'event'] },
-    { name: 'Fresh & natural', font: SANS('Poppins'), serif: SER('Lora'), tex: 'paper', deco: 'leaves', theme: { bg: '#2D6A4F', accent: '#B7E4C7', light: '#F1FAF3' }, tags: ['juice', 'zobo', 'smoothie', 'farm', 'organic', 'salad', 'skin', 'herbal', 'natural', 'soap', 'fruit', 'vegetable', 'tigernut', 'parfait', 'water'] },
-    { name: 'Party pop', font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: '', deco: 'confetti', theme: { bg: '#3A0CA3', accent: '#FFD60A', light: '#FFF9E6' }, tags: ['party', 'birthday', 'celebration', 'kids', 'balloon', 'event', 'surprise', 'money bouquet', 'gift', 'small chops'] },
-    { name: 'Night glow', head: SANS('Montserrat'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'glow', theme: { bg: '#0D0221', accent: '#FF2E88', light: '#F6F1FF' }, tags: ['club', 'lounge', 'bar', 'music', 'concert', 'show', 'night', 'drinks', 'cocktail', 'hookah', 'shawarma', 'grill', 'suya'] },
-    { name: 'Royal', head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'ornate', theme: { bg: '#2B124C', accent: '#E0B354', light: '#F7F2FB' }, tags: ['church', 'wedding', 'royal', 'king', 'queen', 'gala', 'award', 'luxury', 'hotel', 'anniversary', 'coronation'] },
-    { name: 'Faith & calm', head: SER('Playfair Display'), font: SER('Lora'), serif: SER('Playfair Display'), tex: 'paper', deco: 'rays', theme: { bg: '#1D3557', accent: '#F1C40F', light: '#F5F7FB' }, tags: ['church', 'mosque', 'ministry', 'crusade', 'revival', 'prayer', 'ramadan', 'jumat', 'service', 'worship', 'fellowship', 'thanksgiving', 'easter'] },
-    { name: 'Festive', head: SER('Playfair Display'), font: SANS('Poppins'), serif: SER('Playfair Display'), tex: '', deco: 'sparkle', theme: { bg: '#8B0000', accent: '#FFD166', light: '#FFF7EB' }, tags: ['christmas', 'xmas', 'december', 'new year', 'sallah', 'eid', 'easter', 'independence', 'valentine', 'festive', 'season', 'holiday', 'black friday', 'sale'] },
-    { name: 'Sporty', head: SANS('Oswald'), font: SANS('Oswald'), serif: SANS('Oswald'), tex: 'grain', deco: 'speed', theme: { bg: '#0A1931', accent: '#00D1FF', light: '#EEF6FF' }, tags: ['gym', 'fitness', 'sport', 'football', 'delivery', 'logistics', 'dispatch', 'car', 'auto', 'mechanic', 'wash'] },
-    { name: 'Kids fun', font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: '', deco: 'bubbles', theme: { bg: '#0081A7', accent: '#FED9B7', light: '#FFFBF2' }, tags: ['school', 'kids', 'children', 'toy', 'creche', 'lesson', 'tutor', 'baby', 'nursery', 'summer'] },
-    { name: 'Minimal', head: SANS('Montserrat'), font: SANS('Montserrat'), serif: SER('Lora'), tex: '', deco: 'corner', theme: { bg: '#222222', accent: '#C9A227', light: '#FFFFFF' }, tags: ['studio', 'photography', 'architect', 'interior', 'design', 'tech', 'consult', 'portfolio'] },
+    { name: 'Classic', layout: 0, font: FONT, serif: SERIF, tex: '', deco: '', tags: [] },
+    { name: 'Luxury gold', layout: 3, head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'goldframe', theme: { bg: '#111111', accent: '#D4AF37', light: '#F8F4EA' }, tags: ['cake', 'perfume', 'jewel', 'hair', 'wig', 'beauty', 'luxury', 'fashion', 'boutique', 'event', 'real estate', 'property', 'spa', 'lash', 'nail'] },
+    { name: 'Elegant script', layout: 5, head: SER('Great Vibes'), font: SANS('Poppins'), serif: SER('Great Vibes'), tex: 'paper', deco: 'flourish', theme: { bg: '#5B1A2A', accent: '#E9C46A', light: '#FBF5EC' }, tags: ['wedding', 'bridal', 'cake', 'makeup', 'beauty', 'bakery', 'event', 'decor', 'flower', 'bouquet'] },
+    { name: 'Bold street', layout: 6, head: SANS('Bebas Neue'), font: SANS('Oswald'), serif: SANS('Bebas Neue'), tex: 'grain', deco: 'slashes', theme: { bg: '#141414', accent: '#FF5A1F', light: '#F2F2F2' }, tags: ['barber', 'shoe', 'sneaker', 'clothing', 'wear', 'gym', 'music', 'phone', 'gadget', 'shawarma', 'burger', 'grill', 'thrift', 'okrika'] },
+    { name: 'Clean corporate', layout: 1, head: SANS('Montserrat'), font: SANS('Montserrat'), serif: SER('Lora'), tex: '', deco: 'lines', theme: { bg: '#0B3C5D', accent: '#3FC1C9', light: '#F3F7FA' }, tags: ['consult', 'finance', 'account', 'school', 'limited', 'ltd', 'law', 'legal', 'logistics', 'property', 'agency', 'tech', 'software', 'training', 'clinic', 'pharmacy', 'hospital'] },
+    { name: 'Warm bakery', layout: 4, head: SER('DM Serif Display'), font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: 'paper', deco: 'dots', theme: { bg: '#6B3E26', accent: '#F4A261', light: '#FFF6EC' }, tags: ['cake', 'bread', 'snack', 'chops', 'pastry', 'kitchen', 'food', 'meat pie', 'doughnut', 'chin chin', 'treat', 'bakery', 'pizza', 'cookies'] },
+    { name: 'Afro print', layout: 0, head: SER('DM Serif Display'), font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: 'paper', deco: 'ankara', theme: { bg: '#1B4332', accent: '#F4A300', light: '#FFF8E7' }, tags: ['ankara', 'tailor', 'fashion', 'adire', 'aso', 'native', 'african', 'culture', 'amala', 'buka', 'canteen', 'restaurant', 'event'] },
+    { name: 'Fresh & natural', layout: 2, font: SANS('Poppins'), serif: SER('Lora'), tex: 'paper', deco: 'leaves', theme: { bg: '#2D6A4F', accent: '#B7E4C7', light: '#F1FAF3' }, tags: ['juice', 'zobo', 'smoothie', 'farm', 'organic', 'salad', 'skin', 'herbal', 'natural', 'soap', 'fruit', 'vegetable', 'tigernut', 'parfait', 'water'] },
+    { name: 'Party pop', layout: 6, font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: '', deco: 'confetti', theme: { bg: '#3A0CA3', accent: '#FFD60A', light: '#FFF9E6' }, tags: ['party', 'birthday', 'celebration', 'kids', 'balloon', 'event', 'surprise', 'money bouquet', 'gift', 'small chops'] },
+    { name: 'Night glow', layout: 3, head: SANS('Montserrat'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'glow', theme: { bg: '#0D0221', accent: '#FF2E88', light: '#F6F1FF' }, tags: ['club', 'lounge', 'bar', 'music', 'concert', 'show', 'night', 'drinks', 'cocktail', 'hookah', 'shawarma', 'grill', 'suya'] },
+    { name: 'Royal', layout: 4, head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'ornate', theme: { bg: '#2B124C', accent: '#E0B354', light: '#F7F2FB' }, tags: ['church', 'wedding', 'royal', 'king', 'queen', 'gala', 'award', 'luxury', 'hotel', 'anniversary', 'coronation'] },
+    { name: 'Faith & calm', layout: 5, head: SER('Playfair Display'), font: SER('Lora'), serif: SER('Playfair Display'), tex: 'paper', deco: 'rays', theme: { bg: '#1D3557', accent: '#F1C40F', light: '#F5F7FB' }, tags: ['church', 'mosque', 'ministry', 'crusade', 'revival', 'prayer', 'ramadan', 'jumat', 'service', 'worship', 'fellowship', 'thanksgiving', 'easter'] },
+    { name: 'Festive', layout: 4, head: SER('Playfair Display'), font: SANS('Poppins'), serif: SER('Playfair Display'), tex: '', deco: 'sparkle', theme: { bg: '#8B0000', accent: '#FFD166', light: '#FFF7EB' }, tags: ['christmas', 'xmas', 'december', 'new year', 'sallah', 'eid', 'easter', 'independence', 'valentine', 'festive', 'season', 'holiday', 'black friday', 'sale'] },
+    { name: 'Sporty', layout: 6, head: SANS('Oswald'), font: SANS('Oswald'), serif: SANS('Oswald'), tex: 'grain', deco: 'speed', theme: { bg: '#0A1931', accent: '#00D1FF', light: '#EEF6FF' }, tags: ['gym', 'fitness', 'sport', 'football', 'delivery', 'logistics', 'dispatch', 'car', 'auto', 'mechanic', 'wash'] },
+    { name: 'Kids fun', layout: 4, head: SANS('Fredoka'), font: SANS('Fredoka'), serif: SANS('Fredoka'), tex: '', deco: 'bubbles', theme: { bg: '#FF6B6B', accent: '#FFD23F', light: '#E3F6FF' }, tags: ['school', 'kids', 'children', 'toy', 'creche', 'lesson', 'tutor', 'baby', 'nursery', 'summer'] },
+    { name: 'Minimal', layout: 5, head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'paper', deco: '', theme: { bg: '#3B2416', accent: '#B08D57', light: '#F7F3EC' }, tags: ['studio', 'photography', 'architect', 'interior', 'design', 'tech', 'consult', 'portfolio'] },
   ];
   function lookByName(n) { for (var i = 0; i < LOOKS.length; i++) if (LOOKS[i].name === n) return LOOKS[i]; return LOOKS[0]; }
   // The 3 looks that suit this business best (by words in the order), different from each other.
@@ -821,10 +925,11 @@
   }
   function cardName(c, d, x, y, w, big, color, accent, align, measure) {
     var fs = fitFam(c, d.name || 'Your Name', w, big, big * 0.5, '800', FONT);
-    if (measure) return y + fs + (d.title ? big * 0.6 : 0);
+    if (measure) return y + fs + (d.title ? big * 0.6 : 0) + (d.special ? big * 0.55 : 0);
     c.textAlign = align || 'left'; c.fillStyle = color; c.fillText(d.name || 'Your Name', x, y + fs);
     var ty = y + fs;
     if (d.title) { c.font = '600 ' + big * 0.42 + 'px ' + FONT; c.fillStyle = accent; c.fillText(d.title, x, ty + big * 0.6, w); ty += big * 0.6; }
+    if (d.special) { c.font = '500 ' + big * 0.34 + 'px ' + FONT; c.fillStyle = '#6B7280'; c.fillText(d.special, x, ty + big * 0.55, w); ty += big * 0.55; }
     c.textAlign = 'left';
     return ty;
   }
@@ -846,11 +951,7 @@
         c.fillStyle = t.accent; c.fillRect(90 * u, y + 26 * u, 80 * u, 5 * u);
         cardRows(c, d, 90 * u, y + 50 * u, W - 150 * u, 25 * u, '#1F2937', t.bg, '#FFFFFF');
       },
-      back: function (c, W, H, d, t) {
-        var u = W / 1050; c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
-        c.strokeStyle = t.accent; c.lineWidth = 3 * u; c.strokeRect(30 * u, 30 * u, W - 60 * u, H - 60 * u);
-        cardBrand(c, d, W / 2, H / 2 - 10 * u, W - 160 * u, onColour(t.bg), t.accent, 84 * u);
-      } },
+      back: function (c, W, H, d, t) { cardBack(c, W, H, d, t, 'border'); } },
     { name: 'Split card',
       front: function (c, W, H, d, t) {
         var u = W / 1050, pw = W * 0.36; c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, W, H);
@@ -861,12 +962,7 @@
         var y = cardName(c, d, x, y0, W - x - 50 * u, 54 * u, t.bg, darkAccent(t), 'left');
         cardRows(c, d, x, y + 34 * u, W - x - 40 * u, 22 * u, '#1F2937', t.accent, onColour(t.accent));
       },
-      back: function (c, W, H, d, t) {
-        var u = W / 1050; c.fillStyle = t.light; c.fillRect(0, 0, W, H);
-        c.fillStyle = t.bg; c.beginPath(); c.moveTo(W * 0.62, 0); c.lineTo(W, 0); c.lineTo(W, H); c.lineTo(W * 0.42, H); c.closePath(); c.fill();
-        c.fillStyle = t.accent; c.beginPath(); c.moveTo(W * 0.58, 0); c.lineTo(W * 0.61, 0); c.lineTo(W * 0.41, H); c.lineTo(W * 0.38, H); c.closePath(); c.fill();
-        cardBrand(c, d, W * 0.24, H / 2, W * 0.36, t.bg, t.accent, 60 * u);
-      } },
+      back: function (c, W, H, d, t) { cardBack(c, W, H, d, t, 'light'); } },
     { name: 'Minimal card',
       front: function (c, W, H, d, t) {
         var u = W / 1050; c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, W, H);
@@ -880,16 +976,45 @@
         var rw = Math.min(W - 160 * u, widest + 22 * u * 2.2);
         cardRows(c, d, (W - rw) / 2, y + 52 * u, rw, 22 * u, '#374151', t.light, t.bg);
       },
-      back: function (c, W, H, d, t) {
-        var u = W / 1050; c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
-        c.globalAlpha = 0.08; c.fillStyle = t.accent; for (var i = -H; i < W; i += 46 * u) { c.beginPath(); c.moveTo(i, H); c.lineTo(i + H, 0); c.lineTo(i + H + 14 * u, 0); c.lineTo(i + 14 * u, H); c.closePath(); c.fill(); } c.globalAlpha = 1;
-        cardBrand(c, d, W / 2, H / 2 - 10 * u, W - 200 * u, t.accent, onColour(t.bg), 76 * u);
-        if (d.web) { c.font = '600 ' + 22 * u + 'px ' + FONT; c.fillStyle = onColour(t.bg); c.globalAlpha = 0.8; c.textAlign = 'center'; c.fillText(d.web, W / 2, H - 50 * u); c.textAlign = 'left'; c.globalAlpha = 1; }
-      } },
+      back: function (c, W, H, d, t) { cardBack(c, W, H, d, t, 'stripe'); } },
   ];
   // Accent text on light card backgrounds: use the accent only if it's dark enough to read, else the main colour.
   function darkAccent(t) { return lum(t.accent) < 0.55 ? t.accent : t.bg; }
-  function cardData(d) { return { name: d.name, title: d.title, email: d.email, address: d.address, tagline: d.tagline, web: d.web, socials: d.cardSocials || [], phones: d.cardPhones || [], logo: d.logo, business: d.business }; }
+  function cardData(d) { return { name: d.name, title: d.title, special: d.special || '', services: d.services || [], email: d.email, address: d.address, tagline: d.tagline, web: d.web, socials: d.cardSocials || [], phones: d.cardPhones || [], logo: d.logo, business: d.business }; }
+  function drawQR(c, text, x, y, size, dark) {
+    if (typeof window.qrcode !== 'function') return false;
+    var q = window.qrcode(0, 'M'); q.addData(text); q.make();
+    var n = q.getModuleCount(), m = size / n; c.fillStyle = dark;
+    for (var r = 0; r < n; r++) for (var k = 0; k < n; k++) if (q.isDark(r, k)) c.fillRect(x + k * m, y + r * m, Math.ceil(m), Math.ceil(m));
+    return true;
+  }
+  function waLink(d) { var p = String((d.phones || [])[0] || '').replace(/\D/g, ''); if (!p) return ''; if (p.charAt(0) === '0') p = '234' + p.slice(1); return 'https://wa.me/' + p + '?text=' + encodeURIComponent('Hello ' + (d.business || '') + ', I would like to order'); }
+  // Back of every card: brand, up to 4 services, social handle, and a "Scan to order on WhatsApp" code.
+  function cardBack(c, W, H, d, t, style) {
+    var u = W / 1050, dark = style === 'light' ? t.bg : onColour(t.bg), bgc = style === 'light' ? t.light : t.bg, acc = style === 'light' ? darkAccent(t) : t.accent;
+    c.fillStyle = bgc; c.fillRect(0, 0, W, H);
+    if (style === 'border') { c.strokeStyle = t.accent; c.lineWidth = 3 * u; c.strokeRect(26 * u, 26 * u, W - 52 * u, H - 52 * u); }
+    if (style === 'light') { c.fillStyle = t.bg; c.fillRect(0, H - 18 * u, W, 18 * u); c.fillStyle = t.accent; c.fillRect(0, H - 26 * u, W, 8 * u); }
+    if (style === 'stripe') { c.globalAlpha = 0.07; c.fillStyle = t.accent; for (var i = -H; i < W; i += 46 * u) { c.beginPath(); c.moveTo(i, H); c.lineTo(i + H, 0); c.lineTo(i + H + 14 * u, 0); c.lineTo(i + 14 * u, H); c.closePath(); c.fill(); } c.globalAlpha = 1; }
+    var link = waLink(d), qs = 250 * u, qx = W - qs - 90 * u, qy = (H - qs) / 2 - 22 * u, left = 80 * u, lw = (link ? qx - 50 * u : W - 160 * u) - left;
+    var y = 120 * u;
+    if (d.logo) { var k = Math.min(lw * 0.5 / d.logo.width, 90 * u / d.logo.height); c.drawImage(d.logo, left, y - 60 * u, d.logo.width * k, d.logo.height * k); y += 50 * u; }
+    else { var fs = fitFam(c, d.business || 'Your business', lw, 60 * u, 30 * u, '800', SERIF); c.fillStyle = dark; c.fillText(d.business || 'Your business', left, y); y += 14 * u; }
+    c.fillStyle = acc; c.fillRect(left, y, 70 * u, 5 * u); y += 46 * u;
+    var sv = (d.services || []).slice(0, 4);
+    if (sv.length) {
+      c.font = '600 ' + 24 * u + 'px ' + FONT; var colW = lw / 2;
+      sv.forEach(function (x, n) { var cx = left + (n % 2) * colW, cy = y + Math.floor(n / 2) * 44 * u; c.fillStyle = acc; c.beginPath(); c.arc(cx + 7 * u, cy - 8 * u, 6 * u, 0, Math.PI * 2); c.fill(); c.fillStyle = dark; c.fillText(x, cx + 24 * u, cy, colW - 30 * u); });
+      y += Math.ceil(sv.length / 2) * 44 * u + 18 * u;
+    }
+    var handle = (d.socials || [])[0] || d.web || '';
+    if (handle) { c.font = '700 ' + 24 * u + 'px ' + FONT; c.fillStyle = acc; c.fillText(handle, left, Math.min(y + 10 * u, H - 70 * u), lw); }
+    if (link) {
+      c.save(); c.shadowColor = 'rgba(0,0,0,.18)'; c.shadowBlur = 18 * u; c.fillStyle = '#FFFFFF'; rr(c, qx - 18 * u, qy - 18 * u, qs + 36 * u, qs + 80 * u, 16 * u); c.fill(); c.restore();
+      if (!drawQR(c, link, qx, qy, qs, '#111111')) { c.fillStyle = '#EEE'; c.fillRect(qx, qy, qs, qs); }
+      c.font = '800 ' + 19 * u + 'px ' + FONT; c.fillStyle = '#111111'; c.textAlign = 'center'; c.fillText('Scan to order on WhatsApp', qx + qs / 2, qy + qs + 42 * u, qs + 20 * u); c.textAlign = 'left';
+    }
+  }
   // Both sides on one preview: front above, back below.
   var CARD_PREVIEW = CARD_LAYOUTS.map(function (L) {
     return { name: L.name, side: function (which, c, W, H, d, t) { L[which](c, W, H, cardData(d), t); }, draw: function (c, W, H, d, t) {
@@ -904,6 +1029,15 @@
   });
 
 
+  function promoList(looks) {
+    var used = [];
+    return looks.map(function (n, i) {
+      var L = lookByName(n), k = L.layout != null ? L.layout : i;
+      if (used.indexOf(k) !== -1) for (var j = 0; j < LAYOUTS.length; j++) if (used.indexOf(j) === -1) { k = j; break; }
+      used.push(k); return LAYOUTS[k];
+    });
+  }
+  function withPlace(contact, place) { return contact && place ? contact + '  \u00B7  ' + place : contact || place || ''; }
   // ---------- Quick preview for the public order form: 3 small drafts from what the customer typed ----------
   var prevCache = {};
   function previewDesigns(o, width) {
@@ -922,8 +1056,9 @@
         listTitle: mp.listTitle, items: mp.items, note: mp.note, phones: mp.phones, socials: mp.socials, place: mp.place,
         menuPhotos: photos.map(function (img) { return { img: img, caption: '' }; }),
         name: cd.name, title: cd.title, email: cd.email, address: cd.address, tagline: cd.tagline, web: cd.web, cardSocials: cd.socials, cardPhones: cd.phones };
-      var list = mode === 'menu' ? MENU_LAYOUTS : mode === 'card' ? CARD_PREVIEW : LAYOUTS;
+      var list = mode === 'menu' ? MENU_LAYOUTS : mode === 'card' ? CARD_PREVIEW : null;
       var looks = suggestLooks([o.business, o.words, inf.sell, o.service].join(' ')), custom = themeFrom(o.colours), pt = custom ? null : photoTheme(photos[0]);
+      list = list || promoList(looks); d.contact = withPlace(d.contact, d.place); d.special = inf.sell || ''; d.services = (inf.sell || '').split(/,|\band\b/).map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4);
       return list.map(function (L, i) {
         var look = lookByName(looks[i]), t = custom || (i === 0 && pt) || (look.theme ? Object.assign({ name: look.name }, look.theme) : THEMES[0]);
         var sz = SIZES[o.size] || SIZES.post, W = width, H = mode === 'card' ? Math.round(width * (CARD.h * 2 + 90) / CARD.w) : Math.round(width * sz.h / sz.w);
@@ -948,7 +1083,7 @@
     var g = guess(o), mp = parseMenu(o);
     var menuMode = mp.items.length >= 4;
     var state = { size: 'post', layout: 0, mode: o.kind === 'card' ? 'card' : menuMode ? 'menu' : 'promo', captions: [], theme: themeFrom(o.colours) || (menuMode ? THEMES[1] : THEMES[0]), enhance: true, photoIdx: 0, logoIdx: -1, photos: [], raw: [] };
-    var layouts = function () { return state.mode === 'menu' ? MENU_LAYOUTS : state.mode === 'card' ? CARD_PREVIEW : LAYOUTS; };
+    var layouts = function () { return state.mode === 'menu' ? MENU_LAYOUTS : state.mode === 'card' ? CARD_PREVIEW : promoList(state.looks); };
     var cd = parseCard(o);
     state.looks = suggestLooks([o.title, o.business, o.words, (o.info || {}).sell, o.style].join(' '));
     state.themePicked = !!themeFrom(o.colours); state.photoTheme = null;
@@ -959,6 +1094,7 @@
     // Each option = a layout + a look; colours come from the customer, else option 1 from their photos, else the look's own.
     function themeFor(i) {
       if (state.themePicked) return state.theme;
+      if (state.mode === 'card') i = 0; // one brand colour for all three cards
       if (i === 0 && state.photoTheme && !(state.lookTouched || {})[0]) return state.photoTheme;
       var L = lookByName(state.looks[i]); return L.theme ? Object.assign({ name: L.name }, L.theme) : state.theme;
     }
@@ -979,10 +1115,12 @@
       business: el('input', { value: g.business || mp.brand, maxlength: '60' }),
       headline: el('textarea', { rows: '2', maxlength: '120' }),
       details: el('textarea', { rows: '3', maxlength: '240' }),
+      place: el('input', { value: parseMenu(o).place, maxlength: '70', placeholder: 'e.g. Ibadan · Available nationwide' }),
       offer: el('input', { value: menuMode ? '' : g.offer, maxlength: '30', placeholder: 'e.g. 20% OFF or Nationwide delivery (empty for none)' }),
       contact: el('input', { value: g.contact, maxlength: '70' }),
     };
     f.headline.value = g.headline; f.details.value = g.details;
+    var showPrices = el('input', { type: 'checkbox' }); showPrices.checked = true;
     var mf = {
       listTitle: el('input', { value: mp.listTitle, maxlength: '40', placeholder: 'e.g. Contact us for / Our menu' }),
       items: el('textarea', { rows: '7', maxlength: '900' }),
@@ -1142,9 +1280,12 @@
       email: el('input', { value: cd.email, maxlength: '60', placeholder: 'e.g. info@business.com' }),
       web: el('input', { value: [cd.web].concat(cd.socials).filter(Boolean).join(' '), maxlength: '70', placeholder: 'e.g. www.business.com @business' }),
       address: el('textarea', { rows: '2', maxlength: '120', placeholder: 'e.g. No. 12 Atofarati Quarters, Olode, Ibadan' }),
+      special: el('input', { value: (o.info || {}).sell || '', maxlength: '70', placeholder: 'Under the name, e.g. Cakes · Small chops · Parfait · Zobo' }),
+      services: el('textarea', { rows: '3', placeholder: 'Back of the card, up to 4 lines, e.g. Birthday cakes' }),
       tagline: el('input', { value: cd.tagline, maxlength: '50', placeholder: 'Optional line on the back, e.g. Quality you can trust' }),
     };
     cf.address.value = cd.address;
+    cf.services.value = ((o.info || {}).sell || '').split(/,|\band\b/).map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4).join('\n');
     if (o.kind === 'card' && cd.business && !o.business) f.business.value = cd.business;
     var modeBtns = {};
     var modeRow = el('div', { class: 'st-mode' }, [['menu', '\uD83D\uDCCB Menu / price list'], ['promo', '\uD83D\uDCE3 Promo / offer'], ['card', '\uD83D\uDCB3 Business card']].map(function (m) {
@@ -1192,17 +1333,18 @@
     var promoBox = el('div', { class: 'st-group' }, [el('div', { class: 'st-bgrow' }, [ideaBtn, ideaMsg]), ideaRow, lab('Headline (the big words)', f.headline), lab('Details (smaller text)', f.details), lab('Contact line', f.contact)]);
     var cardBox = el('div', { class: 'st-group' }, [
       lab('Name', cf.name), lab('Job title', cf.title), lab('Phone number(s)', cf.phones), lab('Email', cf.email),
-      lab('Website / social handles', cf.web), lab('Address', cf.address), lab('Line on the back (optional)', cf.tagline),
+      lab('Website / social handles', cf.web), lab('Address', cf.address), lab('Line under the name (what you do)', cf.special), lab('Services on the back (up to 4, one per line)', cf.services), lab('Line on the back (optional)', cf.tagline),
       el('p', { class: 'admin-hint', text: 'Print size 3.5 × 2 inches (300 dpi). Downloads give a front and a back for each option. Tap a logo below to put it on the card.' }),
     ]);
     var menuBox = el('div', { class: 'st-group' }, [
-      lab('List title', mf.listTitle), lab('Items (one per line)', mf.items), lab('Extra note (box)', mf.note),
+      lab('List title', mf.listTitle), lab('Items (one per line)', mf.items), el('label', { class: 'st-check' }, [showPrices, ' Show prices (write them like “Cake - from ₦18,000”)']), lab('Extra note (box)', mf.note),
       lab('Phone numbers', mf.phones), lab('Social handles', mf.socials), lab('Location line', mf.place),
       el('div', { class: 'st-field' }, [el('span', { text: 'Photo labels' }), captionBox, el('div', { class: 'st-bgrow' }, [capBtn, capMsg])]),
     ]);
     var lookRow = el('div', { class: 'st-chips' }), lookLab = el('div', { class: 'st-field' }, [el('span', { text: 'Look' }), lookRow]);
-    var sizeLab = lab('Size', sizeSel), badgeLab = lab('Badge (optional)', f.offer);
+    var sizeLab = lab('Size', sizeSel), badgeLab = lab('Badge (optional)', f.offer), placeLab = lab('Location line (optional)', f.place);
     var mainPhotoLab = el('div', { class: 'st-field' }, [el('span', { text: 'Main photo (tap one)' }), photoTiles]);
+    promoBox.appendChild(placeLab);
     var notCard = [sizeLab, badgeLab, mainPhotoLab, bgRow];
     var panel = el('div', { class: 'st-panel' }, [
       el('h2', { text: '🎨 Design studio' }),
@@ -1270,24 +1412,25 @@
     function data() {
       var photos = state.photos.filter(function (p, i) { return i !== state.logoIdx && p; });
       var main = state.photos[state.photoIdx] && state.photoIdx !== state.logoIdx ? state.photos[state.photoIdx] : photos[0] || null;
-      return { business: f.business.value.trim(), headline: f.headline.value.trim(), details: f.details.value.trim(), offer: f.offer.value.trim().toUpperCase(), contact: f.contact.value.trim(),
+      return { business: f.business.value.trim(), headline: f.headline.value.trim(), details: f.details.value.trim(), offer: f.offer.value.trim().toUpperCase(), contact: withPlace(f.contact.value.trim(), f.place.value.trim()),
         photo: main, photos: [main].concat(photos.filter(function (p) { return p !== main; })), logo: state.logoIdx >= 0 ? state.raw[state.logoIdx] : null,
         logoWide: state.logoIdx >= 0 && state.raw[state.logoIdx] ? state.raw[state.logoIdx].width / state.raw[state.logoIdx].height > 1.3 : false,
-        listTitle: mf.listTitle.value.trim(), items: mf.items.value.split('\n').map(function (x) { return x.replace(/^[\s•\-*◆♦]+/, '').trim(); }).filter(Boolean).filter(notBrand),
+        listTitle: mf.listTitle.value.trim(), items: mf.items.value.split('\n').map(function (x) { x = x.replace(/^[\s•\-*◆♦]+/, '').trim(); return showPrices.checked ? x : x.replace(/\s*[-–—:]\s*(?:from\s+)?\u20A6\s?[\d,]+.*$/i, ''); }).filter(Boolean).filter(notBrand),
         note: mf.note.value.trim(), phones: mf.phones.value.split(/[,;\/]+/).map(function (x) { return x.trim(); }).filter(Boolean),
         socials: mf.socials.value.split(/[,;\s]+/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { return x.charAt(0) === '@' ? x : '@' + x; }),
         place: mf.place.value.trim(),
+        special: cf.special.value.trim(), services: cf.services.value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4),
         name: cf.name.value.trim(), title: cf.title.value.trim(), email: cf.email.value.trim(), address: cf.address.value.trim().replace(/\s*\n\s*/g, ', '), tagline: cf.tagline.value.trim(),
         web: (cf.web.value.match(/[^\s@]+\.[a-z]{2,}[^\s]*/i) || [''])[0], cardSocials: (cf.web.value.match(/@[A-Za-z0-9_.]{2,}/g) || []), cardPhones: cf.phones.value.split(/[,;\/]+/).map(function (x) { return x.trim(); }).filter(Boolean),
         menuPhotos: state.photos.map(function (img, i) { return { img: img, caption: state.captions[i] || '', i: i }; }).filter(function (x) { return x.img && x.i !== state.logoIdx; }) };
     }
-    function render(i, W, H, photoIdx) {
+    function render(i, W, H, photoIdx, over) {
       var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       var c = cv.getContext('2d'); c.textBaseline = 'alphabetic';
       var keep = state.photoIdx; if (photoIdx != null) state.photoIdx = photoIdx;
       try {
         withLook(i, function (L, t) {
-          layouts()[i].draw(c, W, H, data(), t);
+          layouts()[i].draw(c, W, H, over ? Object.assign(data(), over) : data(), t);
           if (state.mode !== 'card') { texture(c, W, H, L.tex); deco(c, W, H, L.deco, t); }
         });
       } finally { state.photoIdx = keep; }
@@ -1295,9 +1438,27 @@
     }
     // ---------- Set of N (e.g. 5 social media posts): same look, a different photo on each ----------
     var setN = Math.max(0, Math.min(10, Number(o.set) || 0));
+    // Each post can have its own words (empty = the main headline); the AI can write them from the photo labels.
+    var setMsg = el('small', { class: 'st-bgmsg' }), setText = [], setWords = el('div', { class: 'st-setwords' });
+    for (var sn = 0; sn < setN; sn++) (function (n) {
+      var h = el('input', { maxlength: '60', placeholder: 'Post ' + (n + 1) + ' headline (empty = main headline)' }), l = el('input', { maxlength: '110', placeholder: 'Post ' + (n + 1) + ' line' });
+      h.addEventListener('input', function () { drawSet(); }); l.addEventListener('input', function () { drawSet(); });
+      setText.push({ h: h, l: l }); setWords.appendChild(el('div', { class: 'st-bgrow' }, [h, l]));
+    })(sn);
+    function setOver(n) { var x = setText[n]; return x && x.h.value.trim() ? { headline: x.h.value.trim(), details: x.l.value.trim() } : null; }
+    function writeSet() {
+      if (!o.ideasApi) { setMsg.textContent = 'Works from the admin page.'; return; }
+      var topics = setOrder().map(function (pi) { return (pi != null && state.captions[pi]) || ''; });
+      setMsg.textContent = 'Writing ' + setN + ' posts…';
+      o.ideasApi({ business: f.business.value, what: (o.info || {}).sell || '', words: o.words || f.headline.value, topics: topics }).then(function (j) {
+        (j.ideas || []).forEach(function (x, n) { if (setText[n]) { setText[n].h.value = x.headline; setText[n].l.value = x.line; } });
+        setMsg.textContent = 'Done. Edit any of them.'; drawSet();
+      }).catch(function (e) { setMsg.textContent = (e && e.message) || 'Could not write them.'; });
+    }
     var setRow = el('div', { class: 'st-thumbs' }), setBox = el('div', { class: 'st-set', hidden: setN ? null : '' }, [
       el('b', { text: 'The set of ' + setN + ' (same look as the chosen option, a different photo on each)' }), setRow,
-      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Download the set of ' + setN, onclick: function () { setOrder().forEach(function (pi, n) { setTimeout(function () { download(state.layout, pi, n + 1); }, n * 450); }); } }),
+      el('div', { class: 'st-bgrow' }, [el('button', { class: 'admin-btn', type: 'button', text: '\u2728 Write different words for each post (AI)', onclick: writeSet }), setMsg]), setWords,
+      el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Download the set of ' + setN, onclick: function () { setOrder().forEach(function (pi, n) { setTimeout(function () { download(state.layout, pi, n + 1, setOver(n)); }, n * 450); }); } }),
       el('small', { class: 'admin-hint', text: 'Change the words between downloads if each post needs its own message.' }),
     ]);
     function setOrder() {
@@ -1310,7 +1471,7 @@
     function drawSet() {
       if (!setN) return;
       var s = SIZES[state.size]; setRow.innerHTML = '';
-      setOrder().forEach(function (pi, n) { setRow.appendChild(el('div', { class: 'st-thumb' }, [render(state.layout, Math.round(s.w * 0.16), Math.round(s.h * 0.16), pi), el('span', { text: 'Post ' + (n + 1) })])); });
+      setOrder().forEach(function (pi, n) { setRow.appendChild(el('div', { class: 'st-thumb' }, [render(state.layout, Math.round(s.w * 0.16), Math.round(s.h * 0.16), pi, setOver(n)), el('span', { text: 'Post ' + (n + 1) })])); });
     }
 
     // ---------- Animated WhatsApp status (video made right here; no Canva needed) ----------
@@ -1442,7 +1603,7 @@
         document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       }, 'image/png');
     }
-    function download(i, photoIdx, postNo) {
+    function download(i, photoIdx, postNo, over) {
       if (state.mode === 'card') { // a front and a back, print size
         var slug = (cf.name.value || f.business.value || 'card').replace(/\W+/g, '-').toLowerCase();
         ['front', 'back'].forEach(function (side, n) {
@@ -1454,7 +1615,7 @@
         });
         return;
       }
-      var s = SIZES[state.size], cv = render(i, s.w, s.h, photoIdx);
+      var s = SIZES[state.size], cv = render(i, s.w, s.h, photoIdx, over);
       cv.toBlob(function (b) {
         var a = el('a', { href: URL.createObjectURL(b), download: (f.business.value || 'design').replace(/\W+/g, '-').toLowerCase() + (postNo ? '-post-' + postNo : '-option-' + (i + 1)) + '-' + state.size + '.png' });
         document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
@@ -1491,6 +1652,7 @@
       });
     }
     Object.keys(f).forEach(function (k) { f[k].addEventListener('input', draw); });
+    showPrices.addEventListener('change', draw);
     Object.keys(mf).forEach(function (k) { mf[k].addEventListener('input', draw); });
     Object.keys(cf).forEach(function (k) { cf[k].addEventListener('input', draw); });
     sizeSel.addEventListener('change', function () { state.size = sizeSel.value; draw(); });

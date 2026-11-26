@@ -162,6 +162,8 @@ export default async function handler(req, res) {
           return { ...p, ...keep };
         });
       }
+      // Today's pump prices from Manage my website (filling stations) stay too.
+      if (row.brief?.fuel_prices) answers.fuel_prices = row.brief.fuel_prices;
       if (JSON.stringify(answers).length > 900_000) return res.status(413).json({ error: "That's too much text. Please shorten it or send it on WhatsApp." });
       if (body.submit) {
         const missing = missingRequired(kind, answers, row.brief_files);

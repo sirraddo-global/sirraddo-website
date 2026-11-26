@@ -226,6 +226,38 @@ function saleOf(p) {
   const s = salePrice(p, priceAmount);
   return { amount: s.amount, wasAmount: s.was, onSale: s.onSale, saleEnds: s.ends, off: s.off || 0 };
 }
+// ---------- Filling stations & gas plants: today's price board (the owner updates it in Manage my website) ----------
+export const FUEL = [
+  { k: "pms", label: "Petrol (PMS)", unit: "litre", per: "/L" },
+  { k: "ago", label: "Diesel (AGO)", unit: "litre", per: "/L" },
+  { k: "lpg", label: "Cooking gas (LPG)", unit: "kg", per: "/kg" },
+];
+export const FUEL_STATUS = { available: "Available", low: "Low stock", out: "Out of stock" };
+const FUEL_RE = /filling station|fuel station|petrol station|gas station|\bpetrol\b|\bdiesel\b|\bfuel\b|\blpg\b|cooking gas|gas plant|gas refill/i;
+export function isFuelBusiness(brief) {
+  if (brief?.fuel_prices) return true;
+  const text = [brief?.gbp_category, brief?.description, brief?.business_name, brief?.tagline, ...(brief?.services || []).map((x) => x?.name)].filter(Boolean).join(" ");
+  return FUEL_RE.test(text);
+}
+// { items: [{ k, label, per, price, status }], updated } — only what they sell (a price, or marked out of stock).
+export function fuelBoard(brief) {
+  const fp = brief?.fuel_prices;
+  if (!fp || typeof fp !== "object") return null;
+  const items = FUEL.map((f) => ({ ...f, price: String(fp[f.k]?.price || "").replace(/[^\d]/g, ""), status: FUEL_STATUS[fp[f.k]?.status] ? fp[f.k].status : "available" }))
+    .filter((x) => x.price);
+  return items.length ? { items, updated: fp.updated || "" } : null;
+}
+function fuelBoardHtml(site) {
+  const fb = site.fuel;
+  if (!fb) return "";
+  const when = fb.updated ? new Date(fb.updated).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Africa/Lagos" }) : "";
+  return `<section class="fuel" aria-labelledby="fuel-h"><div class="wrap"><div class="fb"><div class="fb-top"><h2 id="fuel-h">Today's prices</h2>${when ? `<span>Updated ${esc(when)}</span>` : ""}</div>
+${fb.items.map((x) => `<div class="fb-row fb-${x.status}"><b>${esc(x.label)}</b><span class="fb-p">${esc(naira(x.price))}<small>${x.per}</small></span><span class="fb-s">${esc(FUEL_STATUS[x.status])}</span></div>`).join("")}</div></div>
+<style>.fuel{padding:28px 0}.fb{background:#0B1220;color:#E2E8F0;border-radius:18px;padding:16px;max-width:640px;box-shadow:0 14px 36px rgba(15,23,42,.25)}.fb-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}.fb-top h2{margin:0;color:#fff;font-size:1.2rem}.fb-top span{font-size:.85rem;color:#94A3B8}
+.fb-row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;padding:12px;border-radius:12px;background:#111A2E;margin-top:8px;border-left:4px solid #059669}.fb-row b{color:#fff}.fb-p{grid-row:span 2;font-weight:800;font-size:1.7rem;color:#F59E0B;white-space:nowrap}.fb-p small{font-size:.9rem;color:#FCD34D;margin-left:2px}
+.fb-s{justify-self:start;font-size:.8rem;font-weight:700;border-radius:999px;padding:2px 10px;background:rgba(5,150,105,.2);color:#6EE7B7}.fb-low{border-left-color:#F59E0B}.fb-low .fb-s{background:rgba(245,158,11,.2);color:#FCD34D}.fb-out{border-left-color:#EF4444}.fb-out .fb-s{background:rgba(239,68,68,.2);color:#FCA5A5}.fb-out .fb-p{color:#64748B;text-decoration:line-through}</style></section>`;
+}
+
 export function buildSiteModel(row) {
   const b = row.brief || {};
   const files = row.brief_files || {};
@@ -271,6 +303,7 @@ export function buildSiteModel(row) {
     name: b.business_name || row.business || row.name,
     tagline: b.tagline || "",
     notice: String(b.site_notice || "").trim().slice(0, 200), // short note from the owner (Manage my store)
+    fuel: fuelBoard(b), // filling stations & gas plants: price board the owner updates in Manage my website
     phone: b.phone || row.contact || "",
     whatsapp: waNumber(b.whatsapp || b.phone || row.contact),
     // Once email forwarding works, the site shows their business address (info@theirdomain) instead of their Gmail.
@@ -1016,6 +1049,7 @@ function pageBody(site, page, mode, link, img) {
     out.push(`<section class="hero"><div class="wrap"><div><h1>${inline(headline, mode)}</h1>${sub ? `<p>${inline(sub, mode)}</p>` : ""}${whereHtml}<a class="btn" href="${href}">${inline(btn, mode)}</a>${openBadge(site)}</div>${site.photos[0] ? `<img src="${img(site.photos[0].url)}" alt="${esc(site.name)}" fetchpriority="high" decoding="async">` : site.productPhotos.length >= 4 ? `<div class="hero-grid">${site.productPhotos.slice(0, 4).map((p, k) => `<img src="${img(p.url)}" alt=""${k ? ' loading="lazy"' : ' fetchpriority="high"'} decoding="async">`).join("")}</div>` : ""}</div></section>`);
     const trust = trustPoints(site);
     if (trust.length) out.push(`<div class="trust"><div class="wrap">${trust.map((t) => `<span>\u2713 ${esc(t)}</span>`).join("")}</div></div>`);
+    if (site.fuel) out.push(fuelBoardHtml(site));
     const car = topCarousel(site, img);
     if (car) out.push(car);
   } else {

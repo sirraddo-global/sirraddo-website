@@ -2494,7 +2494,9 @@
 
   // Hosting is on Netlify's free plan while sales start. From the 2nd paid website project, suggest moving to a
   // paid home (Nigerian VPS yearly in naira, or Netlify Personal) until "Done" is tapped. TEST records don't count.
+  // Done: the website moved to the RackNerd VPS (paid yearly) on 25 Nov 2026, so this reminder no longer shows.
   function paidHomeNudge(rs) {
+    return null;
     if (!isOwner()) return null;
     if ((state.settings || {}).vercel_pro_at) return null;
     var paidProjects = rs.filter(function (r) { return r.status === 'won' && paid(r) > 0 && !/test/i.test((r.name || '') + ' ' + (r.business || '')); }).length;

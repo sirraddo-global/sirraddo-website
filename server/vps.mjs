@@ -114,6 +114,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (!["GET", "HEAD"].includes(req.method)) { res.writeHead(405, { allow: "GET, HEAD" }); return res.end(); }
+    // Short addresses for pages that live under another name.
+    const moved = { "/earn": "/agents", "/partners": "/agents" }[url.pathname.replace(/\/$/, "")];
+    if (moved) { res.writeHead(301, { location: moved + url.search, "cache-control": "public, max-age=3600" }); return res.end(); }
     const file = await staticFile(url.pathname);
     const headers = { "x-content-type-options": "nosniff", "referrer-policy": "strict-origin-when-cross-origin", "x-frame-options": "DENY" };
     for (const rule of headerRules) if (ruleMatches(rule, url.pathname)) Object.assign(headers, Object.fromEntries(Object.entries(rule.values).map(([k, v]) => [k.toLowerCase(), v])));

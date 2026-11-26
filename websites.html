@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="/assets/styles.css">
   <script src="/assets/site.js" defer></script>
   <script src="/assets/showcase.js" defer></script>
+  <script src="/assets/growth.js" defer></script>
   <script src="/assets/chat.js" defer></script>
   <script src="/assets/greeting.js" defer></script>
   <script src="/assets/work.js" defer></script>
@@ -74,6 +75,7 @@
         <div class="btn-row">
           <a class="btn btn--gold" data-lead="Other" href="https://wa.me/2348167550937?text=Hi%2C%20I%27m%20interested%20in%20a%20website%20for%20my%20business" target="_blank" rel="noopener">Chat on WhatsApp<span class="visually-hidden"> (opens WhatsApp in a new tab)</span></a>
           <a class="btn btn--outline-light" href="#packages">See packages</a>
+          <a class="btn btn--outline-light" href="#bp">Preview with your business name</a>
           <a class="btn btn--outline-light" href="https://sirraddodemo.com.ng" target="_blank" rel="noopener">Try our demo store<span class="visually-hidden"> (opens in a new tab)</span></a>
           <a class="btn btn--outline-light" href="/demo">Demo websites by trade</a>
         </div>
@@ -170,6 +172,49 @@
       </div>
     </section>
 
+    <!-- ===== Quote calculator (assets/growth.js). Prices here must match the package cards above. ===== -->
+    <section class="section" id="quote" aria-labelledby="quote-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow eyebrow--dark">Instant quote</p>
+          <h2 id="quote-title">Work out your project price</h2>
+          <p>Pick a package and any extras. The total and the two payments update as you go, then send the exact quote to us on WhatsApp.</p>
+        </div>
+        <div class="qc">
+          <div class="qc-steps">
+            <fieldset><legend><span>1</span> Choose your website package</legend>
+              <label><input type="radio" name="qc-pkg" value="50000" data-label="Starter website (up to 5 pages)" checked><span><b>Starter website</b> Up to 5 pages</span><em>₦50,000</em></label>
+              <label><input type="radio" name="qc-pkg" value="100000" data-label="Business website (up to 10 pages + Google Business setup)"><span><b>Business website</b> Up to 10 pages + Google Business setup</span><em>₦100,000</em></label>
+              <label><input type="radio" name="qc-pkg" value="150000" data-from="1" data-label="Online Store (cart + Paystack + store admin)"><span><b>Online Store</b> Cart + Paystack + your own store admin</span><em>from ₦150,000</em></label>
+            </fieldset>
+            <fieldset><legend><span>2</span> Choose your domain</legend>
+              <label><input type="radio" name="qc-dom" value="0" data-label=".com.ng Nigerian domain" checked><span><b>.com.ng</b> Nigerian domain</span><em>Free</em></label>
+              <label><input type="radio" name="qc-dom" value="18000" data-label=".com international domain"><span><b>.com</b> International domain</span><em>+₦18,000</em></label>
+            </fieldset>
+            <fieldset><legend><span>3</span> Add brand &amp; design extras</legend>
+              <label><input type="checkbox" name="qc-x" value="pack" data-price="20000" data-label="Full Brand Starter Pack (logo + 5 social flyers + business card)"><span><b>Full Brand Starter Pack</b> Custom logo + 5 social flyers + print-ready business card</span><em>+₦20,000</em></label>
+              <label><input type="checkbox" name="qc-x" value="video" data-price="8000" data-label="Animated WhatsApp status promo video"><span><b>Animated WhatsApp status video</b> A moving promo for your status</span><em>+₦8,000</em></label>
+              <label><input type="checkbox" name="qc-x" value="card" data-price="5000" data-label="Print-ready business card design"><span><b>Business card design only</b> Print-ready (already in the Brand Pack)</span><em>+₦5,000</em></label>
+              <label><input type="checkbox" name="qc-x" value="care" data-price="20000" data-label="Monthly Website Care & 4 flyers (first month)"><span><b>Monthly Care &amp; 4 flyers</b> First month; cancel any time</span><em>+₦20,000</em></label>
+            </fieldset>
+          </div>
+          <aside class="qc-summary" aria-live="polite" aria-label="Your quote">
+            <h3>Your quote</h3>
+            <ul class="qc-lines"></ul>
+            <dl>
+              <div class="qc-big"><dt>Total project cost</dt><dd class="qc-total"></dd></div>
+              <div><dt>70% to start</dt><dd class="qc-dep"></dd></div>
+              <div><dt>30% before launch</dt><dd class="qc-bal"></dd></div>
+              <div><dt>Delivery</dt><dd>About 7 working days</dd></div>
+            </dl>
+            <p class="qc-store" hidden>Online Store: the final price depends on your catalogue. You can also pay 50% to start, 30% when you approve your preview and 20% before going live.</p>
+            <a class="btn btn--wa btn--block qc-send" target="_blank" rel="noopener" data-lead="Other" href="https://wa.me/2348167550937">Send This Exact Quote on WhatsApp<span class="visually-hidden"> (opens WhatsApp in a new tab)</span></a>
+            <p class="qc-fine">Prices include your first year of domain, hosting, SSL and business email. Paying 100% upfront? You get 5% off.</p>
+          </aside>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== Included ===== -->
     <section class="section" aria-labelledby="included-title">
       <div class="container">
@@ -207,6 +252,16 @@
           <h2 id="showcase-title">A different website for every kind of business</h2>
           <p>Five sample websites, each built the way that business sells: a menu you order from, listings you filter, a lookbook, a booking form, an admissions guide. Tap a business, then try the website on the laptop or the phone.</p>
         </div>
+        <div class="bp" id="bp" role="group" aria-labelledby="bp-title">
+          <p class="bp-title" id="bp-title">Preview your own brand live across our websites, flyers &amp; business cards:</p>
+          <div class="bp-fields">
+            <label>Business name<input id="bp-name" type="text" maxlength="40" autocomplete="organization" placeholder="e.g. Adeyemi Fabrics &amp; Style"></label>
+            <label>Phone / WhatsApp<input id="bp-phone" type="tel" maxlength="20" autocomplete="tel" placeholder="e.g. 0803 123 4567"></label>
+            <label>City / location<input id="bp-city" type="text" maxlength="32" placeholder="e.g. Ibadan · Nationwide"></label>
+            <button type="button" class="btn btn--outline bp-reset">Reset</button>
+          </div>
+          <p class="bp-hint">Type and watch the sample website below change. Nothing is saved or sent. <a href="/design#bp">See your flyer &amp; business card →</a></p>
+        </div>
         <div class="sc-tabs" role="tablist" aria-label="Sample businesses"></div>
         <div class="sc-view" role="group" aria-label="Preview size"><button type="button" data-v="both" class="on">Desktop + mobile</button><button type="button" data-v="desktop">Desktop preview</button><button type="button" data-v="mobile">Mobile preview</button></div>
         <div class="sc-stage" data-v="both">
@@ -216,6 +271,7 @@
         <div class="sc-info"><div><h3 class="sc-name">Kassy Treats &amp; More: bakery, small chops and catering, Ibadan</h3><p class="sc-what">Warm menu with category tabs (Cakes, Small Chops, Parfait &amp; Zobo, Event Trays), naira prices and “+ Add to WhatsApp order”: customers build the whole order, then send it in one message. Same-day Ibadan delivery badge.</p></div>
           <div class="sc-acts"><a class="btn sc-build" target="_blank" rel="noopener" href="https://wa.me/2348167550937?text=Hello%20SIRRADDO%2C%20I%20saw%20the%20food%20%26%20bakery%20sample%20(Kassy%20Treats%20%26%20More)%20on%20your%20website.%20I%20would%20like%20a%20website%20like%20this%20for%20my%20business.">Build a Website Like This (From ₦50,000)</a><a class="sc-open" target="_blank" rel="noopener" href="/assets/showcase/kassy.html">Open the full sample ↗</a></div></div>
         <p class="sc-note">Sample websites: the businesses (except Kassy Treats &amp; More), prices and results are examples. Buttons show what would be sent on WhatsApp.</p>
+        <nav class="ind-links" aria-label="Websites by industry"><b>Websites by industry:</b> <a href="/school-websites-nigeria">Schools</a><a href="/real-estate-websites-nigeria">Real estate</a><a href="/ecommerce-online-store-nigeria">Online stores</a><a href="/clinic-hospital-websites-nigeria">Clinics &amp; pharmacies</a></nav>
       </div>
     </section>
 
@@ -351,6 +407,26 @@
             <div><dt>Online Store</dt><dd>Quoted per store</dd></div>
             <div><dt>Standard Store</dt><dd>Quoted per store</dd></div>
           </dl>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Monthly care plan ===== -->
+    <section class="section" id="care" aria-labelledby="care-title">
+      <div class="container">
+        <div class="care">
+          <div>
+            <p class="eyebrow eyebrow--dark">Optional · after launch</p>
+            <h2 id="care-title">Keep growing after launch</h2>
+            <p class="care-price"><b>SIRRADDO Monthly Care &amp; Growth Plan</b> <span>₦20,000/month</span> <small>Cancel any time, no lock-in</small></p>
+            <ul class="ticks">
+              <li>4 custom promo flyers or WhatsApp status designs every month, from the SIRRADDO Design Studio</li>
+              <li>Monthly website updates: prices, photos and products</li>
+              <li>Posts on your Google Business Profile</li>
+              <li>Priority WhatsApp support</li>
+            </ul>
+          </div>
+          <a class="btn btn--wa" data-lead="Other" target="_blank" rel="noopener" href="https://wa.me/2348167550937?text=Hello%20SIRRADDO%2C%20I%20would%20like%20to%20add%20the%20Monthly%20Care%20%26%20Growth%20Plan%20(%E2%82%A620%2C000%2Fmonth)%20to%20my%20website.">Add Monthly Care on WhatsApp<span class="visually-hidden"> (opens WhatsApp in a new tab)</span></a>
         </div>
       </div>
     </section>
@@ -493,6 +569,10 @@
           <li><a href="/design">Flyers &amp; graphics</a></li>
           <li data-svc-page="services" hidden><a href="/services">Quick services</a></li>
           <li><a href="/agents">Earn as an agent</a></li>
+          <li><a href="/school-websites-nigeria">School websites</a></li>
+          <li><a href="/real-estate-websites-nigeria">Real estate websites</a></li>
+          <li><a href="/ecommerce-online-store-nigeria">Online stores</a></li>
+          <li><a href="/clinic-hospital-websites-nigeria">Clinic &amp; pharmacy websites</a></li>
           <li><a href="/privacy">Privacy Policy</a></li>
           <li><a href="/terms">Terms</a></li>
           <li><a href="https://zappipay.com.ng" target="_blank" rel="noopener">ZAPPI PAY<span class="visually-hidden"> (opens in a new tab)</span></a></li>

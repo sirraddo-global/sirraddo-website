@@ -24,6 +24,7 @@
   <link rel="preload" href="/assets/fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/assets/styles.css">
   <script src="/assets/site.js" defer></script>
+  <script src="/assets/showcase.js" defer></script>
   <script src="/assets/chat.js" defer></script>
   <script src="/assets/greeting.js" defer></script>
   <script src="/assets/work.js" defer></script>
@@ -194,6 +195,25 @@
          a work-preview div with an img of the site (saved in assets/work/), inside .dev (laptop);
          add <div class="dev-phone"><img …-mobile.jpg></div> after .dev-base when a phone screenshot (390×780) exists,
          change the badge, title and text, and add a link like the ZAPPI PAY card. -->
+    <section class="section" id="showcase" aria-labelledby="showcase-title">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow eyebrow--dark">Website showcase</p>
+          <h2 id="showcase-title">A different website for every kind of business</h2>
+          <p>Five sample websites, each built the way that business sells: a menu you order from, listings you filter, a lookbook, a booking form, an admissions guide. Tap a business, then try the website on the laptop or the phone.</p>
+        </div>
+        <div class="sc-tabs" role="tablist" aria-label="Sample businesses"></div>
+        <div class="sc-view" role="group" aria-label="Preview size"><button type="button" data-v="both" class="on">Desktop + mobile</button><button type="button" data-v="desktop">Desktop preview</button><button type="button" data-v="mobile">Mobile preview</button></div>
+        <div class="sc-stage" data-v="both">
+          <div class="sc-laptop"><div class="sc-screen"><div class="sc-bar"><i></i><i></i><i></i><span class="sc-url"></span></div><div class="sc-frame sc-frame--d"><iframe title="Desktop preview" loading="lazy"></iframe></div></div><div class="sc-base"></div></div>
+          <div class="sc-phone"><div class="sc-notch"></div><div class="sc-frame sc-frame--m"><iframe title="Mobile preview" loading="lazy"></iframe></div></div>
+        </div>
+        <div class="sc-info"><div><h3 class="sc-name"></h3><p class="sc-what"></p></div>
+          <div class="sc-acts"><a class="btn sc-build" target="_blank" rel="noopener">Build a Website Like This (From ₦50,000)</a><a class="sc-open" target="_blank" rel="noopener">Open the full sample ↗</a></div></div>
+        <p class="sc-note">Sample websites: the businesses (except Kassy Treats &amp; More), prices and results are examples. Buttons show what would be sent on WhatsApp.</p>
+      </div>
+    </section>
+
     <section class="section section--grey" id="work" aria-labelledby="work-title">
       <div class="container">
         <div class="section-head">

@@ -37,3 +37,14 @@ test("each industry gets its own page structure on the home page", () => {
   const clinic = page({ business_name: "Bright Smile Dental Clinic", description: "Dental clinic", services: svc([["Check-up", "10000"]]) });
   assert.match(clinic, /<form class="bk"/); assert.match(clinic, />Book an appointment</);
 });
+
+test("websites page showcase: 5 sample sites, framable only by our own site, each with a WhatsApp 'Build a website like this'", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync(new URL("../websites.html", import.meta.url), "utf8"), js = readFileSync(new URL("../assets/showcase.js", import.meta.url), "utf8");
+  assert.match(page, /id="showcase"/); assert.match(page, /Build a Website Like This \(From ₦50,000\)/);
+  for (const k of ["kassy", "crestline", "zainab", "olivecare", "brightpath"]) {
+    const html = readFileSync(new URL(`../assets/showcase/${k}.html`, import.meta.url), "utf8");
+    assert.match(js, new RegExp(`k: '${k}'`)); assert.match(html, /Sample website made by SIRRADDO/); assert.doesNotMatch(html, /wa\.me\//, `${k} never messages a real number`);
+  }
+  assert.match(readFileSync(new URL("../netlify.toml", import.meta.url), "utf8"), /for = "\/assets\/showcase\/\*"[\s\S]*?X-Frame-Options = "SAMEORIGIN"/);
+});

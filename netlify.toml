@@ -132,3 +132,10 @@
   for = "/version.txt"
   [headers.values]
     Cache-Control = "no-cache"
+
+# Sample websites shown inside device frames on /websites (same site only)
+[[headers]]
+  for = "/assets/showcase/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Robots-Tag = "noindex"

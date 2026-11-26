@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Zainab Luxe Atelier · sample website</title>
+<style>
+@font-face{font-family:"Playfair Display";src:url(/assets/fonts/looks/playfair-display-latin-700-normal.woff2) format("woff2");font-weight:700}
+@font-face{font-family:Montserrat;src:url(/assets/fonts/looks/montserrat-latin-500-normal.woff2) format("woff2");font-weight:500}
+@font-face{font-family:Montserrat;src:url(/assets/fonts/looks/montserrat-latin-800-normal.woff2) format("woff2");font-weight:800}
+:root{--blush:#F9EFEA;--ch:#18181B;--rose:#B76E79}
+*{box-sizing:border-box;min-width:0}body{margin:0;background:var(--blush);color:var(--ch);font:16px/1.6 Montserrat,Arial,sans-serif}
+.demo{background:var(--ch);color:#E9D5D9;font-size:12px;text-align:center;padding:6px 12px;margin:0}
+header{display:flex;justify-content:space-between;align-items:center;padding:20px 5vw;border-bottom:1px solid #E7D3CC}
+.logo{font:700 24px "Playfair Display",Georgia,serif;letter-spacing:.02em}.logo small{display:block;font:800 10px Montserrat,sans-serif;letter-spacing:.32em;color:var(--rose)}
+nav a{margin-left:24px;text-decoration:none;color:var(--ch);font-size:12px;font-weight:800;letter-spacing:.18em;text-transform:uppercase}@media(max-width:700px){nav{display:none}}
+.hero{display:grid;grid-template-columns:1fr 1fr;min-height:520px}
+.hero .txt{padding:60px 5vw;display:flex;flex-direction:column;justify-content:center}
+.eyebrow{font-size:12px;font-weight:800;letter-spacing:.3em;color:var(--rose);text-transform:uppercase}
+h1{font:700 clamp(40px,5.4vw,72px)/1.02 "Playfair Display",Georgia,serif;margin:14px 0 18px}h1 i{color:var(--rose)}
+.hero p{max-width:40ch;color:#52525B;margin:0 0 26px}
+.cta{display:inline-flex;align-items:center;justify-content:center;background:var(--ch);color:#fff;border:0;font:800 13px Montserrat,sans-serif;letter-spacing:.16em;text-transform:uppercase;padding:16px 26px;min-height:50px;cursor:pointer;align-self:flex-start}
+.look{position:relative;background:linear-gradient(160deg,#E9C9C0,#B76E79 70%,#7E3E4B);overflow:hidden}
+.look svg{position:absolute;inset:0;width:100%;height:100%}
+.look .cap{position:absolute;left:20px;bottom:20px;background:#fff;padding:10px 14px;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+@media(max-width:760px){.hero{grid-template-columns:1fr}.look{min-height:340px;order:-1}.hero .txt{padding:30px 5vw}}
+.col{padding:56px 5vw}.col h2{font:700 34px "Playfair Display",Georgia,serif;margin:0 0 26px}
+.asym{display:grid;grid-template-columns:1.2fr 1fr;gap:22px}.asym .stack{display:grid;gap:22px}@media(max-width:760px){.asym{grid-template-columns:1fr}}
+.piece{background:#fff;display:grid;grid-template-rows:auto 1fr}.piece .art{position:relative;min-height:220px}.piece.big .art{min-height:420px}
+.piece .art svg{position:absolute;inset:0;width:100%;height:100%}
+.piece .info{padding:18px 20px 20px;display:flex;flex-direction:column;gap:10px}
+.piece h3{margin:0;font:700 22px "Playfair Display",Georgia,serif}.piece .from{color:var(--rose);font-weight:800}
+.pills{display:flex;flex-wrap:wrap;gap:8px}.pills button{font:800 12px Montserrat,sans-serif;letter-spacing:.08em;border:1.5px solid #D9C3BC;background:#fff;color:var(--ch);padding:8px 14px;min-height:40px;cursor:pointer}
+.pills button.on{background:var(--ch);border-color:var(--ch);color:#fff}
+.order{font:800 13px Montserrat,sans-serif;letter-spacing:.1em;text-transform:uppercase;background:#25D366;color:#fff;border:0;padding:14px;min-height:48px;cursor:pointer}
+.toast{position:fixed;left:50%;top:16px;transform:translateX(-50%);background:#111;color:#fff;border-radius:12px;padding:12px 16px;max-width:92vw;font-size:14px;white-space:pre-line;z-index:9}.toast[hidden]{display:none}
+footer{background:var(--ch);color:#D4D4D8;padding:24px 5vw;font-size:13px;letter-spacing:.04em}
+</style></head><body>
+<p class="demo">Sample website made by SIRRADDO · the business and prices are examples</p>
+<header><div class="logo">Zainab Luxe<small>ATELIER</small></div><nav><a href="#c">Ready-to-wear</a><a href="#c">Bridal</a><a href="#c">Wigs</a></nav></header>
+<section class="hero"><div class="txt"><span class="eyebrow">The new collection · Lagos</span><h1>Made to fit <i>you</i>, and only you</h1><p>Couture, ready-to-wear and luxury wigs, finished by hand in Lagos and delivered nationwide.</p><a class="cta" href="#c">View the lookbook</a></div>
+<div class="look" aria-hidden="true"><svg viewBox="0 0 400 520" preserveAspectRatio="xMidYMid slice"><circle cx="300" cy="90" r="120" fill="#F9EFEA" opacity=".18"/><path d="M200 70c-22 0-36 18-36 40s14 40 36 40 36-18 36-40-14-40-36-40z" fill="#3F1F26"/><path d="M150 170q50-30 100 0l34 140q-84 40-168 0z" fill="#F9EFEA"/><path d="M116 310q84 40 168 0l60 210H56z" fill="#F4DCD6"/><path d="M150 170q50 60 100 0" fill="none" stroke="#B76E79" stroke-width="4"/></svg><span class="cap">Bridal couture 2026</span></div></section>
+<section class="col" id="c"><h2>The collections</h2><div class="asym"></div></section>
+<p class="toast" hidden></p><footer>ZAINAB LUXE ATELIER · Lagos &amp; nationwide · Sample website by SIRRADDO</footer>
+<script>
+{
+const C=[["Bridal Couture","from ₦350,000",["UK 8","UK 10","UK 12","UK 14","Custom"],"#F4DCD6","#B76E79"],["Ready-to-Wear","from ₦45,000",["S","M","L","XL"],"#E9D6CF","#18181B"],["Luxury Wigs","from ₦120,000",["12\"","16\"","20\"","24\""],"#3F1F26","#B76E79"]];
+const art=(bg,ac,i)=>`<svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="300" height="300" fill="${bg}"/>${i===2?`<path d="M150 50c-60 0-90 50-90 110 0 70 20 110 30 130h120c10-20 30-60 30-130 0-60-30-110-90-110z" fill="#5A2D36"/><ellipse cx="150" cy="150" rx="46" ry="58" fill="#E7B9A7"/>`:`<path d="M120 60h60l20 60-14 180H114L100 120z" fill="${ac}" opacity=".9"/><path d="M120 60q30 30 60 0" fill="none" stroke="#fff" stroke-width="3"/>`}</svg>`;
+const card=(c,i,big)=>`<article class="piece${big?' big':''}"><div class="art">${art(c[3],c[4],i)}</div><div class="info"><h3>${c[0]}</h3><span class="from">${c[1]}</span><div class="pills" role="group" aria-label="${i===2?'Length':'Size'}">${c[2].map((s,k)=>`<button type="button" class="${k?'':'on'}">${s}</button>`).join('')}</div><button class="order" type="button" data-n="${c[0]}">Order custom fit on WhatsApp</button></div></article>`;
+document.querySelector('.asym').innerHTML=card(C[0],0,1)+`<div class="stack">${card(C[1],1)}${card(C[2],2)}</div>`;
+const toast=document.querySelector('.toast');
+document.querySelector('.asym').addEventListener('click',e=>{const p=e.target.closest('.pills button');if(p){p.parentNode.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===p));return}
+const o=e.target.closest('.order');if(!o)return;const size=o.parentNode.querySelector('.pills .on').textContent;
+toast.textContent='Sample website: on the real site this opens WhatsApp with:\n\nHello Zainab Luxe, I\'d like a custom fit: '+o.dataset.n+', size/length '+size+'. Can we book a fitting?';toast.hidden=false;clearTimeout(window.tt);window.tt=setTimeout(()=>toast.hidden=true,5000)});
+}
+</script></body></html>

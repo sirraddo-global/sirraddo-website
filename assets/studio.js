@@ -959,7 +959,7 @@
     // Each option = a layout + a look; colours come from the customer, else option 1 from their photos, else the look's own.
     function themeFor(i) {
       if (state.themePicked) return state.theme;
-      if (i === 0 && state.photoTheme) return state.photoTheme;
+      if (i === 0 && state.photoTheme && !(state.lookTouched || {})[0]) return state.photoTheme;
       var L = lookByName(state.looks[i]); return L.theme ? Object.assign({ name: L.name }, L.theme) : state.theme;
     }
     function withLook(i, fn) {
@@ -1431,7 +1431,7 @@
     function drawLookChips() {
       lookRow.innerHTML = '';
       LOOKS.forEach(function (L) {
-        lookRow.appendChild(el('button', { type: 'button', class: 'st-chip' + (state.looks[state.layout] === L.name ? ' is-on' : ''), text: L.name, onclick: function () { state.looks[state.layout] = L.name; draw(); } }));
+        lookRow.appendChild(el('button', { type: 'button', class: 'st-chip' + (state.looks[state.layout] === L.name ? ' is-on' : ''), text: L.name, onclick: function () { state.looks[state.layout] = L.name; (state.lookTouched = state.lookTouched || {})[state.layout] = true; draw(); } }));
       });
       lookLab.firstChild.textContent = 'Look for Option ' + (state.layout + 1) + ' (fonts, texture, finishing touches)';
     }

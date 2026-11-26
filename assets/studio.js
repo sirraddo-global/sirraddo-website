@@ -365,10 +365,10 @@
       c.fillStyle = t.light; c.fillRect(0, 0, W, H);
       c.strokeStyle = t.bg; c.lineWidth = 2 * u; c.strokeRect(34 * u, 34 * u, W - 68 * u, H - 68 * u);
       c.font = '600 ' + 22 * u + 'px ' + FONT; c.fillStyle = t.bg; c.fillText((d.business || '').toUpperCase().split('').join(String.fromCharCode(8202)), pad, 100 * u, W - pad * 2);
-      c.fillRect(pad, 120 * u, W - pad * 2, 1.5 * u);
+      c.fillRect(pad, 120 * u, W - pad * 2, 1.5 * u); c.save(); c.globalAlpha = 0.22; c.fillStyle = t.accent; c.fillRect(36 * u, 36 * u, W - 72 * u, 100 * u); c.restore();
       var hf = fit(c, d.headline, W - pad * 2, tall ? 4 : 3, (tall ? 112 : 92) * u, 40 * u, 900), y = drawLines(c, hf, pad, 160 * u, 1.02, t.bg, 900);
-      if (d.details) { var df = fit(c, d.details.replace(/\n/g, ' · '), W - pad * 2, 2, 32 * u, 20 * u, 500); y = drawLines(c, df, pad, y + 16 * u, 1.35, '#4B4038', 500); }
-      var py = y + 36 * u, ph = H - py - 200 * u;
+      if (d.details) { var df = fit(c, d.details.replace(/\n/g, ' · '), W - pad * 2, 2, 32 * u, 20 * u, 500); y = drawLines(c, df, pad, y + (HEAD && /Vibes|Script/.test(HEAD) ? 34 : 16) * u, 1.35, '#4B4038', 500); }
+      var py = y + 48 * u, ph = H - py - 200 * u;
       c.save(); rr(c, pad, py, W - pad * 2, ph, 4 * u); c.clip(); if (d.photo && d.photo.__cut) { c.fillStyle = '#EFE7DA'; c.fillRect(pad, py, W - pad * 2, ph); } cover(c, d.photo, pad, py, W - pad * 2, ph, 0.45); c.restore();
       c.strokeStyle = t.bg; c.lineWidth = 2 * u; c.strokeRect(pad, py, W - pad * 2, ph);
       if (d.offer) sticker(c, t, d.offer, W - pad - 70 * u, py + 70 * u, 86 * u);
@@ -409,7 +409,7 @@
     { name: 'Magazine cover', draw: function (c, W, H, d, t) {
       var u = W / 1080, pad = 56 * u;
       c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
-      if (d.photo && d.photo.__cut) { var gb = c.createRadialGradient(W / 2, H * 0.55, 0, W / 2, H * 0.55, W * 0.75); gb.addColorStop(0, t.accent); gb.addColorStop(1, t.bg); c.globalAlpha = 0.45; c.fillStyle = gb; c.fillRect(0, 0, W, H); c.globalAlpha = 1; cover(c, d.photo, 0, H * 0.2, W, H * 0.62); }
+      if (d.photo && d.photo.__cut) { var gb = c.createRadialGradient(W / 2, H * 0.55, 0, W / 2, H * 0.55, W * 0.75); gb.addColorStop(0, t.accent); gb.addColorStop(1, t.bg); c.globalAlpha = 0.45; c.fillStyle = gb; c.fillRect(0, 0, W, H); c.globalAlpha = 1; cover(c, d.photo, 0, H * 0.13, W, H * 0.56); }
       else cover(c, d.photo, 0, 0, W, H, 0.4);
       var g = c.createLinearGradient(0, 0, 0, H * 0.3); g.addColorStop(0, 'rgba(0,0,0,.6)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, W, H * 0.3);
       var mf = fit(c, (d.business || '').toUpperCase(), W - pad * 2, 1, 150 * u, 50 * u, 900); drawLines(c, mf, W / 2, 40 * u, 1, t.accent, 900, 'center');
@@ -784,7 +784,7 @@
     { name: 'Party pop', layout: 9, font: SANS('Poppins'), serif: SER('DM Serif Display'), tex: '', deco: 'confetti', theme: { bg: '#3A0CA3', accent: '#FFD60A', light: '#FFF9E6' }, tags: ['party', 'birthday', 'celebration', 'kids', 'balloon', 'event', 'surprise', 'money bouquet', 'gift', 'small chops'] },
     { name: 'Night glow', layout: 8, head: SANS('Montserrat'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'glow', theme: { bg: '#0D0221', accent: '#FF2E88', light: '#F6F1FF' }, tags: ['club', 'lounge', 'bar', 'music', 'concert', 'show', 'night', 'drinks', 'cocktail', 'hookah', 'shawarma', 'grill', 'suya'] },
     { name: 'Royal', layout: 11, head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'grain', deco: 'ornate', theme: { bg: '#2B124C', accent: '#E0B354', light: '#F7F2FB' }, tags: ['church', 'wedding', 'royal', 'king', 'queen', 'gala', 'award', 'luxury', 'hotel', 'anniversary', 'coronation'] },
-    { name: 'Faith & calm', layout: 5, head: SER('Playfair Display'), font: SER('Lora'), serif: SER('Playfair Display'), tex: 'paper', deco: 'rays', theme: { bg: '#1D3557', accent: '#F1C40F', light: '#F5F7FB' }, tags: ['church', 'mosque', 'ministry', 'crusade', 'revival', 'prayer', 'ramadan', 'jumat', 'service', 'worship', 'fellowship', 'thanksgiving', 'easter'] },
+    { name: 'Faith & calm', layout: 5, head: SER('Playfair Display'), font: SER('Lora'), serif: SER('Playfair Display'), tex: 'paper', deco: 'rays', theme: { bg: '#2F4A3A', accent: '#9DBF9E', light: '#F4F8F3' }, tags: ['church', 'mosque', 'ministry', 'crusade', 'revival', 'prayer', 'ramadan', 'jumat', 'service', 'worship', 'fellowship', 'thanksgiving', 'easter'] },
     { name: 'Festive', layout: 7, head: SER('Playfair Display'), font: SANS('Poppins'), serif: SER('Playfair Display'), tex: '', deco: 'sparkle', theme: { bg: '#8B0000', accent: '#FFD166', light: '#FFF7EB' }, tags: ['christmas', 'xmas', 'december', 'new year', 'sallah', 'eid', 'easter', 'independence', 'valentine', 'festive', 'season', 'holiday', 'black friday', 'sale'] },
     { name: 'Sporty', layout: 6, head: SANS('Oswald'), font: SANS('Oswald'), serif: SANS('Oswald'), tex: 'grain', deco: 'speed', theme: { bg: '#0A1931', accent: '#00D1FF', light: '#EEF6FF' }, tags: ['gym', 'fitness', 'sport', 'football', 'delivery', 'logistics', 'dispatch', 'car', 'auto', 'mechanic', 'wash'] },
     { name: 'Kids fun', layout: 9, head: SANS('Fredoka'), font: SANS('Fredoka'), serif: SANS('Fredoka'), tex: '', deco: 'bubbles', theme: { bg: '#FF6B6B', accent: '#FFD23F', light: '#E3F6FF' }, tags: ['school', 'kids', 'children', 'toy', 'creche', 'lesson', 'tutor', 'baby', 'nursery', 'summer'] },

@@ -1352,3 +1352,11 @@ test("/demo: page background pills; Manage: owner picks the page background", as
   assert.match(out, /Saved ✓/);
   assert.equal((await h.sql(`SELECT brief FROM customer_requests WHERE id = $1`, [id]))[0].brief.surface, "Midnight dark");
 });
+
+test("a design order paid by hand never gets a website project form", async () => {
+  const { id } = (await h.action({ action: "create", name: "Kaosarat", contact: "07056819601", business: "Kassy treat & more", interest: "Flyer design" })).json;
+  const n = h.sent.length;
+  const row = (await h.admin("PATCH", "/api/requests", { id, quote_amount: 8000, payments: [{ amount: 8000, date: "2026-11-26", note: "transfer" }], status: "won" })).json;
+  assert.ok(!row.brief_token, "no project form link for a flyer");
+  assert.ok(!h.newMail(n).some((m) => /project form|project details/i.test(m.subject + m.html)), "no project form email");
+});

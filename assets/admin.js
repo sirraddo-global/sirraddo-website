@@ -2775,7 +2775,11 @@
   }
   function briefUrl(r) { return location.origin + '/brief?t=' + r.brief_token; }
   function previewUrl(r) { return location.origin + '/preview?t=' + r.preview_token; }
+  // Quick services (flyers, cards, CVs…) are not websites: no project form, preview or renewal messages.
+  function isQuickRow(r) { return (state.quick || []).some(function (q) { return q.interest === r.interest; }); }
+  var QUICK_TPLS = ['tpl_payment', 'tpl_invoice', 'tpl_receipt'];
   function suggestedTemplate(r) {
+    if (isQuickRow(r)) return payments(r).length ? 'tpl_payment' : 'tpl_invoice';
     if (r.brief_token && !r.brief_submitted_at && !r.brief_saved_at) return 'tpl_brief';
     if (r.project_stage === 'live' && !(r.auto_sent || {}).handover && balance(r) === 0) return 'tpl_handover';
     if (r.preview_status === 'sent' && r.project_stage === 'review') return 'tpl_preview';
@@ -2790,7 +2794,7 @@
     var num = waNumber(r.contact);
     var email = /@/.test(r.contact) ? r.contact : null;
     if (!num && !email) return el('span');
-    var keys = Object.keys(TEMPLATES).filter(function (k) { var t = TEMPLATES[k].text + (state.settings[k] || ''); return (canDo('money') || !/\{(amount|deposit|balance|renewal_amount|renewal_due|paid|pay_link|doc_link|last_payment)\}/.test(t)) && (canDo('build') || !/\{preview_link\}/.test(t)); });
+    var keys = Object.keys(TEMPLATES).filter(function (k) { var t = TEMPLATES[k].text + (state.settings[k] || ''); return (!isQuickRow(r) || QUICK_TPLS.indexOf(k) !== -1) && (canDo('money') || !/\{(amount|deposit|balance|renewal_amount|renewal_due|paid|pay_link|doc_link|last_payment)\}/.test(t)) && (canDo('build') || !/\{preview_link\}/.test(t)); });
     var pick = suggestedTemplate(r); if (keys.indexOf(pick) === -1) pick = keys[0];
     var sel = select(keys.map(function (k) { return [k, TEMPLATES[k].label]; }), pick, { 'aria-label': 'Message for ' + r.name });
     var go = el('button', { class: 'admin-btn admin-btn--wa', type: 'button', text: num ? 'WhatsApp' : 'Email' });

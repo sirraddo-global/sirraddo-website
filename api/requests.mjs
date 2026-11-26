@@ -40,7 +40,7 @@ import { assistantSystem } from "./_lib/assistant.mjs";
 import { pickProvider, friendlyAiError, ensureAiBackup } from "./_lib/providers.mjs";
 import { generateDesign, changeDesignOptions } from "./_lib/design.mjs";
 import { logoIdeas } from "./_lib/logos.mjs";
-import { QUICK_SERVICES, EXTRAS, EXTRA_GUIDES, QUALITY_CHECKS } from "./_lib/graphics.mjs";
+import { QUICK_SERVICES, EXTRAS, EXTRA_GUIDES, QUALITY_CHECKS, isQuick } from "./_lib/graphics.mjs";
 import { JOB_STAGES, STAGE_KEYS } from "./_lib/track.mjs";
 import { addDomain, checkHosting, publish, pause, restore, setupEmail, afterProjectPayment, GoLiveError, restorePrevious } from "./_lib/golive.mjs";
 import { cloudflareConfigured } from "./_lib/cloudflare.mjs";
@@ -313,7 +313,8 @@ export default async function handler(req, res) {
       let row = await updateRequest(id, changed);
       if (!row) return res.status(404).json({ error: "Not found" });
       row = await applyRules(row, changed); // automatic status, follow-up and renewal dates
-      if (!row.brief_token && depositPaid(row)) {
+      // Quick services (flyers, cards, CVs…) sent their details with the order: no website project form.
+      if (!isQuick(row.interest) && !row.brief_token && depositPaid(row)) {
         row = (await ensureBriefToken(id)) || row;
         await emailBriefLink(row); // emails the project form when customer emailing is set up
       }

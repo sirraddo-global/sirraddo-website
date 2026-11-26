@@ -46,7 +46,8 @@ button.admin-tile:hover { border-color: var(--ink); }
 .admin-bar-fill { display: block; height: 100%; background: var(--gold); border-radius: 999px; }
 .admin-bar-row.wide { grid-template-columns: minmax(90px, 130px) 1fr auto; margin: 6px 0; }
 .admin-more { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
-.admin-more > summary { cursor: pointer; font-weight: 700; color: var(--navy); padding: 6px 0; }
+.admin-more > summary { cursor: pointer; font-weight: 700; color: var(--ink); padding: 6px 0; }
+:root[data-theme="dark"] .admin-more > summary { color: #F3D58A; }
 .admin-row { display: flex; gap: 8px; } .admin-row select { flex: 0 0 auto; width: auto; }
 .admin-mini { margin: 0; padding: 12px 14px 12px 32px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .admin-mini li { margin: 4px 0; }

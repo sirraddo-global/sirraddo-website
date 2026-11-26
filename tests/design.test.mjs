@@ -82,3 +82,15 @@ test("design studio 'Save details to the order' updates the labelled lines", asy
   assert.doesNotMatch(out, /Bogus/); assert.match(out, /\n\nWords to put on it:\nCake$/, "the customer's words stay where they were");
   assert.doesNotMatch(setOrderInfo(out, { "Social handles": "" }), /Social handles/, "empty removes it");
 });
+
+test("design studio emails the chosen designs to the customer as attachments", async () => {
+  const { id } = (await h.action({ action: "create", name: "Ada", contact: "ada@example.com", business: "Ada Cakes", interest: "Flyer design" })).json;
+  const img = "data:image/jpeg;base64," + "A".repeat(400);
+  const n = h.sent.length;
+  const r = await h.action({ action: "design_send_email", id, images: [{ name: "ada-option-1.jpg", data: img }, { name: "ada-option-2.jpg", data: img }], note: "Here are your options" });
+  assert.equal(r.status, 200, r.text);
+  const m = h.newMail(n).find((x) => x.to.includes("ada@example.com"));
+  assert.ok(m); assert.match(m.html, /Here are your options/);
+  const { id: id2 } = (await h.action({ action: "create", name: "Bisi", contact: "08030000999", interest: "Flyer design" })).json;
+  assert.match((await h.action({ action: "design_send_email", id: id2, images: [{ name: "x.jpg", data: img }] })).json.error, /no email/);
+});

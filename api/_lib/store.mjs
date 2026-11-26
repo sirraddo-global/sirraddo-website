@@ -795,7 +795,7 @@ export async function emailUsage(days = 14) {
 }
 
 // Send to a customer (needs LEAD_EMAIL_FROM). Replies go to LEAD_EMAIL_TO.
-export async function sendCustomerEmail(to, subject, html, replyTo, fromName, { keep = true } = {}) {
+export async function sendCustomerEmail(to, subject, html, replyTo, fromName, { keep = true, attachments } = {}) {
   if (!customerEmailConfigured()) return null;
   const sender = process.env.LEAD_EMAIL_FROM;
   const from = fromName ? `${String(fromName).replace(/[<>"\r\n]/g, "").slice(0, 60)} <${(sender.match(/<([^>]+)>/) || [, sender])[1].trim()}>` : sender;
@@ -808,6 +808,7 @@ export async function sendCustomerEmail(to, subject, html, replyTo, fromName, { 
       reply_to: replyTo || (process.env.LEAD_EMAIL_TO || "").split(",")[0].trim() || undefined,
       subject,
       html,
+      ...(Array.isArray(attachments) && attachments.length ? { attachments } : {}),
     }),
   });
   const kind = emailKind(subject, false);

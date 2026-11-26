@@ -636,6 +636,8 @@
     window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, samples: samples, words: words, business: orderField(details, 'Business name') || r.business || '', contact: r.contact || '',
       colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, bgApi: bgApi, captionApi: captionApi, ideasApi: ideasApi, mockupApi: mockupApi, galleryApi: galleryApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest),
       prefer: orderField(details, 'Look they picked in the preview'),
+      email: /@/.test(r.email || '') ? r.email : /@/.test(r.contact || '') ? r.contact : '', phone: waNumber(r.contact) || '', customer: String(r.name || '').split(' ')[0],
+      emailApi: function (images, note) { return api('POST', { action: 'design_send_email', id: r.id, images: images, note: note }); },
       saveApi: function (info) { return api('POST', { action: 'order_info_set', id: r.id, info: info }).then(function (row) { replaceRequest(row); return row; }); },
       set: /Social media designs/.test(r.interest) ? 5 : 0, kind: /Business card/i.test(r.interest) ? 'card' : '',
       info: { sell: orderField(details, 'What they sell'), person: orderField(details, 'Name on card'), title: orderField(details, 'Job title'),

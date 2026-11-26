@@ -61,3 +61,17 @@ test("filling stations: the owner updates pump prices and stock in Manage; the w
   assert.match(html, /Updated 26 Nov, 7:30 am/i);
   assert.doesNotMatch(renderPage(buildSiteModel(row({})), "index", { mode: "export", link: (s) => s }), /Today's prices/);
 });
+
+test("hotels get rooms with nightly rates and a dates booking form; stations get a delivery request priced from the board", async () => {
+  const { DEMOS, demoRow } = await import("../api/_lib/demos.mjs");
+  for (const k of ["realestate", "clinic", "hotel", "fuel"]) assert.ok(DEMOS[k], k);
+  const hotel = buildSiteModel(demoRow("hotel"));
+  assert.equal(hotel.theme.ind, "hotel");
+  const h = renderPage(hotel, "index", { mode: "export", link: (s) => s });
+  assert.match(h, /class="rb"/); assert.match(h, /name="i" type="date"/); assert.match(h, /₦45,000 <small>\/ night/); assert.match(h, /Rooms &amp; rates/);
+  const fuel = buildSiteModel(demoRow("fuel"));
+  assert.equal(fuel.theme.ind, "fuel");
+  const f = renderPage(fuel, "index", { mode: "export", link: (s) => s });
+  assert.match(f, /Today's prices/); assert.match(f, /class="fo"/); assert.match(f, /data-p="1150" data-u="L"/);
+  for (const html of [h, f]) for (const js of html.match(/<script>[\s\S]*?<\/script>/g) || []) assert.doesNotThrow(() => new Function(js.slice(8, -9)), "inline scripts are valid");
+});

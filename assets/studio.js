@@ -169,7 +169,10 @@
     if (!logo) return;
     var ar = logo.width / logo.height;
     if (ar > 1.3) { // wide logo (name beside the icon): a rounded white plate, right edge where the circle's was
-      var w = r * 3.6, h = Math.max(r * 1.3, w / ar + r * 0.3), left = alignLeft ? x - r : x + r - w, top = y - h / 2;
+      var w = r * 3.6, h = Math.max(r * 1.3, w / ar + r * 0.3);
+      // never taller than the circle it replaces, so it can't spill over photos or lines below
+      if (h > r * 2) { h = r * 2; w = Math.min(w, (h - r * 0.3) * ar + r * 0.3); }
+      var left = alignLeft ? x - r : x + r - w, top = y - h / 2;
       c.save(); c.shadowColor = 'rgba(0,0,0,.25)'; c.shadowBlur = r * 0.3; c.fillStyle = '#fff'; rr(c, left, top, w, h, r * 0.3); c.fill(); c.restore();
       var sw = Math.min((w - r * 0.3) / logo.width, (h - r * 0.2) / logo.height);
       c.drawImage(logo, left + (w - logo.width * sw) / 2, top + (h - logo.height * sw) / 2, logo.width * sw, logo.height * sw);
@@ -687,6 +690,12 @@
       if (tiles.length) {
         var cols = tall ? Math.min(3, tiles.length) : tiles.length === 4 ? 2 : Math.min(3, tiles.length), rows = Math.ceil(tiles.length / cols);
         var gh = tall ? H * 0.40 : rows > 1 ? H * 0.34 : H * 0.25;
+        // leave the price list room for readable rows (and the note/footer below it), shrinking the photos if needed
+        var barH0 = (d.phones.length || d.socials.length || d.place ? 64 * u + (d.socials.length || d.place ? 54 * u : 0) : 0);
+        c.font = '500 ' + 26 * u + 'px ' + FONT;
+        var noteH0 = d.note ? wrapText(c, d.note, W - pad * 2 - 40 * u).length * 26 * u * 1.4 + 30 * u : 0;
+        var listNeed = d.items.length ? Math.ceil(d.items.length / (tall ? 2 : 3)) * 24 * u * 1.55 + 60 * u : 0;
+        gh = Math.max(H * 0.18, Math.min(gh, H - y - 40 * u - barH0 - noteH0 - listNeed - 50 * u - 20 * u));
         photoGrid(c, tiles, pad, y, W - pad * 2, gh, cols, 22 * u, t.accent, t, u);
         y += gh + 40 * u;
       }
@@ -694,7 +703,7 @@
       c.font = '500 ' + 26 * u + 'px ' + FONT;
       var noteLines = d.note ? wrapText(c, d.note, W - pad * 2 - 40 * u) : [], noteH = noteLines.length ? noteLines.length * 26 * u * 1.4 + 30 * u : 0;
       if (d.listTitle) { c.font = '800 ' + 26 * u + 'px ' + FONT; c.fillStyle = t.accent; c.textAlign = 'center'; c.fillText(d.listTitle.toUpperCase().split('').join(String.fromCharCode(8202)), W / 2, y + 26 * u); c.textAlign = 'left'; y += 50 * u; }
-      if (d.items.length) { var avl = H - y - barH - noteH - 50 * u, fl = listFit(c, d.items, W - pad * 2, avl, (tall ? 52 : 40) * u, 18 * u, 700, tall ? 2 : 3); fl.weight = 700; fl.lh = Math.max(1.55, Math.min(2.1, avl / (fl.rows * fl.size))); y = drawList(c, d.items, pad + 10 * u, y, fl, onColour(t.bg), t.accent) + 10 * u; }
+      if (d.items.length) { var avl = H - y - barH - noteH - 50 * u, fl = listFit(c, d.items, W - pad * 2, avl, (tall ? 52 : 40) * u, 18 * u, 700, tall ? 2 : 3); fl.weight = 700; fl.lh = Math.max(1.3, Math.min(2.1, avl / (fl.rows * fl.size))); y = drawList(c, d.items, pad + 10 * u, y, fl, onColour(t.bg), t.accent) + 10 * u; }
       if (noteLines.length) { c.font = 'italic 500 ' + 26 * u + 'px ' + FONT; c.fillStyle = onColour(t.bg); c.globalAlpha = 0.85; c.textAlign = 'center'; noteLines.forEach(function (l, i) { c.fillText(l, W / 2, y + 26 * u + i * 26 * u * 1.4); }); c.globalAlpha = 1; c.textAlign = 'left'; }
       if (barH) {
         c.fillStyle = t.accent; c.fillRect(0, H - barH, W, barH);

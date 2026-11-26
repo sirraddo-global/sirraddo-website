@@ -452,3 +452,4 @@ a.admin-btn--wa, a.admin-btn--wa:visited, a.admin-btn--wa:hover { color: #fff; t
 .ov-raw summary { cursor: pointer; font-size: 13px; opacity: .7; }
 .ov-raw pre { white-space: pre-wrap; font-size: 12px; overflow-wrap: anywhere; }
 .admin-details { white-space: pre-wrap; }
+.st-setwords { display: grid; gap: 6px; } .st-setwords input { flex: 1 1 200px; }

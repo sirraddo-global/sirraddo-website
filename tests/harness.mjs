@@ -100,6 +100,7 @@ export async function startHarness() {
     const json = (o, status = 200) => new Response(JSON.stringify(o), { status });
     if (auth.includes("BAD")) return json({ status: false, message: "Invalid key" }, 401);
     if (url.includes("/transaction?perPage")) return json({ status: true, data: [] });
+    if (url.includes("/transaction?status=success")) return json({ status: true, data: Object.values(paystack) });
     if (url.includes("/transaction/initialize")) {
       const b = JSON.parse(opts.body);
       paystack[b.reference] = { reference: b.reference, amount: b.amount, currency: "NGN", status: "success", paid_at: new Date().toISOString(), metadata: b.metadata, customer: { email: b.email } };

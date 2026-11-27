@@ -350,6 +350,11 @@ export default async function handler(req, res) {
         if (!f.name || !f.contact) throw new Bad("Name and contact are required");
         return res.status(201).json(await createRequest({ ...f, came_from: body.came_from }));
       }
+      // Record Paystack payments that were missed (customer closed the page, webhook didn't arrive): last 30 days, or one reference.
+      if (body.action === "paystack_sync") {
+        const { syncPayments } = await import("./_lib/paystack.mjs");
+        try { return res.status(200).json(await syncPayments({ days: 30, ref: body.ref || "" })); } catch (e) { throw new Bad(e.message); }
+      }
       if (body.action === "brief_link") {
         const id = Number(body.id);
         if (!Number.isInteger(id)) throw new Bad("Missing id");

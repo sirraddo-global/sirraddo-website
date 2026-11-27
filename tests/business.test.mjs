@@ -1389,3 +1389,19 @@ test("agent commission stays on hold until the client can't be refunded", async 
   d = (await ag({ action: "me" }, tok)).json;
   assert.equal(d.onHold, 0); assert.equal(d.balance, 10800);
 });
+
+test("Paystack: a payment the webhook missed is found and recorded once (admin check and by reference)", async () => {
+  const id = (await h.action({ action: "create", name: "Kemi Ade", contact: "08035552222", interest: "Starter website" })).json.id;
+  await h.admin("PATCH", "/api/requests", { id, quote_amount: 50000 });
+  const t = (await h.action({ action: "doc_link", id })).json.doc_token;
+  const start = await h.call("POST", "/api/pay", { t, email: "kemi@example.com", for: "deposit" });
+  const ref = refFrom(start.json.url);
+  assert.equal((await h.row(id)).payments.length, 0, "customer closed the page: nothing recorded yet");
+  const one = await h.action({ action: "paystack_sync", ref });
+  assert.equal(one.json.added.length, 1, "found by its reference");
+  assert.equal((await h.row(id)).payments.length, 1);
+  const all = await h.action({ action: "paystack_sync" });
+  assert.equal(all.json.added.length, 0, "already recorded: not added twice");
+  const bad = await h.action({ action: "paystack_sync", ref: "SOMEONE-ELSE-123" });
+  assert.equal(bad.status, 400);
+});

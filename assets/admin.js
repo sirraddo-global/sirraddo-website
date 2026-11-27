@@ -634,7 +634,7 @@
     if (start >= 0) for (var j = start; j < L.length; j++) if (/^(Files \(\d|Style samples they like)/.test(L[j])) { end = j; break; }
     var words = start >= 0 ? L.slice(start, end).join('\n').trim() : '';
     window.SirStudio.open({ title: r.interest + ' for ' + r.name, photos: files, samples: samples, words: words, business: orderField(details, 'Business name') || r.business || '', contact: r.contact || '',
-      colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, bgApi: bgApi, captionApi: captionApi, ideasApi: ideasApi, mockupApi: mockupApi, galleryApi: galleryApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest),
+      colours: orderField(details, 'Colours'), style: orderField(details, 'Style / ideas'), logoApi: logoApi, bgApi: bgApi, captionApi: captionApi, ideasApi: ideasApi, mockupApi: mockupApi, galleryApi: galleryApi, openLogos: /Logo|Brand kit|Launch pack/.test(r.interest), logoOnly: /^Logo design/i.test(r.interest || ''),
       prefer: orderField(details, 'Look they picked in the preview'),
       email: /@/.test(r.email || '') ? r.email : /@/.test(r.contact || '') ? r.contact : '', phone: waNumber(r.contact) || '', customer: String(r.name || '').split(' ')[0],
       emailApi: function (images, note) { return api('POST', { action: 'design_send_email', id: r.id, images: images, note: note }); },

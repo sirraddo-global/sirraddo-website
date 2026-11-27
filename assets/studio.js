@@ -1755,6 +1755,12 @@
     function save(blob, name) { var a = el('a', { href: URL.createObjectURL(blob), download: name }); document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
     function drawLogos() {
       logoOut.innerHTML = '';
+      if (o.logoOnly && typeof sendWhich !== 'undefined') {
+        var keep = sendWhich.value; sendWhich.innerHTML = '';
+        sendWhich.appendChild(el('option', { value: 'all', text: 'All ' + logos.length + ' logo options' }));
+        logos.forEach(function (l, i) { sendWhich.appendChild(el('option', { value: String(i), text: 'Logo option ' + (i + 1) + ': ' + l.name })); });
+        if ([].some.call(sendWhich.options, function (op) { return op.value === keep; })) sendWhich.value = keep;
+      }
       logos.forEach(function (l, i) {
         var svg = logoSvg(l); if (!svg) return;
         var light = el('div', { class: 'st-logo st-logo--light' }), dark = el('div', { class: 'st-logo', style: 'background:' + state.theme.bg });
@@ -1766,7 +1772,7 @@
             el('button', { class: 'admin-btn', type: 'button', text: 'SVG', onclick: function () { save(new Blob([logoSvg(l)], { type: 'image/svg+xml' }), slug + '.svg'); } }),
             el('button', { class: 'admin-btn', type: 'button', text: 'PNG', onclick: function () { svgToPng(logoSvg(l), 1800, function (cv) { trim(cv).toBlob(function (b) { save(b, slug + '.png'); }, 'image/png'); }); } }),
             el('button', { class: 'admin-btn', type: 'button', text: 'White PNG', title: 'For dark backgrounds', onclick: function () { svgToPng(logoSvg(l, true), 1800, function (cv) { trim(cv).toBlob(function (b) { save(b, slug + '-white.png'); }, 'image/png'); }); } }),
-            el('button', { class: 'admin-btn', type: 'button', text: 'Use on flyer', onclick: function () {
+            o.logoOnly ? null : el('button', { class: 'admin-btn', type: 'button', text: 'Use on flyer', onclick: function () {
               svgToPng(logoSvg(l), 900, function (cv) { trim(cv).toBlob(function (b) { srcs.push({ url: URL.createObjectURL(b), name: 'logo-option-' + (i + 1) + '.png' }); logoGuess = srcs.length - 1; status.textContent = 'Loading photos…'; loadAll(); }, 'image/png'); });
             } }),
           ])]));
@@ -1777,7 +1783,7 @@
       monoBtn.disabled = true; logoMsg.textContent = 'Making monogram logos…';
       loadLookFonts().then(function () { return monoLogos(f.business.value, lg.tagline.value, lg.what.value, state.theme.bg, state.theme.accent); }).then(function (list) {
         logos = list.concat(logos.filter(function (l) { return !l.mono; }));
-        logoMsg.textContent = (typeof liked === 'string' ? '⭐ The customer liked “' + liked + '” on the order form. ' : '') + 'Initials used: ' + initialsOf(f.business.value) + '. Shown on white and on your main colour. Change the colours above to try other looks.';
+        logoMsg.textContent = (typeof liked === 'string' ? '⭐ The customer liked “' + liked + '” on the order form. ' : '') + 'Initials used: ' + initialsOf(f.business.value) + '. Shown on white and on your main colour. Change the colours ' + (o.logoOnly ? 'further down' : 'above') + ' to try other looks.';
         drawLogos(); logoOut.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }).catch(function () { logoMsg.textContent = 'Could not make the monograms. Try again.'; }).then(function () { monoBtn.disabled = false; });
     }
@@ -1796,7 +1802,7 @@
         .then(function () { logoBtn.disabled = false; });
     }
     lg.tagline.addEventListener('input', drawLogos);
-    if (o.openLogos) { logoBox.open = true; setTimeout(function () { logoBox.scrollIntoView({ block: 'start' }); }, 300); }
+    if (o.openLogos && !o.logoOnly) { logoBox.open = true; setTimeout(function () { logoBox.scrollIntoView({ block: 'start' }); }, 300); }
     // The customer liked a monogram on the order form: make them straight away and say which one.
     var likedMono = String(o.prefer || '').match(/^Logo idea (\d+): (.+)$/);
     if (likedMono && o.openLogos) setTimeout(function () { makeMono(likedMono[2]); }, 400);
@@ -1949,7 +1955,21 @@
     var sendWhich = el('select', { 'aria-label': 'What to send' }, [el('option', { value: 'this', text: 'This design' }), el('option', { value: 'all', text: 'All options' })]);
     var sendNote = el('textarea', { rows: '2', maxlength: '600', placeholder: 'Message (optional), e.g. Here are your options. Which one do you like?' });
     var sendMsg = el('span', { class: 'admin-hint', role: 'status' });
+    function logoFiles() {
+      var slug = (f.business.value || 'logo').replace(/\W+/g, '-').toLowerCase();
+      var pick = sendWhich.value === 'all' ? logos.map(function (l, i) { return i; }) : [Number(sendWhich.value)];
+      return Promise.all(pick.filter(function (i) { return logos[i]; }).map(function (i) {
+        return new Promise(function (ok) {
+          svgToPng(logoSvg(logos[i]), 1500, function (cv) {
+            var w = document.createElement('canvas'); w.width = cv.width; w.height = cv.height; var x = w.getContext('2d');
+            x.fillStyle = '#ffffff'; x.fillRect(0, 0, w.width, w.height); x.drawImage(cv, 0, 0);
+            w.toBlob(function (b) { ok(new File([b], slug + '-logo-option-' + (i + 1) + '.jpg', { type: 'image/jpeg' })); }, 'image/jpeg', 0.92);
+          });
+        });
+      }));
+    }
     function designFiles() {
+      if (o.logoOnly) return logos.length ? logoFiles() : Promise.reject(new Error('Make the logos first.'));
       var idx = sendWhich.value === 'all' ? layouts().map(function (L, i) { return i; }) : [state.layout];
       var slug = (f.business.value || 'design').replace(/\W+/g, '-').toLowerCase(), jobs = [];
       idx.forEach(function (i) {
@@ -1989,6 +2009,16 @@
     wrap.appendChild(el('div', { class: 'st-box' }, [el('div', { class: 'st-top' }, [el('b', { text: o.title || 'Design studio' }), close]),
       el('div', { class: 'st-body' }, [el('div', { class: 'st-left' }, [sampleBox, preview, thumbs, dl, sendBox, logoOut]), panel])]));
     document.body.appendChild(wrap); document.body.style.overflow = 'hidden';
+    // Logo orders: the flyer drafts aren't needed. Show the logo tools first and make the monograms straight away.
+    if (o.logoOnly) {
+      [preview, thumbs, dl].forEach(function (x) { if (x) x.hidden = true; });
+      [].forEach.call(panel.children, function (ch) { if (!(ch.tagName === 'H2' || ch === logoBox || ch === status || ch.contains(f.business) || ch.contains(themeRow))) ch.hidden = true; });
+      var left = logoOut.parentNode;
+      left.insertBefore(el('p', { class: 'admin-hint st-logohint', text: '🔤 Logo order: 6 monogram logos from their initials are below (✨ AI further down makes 3 more with an icon; the colours are there too). Pick the best, download PNG/SVG, or send them straight to the customer.' }), left.firstChild);
+      left.insertBefore(logoMsg, left.children[1]); left.insertBefore(logoOut, left.children[2]);
+      logoBox.open = true;
+      if (!likedMono) setTimeout(function () { makeMono(); }, 400);
+    }
 
     THEMES.forEach(function (t) { themeRow.appendChild(el('button', { type: 'button', class: 'st-swatch', title: t.name, style: 'background:linear-gradient(135deg,' + t.bg + ' 60%,' + t.accent + ' 60%)', onclick: function () { state.theme = t; state.themePicked = true; c1.value = t.bg; c2.value = t.accent; draw(); } })); });
     if (o.colours && themeFrom(o.colours)) themeRow.insertBefore(el('button', { type: 'button', class: 'st-swatch', title: 'Their colours: ' + o.colours, style: 'background:linear-gradient(135deg,' + state.theme.bg + ' 60%,' + state.theme.accent + ' 60%);outline:2px solid #D9A21B', onclick: function () { state.theme = themeFrom(o.colours); state.themePicked = true; c1.value = state.theme.bg; c2.value = state.theme.accent; draw(); } }), themeRow.firstChild);

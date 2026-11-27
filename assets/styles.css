@@ -477,6 +477,19 @@ p { margin: 0 0 1em; }
   .chat-launcher { min-height: 50px; padding: 0 16px 0 13px; font-size: .95rem; right: 12px; bottom: 12px; }
   .chat-launcher-dot { left: 30px; }
 }
+/* Phones: the assistant button shrinks to a round chat icon in the corner so it never sits on top of
+   text or buttons; the page gets room at the bottom so the last lines (footer, forms) scroll clear of it. */
+@media (max-width: 720px) {
+  .chat-launcher { box-sizing: border-box; width: 56px; height: 56px; min-height: 0; padding: 0; justify-content: center; border-radius: 50%; right: 12px; bottom: 12px; }
+  .chat-launcher-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .chat-launcher svg { width: 26px; height: 26px; }
+  .chat-launcher-dot { top: 4px; left: auto; right: 4px; }
+  .chat-launcher { transition: opacity .2s, transform .25s ease; }
+  .chat-launcher.is-tucked { right: 0; transform: translateX(42px); opacity: .95; animation: none; }
+  .chat-launcher.is-tucked svg { transform: translateX(-16px); width: 20px; height: 20px; }
+  .chat-launcher.is-tucked .chat-launcher-dot { display: none; }
+  .site-footer { padding-bottom: 104px; }
+}
 @media print { .chat-launcher, .chat-panel { display: none !important; } }
 
 /* ---------- Order form before WhatsApp (assets/lead.js) ---------- */
@@ -929,6 +942,7 @@ html.picker-lock, html.picker-lock body { overflow: hidden; }
 .rv-google { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 20px; }
 .ds-sticky { position: fixed; left: 16px; right: 16px; bottom: 88px; z-index: 40; display: block; text-align: center; background: var(--gold); color: var(--navy); font-weight: 800; padding: 14px 16px; border-radius: 999px; box-shadow: 0 10px 30px rgba(0,0,0,.25); text-decoration: none; transform: translateY(140%); transition: transform .25s ease; }
 .ds-sticky.is-on { transform: none; }
+@media (max-width: 720px) { .ds-sticky { left: 12px; right: 80px; bottom: 16px; padding: 14px 12px; } }
 @media (min-width: 900px) { .ds-sticky { display: none; } }
 @media (prefers-reduced-motion: reduce) { .ds-sticky { transition: none; } }
 .pf-order { display: block; text-align: center; background: #1FA855; color: #fff; font-weight: 700; font-size: 14px; text-decoration: none; border-radius: 999px; padding: 11px 14px; min-height: 44px; }
@@ -1093,3 +1107,5 @@ body { overflow-x: clip; }
 .ds-soc-title { font-weight: 700; color: var(--ink); }
 .ds-soc { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 10px; margin-top: 6px; }
 .ds-soc label { display: grid; gap: 4px; font-size: .85rem; font-weight: 600; color: var(--muted); }
+
+.btn-row--center { justify-content: center; margin-top: 28px; }

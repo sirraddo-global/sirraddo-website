@@ -57,8 +57,33 @@
   window.addEventListener('scroll', function () {
     launcher.classList.add('is-scrolling');
     clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(function () { launcher.classList.remove('is-scrolling'); }, 700);
+    scrollTimer = setTimeout(function () { launcher.classList.remove('is-scrolling'); tuck(); }, 250);
   }, { passive: true });
+  // Phones: when the page stops on text, a button or a form field right where the chat icon sits,
+  // tuck the icon to the screen edge (a small tab you can still tap), so it never covers anything.
+  function hit(r, l) { return r.width > 0 && r.right > l.left + 1 && r.left < l.right - 1 && r.bottom > l.top + 1 && r.top < l.bottom - 1; }
+  function covers() {
+    // where the full icon sits (ignoring any tuck animation): right/bottom from the stylesheet
+    var cs = getComputedStyle(launcher), W = document.documentElement.clientWidth, Hh = window.innerHeight;
+    var rgt = 12, btm = parseFloat(cs.bottom) || 12, lw = launcher.offsetWidth, lh = launcher.offsetHeight;
+    var l = { left: W - rgt - lw, right: W - rgt, top: Hh - btm - lh, bottom: Hh - btm }, i, k;
+    var ctl = document.querySelectorAll('a,button,input,textarea,select,img,iframe,canvas,svg');
+    for (i = 0; i < ctl.length; i++) if (!launcher.contains(ctl[i]) && !panel.contains(ctl[i]) && hit(ctl[i].getBoundingClientRect(), l)) return true;
+    var w = document.createTreeWalker(document.body, 4), t, rg = document.createRange();
+    while ((t = w.nextNode())) {
+      if (!t.nodeValue.trim() || launcher.contains(t) || panel.contains(t)) continue;
+      rg.selectNodeContents(t); var rs = rg.getClientRects();
+      for (k = 0; k < rs.length; k++) if (hit(rs[k], l)) return true;
+    }
+    return false;
+  }
+  function tuck() {
+    if (launcher.classList.contains('is-open')) return;
+    var small = window.matchMedia('(max-width: 720px)').matches;
+    launcher.classList.toggle('is-tucked', small && covers());
+  }
+  window.addEventListener('resize', tuck);
+  window.addEventListener('load', function () { setTimeout(tuck, 300); });
   launcher.type = 'button';
   launcher.setAttribute('aria-expanded', 'false');
   launcher.setAttribute('aria-controls', 'chat-panel');

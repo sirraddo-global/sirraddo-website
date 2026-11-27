@@ -327,7 +327,7 @@
     if ($('ds-pv-title')) $('ds-pv-title').textContent = logo ? '🔤 Logo starting ideas from your initials' : PV_TEXT[0];
     if ($('ds-pv-tip')) $('ds-pv-tip').textContent = logo ? 'Quick ideas made from your business name. Tap any you like (optional): your designer uses them as a starting point and designs your logo properly, with your colours and an icon that suits your business.' : PV_TEXT[1];
   }
-  // Logo and brand kit orders: 13 monogram ideas from the business name and colours.
+  // Logo and brand kit orders: 18 logo ideas from the business name and colours.
   function logoPreview(run) {
     var name = $('ds-business').value.trim();
     if (name.length < 2 || !window.SirStudio.monograms) { pvBox.hidden = true; return; }

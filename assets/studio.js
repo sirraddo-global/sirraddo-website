@@ -1546,6 +1546,82 @@
     });
   }
 
+  // ---------- Monogram logos (instant, no AI): the business initials in 6 classic styles ----------
+  // Fonts are put inside each SVG, so the PNG download and any phone show them the same.
+  var MONO_FONTS = { 'Playfair Display|900': 'playfair-display-latin-900-normal', 'Playfair Display|700': 'playfair-display-latin-700-normal', 'Great Vibes|400': 'great-vibes-latin-400-normal',
+    'Bebas Neue|400': 'bebas-neue-latin-400-normal', 'DM Serif Display|400': 'dm-serif-display-latin-400-normal', 'Montserrat|500': 'montserrat-latin-500-normal', 'Montserrat|800': 'montserrat-latin-800-normal' };
+  var fontData = {};
+  function fontB64(key) {
+    if (fontData[key]) return fontData[key];
+    return (fontData[key] = fetch('/assets/fonts/looks/' + MONO_FONTS[key] + '.woff2').then(function (r) { return r.arrayBuffer(); }).then(function (buf) {
+      var b = '', a = new Uint8Array(buf); for (var i = 0; i < a.length; i += 0x8000) b += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(b);
+    }));
+  }
+  var GENERIC = /^(the|and|&|of|global|limited|ltd|ltd\.|ventures?|enterprises?|nig|nigeria|co|company|int'?l|international|more)$/i;
+  function initialsOf(name) {
+    var words = String(name || '').replace(/[^A-Za-z0-9&' ]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+    var key = words.filter(function (w) { return !GENERIC.test(w); });
+    if (!key.length) key = words;
+    var s = key.slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('');
+    return s || 'A';
+  }
+  function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  var mctx = document.createElement('canvas').getContext('2d');
+  function measure(text, fam, wt, size, ls) { mctx.font = wt + ' ' + size + 'px "' + fam + '"'; return mctx.measureText(text).width + (ls || 0) * Math.max(0, text.length - 1); }
+  function fitSize(text, fam, wt, size, maxW, ls) { while (size > 10 && measure(text, fam, wt, size, ls * size) > maxW) size -= 1; return size; }
+  // A <text> that keeps fitting its width when the name is edited later (see logoSvg).
+  function txt(id, text, x, y, fam, wt, size, maxW, fill, opts) {
+    opts = opts || {}; var ls = opts.ls || 0, up = opts.upper ? String(text).toUpperCase() : String(text);
+    var s = fitSize(up, fam, wt, size, maxW, ls);
+    return '<text' + (id ? ' id="' + id + '"' : '') + ' x="' + x + '" y="' + y + '" text-anchor="' + (opts.anchor || 'middle') + '" font-family="\'' + fam + '\', serif" font-weight="' + wt + '" font-size="' + s + '"' +
+      (ls ? ' letter-spacing="' + (ls * s).toFixed(1) + '"' : '') + ' fill="' + fill + '" data-maxw="' + maxW + '" data-size="' + size + '" data-ls="' + ls + '"' + (opts.upper ? ' data-case="upper"' : '') + '>' + esc(up) + '</text>';
+  }
+  function monoLogos(name, tag, what, P, A) {
+    name = String(name || '').trim(); tag = String(tag || '').trim(); what = (String(what || '') + ' ' + name).toLowerCase(); P = P.toLowerCase(); A = A.toLowerCase(); var K = '#fefefd'; // K = "paper": white on light, the main colour on dark
+    var ini = initialsOf(name), one = ini.charAt(0), two = ini.charAt(1) || '';
+    var shape = /perfume|scent|fragrance|oud|cologne|spray|mist/.test(what) ? 'bottle' : /school|church|ministry|law|legal|academy|college|security|insurance|estate|property/.test(what) ? 'shield' : 'circle';
+    var tagT = function (y, maxW, x, anchor) { return tag ? txt('tagline', tag, x || 300, y, 'Montserrat', 500, 20, maxW || 420, P, { ls: 0.18, upper: true, anchor: anchor }) : ''; };
+    var out = [];
+    // 1. Emblem: the initials inside a shape that suits the business (a perfume bottle, a crest, or a round seal)
+    var em = '', cy = 135;
+    if (shape === 'bottle') em = '<rect x="262" y="14" width="76" height="34" rx="6" fill="' + A + '"/><rect x="284" y="48" width="32" height="22" fill="' + A + '"/><rect x="214" y="70" width="172" height="160" rx="26" fill="' + P + '"/><rect x="224" y="80" width="152" height="140" rx="20" fill="none" stroke="' + A + '" stroke-width="3"/>';
+    else if (shape === 'shield') em = '<path d="M300 18 L392 46 L392 132 C392 190 352 222 300 244 C248 222 208 190 208 132 L208 46 Z" fill="' + P + '"/><path d="M300 32 L378 56 L378 132 C378 182 344 210 300 229 C256 210 222 182 222 132 L222 56 Z" fill="none" stroke="' + A + '" stroke-width="3"/>';
+    else em = '<circle cx="300" cy="128" r="108" fill="' + P + '"/><circle cx="300" cy="128" r="96" fill="none" stroke="' + A + '" stroke-width="3"/>';
+    if (shape === 'bottle') cy = 150;
+    out.push({ name: shape === 'bottle' ? 'Bottle monogram' : shape === 'shield' ? 'Crest monogram' : 'Round seal', fonts: ['Playfair Display|900', 'Montserrat|500'],
+      body: em + txt('', ini, 300, cy + 38, 'Playfair Display', 900, 104, shape === 'bottle' ? 140 : 132, A, { ls: 0.02 }) + txt('name', name, 300, 300, 'Playfair Display', 900, 50, 540, P, { upper: true, ls: 0.04 }) + tagT(340) });
+    // 2. Interlocked letters: the two initials overlapping, the second in the accent colour, cut out with a thin gap
+    out.push({ name: 'Interlocked letters', fonts: ['Playfair Display|900', 'Montserrat|500'],
+      body: (two ? '<text x="252" y="214" text-anchor="middle" font-family="\'Playfair Display\', serif" font-weight="900" font-size="220" fill="' + P + '">' + esc(one) + '</text>' +
+        '<text x="352" y="214" text-anchor="middle" font-family="\'Playfair Display\', serif" font-weight="900" font-size="220" fill="' + A + '" stroke="' + K + '" stroke-width="12" paint-order="stroke">' + esc(two) + '</text>'
+        : '<text x="300" y="214" text-anchor="middle" font-family="\'Playfair Display\', serif" font-weight="900" font-size="230" fill="' + P + '">' + esc(one) + '</text><rect x="240" y="226" width="120" height="6" fill="' + A + '"/>') +
+        txt('name', name, 300, 298, 'Montserrat', 800, 40, 540, P, { upper: true, ls: 0.12 }) + tagT(338) });
+    // 3. Seal beside the name
+    out.push({ name: 'Seal and name', fonts: ['DM Serif Display|400', 'Montserrat|500'],
+      body: '<circle cx="122" cy="200" r="104" fill="none" stroke="' + A + '" stroke-width="6"/><circle cx="122" cy="200" r="90" fill="' + P + '"/>' + txt('', ini, 122, 232, 'DM Serif Display', 400, 96, 136, A) +
+        '<rect x="252" y="200" width="70" height="5" fill="' + A + '"/>' + txt('name', name, 252, 184, 'DM Serif Display', 400, 72, 330, P, { anchor: 'start' }) + (tag ? txt('tagline', tag, 252, 246, 'Montserrat', 500, 20, 330, P, { ls: 0.16, upper: true, anchor: 'start' }) : '') });
+    // 4. Script initial with the name across it
+    out.push({ name: 'Script initial', fonts: ['Great Vibes|400', 'Playfair Display|700', 'Montserrat|500'],
+      body: '<text x="300" y="250" text-anchor="middle" font-family="\'Great Vibes\', cursive" font-size="290" fill="' + A + '" opacity="0.9">' + esc(one) + '</text>' +
+        '<rect x="60" y="232" width="480" height="70" fill="' + K + '" opacity="0.85"/>' + txt('name', name, 300, 285, 'Playfair Display', 700, 50, 500, P, { upper: true, ls: 0.06 }) + tagT(338) });
+    // 5. Bold block beside the name
+    out.push({ name: 'Bold block', fonts: ['Bebas Neue|400', 'Montserrat|500'],
+      body: '<rect x="36" y="110" width="180" height="180" rx="22" fill="' + P + '"/><rect x="36" y="262" width="180" height="28" rx="0" fill="' + A + '"/>' + txt('', ini, 126, 250, 'Bebas Neue', 400, 150, 150, A, { ls: 0.02 }) +
+        txt('name', name, 240, 222, 'Bebas Neue', 400, 92, 330, P, { anchor: 'start', ls: 0.03 }) + (tag ? txt('tagline', tag, 242, 262, 'Montserrat', 500, 18, 330, P, { ls: 0.16, upper: true, anchor: 'start' }) : '') });
+    // 6. Diamond frame
+    out.push({ name: 'Diamond frame', fonts: ['DM Serif Display|400', 'Montserrat|500'],
+      body: '<rect x="225" y="38" width="150" height="150" fill="none" stroke="' + A + '" stroke-width="5" transform="rotate(45 300 113)"/><rect x="243" y="56" width="114" height="114" fill="' + P + '" transform="rotate(45 300 113)"/>' +
+        txt('', ini, 300, 140, 'DM Serif Display', 400, 74, 110, A) + '<line x1="120" y1="262" x2="200" y2="262" stroke="' + A + '" stroke-width="3"/><line x1="400" y1="262" x2="480" y2="262" stroke="' + A + '" stroke-width="3"/>' +
+        txt('name', name, 300, 312, 'DM Serif Display', 400, 54, 520, P, { upper: true, ls: 0.08 }) + tagT(352) });
+    var keys = []; out.forEach(function (l) { l.fonts.forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k); }); });
+    return Promise.all(keys.map(fontB64)).then(function (b64) {
+      var face = {}; keys.forEach(function (k, i) { var p = k.split('|'); face[k] = '@font-face{font-family:\'' + p[0] + '\';font-weight:' + p[1] + ';src:url(data:font/woff2;base64,' + b64[i] + ') format(\'woff2\');}'; });
+      return out.map(function (l) {
+        return { name: l.name, primary: P, accent: A, paper: K, mono: true,
+          svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400"><defs><style>' + l.fonts.map(function (k) { return face[k]; }).join('') + '</style></defs>' + l.body + '</svg>' };
+      });
+    });
+  }
   function open(o) {
     o = o || {};
     var g = guess(o), mp = parseMenu(o);
@@ -1635,18 +1711,28 @@
     var logoOut = el('div', { class: 'st-logos' }), logoMsg = el('p', { class: 'admin-hint' });
     var logos = [];
     var logoBtn = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '✨ Make 3 logo ideas', onclick: function () { makeLogos(); } });
+    var monoBtn = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '🔤 6 monogram logos (instant)', onclick: function () { makeMono(); } });
     var logoBox = el('details', { class: 'st-logobox' }, [
-      el('summary', { text: '✨ Logo ideas (AI)' }),
-      el('p', { class: 'admin-hint', text: 'Uses the business name above and the colours you picked. You get 3 original logos to choose from; change the name, tagline or colours and they update. Download as SVG (sharp at any size) or PNG.' }),
-      lab('Tagline', lg.tagline), lab('What they do', lg.what), lab('Style', lg.style), logoBtn, logoMsg,
+      el('summary', { text: '✨ Logo ideas' }),
+      el('p', { class: 'admin-hint', text: 'Uses the business name above and the colours you picked. 🔤 Monogram logos are instant: their initials (e.g. GS for Glameenah Scents) in 6 styles, with a perfume bottle, crest or seal to suit the business. ✨ AI makes 3 original logos with a small icon. Change the name, tagline or colours and they update. Download as SVG (sharp at any size) or PNG.' }),
+      lab('Tagline', lg.tagline), lab('What they do', lg.what), lab('Style', lg.style), el('div', { class: 'admin-actions' }, [monoBtn, logoBtn]), logoMsg,
     ]);
     // onDark: the reversed version for dark backgrounds (main colour becomes white, accent stays).
     function logoSvg(l, onDark) {
       var svg = l.svg.split(l.primary).join(onDark ? '#ffffff' : state.theme.bg.toLowerCase()).split(l.accent).join(state.theme.accent.toLowerCase());
+      if (l.paper) svg = svg.split(l.paper).join(onDark ? state.theme.bg.toLowerCase() : '#ffffff');
       var doc = new DOMParser().parseFromString(svg, 'image/svg+xml'), root = doc.documentElement;
       if (root.nodeName.toLowerCase() !== 'svg') return '';
       var n = doc.getElementById('name'); if (n) n.textContent = f.business.value.trim() || n.textContent;
       var t = doc.getElementById('tagline'); if (t) { if (lg.tagline.value.trim()) t.textContent = lg.tagline.value.trim(); else t.parentNode.removeChild(t); }
+      // Monogram logos: keep the edited name and tagline inside their width.
+      [n, t].forEach(function (x) {
+        if (!x || !x.parentNode || !x.getAttribute('data-maxw')) return;
+        if (x.getAttribute('data-case') === 'upper') x.textContent = x.textContent.toUpperCase();
+        var fam = (x.getAttribute('font-family') || '').split(',')[0].replace(/'/g, ''), wt = x.getAttribute('font-weight'), ls = Number(x.getAttribute('data-ls')) || 0;
+        var sz = fitSize(x.textContent, fam, wt, Number(x.getAttribute('data-size')), Number(x.getAttribute('data-maxw')), ls);
+        x.setAttribute('font-size', sz); if (ls) x.setAttribute('letter-spacing', (ls * sz).toFixed(1));
+      });
       root.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
       return new XMLSerializer().serializeToString(root);
     }
@@ -1686,13 +1772,22 @@
           ])]));
       });
     }
+    function makeMono(liked) {
+      if (f.business.value.trim().length < 2) { logoMsg.textContent = 'Type the business name first (above).'; f.business.focus(); return; }
+      monoBtn.disabled = true; logoMsg.textContent = 'Making monogram logos…';
+      loadLookFonts().then(function () { return monoLogos(f.business.value, lg.tagline.value, lg.what.value, state.theme.bg, state.theme.accent); }).then(function (list) {
+        logos = list.concat(logos.filter(function (l) { return !l.mono; }));
+        logoMsg.textContent = (typeof liked === 'string' ? '⭐ The customer liked “' + liked + '” on the order form. ' : '') + 'Initials used: ' + initialsOf(f.business.value) + '. Shown on white and on your main colour. Change the colours above to try other looks.';
+        drawLogos(); logoOut.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }).catch(function () { logoMsg.textContent = 'Could not make the monograms. Try again.'; }).then(function () { monoBtn.disabled = false; });
+    }
     function makeLogos() {
       if (!o.logoApi) { logoMsg.textContent = 'Logo ideas work from the admin page.'; return; }
       if (f.business.value.trim().length < 2) { logoMsg.textContent = 'Type the business name first (above).'; f.business.focus(); return; }
       logoBtn.disabled = true; logoMsg.textContent = 'Drawing 3 logos… (about 15 seconds)';
       o.logoApi({ business: f.business.value.trim(), tagline: lg.tagline.value, what: lg.what.value, style: lg.style.value, primary: state.theme.bg, accent: state.theme.accent })
         .then(function (j) {
-          logos = (j.logos || []).map(function (l) { return { name: l.name, svg: l.svg, primary: j.primary, accent: j.accent }; });
+          logos = (j.logos || []).map(function (l) { return { name: l.name, svg: l.svg, primary: j.primary, accent: j.accent }; }).concat(logos.filter(function (l) { return l.mono; }));
           logoMsg.textContent = logos.length + ' logo idea(s). Shown on white and on your main colour. Not happy? Change the style words and try again.';
           drawLogos();
           logoOut.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1702,6 +1797,9 @@
     }
     lg.tagline.addEventListener('input', drawLogos);
     if (o.openLogos) { logoBox.open = true; setTimeout(function () { logoBox.scrollIntoView({ block: 'start' }); }, 300); }
+    // The customer liked a monogram on the order form: make them straight away and say which one.
+    var likedMono = String(o.prefer || '').match(/^Logo idea (\d+): (.+)$/);
+    if (likedMono && o.openLogos) setTimeout(function () { makeMono(likedMono[2]); }, 400);
 
     // The customer's style sample(s): shown for reference only, never put on the design.
     var sampleBox = (o.samples || []).length ? el('div', { class: 'st-samples' }, [
@@ -2210,5 +2308,5 @@
     return { draw: draw, render: render, state: state };
   }
 
-  window.SirStudio = { open: open, preview: previewDesigns, guess: guess, themeFrom: themeFrom, parseMenu: parseMenu };
+  window.SirStudio = { open: open, preview: previewDesigns, monograms: function (name, what, colours) { var t = themeFrom(colours) || { bg: '#13234B', accent: '#C9A24B' }; return loadLookFonts().then(function () { return monoLogos(name, '', what, t.bg, t.accent); }); }, guess: guess, themeFrom: themeFrom, parseMenu: parseMenu };
 })();

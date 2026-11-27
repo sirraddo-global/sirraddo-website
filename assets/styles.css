@@ -898,6 +898,7 @@ html.picker-lock, html.picker-lock body { overflow: hidden; }
 .ds-preview h3 { margin: 0; font-size: 1.1rem; }
 .ds-preview-row { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x mandatory; }
 .ds-pv { flex: 0 0 auto; width: 210px; scroll-snap-align: start; display: grid; gap: 6px; padding: 6px; border: 2px solid transparent; border-radius: 14px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.ds-pv--logo img { width: 100%; height: auto; aspect-ratio: 3 / 2; background: #fff; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.18); display: block; }
 .ds-pv canvas { width: 100%; height: auto; border-radius: 10px; box-shadow: 0 6px 18px rgba(0,0,0,.18); display: block; }
 .ds-pv-cap { font-size: 13px; font-weight: 600; opacity: .85; }
 .ds-pv-pick { justify-self: start; font-size: 13px; font-weight: 800; color: var(--ink); border: 1.5px solid var(--gold, #D9A21B); border-radius: 999px; padding: 4px 10px; }

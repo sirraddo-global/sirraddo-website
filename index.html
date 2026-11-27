@@ -63,14 +63,14 @@
 
   <main id="main">
     <!-- ===== Hero ===== -->
-    <section class="hero" aria-labelledby="hero-title">
+    <section class="hero hero--home" aria-labelledby="hero-title">
       <div class="container">
         <p class="eyebrow">Registered in Nigeria · RC 9939920</p>
         <h1 id="hero-title">Technology and digital payment services, built in Nigeria.</h1>
         <p class="lead">SIRRADDO GLOBAL LIMITED builds simple, reliable apps for everyday payments and for the businesses that serve Nigerians.</p>
         <div class="btn-row">
-          <a class="btn btn--gold" href="#zappi-pay">Explore ZAPPI PAY</a>
-          <a class="btn btn--outline-light" href="#products">Our products</a>
+          <a class="btn btn--gold" href="https://zappipay.com.ng" target="_blank" rel="noopener">Explore ZAPPI PAY<span class="visually-hidden"> (opens in a new tab)</span></a>
+          <a class="btn btn--outline-light" href="#websites-design">Websites &amp; Design</a>
           <a class="btn btn--outline-light" href="#contact">Contact us</a>
         </div>
       </div>
@@ -107,18 +107,29 @@
           <p class="eyebrow eyebrow--dark">Products &amp; services</p>
           <h2 id="products-title">What we build</h2>
         </div>
-        <div class="grid grid--4">
-          <article class="card" id="zappi-pay">
+        <div class="grid grid--4 prod-grid">
+          <article class="card card--shot" id="zappi-pay">
+            <a class="card-shot" href="https://zappipay.com.ng" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true"><img src="/assets/work/zappi-pay.jpg" alt="" width="960" height="600" loading="lazy"></a>
             <span class="badge badge--green">Available</span>
             <h3>ZAPPI PAY</h3>
-            <p>Fund one wallet and pay for airtime, data, electricity, cable TV and exam PINs in seconds, with automatic refunds if a purchase fails.</p>
-            <a class="card-link" href="https://zappipay.com.ng" target="_blank" rel="noopener">Visit zappipay.com.ng<span class="visually-hidden"> (opens in a new tab)</span> →</a>
+            <p>Instant airtime, data, electricity, cable TV and exam PINs from one wallet, paid in seconds, with automatic refunds if a purchase fails.</p>
+            <a class="btn btn--gold card-btn" href="https://zappipay.com.ng" target="_blank" rel="noopener">Visit zappipay.com.ng<span class="visually-hidden"> (opens in a new tab)</span> →</a>
           </article>
-          <article class="card">
-            <span class="badge badge--gold">In development</span>
-            <h3>Business software</h3>
-            <p>Point-of-sale and record-keeping apps for shops, gas stations and property managers.</p>
-            <a class="card-link" href="#contact">Talk to us about business software →</a>
+          <article class="card card--shot" id="websites-design">
+            <!-- Preview image: a website we built (16:9). Swap the src for any 16:9 screenshot. -->
+            <a class="card-shot" href="/websites" tabindex="-1" aria-hidden="true"><img src="/assets/work/demo-store.jpg" alt="" width="960" height="600" loading="lazy"></a>
+            <span class="badge badge--green">Available · From ₦50,000</span>
+            <h3>Websites for businesses</h3>
+            <p>Professional websites with domain, hosting, business email, customer reviews and help getting on Google Maps.</p>
+            <a class="btn btn--gold card-btn" href="/websites">See website packages →</a>
+          </article>
+          <article class="card card--shot">
+            <!-- Preview image: sample designs (16:9). Swap these for your own flyer/brand kit mockups. -->
+            <a class="card-shot card-shot--designs" href="/design" tabindex="-1" aria-hidden="true"><img src="/assets/samples/flyer.svg" alt="" loading="lazy"><img src="/assets/samples/logo.svg" alt="" loading="lazy"><img src="/assets/samples/card.svg" alt="" loading="lazy"></a>
+            <span class="badge badge--green">Available · From ₦5,000</span>
+            <h3>Flyers &amp; graphics</h3>
+            <p>Flyers, social media posts, business cards, logos and brand kits for your business, ready in 1–2 working days.</p>
+            <a class="btn btn--gold card-btn" href="/design">See design prices →</a>
           </article>
           <article class="card">
             <span class="badge badge--navy">For businesses</span>
@@ -127,20 +138,11 @@
             <a class="card-link" href="#contact">Talk to us about custom apps →</a>
           </article>
           <article class="card">
-            <span class="badge badge--green">Available</span>
-            <h3>Flyers &amp; graphics</h3>
-            <p>Flyers, social media posts, business cards, logos and brand kits for your business, from ₦5,000, ready in 1–2 working days.</p>
-            <a class="card-link" href="/design">See design prices →</a>
+            <span class="badge badge--gold">In development</span>
+            <h3>Business software</h3>
+            <p>Point-of-sale and record-keeping apps for shops, gas stations and property managers.</p>
+            <a class="card-link" href="#contact">Talk to us about business software →</a>
           </article>
-          <article class="card">
-            <span class="badge badge--green">Available</span>
-            <h3>Websites for businesses</h3>
-            <p>Professional websites with domain, hosting, business email, customer reviews and help getting on Google Maps, from ₦50,000.</p>
-            <a class="card-link" href="/websites">See website packages →</a>
-          </article>
-        </div>
-        <div class="btn-row btn-row--center">
-          <a class="btn btn--gold" href="/websites">Websites from ₦50,000</a>
         </div>
       </div>
     </section>
@@ -206,12 +208,17 @@
             <label for="cf-reach">Email or phone</label>
             <input id="cf-reach" name="reach" type="text" autocomplete="email" required>
           </div>
+          <div class="cf-pills" role="group" aria-label="Quick message">
+            <button type="button" class="cf-pill" data-msg="Hello, I need help with ZAPPI PAY: ">ZAPPI PAY support</button>
+            <button type="button" class="cf-pill" data-msg="Hello, I'd like a website for my business (from ₦50,000). My business is: ">Website (from ₦50k)</button>
+            <button type="button" class="cf-pill" data-msg="Hello, I'd like a flyer / logo design (from ₦5,000). It's for: ">Flyer / logo (from ₦5k)</button>
+          </div>
           <div class="field">
             <label for="cf-message">Message</label>
             <textarea id="cf-message" name="message" required></textarea>
           </div>
           <p class="form-error" id="form-error" role="alert"></p>
-          <button class="btn btn--navy" type="submit">Send on WhatsApp</button>
+          <button class="btn btn--wa btn--block" type="submit">Send on WhatsApp</button>
           <p class="form-hint" id="form-hint">We save your details so we can follow up, then WhatsApp opens with your message filled in. See our <a href="/privacy">Privacy Policy</a>.</p>
         </form>
       </div>
@@ -229,25 +236,35 @@
         </svg>
       </a>
       <nav aria-label="Footer">
-        <ul class="footer-links">
-          <li><a href="/websites">Websites</a></li>
-          <li><a href="/design">Flyers &amp; graphics</a></li>
-          <li data-svc-page="services" hidden><a href="/services">Quick services</a></li>
-          <li><a href="/agents">Earn as an agent</a></li>
-          <li><a href="/school-websites-nigeria">School websites</a></li>
-          <li><a href="/real-estate-websites-nigeria">Real estate websites</a></li>
-          <li><a href="/ecommerce-online-store-nigeria">Online stores</a></li>
-          <li><a href="/clinic-hospital-websites-nigeria">Clinic &amp; pharmacy websites</a></li>
-          <li><a href="/hotel-websites-nigeria">Hotel &amp; short-let websites</a></li>
-          <li><a href="/filling-station-websites-nigeria">Filling station &amp; gas plant websites</a></li>
-          <li><a href="/privacy">Privacy Policy</a></li>
-          <li><a href="/terms">Terms</a></li>
-          <li><a href="https://zappipay.com.ng" target="_blank" rel="noopener">ZAPPI PAY<span class="visually-hidden"> (opens in a new tab)</span></a></li>
-          <li><a href="/#contact">Contact</a></li>
-        </ul>
+        <div class="footer-cols">
+          <div><h4>Services</h4><ul class="footer-links">
+            <li><a href="/websites">Websites</a></li>
+            <li><a href="/design">Flyers &amp; graphics</a></li>
+            <li><a href="/services">Quick services</a></li>
+            <li><a href="/agents">Earn as an agent</a></li>
+          </ul></div>
+          <div><h4>Website templates</h4><ul class="footer-links">
+            <li><a href="/school-websites-nigeria">School websites</a></li>
+            <li><a href="/real-estate-websites-nigeria">Real estate websites</a></li>
+            <li><a href="/ecommerce-online-store-nigeria">Online stores</a></li>
+            <li><a href="/clinic-hospital-websites-nigeria">Clinic &amp; pharmacy websites</a></li>
+            <li><a href="/hotel-websites-nigeria">Hotel &amp; short-let websites</a></li>
+            <li><a href="/filling-station-websites-nigeria">Filling station &amp; gas plant websites</a></li>
+          </ul></div>
+          <div><h4>Company &amp; legal</h4><ul class="footer-links">
+            <li><a href="https://zappipay.com.ng" target="_blank" rel="noopener">ZAPPI PAY<span class="visually-hidden"> (opens in a new tab)</span></a></li>
+            <li><a href="/#contact">Contact</a></li>
+            <li><a href="/privacy">Privacy Policy</a></li>
+            <li><a href="/terms">Terms</a></li>
+          </ul></div>
+        </div>
       </nav>
       <p class="footer-legal">© 2026 SIRRADDO GLOBAL LIMITED · RC 9939920 · TIN 2623092457685 · SCUML SC 311502618</p>
     </div>
   </footer>
+  <script>
+    // Quick message pills: fill the message box (the customer can still edit it)
+    document.querySelectorAll('.cf-pill').forEach(function (b) { b.addEventListener('click', function () { var m = document.getElementById('cf-message'); m.value = b.getAttribute('data-msg'); m.focus(); m.setSelectionRange(m.value.length, m.value.length); }); });
+  </script>
 </body>
 </html>

@@ -480,11 +480,11 @@ p { margin: 0 0 1em; }
 /* Phones: a plain round chat button, always fully on screen, 16px from the right edge and 24px above the
    bottom. The footer has extra room at the bottom so the button never sits on its text. */
 @media (max-width: 720px) {
-  .chat-launcher { box-sizing: border-box; width: 56px; height: 56px; min-height: 0; padding: 0; justify-content: center; border-radius: 50%; right: 16px; bottom: 24px; transform: none; }
+  .chat-launcher { box-sizing: border-box; width: 46px; height: 46px; min-height: 0; padding: 0; justify-content: center; border-radius: 50%; right: 16px; bottom: 16px; transform: none; }
   .chat-launcher-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .chat-launcher svg { width: 26px; height: 26px; }
+  .chat-launcher svg { width: 22px; height: 22px; }
   .chat-launcher-dot { top: 4px; left: auto; right: 4px; }
-  .site-footer { padding-bottom: 120px; }
+  .site-footer { padding-bottom: 96px; }
 }
 @media print { .chat-launcher, .chat-panel { display: none !important; } }
 
@@ -1108,3 +1108,42 @@ body { overflow-x: clip; }
 .ind-prices article { position: relative; }
 .ind-badge { position: absolute; top: -12px; left: 16px; background: var(--gold); color: var(--navy); font-size: .75rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; letter-spacing: .02em; }
 .qc-up dt, .qc-up dd { color: #E9D9A6; font-size: .92rem; }
+
+/* ---------- Homepage refresh (Nov 2026) ---------- */
+.hero--home { padding-top: 40px; }
+@media (min-width: 820px) { .hero--home { padding-top: 88px; } }
+.prod-grid { align-items: stretch; }
+.card-shot { display: block; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; margin: -4px 0 16px; background: var(--navy); }
+.card-shot img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; transition: transform .3s ease; }
+.card-shot:hover img { transform: scale(1.03); }
+.card-shot--designs { display: flex; gap: 8px; padding: 10px; background: linear-gradient(135deg, var(--navy), #24407F); }
+.card-shot--designs img { flex: 1; min-width: 0; object-fit: contain; border-radius: 4px; }
+.card .card-btn { margin-top: auto; align-self: flex-start; text-decoration: none; }
+.card .card-link { text-decoration: none; color: var(--gold-text); }
+.card .card-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.footer-links a { text-decoration: none; }
+.footer-cols { display: grid; gap: 24px; }
+.footer-cols h4 { margin: 0 0 8px; font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
+.footer-cols .footer-links { display: block; }
+.footer-cols .footer-links a { padding: 5px 0; }
+@media (min-width: 720px) { .footer-cols { grid-template-columns: repeat(3, auto); gap: 48px; } .footer-cols .footer-links { justify-content: flex-start; } }
+.cf-pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.cf-pill { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; }
+.cf-pill:hover, .cf-pill:focus-visible { border-color: var(--gold); color: var(--gold-text); }
+:root[data-theme="dark"] .map iframe { filter: invert(90%) hue-rotate(180deg); }
+.map { border-radius: 12px; }
+@media (min-width: 820px) { .footer-inner { align-items: start; } .footer-cols { justify-content: end; } }
+@media (min-width: 900px) {
+  .prod-grid { grid-template-columns: repeat(6, 1fr); }
+  .prod-grid > .card { grid-column: span 2; }
+  .prod-grid > .card:nth-child(n+4) { grid-column: span 3; }
+}
+.card .card-btn { padding: 12px 18px; font-size: .95rem; }
+/* Phones: the chat button is always solid (no fading while scrolling) */
+@media (max-width: 720px) { .chat-launcher, .chat-launcher.is-scrolling { opacity: 1; } }
+/* Phones, light mode: the top bar is navy like the hero, so they read as one block */
+@media (max-width: 819px) {
+  :root:not([data-theme="dark"]) .site-header { background: var(--navy); border-bottom-color: var(--navy); }
+  :root:not([data-theme="dark"]) .site-header .logo { color: var(--white); }
+  :root:not([data-theme="dark"]) .site-header .theme-toggle, :root:not([data-theme="dark"]) .site-header .menu-toggle { background: transparent; color: var(--white); border-color: rgba(255,255,255,.35); }
+}

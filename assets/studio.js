@@ -399,7 +399,7 @@
       c.strokeStyle = t.bg; c.lineWidth = 2 * u; c.strokeRect(34 * u, 34 * u, W - 68 * u, H - 68 * u);
       c.font = '600 ' + 22 * u + 'px ' + FONT; c.fillStyle = t.bg; c.fillText((d.business || '').toUpperCase().split('').join(String.fromCharCode(8202)), pad, 100 * u, W - pad * 2);
       c.fillRect(pad, 120 * u, W - pad * 2, 1.5 * u); c.save(); c.globalAlpha = 0.22; c.fillStyle = t.accent; c.fillRect(36 * u, 36 * u, W - 72 * u, 100 * u); c.restore();
-      var hf = fit(c, d.headline, W - pad * 2, tall ? 4 : 3, (tall ? 112 : 92) * u, 40 * u, 900), y = drawLines(c, hf, pad, 160 * u, 1.02, t.bg, 900);
+      var hf = fit(c, d.headline, W - pad * 2, 3, (tall ? 108 : 88) * u, 36 * u, 900), y = drawLines(c, hf, pad, 160 * u, 1.02, t.bg, 900);
       if (d.details) { var df = fit(c, d.details.replace(/\n/g, ' · '), W - pad * 2, 2, 32 * u, 20 * u, 500); y = drawLines(c, df, pad, y + (HEAD && /Vibes|Script/.test(HEAD) ? 40 : 26) * u, 1.35, '#4B4038', 500); }
       var py = y + 48 * u, ph = H - py - 200 * u;
       c.save(); rr(c, pad, py, W - pad * 2, ph, 4 * u); c.clip(); if (d.photo && d.photo.__cut) { c.fillStyle = '#EFE7DA'; c.fillRect(pad, py, W - pad * 2, ph); } cover(c, d.photo, pad, py, W - pad * 2, ph, 0.45); c.restore();
@@ -428,7 +428,7 @@
       if (d.business) { c.font = '800 ' + 26 * u + 'px ' + FONT; c.fillStyle = onColour(t.accent); c.fillText(d.business.toUpperCase(), pad, 80 * u, W - pad * 2); }
       var room = py - 30 * u - 110 * u, k = 1, hf, df, block;
       do { // shrink until the words fit above the photo
-        hf = fit(c, String(d.headline).toUpperCase(), W - pad * 2, 4, (tall ? 170 : 140) * u * k, 40 * u * k, 900);
+        hf = fit(c, String(d.headline).toUpperCase(), W - pad * 2, 3, (tall ? 160 : 130) * u * k, 36 * u * k, 900);
         df = d.details ? fit(c, d.details.replace(/\n/g, ' \u00B7 '), W - pad * 2, 2, 34 * u * k, 18 * u, 600) : null;
         block = hf.size * (1 + (hf.lines.length - 1) * 0.95) + (df ? 16 * u + df.size * (1 + (df.lines.length - 1) * 1.3) : 0); k -= 0.06;
       } while (block > room && k > 0.4);
@@ -447,7 +447,7 @@
       var g = c.createLinearGradient(0, 0, 0, H * 0.3); g.addColorStop(0, 'rgba(0,0,0,.6)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, W, H * 0.3);
       var mf = fit(c, (d.business || '').toUpperCase(), W - pad * 2, 1, 150 * u, 50 * u, 900); drawLines(c, mf, W / 2, 40 * u, 1, t.accent, 900, 'center');
       var g2 = c.createLinearGradient(0, H * 0.55, 0, H); g2.addColorStop(0, 'rgba(0,0,0,0)'); g2.addColorStop(1, 'rgba(0,0,0,.85)'); c.fillStyle = g2; c.fillRect(0, H * 0.55, W, H * 0.45);
-      var hf = fit(c, d.headline, W * 0.62, 4, 80 * u, 34 * u, 900), dfh = d.details ? fit(c, d.details.replace(/\n/g, ' · '), W * 0.62, 3, 30 * u, 18 * u, 500) : null;
+      var hf = fit(c, d.headline, W * 0.62, 3, 76 * u, 30 * u, 900), dfh = d.details ? fit(c, d.details.replace(/\n/g, ' · '), W * 0.62, 3, 30 * u, 18 * u, 500) : null;
       var block = hf.size * (1 + (hf.lines.length - 1) * 1.05) + (dfh ? 18 * u + dfh.size * (1 + (dfh.lines.length - 1) * 1.3) : 0), y = H - 150 * u - block;
       c.fillStyle = t.accent; c.fillRect(pad, y - 22 * u, 60 * u, 6 * u);
       y = drawLines(c, hf, pad, y, 1.05, '#FFFFFF', 900); if (dfh) drawLines(c, dfh, pad, y + 18 * u, 1.3, 'rgba(255,255,255,.85)', 500);
@@ -1591,7 +1591,7 @@
     if (d.logo) { var k = Math.min(r * 1.4 / d.logo.width, r * 1.4 / d.logo.height); c.drawImage(d.logo, cx - d.logo.width * k / 2, cy - d.logo.height * k / 2, d.logo.width * k, d.logo.height * k); }
     else { c.font = '800 70px ' + FONT; c.fillStyle = t.accent; c.textAlign = 'center'; c.fillText(String(d.business || '?').replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase(), cx, cy + 25); c.textAlign = 'left'; }
     c.restore();
-    var handle = (d.socials && d.socials[0] && socialSplit(d.socials[0]).t) || ('@' + String(d.business || 'yourbusiness').toLowerCase().replace(/[^a-z0-9]+/g, ''));
+    var handle = (d.socials && d.socials[0] && socialSplit(d.socials[0]).t) || ('@' + (String(d.business || '').toLowerCase().replace(/[^a-z0-9]+/g, '') || 'business'));
     c.fillStyle = '#111'; c.font = '700 40px ' + FONT; c.fillText(handle.replace(/^@/, ''), 260, 110, W - 300);
     c.font = '600 32px ' + FONT; c.fillText(d.business || '', 260, 160, W - 300);
     c.font = '400 28px ' + FONT; c.fillStyle = '#444'; c.fillText(String(d.place || d.special || '').slice(0, 60), 260, 205, W - 300);
@@ -2200,7 +2200,7 @@
     // AI labels for each photo (e.g. "Cakes", "Zobo"), picked from the item list where one fits. Runs once by itself.
     var named = false;
     function nameStuff(force) {
-      if ((named && !force) || !o.captionApi) return;
+      if ((named && !force) || !o.captionApi) return Promise.resolve();
       var idx = []; var imgs = [];
       state.raw.forEach(function (img, i) {
         if (!img || i === state.logoIdx) return;
@@ -2208,9 +2208,9 @@
         cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
         idx.push(i); imgs.push(cv.toDataURL('image/jpeg', 0.8));
       });
-      if (!imgs.length) return;
+      if (!imgs.length) return Promise.resolve();
       named = true; capBtn.disabled = true; capMsg.textContent = 'Naming the photos…';
-      o.captionApi(imgs.slice(0, 6), data().items).then(function (j) {
+      return o.captionApi(imgs.slice(0, 6), data().items).then(function (j) {
         (j.labels || []).forEach(function (l, n) { if (idx[n] != null && l && (force || !state.captions[idx[n]])) state.captions[idx[n]] = String(l).slice(0, 24); });
         capMsg.textContent = 'Labels added. Change any of them below.'; refreshSelects(); draw();
       }).catch(function (e) { capMsg.textContent = (e && e.message) || 'Could not name the photos.'; })
@@ -2442,11 +2442,16 @@
     }
     function writeSet() {
       if (!o.ideasApi) { setMsg.textContent = 'Works from the admin page.'; return; }
+      // First make sure every photo in the set has a name (the AI looks at each photo), so each headline matches its own picture.
+      var missing = setOrder().some(function (pi) { return pi != null && !state.captions[pi]; });
+      setMsg.textContent = missing ? 'Looking at the photos…' : 'Writing ' + setN + ' posts…';
+      (missing ? nameStuff(true) : Promise.resolve()).then(function () {
       var topics = setOrder().map(function (pi) { return (pi != null && state.captions[pi]) || ''; });
       setMsg.textContent = 'Writing ' + setN + ' posts…';
-      o.ideasApi({ business: f.business.value, what: (o.info || {}).sell || '', words: o.words || f.headline.value, topics: topics }).then(function (j) {
+      return o.ideasApi({ business: f.business.value, what: (o.info || {}).sell || '', words: o.words || f.headline.value, topics: topics }).then(function (j) {
         (j.ideas || []).forEach(function (x, n) { if (setText[n]) { setText[n].h.value = x.headline; setText[n].l.value = x.line; } });
-        setMsg.textContent = 'Done. Edit any of them.'; drawSet();
+        setMsg.textContent = 'Done. Each headline names the item in its photo. Edit any of them.'; drawSet();
+      });
       }).catch(function (e) { setMsg.textContent = (e && e.message) || 'Could not write them.'; });
     }
     var setRow = el('div', { class: 'st-thumbs' }), setBox = el('div', { class: 'st-set', hidden: setN ? null : '' }, [

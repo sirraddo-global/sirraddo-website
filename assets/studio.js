@@ -153,7 +153,7 @@
   // "including, Spaghetti" → "including Spaghetti"; "10 percent" → "10%"; stray spaces before commas.
   function tidy(x) {
     return String(x || '').replace(/\b(including|such as|like|e\.g\.|plus|also)\s*,\s*/gi, '$1 ').replace(/\s+([,.;:!?])/g, '$1').replace(/,\s*,+/g, ',')
-      .replace(/(\d{1,2})\s*(?:per\s*cent|percent)\b/gi, '$1%').replace(/(\d)\s+%/g, '$1%').replace(/[ \t]{2,}/g, ' ');
+      .replace(/\bbetween\s+([^,.;\n]{2,30}?)\s+and\s+(\d{1,2}(?:st|nd|rd|th)?|[A-Z][a-z]+\s+\d{1,2})\b/g, 'from $1 to $2').replace(/(\d{1,2})\s*(?:per\s*cent|percent)\b/gi, '$1%').replace(/(\d)\s+%/g, '$1%').replace(/[ \t]{2,}/g, ' ');
   }
   function guess(o) {
     var words = tidy(String(o.words || '').replace(/\r/g, ''));
@@ -854,11 +854,12 @@
     try {
       var footH = (tall ? 150 : sq ? 104 : 124) * u, hdrH = (tall ? 360 : sq ? 230 : 290) * u, bodyBottom = H - footH - 24 * u;
       var raw = menu ? (d.items || []) : (d.services || []), descs = menu ? (d.descs || []) : [];
-      var items = raw.map(function (it, i) { var s = splitItem(it); return { name: s.name, desc: descs[i] || s.desc }; }).slice(0, tall ? 8 : sq ? 5 : 6);
+      var allItems = raw.map(function (it, i) { var s = splitItem(it); return { name: s.name, desc: descs[i] || s.desc }; }), cap = tall ? 8 : sq ? 5 : 6;
+      var compact = allItems.length > cap, items = compact ? allItems.slice(0, 24) : allItems;
       var pics = (menu ? (d.menuPhotos || []).map(function (x) { return x.img; }) : (d.photos || [])).filter(Boolean).slice(0, 9);
       var leftW = pics.length ? W * 0.45 - pad : W - pad * 2, rx = W * 0.48, rw = W - rx - pad * 0.7;
       // --- top left: logo, name, small line, tagline
-      var y = 30 * u, cx = pad + leftW / 2;
+      var y = (tall ? 70 : 54) * u, cx = pad + leftW / 2;
       if (d.logo) {
         var lh = (tall ? 150 : sq ? 92 : 120) * u, lw = Math.min(leftW * 0.6, lh * d.logo.width / d.logo.height), lhh = lw * d.logo.height / d.logo.width;
         c.drawImage(d.logo, cx - lw / 2, y, lw, lhh); y += lhh + 10 * u;
@@ -918,7 +919,19 @@
       var place = String(d.place || '').replace(/[·,]?\s*(we\s+)?deliver[^·,]*|[·,]?\s*(available\s+)?nationwide/ig, '').replace(/^available\s+in\s+/i, '').replace(/^[\s·,]+|[\s·,]+$/g, '');
       var featH = (place || deliv) ? (place && deliv ? 150 : 80) * u : 0;
       var listTop = bodyTop, listBottom = bodyBottom - featH - (featH ? 20 * u : 0) - (menu && d.note && d.note.length > 48 ? 70 * u : 0);
-      if (items.length) {
+      if (items.length && compact) {
+        // A long menu: every item in a neat 2-column list on a navy panel (cards would cut it short).
+        c.save(); c.shadowColor = 'rgba(0,0,0,.2)'; c.shadowBlur = 14 * u; c.fillStyle = navy; rr(c, pad, listTop, leftW, listBottom - listTop, 26 * u); c.fill(); c.restore();
+        c.strokeStyle = gold; c.globalAlpha = 0.55; c.lineWidth = 1.5 * u; rr(c, pad + 8 * u, listTop + 8 * u, leftW - 16 * u, listBottom - listTop - 16 * u, 20 * u); c.stroke(); c.globalAlpha = 1;
+        var panelH = listBottom - listTop - 50 * u, cols = items.length * 46 * u <= panelH ? 1 : 2, rowsN = Math.ceil(items.length / cols), colW2 = (leftW - 60 * u) / cols, rowH = panelH / rowsN;
+        var fsz = Math.min((cols === 1 ? 32 : 26) * u, rowH * 0.55), names = items.map(function (it) { return it.name; });
+        c.font = '600 ' + fsz + 'px ' + BODY; while (fsz > 18 * u && names.filter(function (n) { return c.measureText(n).width > colW2 - 34 * u; }).length > names.length / 3) { fsz -= 1 * u; c.font = '600 ' + fsz + 'px ' + BODY; }
+        names.forEach(function (n, k) {
+          var cx3 = pad + 30 * u + Math.floor(k / rowsN) * colW2, cy3 = listTop + 25 * u + (k % rowsN) * rowH + rowH / 2;
+          c.fillStyle = gold; c.beginPath(); c.moveTo(cx3 + 7 * u, cy3 - 7 * u); c.lineTo(cx3 + 14 * u, cy3); c.lineTo(cx3 + 7 * u, cy3 + 7 * u); c.lineTo(cx3, cy3); c.closePath(); c.fill();
+          c.fillStyle = onNavy; c.fillText(n, cx3 + 26 * u, cy3 + fsz * 0.35, colW2 - 34 * u);
+        });
+      } else if (items.length) {
         var gapC = 16 * u, cardH = Math.min((tall ? 215 : 140) * u, (listBottom - listTop - gapC * (items.length - 1)) / items.length), ir = cardH * 0.46;
         items.forEach(function (it, i) {
           var cy = listTop + i * (cardH + gapC), x0 = pad + ir * 0.9, cw = leftW - ir * 0.9;
@@ -981,7 +994,7 @@
       // --- footer: WhatsApp | main social | thank you
       var fyb = H - footH; c.fillStyle = navy; c.fillRect(0, fyb, W, footH); c.fillStyle = gold; c.fillRect(0, fyb, W, 4 * u);
       var cells = [];
-      if (d.phones && d.phones.length) cells.push({ k: 'wa', a: 'WHATSAPP', b: d.phones[0] });
+      if (d.phones && d.phones.length) cells.push({ k: 'wa', a: 'WHATSAPP', b: d.phones.slice(0, 2).join(' · ') });
       var soc = (d.socials || [])[0];
       if (soc) { var sp = socialSplit(soc), nm = { ig: 'INSTAGRAM', tt: 'TIKTOK', fb: 'FACEBOOK', x: 'X', yt: 'YOUTUBE', snap: 'SNAPCHAT' }[sp.k] || 'FOLLOW US'; cells.push({ k: sp.k, a: nm, b: sp.t }); }
       var soc2 = (d.socials || [])[1];
@@ -1001,7 +1014,7 @@
         var tx2 = ix2 + ir2 + 16 * u, tw2 = x0 + cw2 - tx2 - 14 * u;
         var a = fit(c, cl.a, tw2, 1, 20 * u, 12 * u, 600), b = fit(c, cl.b, tw2, 1, (tall ? 38 : 32) * u, 14 * u, 700);
         c.fillStyle = onNavy; c.font = '600 ' + a.size + 'px ' + BODY; c.globalAlpha = 0.85; c.fillText(a.lines[0], tx2, mid - 4 * u); c.globalAlpha = 1;
-        c.font = '700 ' + b.size + 'px ' + BODY; c.fillText(b.lines[0], tx2, mid + b.size + 2 * u);
+        c.font = '700 ' + b.size + 'px ' + BODY; c.fillText(b.lines[0], tx2, mid + b.size + 2 * u, tw2);
       });
     } finally { FONT = FB; c.textAlign = 'left'; }
   }
@@ -1812,7 +1825,7 @@
     // 2. Interlocked letters: the two initials overlapping, the second in the accent colour, cut out with a thin gap
     out.push({ name: 'Interlocked letters', fonts: ['Playfair Display|900', 'Montserrat|500'],
       body: (two ? '<text x="252" y="214" text-anchor="middle" font-family="\'Playfair Display\', serif" font-weight="900" font-size="220" fill="' + P + '">' + esc(one) + '</text>' +
-        '<text x="352" y="214" text-anchor="middle" font-family="\'Playfair Display\', serif" font-weight="900" font-size="220" fill="' + A + '" stroke="' + K + '" stroke-width="12" paint-order="stroke">' + esc(two) + '</text>'
+        '<text x="352" y="214" text-anchor="middle" font-family="\'Playfair Display\', serif" font-weight="900" font-size="220" fill="' + A + '" opacity="0.95">' + esc(two) + '</text>'
         : '<text x="300" y="214" text-anchor="middle" font-family="\'Playfair Display\', serif" font-weight="900" font-size="230" fill="' + P + '">' + esc(one) + '</text><rect x="240" y="226" width="120" height="6" fill="' + A + '"/>') +
         txt('name', name, 300, 298, 'Montserrat', 800, 40, 540, P, { upper: true, ls: 0.12 }) + tagT(338) });
     // 3. Seal beside the name
@@ -1821,8 +1834,8 @@
         '<rect x="252" y="200" width="70" height="5" fill="' + A + '"/>' + txt('name', name, 252, 184, 'DM Serif Display', 400, 72, 330, P, { anchor: 'start' }) + (tag ? txt('tagline', tag, 252, 246, 'Montserrat', 500, 20, 330, P, { ls: 0.16, upper: true, anchor: 'start' }) : '') });
     // 4. Script initial with the name across it
     out.push({ name: 'Script initial', fonts: ['Great Vibes|400', 'Playfair Display|700', 'Montserrat|500'],
-      body: '<text x="290" y="236" text-anchor="middle" font-family="\'Great Vibes\', cursive" font-size="230" fill="' + A + '" opacity="0.9">' + esc(one) + '</text>' +
-        '<rect x="60" y="232" width="480" height="70" fill="' + K + '" opacity="0.85"/>' + txt('name', name, 300, 285, 'Playfair Display', 700, 50, 500, P, { upper: true, ls: 0.06 }) + tagT(338) });
+      body: '<text x="292" y="200" text-anchor="middle" font-family="\'Great Vibes\', cursive" font-size="200" fill="' + A + '">' + esc(one) + '</text>' +
+        txt('name', name, 300, 300, 'Playfair Display', 700, 50, 500, P, { upper: true, ls: 0.06 }) + tagT(342) });
     // 5. Bold block beside the name
     out.push({ name: 'Bold block', fonts: ['Bebas Neue|400', 'Montserrat|500'],
       body: '<rect x="36" y="110" width="180" height="180" rx="22" fill="' + P + '"/><rect x="36" y="262" width="180" height="28" rx="0" fill="' + A + '"/>' + txt('', ini, 126, 250, 'Bebas Neue', 400, 150, 150, A, { ls: 0.02 }) +
@@ -1857,8 +1870,8 @@
     // 10. Swoosh initial: a ring with a gap, a big serif initial and two swooshes through it
     out.push({ name: 'Swoosh initial', fonts: ['Playfair Display|700', 'Montserrat|500'],
       body: '<path d="M366 52 A100 100 0 1 0 392 150" fill="none" stroke="' + A + '" stroke-width="7" stroke-linecap="round"/>' +
-        '<text x="300" y="186" text-anchor="middle" font-family="\'Playfair Display\', serif" font-weight="700" font-size="150" fill="' + P + '">' + esc(one) + '</text>' +
-        '<path d="M160 168 C240 120 330 128 450 104 C360 140 260 150 160 168 Z" fill="' + A + '"/><path d="M190 186 C260 160 340 160 430 136 C350 170 270 176 190 186 Z" fill="' + A + '" opacity="0.7"/>' +
+        '<text x="300" y="186" text-anchor="middle" font-family="\'Playfair Display\', serif" font-weight="700" font-size="150" fill="' + P + '" stroke="' + K + '" stroke-width="8" paint-order="stroke" stroke-linejoin="round">' + esc(one) + '</text>' +
+        '<path d="M160 196 C240 148 330 156 450 132 C360 168 260 178 160 196 Z" fill="' + A + '"/><path d="M190 214 C260 188 340 188 430 164 C350 198 270 204 190 214 Z" fill="' + A + '" opacity="0.7"/>' +
         txt('name', name, 300, 292, 'Montserrat', 800, 40, 520, P, { upper: true, ls: 0.14 }) + tagT(330) });
     // 11. Script signature: the name in flowing script with a small sparkle, tagline in spaced capitals
     out.push({ name: 'Script signature', fonts: ['Great Vibes|400', 'Montserrat|500'],
@@ -2419,7 +2432,14 @@
       h.addEventListener('input', function () { drawSet(); }); l.addEventListener('input', function () { drawSet(); });
       setText.push({ h: h, l: l }); setWords.appendChild(el('div', { class: 'st-bgrow' }, [h, l]));
     })(sn);
-    function setOver(n) { var x = setText[n]; return x && x.h.value.trim() ? { headline: x.h.value.trim(), details: x.l.value.trim() } : null; }
+    // Each post's words: what you typed for it, else the customer's own post list ("Post 1: …"), else that photo's caption.
+    var orderPosts = String(o.words || '').split(/\s*(?:post\s*\d+\s*[:\-–.]|\n)\s*/i).map(function (x) { return tidy(x).replace(/[.\s]+$/, '').trim(); }).filter(function (x) { return x.length > 2; });
+    function setOver(n) {
+      var x = setText[n]; if (x && x.h.value.trim()) return { headline: x.h.value.trim(), details: x.l.value.trim() };
+      if (orderPosts.length > 1 && orderPosts[n]) { var g = guess({ words: orderPosts[n], business: f.business.value }); return { headline: g.headline, details: g.details, offer: g.offer || f.offer.value.trim().toUpperCase() }; }
+      var pi = setOrder()[n], cap = pi != null && state.captions[pi];
+      return cap ? { headline: cap.charAt(0).toUpperCase() + cap.slice(1) } : null;
+    }
     function writeSet() {
       if (!o.ideasApi) { setMsg.textContent = 'Works from the admin page.'; return; }
       var topics = setOrder().map(function (pi) { return (pi != null && state.captions[pi]) || ''; });

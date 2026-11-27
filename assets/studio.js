@@ -1106,6 +1106,7 @@
     ['Montserrat', 500, 'montserrat-latin-500-normal'], ['Montserrat', 800, 'montserrat-latin-800-normal'], ['Montserrat', 900, 'montserrat-latin-900-normal'],
     ['Bebas Neue', 400, 'bebas-neue-latin-400-normal'], ['Great Vibes', 400, 'great-vibes-latin-400-normal'], ['DM Serif Display', 400, 'dm-serif-display-latin-400-normal'],
     ['Oswald', 500, 'oswald-latin-500-normal'], ['Oswald', 700, 'oswald-latin-700-normal'], ['Lora', 500, 'lora-latin-500-normal'], ['Lora', 700, 'lora-latin-700-normal'], ['Fredoka', 600, 'fredoka-latin-600-normal'], ['Fredoka', 700, 'fredoka-latin-700-normal'],
+    ['Cinzel', 600, 'cinzel-latin-600-normal'], ['Cormorant Garamond', 500, 'cormorant-garamond-latin-500-normal'], ['Cormorant Garamond', 600, 'cormorant-garamond-latin-600-normal'],
   ];
   var looksFontsReady = null;
   function loadLookFonts() {
@@ -1549,7 +1550,8 @@
   // ---------- Monogram logos (instant, no AI): the business initials in 6 classic styles ----------
   // Fonts are put inside each SVG, so the PNG download and any phone show them the same.
   var MONO_FONTS = { 'Playfair Display|900': 'playfair-display-latin-900-normal', 'Playfair Display|700': 'playfair-display-latin-700-normal', 'Great Vibes|400': 'great-vibes-latin-400-normal',
-    'Bebas Neue|400': 'bebas-neue-latin-400-normal', 'DM Serif Display|400': 'dm-serif-display-latin-400-normal', 'Montserrat|500': 'montserrat-latin-500-normal', 'Montserrat|800': 'montserrat-latin-800-normal' };
+    'Bebas Neue|400': 'bebas-neue-latin-400-normal', 'DM Serif Display|400': 'dm-serif-display-latin-400-normal', 'Montserrat|500': 'montserrat-latin-500-normal', 'Montserrat|800': 'montserrat-latin-800-normal',
+    'Cinzel|600': 'cinzel-latin-600-normal', 'Cormorant Garamond|600': 'cormorant-garamond-latin-600-normal', 'Cormorant Garamond|500': 'cormorant-garamond-latin-500-normal' };
   var fontData = {};
   function fontB64(key) {
     if (fontData[key]) return fontData[key];
@@ -1576,6 +1578,39 @@
     return '<text' + (id ? ' id="' + id + '"' : '') + ' x="' + x + '" y="' + y + '" text-anchor="' + (opts.anchor || 'middle') + '" font-family="\'' + fam + '\', serif" font-weight="' + wt + '" font-size="' + s + '"' +
       (ls ? ' letter-spacing="' + (ls * s).toFixed(1) + '"' : '') + ' fill="' + fill + '" data-maxw="' + maxW + '" data-size="' + size + '" data-ls="' + ls + '"' + (opts.upper ? ' data-case="upper"' : '') + '>' + esc(up) + '</text>';
   }
+  // ---- More styles: luxury crest, circle stamp, elegant overlap, swoosh initial, script signature, arc seal, star badge ----
+  function n1(v) { return Math.round(v * 10) / 10; }
+  function laurel(cx, cy, R, a0, a1, count, size, fill) {
+    var out = '';
+    for (var i = 0; i < count; i++) {
+      var a = (a0 + (a1 - a0) * i / (count - 1)) * Math.PI / 180, x = cx + R * Math.cos(a), y = cy + R * Math.sin(a);
+      var tang = a * 180 / Math.PI + (a1 > a0 ? 90 : -90), s = size * (0.7 + 0.3 * Math.sin(Math.PI * i / (count - 1)));
+      out += '<ellipse cx="' + n1(x) + '" cy="' + n1(y) + '" rx="' + n1(s) + '" ry="' + n1(s * 0.38) + '" fill="' + fill + '" transform="rotate(' + n1(tang - 35) + ' ' + n1(x) + ' ' + n1(y) + ') translate(' + n1(s * 0.8) + ' 0)"/>';
+      out += '<ellipse cx="' + n1(x) + '" cy="' + n1(y) + '" rx="' + n1(s) + '" ry="' + n1(s * 0.38) + '" fill="' + fill + '" transform="rotate(' + n1(tang + 35) + ' ' + n1(x) + ' ' + n1(y) + ') translate(' + n1(s * 0.8) + ' 0)"/>';
+    }
+    return out + '<path d="M' + n1(cx + R * Math.cos(a0 * Math.PI / 180)) + ' ' + n1(cy + R * Math.sin(a0 * Math.PI / 180)) + ' A' + R + ' ' + R + ' 0 0 ' + (a1 > a0 ? 1 : 0) + ' ' + n1(cx + R * Math.cos(a1 * Math.PI / 180)) + ' ' + n1(cy + R * Math.sin(a1 * Math.PI / 180)) + '" fill="none" stroke="' + fill + '" stroke-width="2.5"/>';
+  }
+  function crown(cx, y, w, fill) {
+    var h = w * 0.55;
+    return '<path d="M' + (cx - w / 2) + ' ' + (y + h) + ' L' + (cx - w / 2) + ' ' + (y + h * 0.3) + ' L' + (cx - w / 4) + ' ' + (y + h * 0.62) + ' L' + cx + ' ' + y + ' L' + (cx + w / 4) + ' ' + (y + h * 0.62) + ' L' + (cx + w / 2) + ' ' + (y + h * 0.3) + ' L' + (cx + w / 2) + ' ' + (y + h) + ' Z" fill="' + fill + '"/>' +
+      '<rect x="' + (cx - w / 2) + '" y="' + (y + h + 3) + '" width="' + w + '" height="' + (h * 0.22) + '" fill="' + fill + '"/>' +
+      [-w / 2, 0, w / 2].map(function (dx, k) { return '<circle cx="' + (cx + dx) + '" cy="' + (k === 1 ? y - 4 : y + h * 0.3 - 4) + '" r="' + (w * 0.07) + '" fill="' + fill + '"/>'; }).join('');
+  }
+  // A scroll flourish: drawn for the right side, mirrored for the left.
+  function flourish(cx, y, len, fill, mirror) {
+    var d = 'M0 0 C' + len * 0.3 + ' ' + (-len * 0.22) + ' ' + len * 0.55 + ' ' + len * 0.2 + ' ' + len * 0.8 + ' 0 C' + len * 0.95 + ' ' + (-len * 0.12) + ' ' + len * 0.86 + ' ' + (-len * 0.3) + ' ' + len * 0.74 + ' ' + (-len * 0.2) +
+      ' C' + len * 0.66 + ' ' + (-len * 0.12) + ' ' + len * 0.74 + ' ' + (-len * 0.02) + ' ' + len * 0.82 + ' ' + (-len * 0.08);
+    return '<path d="' + d + '" fill="none" stroke="' + fill + '" stroke-width="3" stroke-linecap="round" transform="translate(' + cx + ' ' + y + ')' + (mirror ? ' scale(-1 1)' : '') + '"/>' +
+      '<circle cx="0" cy="0" r="3.5" fill="' + fill + '" transform="translate(' + cx + ' ' + y + ')"/>';
+  }
+  // Text around a circle: top (reads left to right over the top) or bottom (reads left to right under).
+  function arcText(id, text, cx, cy, r, top, fam, wt, size, fill, ls, upper) {
+    var up = upper ? String(text).toUpperCase() : String(text), pathId = 'arc-' + Math.random().toString(36).slice(2, 8);
+    var len = Math.PI * r * 0.92, s = fitSize(up, fam, wt, size, len, ls);
+    var d = top ? 'M' + (cx - r) + ' ' + cy + ' A' + r + ' ' + r + ' 0 0 1 ' + (cx + r) + ' ' + cy : 'M' + (cx - r) + ' ' + cy + ' A' + r + ' ' + r + ' 0 0 0 ' + (cx + r) + ' ' + cy;
+    return '<path id="' + pathId + '" d="' + d + '" fill="none"/><text text-anchor="middle"><textPath' + (id ? ' id="' + id + '"' : '') + ' href="#' + pathId + '" startOffset="50%" font-family="\'' + fam + '\', serif" font-weight="' + wt + '" font-size="' + s + '" letter-spacing="' + (ls * s).toFixed(1) + '" fill="' + fill + '" data-maxw="' + n1(len) + '" data-size="' + size + '" data-ls="' + ls + '"' + (upper ? ' data-case="upper"' : '') + '>' + esc(up) + '</textPath></text>';
+  }
+  function star(x, y, r, fill) { var p = ''; for (var i = 0; i < 10; i++) { var a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.42 : r; p += (i ? 'L' : 'M') + n1(x + rr * Math.cos(a)) + ' ' + n1(y + rr * Math.sin(a)); } return '<path d="' + p + 'Z" fill="' + fill + '"/>'; }
   function monoLogos(name, tag, what, P, A) {
     name = String(name || '').trim(); tag = String(tag || '').trim(); what = (String(what || '') + ' ' + name).toLowerCase(); P = P.toLowerCase(); A = A.toLowerCase(); var K = '#fefefd'; // K = "paper": white on light, the main colour on dark
     var ini = initialsOf(name), one = ini.charAt(0), two = ini.charAt(1) || '';
@@ -1613,6 +1648,49 @@
       body: '<rect x="225" y="38" width="150" height="150" fill="none" stroke="' + A + '" stroke-width="5" transform="rotate(45 300 113)"/><rect x="243" y="56" width="114" height="114" fill="' + P + '" transform="rotate(45 300 113)"/>' +
         txt('', ini, 300, 140, 'DM Serif Display', 400, 74, 110, A) + '<line x1="120" y1="262" x2="200" y2="262" stroke="' + A + '" stroke-width="3"/><line x1="400" y1="262" x2="480" y2="262" stroke="' + A + '" stroke-width="3"/>' +
         txt('name', name, 300, 312, 'DM Serif Display', 400, 54, 520, P, { upper: true, ls: 0.08 }) + tagT(352) });
+    var two2 = ini.length > 1 ? ini : one;
+    // 7. Luxury crest: crown, laurel wreath round the initials, scroll flourishes, rules, name in spaced capitals
+    out.push({ name: 'Luxury crest', fonts: ['Cinzel|600', 'Cormorant Garamond|600', 'Montserrat|500'],
+      body: crown(300, 22, 34, A) + laurel(300, 124, 70, 110, 250, 9, 14, A) + laurel(300, 124, 70, 70, -70, 9, 14, A) +
+        txt('', two2, 300, 146, 'Cormorant Garamond', 600, 70, 104, A) +
+        flourish(386, 176, 110, A) + flourish(214, 176, 110, A, true) +
+        '<rect x="110" y="210" width="380" height="2.5" fill="' + A + '"/><rect x="110" y="216" width="380" height="1" fill="' + A + '"/>' +
+        txt('name', name, 300, 264, 'Cinzel', 600, 46, 520, A, { upper: true, ls: 0.16 }) +
+        (tag ? txt('tagline', tag, 300, 296, 'Montserrat', 500, 19, 400, A, { upper: true, ls: 0.22 }) : '') +
+        '<rect x="200" y="' + (tag ? 312 : 284) + '" width="200" height="1.5" fill="' + A + '"/>' + flourish(300, tag ? 340 : 312, 90, A) + flourish(300, tag ? 340 : 312, 90, A, true) });
+    // 8. Circle stamp: the name round a double ring, the initials in the middle
+    out.push({ name: 'Circle stamp', fonts: ['Cormorant Garamond|500', 'Montserrat|500'],
+      body: '<circle cx="300" cy="200" r="178" fill="none" stroke="' + P + '" stroke-width="2.5"/><circle cx="300" cy="200" r="118" fill="none" stroke="' + P + '" stroke-width="1.5"/>' +
+        arcText('name', name, 300, 200, 148, true, 'Montserrat', 500, 30, P, 0.3, true) + arcText('', tag || name, 300, 200, 160, false, 'Montserrat', 500, 30, P, 0.3, true) +
+        '<circle cx="152" cy="200" r="4" fill="' + A + '"/><circle cx="448" cy="200" r="4" fill="' + A + '"/>' +
+        '<text x="' + (two ? 282 : 300) + '" y="218" text-anchor="middle" font-family="\'Cormorant Garamond\', serif" font-weight="500" font-size="120" fill="' + P + '">' + esc(one) + '</text>' +
+        (two ? '<text x="322" y="262" text-anchor="middle" font-family="\'Cormorant Garamond\', serif" font-weight="500" font-size="120" fill="' + A + '">' + esc(two) + '</text>' : '') });
+    // 9. Elegant overlap: two tall thin letters overlapping, name in small spaced capitals
+    out.push({ name: 'Elegant overlap', fonts: ['Cormorant Garamond|500', 'Montserrat|500'],
+      body: '<text x="' + (two ? 270 : 300) + '" y="220" text-anchor="middle" font-family="\'Cormorant Garamond\', serif" font-weight="500" font-size="240" fill="' + P + '">' + esc(one) + '</text>' +
+        (two ? '<text x="330" y="220" text-anchor="middle" font-family="\'Cormorant Garamond\', serif" font-weight="500" font-size="240" fill="' + A + '" opacity="0.95">' + esc(two) + '</text>' : '') +
+        txt('name', name, 300, 300, 'Montserrat', 500, 30, 500, P, { upper: true, ls: 0.3 }) + (tag ? txt('tagline', tag, 300, 336, 'Montserrat', 500, 16, 360, A, { upper: true, ls: 0.3 }) : '') });
+    // 10. Swoosh initial: a ring with a gap, a big serif initial and two swooshes through it
+    out.push({ name: 'Swoosh initial', fonts: ['Playfair Display|700', 'Montserrat|500'],
+      body: '<path d="M366 52 A100 100 0 1 0 392 150" fill="none" stroke="' + A + '" stroke-width="7" stroke-linecap="round"/>' +
+        '<text x="300" y="186" text-anchor="middle" font-family="\'Playfair Display\', serif" font-weight="700" font-size="150" fill="' + P + '">' + esc(one) + '</text>' +
+        '<path d="M160 168 C240 120 330 128 450 104 C360 140 260 150 160 168 Z" fill="' + A + '"/><path d="M190 186 C260 160 340 160 430 136 C350 170 270 176 190 186 Z" fill="' + A + '" opacity="0.7"/>' +
+        txt('name', name, 300, 292, 'Montserrat', 800, 40, 520, P, { upper: true, ls: 0.14 }) + tagT(330) });
+    // 11. Script signature: the name in flowing script with a small sparkle, tagline in spaced capitals
+    out.push({ name: 'Script signature', fonts: ['Great Vibes|400', 'Montserrat|500'],
+      body: star(300, 92, 16, A) + star(272, 108, 7, A) + star(328, 108, 7, A) +
+        txt('name', name, 300, 222, 'Great Vibes', 400, 104, 540, P) +
+        '<rect x="230" y="252" width="140" height="2" fill="' + A + '"/>' + (tag ? txt('tagline', tag, 300, 292, 'Montserrat', 500, 20, 460, P, { upper: true, ls: 0.3 }) : '') });
+    // 12. Arc seal: initials in a thin ring with the name round the top and fine waves at the bottom
+    var waves = ''; for (var wv = 0; wv < 6; wv++) waves += '<path d="M200 ' + (296 + wv * 6) + ' C250 ' + (276 + wv * 6) + ' 300 ' + (316 + wv * 6) + ' 400 ' + (290 + wv * 6) + '" fill="none" stroke="' + A + '" stroke-width="1.6" opacity="' + (1 - wv * 0.12) + '"/>';
+    out.push({ name: 'Arc seal', fonts: ['Cormorant Garamond|600', 'Montserrat|500'],
+      body: '<circle cx="300" cy="200" r="150" fill="none" stroke="' + A + '" stroke-width="3"/>' + arcText('name', name, 300, 200, 124, true, 'Montserrat', 500, 26, P, 0.3, true) +
+        txt('', ini, 300, 238, 'Cormorant Garamond', 600, 120, 200, A, { ls: -0.02 }) + waves });
+    // 13. Star badge: a thick ring with the name on top, tagline below, stars at the sides, initial in the middle
+    out.push({ name: 'Star badge', fonts: ['Cinzel|600', 'Montserrat|800'],
+      body: '<circle cx="300" cy="200" r="186" fill="' + P + '"/><circle cx="300" cy="200" r="178" fill="none" stroke="' + A + '" stroke-width="3"/><circle cx="300" cy="200" r="126" fill="' + K + '"/><circle cx="300" cy="200" r="120" fill="none" stroke="' + A + '" stroke-width="2"/>' +
+        arcText('name', name, 300, 200, 146, true, 'Cinzel', 600, 34, A, 0.12, true) + (tag ? arcText('tagline', tag, 300, 200, 162, false, 'Cinzel', 600, 24, A, 0.2, true) : star(300, 356, 9, A) + star(270, 350, 6, A) + star(330, 350, 6, A)) +
+        star(140, 200, 11, A) + star(460, 200, 11, A) + txt('', one, 300, 248, 'Cinzel', 600, 140, 180, A) });
     var keys = []; out.forEach(function (l) { l.fonts.forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k); }); });
     return Promise.all(keys.map(fontB64)).then(function (b64) {
       var face = {}; keys.forEach(function (k, i) { var p = k.split('|'); face[k] = '@font-face{font-family:\'' + p[0] + '\';font-weight:' + p[1] + ';src:url(data:font/woff2;base64,' + b64[i] + ') format(\'woff2\');}'; });
@@ -1711,7 +1789,7 @@
     var logoOut = el('div', { class: 'st-logos' }), logoMsg = el('p', { class: 'admin-hint' });
     var logos = [];
     var logoBtn = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '✨ Make 3 logo ideas', onclick: function () { makeLogos(); } });
-    var monoBtn = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '🔤 6 monogram logos (instant)', onclick: function () { makeMono(); } });
+    var monoBtn = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '🔤 13 monogram logos (instant)', onclick: function () { makeMono(); } });
     var logoBox = el('details', { class: 'st-logobox' }, [
       el('summary', { text: '✨ Logo ideas' }),
       el('p', { class: 'admin-hint', text: 'Uses the business name above and the colours you picked. 🔤 Monogram logos are instant: their initials (e.g. GS for Glameenah Scents) in 6 styles, with a perfume bottle, crest or seal to suit the business. ✨ AI makes 3 original logos with a small icon. Change the name, tagline or colours and they update. Download as SVG (sharp at any size) or PNG.' }),
@@ -2014,7 +2092,7 @@
       [preview, thumbs, dl].forEach(function (x) { if (x) x.hidden = true; });
       [].forEach.call(panel.children, function (ch) { if (!(ch.tagName === 'H2' || ch === logoBox || ch === status || ch.contains(f.business) || ch.contains(themeRow))) ch.hidden = true; });
       var left = logoOut.parentNode;
-      left.insertBefore(el('p', { class: 'admin-hint st-logohint', text: '🔤 Logo order: 6 monogram logos from their initials are below (✨ AI further down makes 3 more with an icon; the colours are there too). Pick the best, download PNG/SVG, or send them straight to the customer.' }), left.firstChild);
+      left.insertBefore(el('p', { class: 'admin-hint st-logohint', text: '🔤 Logo order: 13 monogram logos from their initials are below (✨ AI further down makes 3 more with an icon; the colours are there too). Pick the best, download PNG/SVG, or send them straight to the customer.' }), left.firstChild);
       left.insertBefore(logoMsg, left.children[1]); left.insertBefore(logoOut, left.children[2]);
       logoBox.open = true;
       if (!likedMono) setTimeout(function () { makeMono(); }, 400);

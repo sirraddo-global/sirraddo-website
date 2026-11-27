@@ -1,4 +1,6 @@
 /* Admin page (admin.html) */
+/* Anything marked hidden stays hidden, whatever display a class gives it. */
+[hidden] { display: none !important; }
 .admin { background: var(--bg-soft); }
 .admin-bar { background: var(--navy); color: var(--white); border-bottom: 3px solid var(--gold); }
 .admin-bar-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; }

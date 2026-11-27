@@ -290,8 +290,9 @@
     };
   })();
   // ---------- Live preview: 3 rough drafts that update as they type ----------
-  var pvBox = $('ds-preview'), pvRow = $('ds-preview-row'), pvTimer = null, pickedLook = '';
+  var pvBox = $('ds-preview'), pvRow = $('ds-preview-row'), pvTimer = null, pickedLook = '', pvRun = 0;
   function previewNow() {
+    var run = ++pvRun; // a slower, older draw must never show after the service changed
     if (!pvBox || !window.SirStudio || !window.SirStudio.preview) return;
     var o = sel.options[sel.selectedIndex], key = (o && o.getAttribute('data-svc')) || '';
     if (!key || key === 'logo' || key === 'brand' || key === 'custom') { pvBox.hidden = true; pickedLook = ''; return; }
@@ -302,6 +303,8 @@
     var szv = $('ds-size') ? $('ds-size').value : '';
     window.SirStudio.preview({ size: /status/.test(szv) ? 'status' : /square/.test(szv) ? 'square' : 'post', kind: key === 'card' ? 'card' : '', service: sel.value, words: words, business: $('ds-business').value.trim(), contact: info.phone || $('ds-contact').value,
       colours: $('ds-colours').value, info: info, photos: files }, 260).then(function (cvs) {
+      if (run !== pvRun) return;
+      if (!cvs || !cvs.length) { pvBox.hidden = true; return; }
       pvRow.innerHTML = '';
       cvs.forEach(function (cv, i) {
         var label = 'Look ' + (i + 1) + ': ' + cv.title;
@@ -314,7 +317,7 @@
       });
       var note = $('ds-pv-note'); if (note) note.textContent = pickedLook ? '👍 Got it: we\'ll start from ' + pickedLook.replace(/^Look \d+: /, '') + ' and polish it with your photos.' : 'Tap the look you like best (optional).';
       pvBox.hidden = false;
-    }).catch(function () { pvBox.hidden = true; });
+    }).catch(function () { if (run === pvRun) pvBox.hidden = true; });
   }
   function previewSoon() { clearTimeout(pvTimer); pvTimer = setTimeout(previewNow, 700); }
   form.addEventListener('input', previewSoon); form.addEventListener('change', previewSoon);

@@ -295,7 +295,9 @@
     var run = ++pvRun; // a slower, older draw must never show after the service changed
     if (!pvBox || !window.SirStudio || !window.SirStudio.preview) return;
     var o = sel.options[sel.selectedIndex], key = (o && o.getAttribute('data-svc')) || '';
-    if (!key || key === 'logo' || key === 'brand' || key === 'custom') { pvBox.hidden = true; pickedLook = ''; return; }
+    if (!key || key === 'custom') { pvBox.hidden = true; pickedLook = ''; return; }
+    if (key === 'logo' || key === 'brand') return logoPreview(run);
+    pvText(false);
     var info = {}; ['sell', 'person', 'title', 'phone', 'bizmail', 'web', 'address', 'socials'].forEach(function (k) { var x = $('ds-' + k); if (x && !x.closest('[hidden]') && x.value.trim()) info[k] = x.value.trim(); });
     info.email = info.bizmail;
     var words = $('ds-words').value.trim();
@@ -316,6 +318,33 @@
         pvRow.appendChild(f);
       });
       var note = $('ds-pv-note'); if (note) note.textContent = pickedLook ? '👍 Got it: we\'ll start from ' + pickedLook.replace(/^Look \d+: /, '') + ' and polish it with your photos.' : 'Tap the look you like best (optional).';
+      pvBox.hidden = false;
+    }).catch(function () { if (run === pvRun) pvBox.hidden = true; });
+  }
+  var PV_TEXT = [$('ds-pv-title') && $('ds-pv-title').textContent, $('ds-pv-tip') && $('ds-pv-tip').textContent];
+  function pvText(logo) {
+    if ($('ds-pv-title')) $('ds-pv-title').textContent = logo ? '🔤 Logo starting ideas from your initials' : PV_TEXT[0];
+    if ($('ds-pv-tip')) $('ds-pv-tip').textContent = logo ? 'Quick ideas made from your business name. Tap any you like (optional): your designer uses them as a starting point and designs your logo properly, with your colours and an icon that suits your business.' : PV_TEXT[1];
+  }
+  // Logo and brand kit orders: 6 monogram ideas from the business name and colours.
+  function logoPreview(run) {
+    var name = $('ds-business').value.trim();
+    if (name.length < 2 || !window.SirStudio.monograms) { pvBox.hidden = true; return; }
+    pvText(true);
+    var what = [$('ds-words').value, $('ds-sell') ? $('ds-sell').value : ''].join(' ');
+    window.SirStudio.monograms(name, what, $('ds-colours').value).then(function (list) {
+      if (run !== pvRun) return;
+      pvRow.innerHTML = '';
+      list.forEach(function (l, i) {
+        var label = 'Logo idea ' + (i + 1) + ': ' + l.name;
+        var f = document.createElement('button'); f.type = 'button'; f.className = 'ds-pv ds-pv--logo' + (pickedLook === label ? ' is-on' : ''); f.setAttribute('aria-pressed', pickedLook === label);
+        var img = document.createElement('img'); img.alt = label; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(l.svg.split(l.paper).join('#ffffff')); f.appendChild(img);
+        var cap = document.createElement('span'); cap.className = 'ds-pv-cap'; cap.textContent = label; f.appendChild(cap);
+        var pick = document.createElement('span'); pick.className = 'ds-pv-pick'; pick.textContent = pickedLook === label ? '✓ Your choice' : 'I like this one'; f.appendChild(pick);
+        f.addEventListener('click', function () { pickedLook = pickedLook === label ? '' : label; previewNow(); });
+        pvRow.appendChild(f);
+      });
+      var note = $('ds-pv-note'); if (note) note.textContent = pickedLook ? '👍 Got it: your designer will start from ' + pickedLook.replace(/^Logo idea \d+: /, '') + '.' : 'Tap the one you like best (optional).';
       pvBox.hidden = false;
     }).catch(function () { if (run === pvRun) pvBox.hidden = true; });
   }

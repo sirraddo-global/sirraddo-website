@@ -120,6 +120,15 @@ PAGES = [
                ("How long does it take?", "Usually 7 working days after we receive your completed project form, logo and photos.")]),
 ]
 
+# Per page: the 3rd card renamed for the industry, and a note under Starter where it only suits a small promo.
+TAILOR = {
+  "school-websites-nigeria": {"third": ("School Pro", "from ₦150,000", "Everything in Business, plus online payments: admission form fees and school fees paid by card or transfer into your own Paystack account, with a receipt for every payment, links to your result checker or school portal, and WhatsApp.")},
+  "real-estate-websites-nigeria": {"starter": "Best for one estate or a one-page promo.", "third": ("Property Portal Pro", "from ₦150,000", "Everything in Business, plus listings you add and update yourself from your phone (no limit), agent profiles, and WhatsApp inspection booking on every property.")},
+  "ecommerce-online-store-nigeria": {"starter": "A simple catalogue: your products with Order on WhatsApp buttons, no checkout.", "business": "A bigger catalogue with WhatsApp ordering, Google listing and a monthly visitor report, no checkout.", "third": ("Online Store with Paystack", "from ₦150,000", "Shopping cart, card, transfer or pay-on-delivery checkout into your own Paystack account, your own store admin and orders on WhatsApp. Large catalogues are quoted.")},
+  "clinic-hospital-websites-nigeria": {"third": ("Online Store", "from ₦150,000", "Shopping cart, online payments, your own store admin and orders on WhatsApp. Ideal for pharmacies taking online orders and payments.")},
+  "hotel-websites-nigeria": {"starter": "Best for a single short-let apartment (1 page).", "third": ("Direct Booking + Paystack", "from ₦150,000", "Everything in Business, plus guests pay for their booking online by card or transfer into your own Paystack account, with a receipt for every booking. You confirm dates on WhatsApp.")},
+  "filling-station-websites-nigeria": {"third": ("Gas Delivery & Multi-Branch Pro", "from ₦150,000", "Everything in Business, plus customers order and pay online for cooking gas refills and cylinders into your own Paystack account, a page and price board for each branch, and orders sent to WhatsApp for dispatch.")},
+}
 PKGS = [("Starter", "₦50,000", "Up to 5 pages, .com.ng domain, hosting, SSL and 1 business email for the first year."),
         ("Business", "₦100,000", "Up to 10 pages, 5 business emails, Google Business Profile setup and a monthly visitor report."),
         ("Online Store", "from ₦150,000", "Shopping cart, online payments, your own store admin and orders on WhatsApp.")]
@@ -151,9 +160,19 @@ def page(p):
     else:
         sample = f'<div class="ind-phone"><div class="ind-screen"><img src="{src}" alt="{html.escape(alt)}" width="390" height="780" loading="lazy"></div></div>'
         note = '<p class="sc-note"><a href="https://sirraddodemo.com.ng" target="_blank" rel="noopener">Try the demo store yourself ↗</a></p>'
-    feats = "\n".join(f"            <li><b>{a}</b>{b}</li>" for a, b in p["feats"])
-    pk = "\n".join(f'          <article class="{"is-pick" if n == p["pick"] else ""}"><h3>{n}</h3><p class="price">{pr}</p><p>{x}</p></article>' for n, pr, x in PKGS)
-    faq = "\n".join(f"          <details><summary>{html.escape(q)}</summary><p>{html.escape(a)}</p></details>" for q, a in p["faqs"])
+    feats = "\n".join(f"            <li><b>{a}</b> {b}</li>" for a, b in p["feats"])
+    tl = TAILOR.get(p["slug"], {})
+    cards = []
+    for k, (n, pr, x) in enumerate(PKGS):
+        if k == 2 and tl.get("third"): n, pr, x = tl["third"]
+        if k == 0 and tl.get("starter"): x = x + " " + tl["starter"]
+        if k == 1 and tl.get("business"): x = tl["business"] + " " + x
+        pick = (k == 0 and p["pick"] == "Starter") or (k == 1 and p["pick"] == "Business") or (k == 2 and p["pick"] == "Online Store")
+        badge = '<span class="ind-badge">Recommended</span>' if pick else ""
+        cards.append(f'          <article class="{"is-pick" if pick else ""}">{badge}<h3>{html.escape(n)}</h3><p class="price">{pr}</p><p>{html.escape(x)}</p></article>')
+    pk = "\n".join(cards)
+    def link(a): return html.escape(a).replace("sirraddodemo.com.ng", '<a href="https://sirraddodemo.com.ng" target="_blank" rel="noopener">sirraddodemo.com.ng<span class="visually-hidden"> (opens in a new tab)</span></a>')
+    faq = "\n".join(f"          <details><summary>{html.escape(q)}</summary><p>{link(a)}</p></details>" for q, a in p["faqs"])
     others = "".join(f'<a href="/{s}">{n}</a>' for s, n in OTHERS if s != p["slug"])
     body = f'''<main id="main">
     <section class="hero ind-hero" aria-labelledby="hero-title">

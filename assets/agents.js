@@ -29,6 +29,9 @@
   function showProgramme(p) {
     $$('[data-rate]').forEach(function (n) { n.textContent = p.rate; });
     $$('[data-min]').forEach(function (n) { n.textContent = naira(p.min); });
+    // The real levels from the admin settings (Silver, Gold…)
+    var names = ['Silver agent', 'Gold agent', 'Platinum agent', 'Diamond agent'], lv = document.querySelector('[data-levels]');
+    if (lv && p.tiers) lv.innerHTML = p.tiers.length ? 'Levels: bring more paying clients and your % goes up for every client after that: ' + p.tiers.map(function (t, i) { return '<b>' + names[i] + '</b> from your ' + t.clients + (t.clients % 10 === 1 && t.clients !== 11 ? 'st' : t.clients % 10 === 2 && t.clients !== 12 ? 'nd' : t.clients % 10 === 3 && t.clients !== 13 ? 'rd' : 'th') + ' paying client earns <b>' + t.rate + '%</b>'; }).join(', ') + '. Your level and what you need for the next one are on your dashboard.' : 'Everyone earns the same ' + p.rate + '% on every client.';
     $$('[data-earn]').forEach(function (n) { var v = naira(Number(n.getAttribute('data-earn')) * p.rate / 100); n.textContent = n.hasAttribute('data-from') ? 'from ' + v : v; });
   }
   var by = (new URLSearchParams(location.search).get('by') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 20);

@@ -3930,6 +3930,19 @@
       });
     } });
     box.appendChild(el('div', { class: 'admin-pay-form' }, [amount, date, kind, note, refundLabel, autoLabel, add]));
+    // "I paid online but it isn't showing": look it up on Paystack and record it (their receipt goes out by itself).
+    var psRef = el('input', { type: 'text', placeholder: 'Paystack reference (optional, starts SGL…)', 'aria-label': 'Paystack reference' });
+    var psOut = el('p', { class: 'admin-hint', role: 'status' });
+    var psBtn = el('button', { class: 'admin-btn', type: 'button', text: '🔎 Paid online but not showing? Check Paystack', onclick: function () {
+      psBtn.disabled = true; psOut.textContent = 'Checking Paystack…';
+      api('POST', { action: 'paystack_sync', ref: psRef.value.trim() }).then(function (j) {
+        if (j.added.length) {
+          psOut.textContent = '✅ Found and recorded: ' + j.added.map(function (x) { return naira(x.amount) + ' from ' + x.name + ' (' + x.ref + ')'; }).join('; ') + '. Receipts were emailed.';
+          state.requests = null; setTab(state.tab);
+        } else psOut.textContent = 'Nothing missing: every successful Paystack payment ' + (psRef.value.trim() ? 'with that reference' : 'in the last 30 days') + ' is already recorded. Ask the customer for the reference on their Paystack receipt, or record a bank transfer above.';
+      }).catch(function (e) { psOut.textContent = e.message; }).then(function () { psBtn.disabled = false; });
+    } });
+    box.appendChild(el('div', { class: 'admin-pay-check' }, [psRef, psBtn, psOut]));
     return box;
   }
 

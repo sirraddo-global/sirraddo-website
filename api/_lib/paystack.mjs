@@ -76,6 +76,23 @@ export async function verifyPayment(ref) {
   return call(`/transaction/verify/${encodeURIComponent(ref)}`);
 }
 
+// Find successful Paystack payments for our orders that were never recorded (the customer closed the page and the
+// webhook didn't arrive) and record them now. Safe to run any time: a payment already recorded is skipped.
+// ref: check just this one Paystack reference.
+export async function syncPayments({ days = 7, ref = "" } = {}) {
+  if (!paystackConfigured()) throw new Error("Paystack isn't set up yet (Admin → Settings → Keys).");
+  const txs = ref ? [await verifyPayment(String(ref).trim())] : (await call(`/transaction?status=success&perPage=100&from=${new Date(Date.now() - days * 86400000).toISOString()}`)) || [];
+  const out = { checked: 0, added: [], notOurs: 0 };
+  for (const tx of txs) {
+    if (!tx || !/^SGL\d+-/.test(tx.reference || "")) { out.notOurs++; continue; }
+    out.checked++;
+    const r = await recordPayment(tx).catch((e) => { console.error("sync record failed", tx.reference, e); return null; });
+    if (r?.added) out.added.push({ id: r.row.id, name: r.row.name, ref: tx.reference, amount: Math.round(Number(tx.amount) / 100) });
+  }
+  if (ref && !out.checked) throw new Error(txs[0]?.status && txs[0].status !== "success" ? "That payment is not successful on Paystack (" + txs[0].status + ")." : "That reference isn't one of our order payments (ours start with SGL).");
+  return out;
+}
+
 // Paystack signs each webhook with HMAC-SHA512 of the raw body using your secret key.
 export function validSignature(raw, signature) {
   if (!paystackConfigured() || !signature) return false;

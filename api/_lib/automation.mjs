@@ -262,6 +262,11 @@ export async function runDaily(now = new Date(), { once = false } = {}) {
   const all = await listRequests(5000);
   const isOpen = (r) => r.status !== "won" && r.status !== "lost";
   const report = { emailed: false, customerEmails: 0, siteChecks: 0 };
+  // 0. Paystack payments that were never recorded (page closed, webhook missed): record them before anything else.
+  try {
+    const ps = await import("./paystack.mjs");
+    if (ps.paystackConfigured()) { const s = await ps.syncPayments({ days: 3 }); report.paystackRecovered = s.added.length; if (s.added.length) all.splice(0, all.length, ...(await listRequests(5000))); }
+  } catch (e) { console.error("paystack sync failed", e); }
 
   // 1. New in the last day
   const fresh = all.filter((r) => Date.parse(r.created_at) > now.getTime() - 86400000);

@@ -41,8 +41,25 @@
   function lum(hex) { var h = hex.replace('#', ''); var r = parseInt(h.substr(0, 2), 16), g = parseInt(h.substr(2, 2), 16), b = parseInt(h.substr(4, 2), 16); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
   function onColour(hex) { return lum(hex) > 0.6 ? '#111827' : '#FFFFFF'; }
   function rr(c, x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+  // No photo yet: a soft panel in the design's colours with an icon that suits the business, instead of an empty box.
+  var PHT = null; // { t: theme, icon: 'cake', label: true }
+  function photoSpot(c, x, y, w, h) {
+    if (!PHT || !window.Path2D) { c.fillStyle = 'rgba(255,255,255,.15)'; c.fillRect(x, y, w, h); return; }
+    var t = PHT.t, g = c.createLinearGradient(x, y, x + w, y + h);
+    g.addColorStop(0, mixHex(t.light || '#ffffff', '#ffffff', 0.3)); g.addColorStop(1, mixHex(t.light || '#ffffff', t.accent, 0.28));
+    c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip(); c.fillStyle = g; c.fillRect(x, y, w, h);
+    var step = Math.max(14, Math.min(w, h) / 9); c.fillStyle = mixHex(t.accent, '#ffffff', 0.35); c.globalAlpha = 0.35;
+    for (var yy = y + step / 2; yy < y + h; yy += step) for (var xx = x + ((yy - y) / step % 2 ? step : step / 2); xx < x + w; xx += step * 2) { c.beginPath(); c.arc(xx, yy, Math.max(1.2, step * 0.07), 0, Math.PI * 2); c.fill(); }
+    c.globalAlpha = 1;
+    var ic = LOGO_ICONS[PHT.icon] || LOGO_ICONS.sparkle, sz = Math.min(w, h) * 0.42, k = sz / 100, cx = x + w / 2, cy = y + h / 2 - (PHT.label ? sz * 0.12 : 0);
+    c.translate(cx - sz / 2, cy - sz / 2); c.scale(k, k); c.lineCap = 'round'; c.lineJoin = 'round';
+    var path = new Path2D(ic.d); c.strokeStyle = t.bg; c.fillStyle = t.bg; c.globalAlpha = 0.55;
+    if (ic.s) c.fill(path, 'evenodd'); else { c.lineWidth = 5; c.stroke(path); }
+    c.restore();
+    if (PHT.label && w > 90) { c.save(); c.font = '600 ' + Math.max(10, Math.min(w, h) * 0.06) + 'px ' + FONT; c.fillStyle = t.bg; c.globalAlpha = 0.6; c.textAlign = 'center'; c.fillText('Your photo here', cx, cy + sz * 0.72); c.restore(); }
+  }
   function cover(c, img, x, y, w, h, fy) {
-    if (!img) { c.fillStyle = 'rgba(255,255,255,.15)'; c.fillRect(x, y, w, h); return; }
+    if (!img) { photoSpot(c, x, y, w, h); return; }
     if (img.__cut) { // background removed: show the whole product, centred, with a soft glow and shadow
       c.save(); c.beginPath(); c.rect(x, y, w, h); c.clip();
       var gl = c.createRadialGradient(x + w / 2, y + h * 0.55, 0, x + w / 2, y + h * 0.55, Math.max(w, h) * 0.6);
@@ -153,7 +170,7 @@
     // A discount mentioned lower down becomes the badge ("15 percent discount" → 15% OFF).
     rest = rest.map(function (l) { return l.replace(/(\d{1,2})\s*(?:%|per\s*cent|percent)\s*(?:off|discount)/i, '$1% off'); });
     if (!pct && !offer) { var pm = rest.join(' ').match(/(\d{1,2})% off/i); if (pm) offer = pm[1] + '% OFF'; }
-    return { business: biz, headline: headline, details: rest.slice(0, 3).join('\n'), offer: offer.replace(/\s+/g, ' ').toUpperCase(), contact: phone ? 'Call / WhatsApp: ' + phone : '' };
+    return { business: biz, headline: headline, details: rest.slice(0, 3).join('\n'), offer: offer.replace(/\s+/g, ' ').toUpperCase(), contact: phone ? (/invit|wedding|birthday party|burial|naming/i.test(String(o.service || o.interest || '')) ? 'RSVP: ' : 'Call / WhatsApp: ') + phone : '' };
   }
   function themeFrom(colours) {
     var found = [];
@@ -1565,6 +1582,33 @@
     place(front, W * 0.42, H * 0.6, -0.08, 0.9);
     return cv;
   }
+  // Seasonal packs: their own colours on one draft, the season's colours on the others, and a small seasonal mark.
+  var SEASONS = {
+    xmas: { re: /christmas|xmas|new year/i, themes: [{ name: 'Christmas red', bg: '#8B0000', accent: '#FFD166', light: '#FFF7EB' }, { name: 'Christmas green', bg: '#0F4D2E', accent: '#E9C46A', light: '#F4FAF6' }] },
+    sallah: { re: /ramadan|sallah|eid/i, themes: [{ name: 'Eid green', bg: '#0B5D3B', accent: '#E9C46A', light: '#F3FAF6' }, { name: 'Ramadan night', bg: '#1B2A4A', accent: '#D4AF37', light: '#F7F5EE' }] },
+    easter: { re: /easter/i, themes: [{ name: 'Easter purple', bg: '#5B3F8F', accent: '#F7C948', light: '#FBF7FF' }, { name: 'Easter spring', bg: '#2F6B4F', accent: '#F4A7B9', light: '#F6FBF8' }] },
+    independence: { re: /independence|october 1|1st october/i, themes: [{ name: 'Naija green', bg: '#008751', accent: '#E9C46A', light: '#F2FAF6' }, { name: 'Green & white', bg: '#0B3D2A', accent: '#7FD1A8', light: '#F2FAF6' }] },
+  };
+  function seasonOf(text) { for (var k in SEASONS) if (SEASONS[k].re.test(String(text || ''))) return k; return ''; }
+  function seasonMark(c, W, H, k, t) {
+    if (!k) return; var u = Math.min(W, H) / 1080; c.save();
+    if (k === 'xmas') {
+      c.strokeStyle = '#FFFFFF'; c.globalAlpha = 0.55; c.lineWidth = 3 * u; c.lineCap = 'round';
+      [[0.08, 0.1, 26], [0.9, 0.16, 20], [0.85, 0.05, 14], [0.15, 0.24, 12], [0.93, 0.32, 10]].forEach(function (f) { var x = W * f[0], y = H * f[1], r = f[2] * u; for (var a = 0; a < 3; a++) { var an = a * Math.PI / 3; c.beginPath(); c.moveTo(x - Math.cos(an) * r, y - Math.sin(an) * r); c.lineTo(x + Math.cos(an) * r, y + Math.sin(an) * r); c.stroke(); } });
+      c.globalAlpha = 1; var bx = W - 120 * u, by = 0; c.strokeStyle = t.accent; c.lineWidth = 2 * u; c.beginPath(); c.moveTo(bx, by); c.lineTo(bx, 70 * u); c.stroke();
+      c.fillStyle = t.accent; c.beginPath(); c.arc(bx, 96 * u, 26 * u, 0, Math.PI * 2); c.fill(); c.fillRect(bx - 9 * u, 64 * u, 18 * u, 10 * u);
+      c.fillStyle = 'rgba(255,255,255,.35)'; c.beginPath(); c.arc(bx - 9 * u, 88 * u, 7 * u, 0, Math.PI * 2); c.fill();
+    } else if (k === 'sallah') {
+      var mx = W - 120 * u, my = 120 * u, r = 54 * u; c.fillStyle = t.accent;
+      c.save(); c.beginPath(); c.arc(mx, my, r, 0, Math.PI * 2); c.clip(); c.beginPath(); c.arc(mx, my, r, 0, Math.PI * 2); c.arc(mx + r * 0.42, my - r * 0.2, r * 0.86, 0, Math.PI * 2, true); c.fill('evenodd'); c.restore();
+      [[mx - r * 1.5, my + r * 0.9, 12], [mx + r * 0.6, my + r * 1.4, 9], [mx - r * 2.2, my - r * 0.4, 7]].forEach(function (s) { c.beginPath(); for (var i = 0; i < 10; i++) { var a = -Math.PI / 2 + i * Math.PI / 5, rr = (i % 2 ? 0.42 : 1) * s[2] * u; c.lineTo(s[0] + rr * Math.cos(a), s[1] + rr * Math.sin(a)); } c.closePath(); c.fill(); });
+    } else if (k === 'easter') {
+      [[W - 110 * u, 110 * u, '#F4A7B9'], [W - 175 * u, 140 * u, t.accent], [W - 60 * u, 165 * u, '#9ED9C4']].forEach(function (e) { c.fillStyle = e[2]; c.beginPath(); c.ellipse(e[0], e[1], 26 * u, 34 * u, 0, 0, Math.PI * 2); c.fill(); c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 3 * u; c.beginPath(); c.moveTo(e[0] - 22 * u, e[1]); c.quadraticCurveTo(e[0], e[1] - 8 * u, e[0] + 22 * u, e[1]); c.stroke(); });
+    } else if (k === 'independence') {
+      var bw = 26 * u; c.fillStyle = '#008751'; c.fillRect(0, 0, bw, H); c.fillRect(W - bw, 0, bw, H); c.fillStyle = '#FFFFFF'; c.fillRect(bw, 0, 6 * u, H); c.fillRect(W - bw - 6 * u, 0, 6 * u, H);
+    }
+    c.restore();
+  }
   // ---------- Quick preview for the public order form: 3 small drafts from what the customer typed ----------
   var prevCache = {};
   function previewDesigns(o, width) {
@@ -1586,20 +1630,27 @@
       var list = mode === 'menu' ? MENU_LAYOUTS : mode === 'card' ? CARD_PREVIEW : null;
       var looks = suggestLooks([o.business, o.words, inf.sell, o.service].join(' ')), custom = themeFrom(o.colours), pt = custom ? null : photoTheme(photos[0]);
       list = list || promoList(looks); d.contact = withPlace(d.contact, d.place); d.special = inf.sell || ''; d.services = (inf.sell || '').split(/,|\band\b/).map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4);
+      var season = seasonOf(o.service), icon = /invit/i.test(o.service || '') ? 'heart' : iconsFor([o.business, o.words, inf.sell].join(' '))[0];
+      // Social media pack: each draft shows a different post from their list, so they see the set, not one post three times.
+      var posts = /social/i.test(o.service || '') ? String(o.words || '').split(/\s*(?:post\s*\d+\s*[:\-–.]|\n)\s*/i).map(function (x) { return x.replace(/[.\s]+$/, '').trim(); }).filter(function (x) { return x.length > 2; }) : [];
       return list.map(function (L, i) {
         var look = lookByName(looks[i]), t = custom || (i === 0 && pt) || (look.theme ? Object.assign({ name: look.name }, look.theme) : THEMES[0]);
+        if (season && i > 0 && mode !== 'card') t = SEASONS[season].themes[(i - 1) % 2];
+        var dd = d;
+        if (posts.length > 1 && mode === 'promo') { var pg = guess({ words: posts[i % posts.length], business: d.business, info: inf }); dd = Object.assign({}, d, { headline: pg.headline, details: pg.details, offer: pg.offer || '', photo: photos[i % Math.max(1, photos.length)] || null }); }
         var sz = SIZES[o.size] || SIZES.post, W = width, H = mode === 'card' ? Math.round(width * (CARD.h * 2 + 90) / CARD.w) : Math.round(width * sz.h / sz.w);
         var big = 2, cv = document.createElement('canvas'); cv.width = W * big; cv.height = H * big;
         var c = cv.getContext('2d'), F = FONT, S = SERIF, Hd = HEAD;
         FONT = look.font; SERIF = look.serif; HEAD = look.head || null;
+        PHT = { t: t, icon: icon, label: true };
         try {
-          L.draw(c, cv.width, cv.height, d, t);
-          if (mode !== 'card') { texture(c, cv.width, cv.height, look.tex); deco(c, cv.width, cv.height, look.deco, t); }
-        } finally { FONT = F; SERIF = S; HEAD = Hd; }
+          L.draw(c, cv.width, cv.height, dd, t);
+          if (mode !== 'card') { texture(c, cv.width, cv.height, look.tex); deco(c, cv.width, cv.height, look.deco, t); seasonMark(c, cv.width, cv.height, season, t); }
+        } finally { FONT = F; SERIF = S; HEAD = Hd; PHT = null; }
         // "Preview" mark, so it isn't used as the finished design
         c.save(); c.translate(cv.width / 2, cv.height / 2); c.rotate(-0.5); c.globalAlpha = 0.16; c.fillStyle = '#FFFFFF'; c.strokeStyle = '#000000'; c.lineWidth = 2;
         c.font = '900 ' + Math.round(cv.width * 0.12) + 'px Inter, Arial, sans-serif'; c.textAlign = 'center'; c.strokeText('PREVIEW', 0, 0); c.fillText('PREVIEW', 0, 0); c.restore();
-        cv.title = (mode === 'card' ? L.name : L.name + ' · ' + look.name);
+        cv.title = (mode === 'card' ? L.name : L.name + ' · ' + (season && i > 0 ? t.name : look.name)) + (posts.length > 1 && mode === 'promo' ? ' (post ' + (i % posts.length + 1) + ')' : '');
         return cv;
       });
     });
@@ -2317,8 +2368,11 @@
       var keep = state.photoIdx; if (photoIdx != null) state.photoIdx = photoIdx;
       try {
         withLook(i, function (L, t) {
-          layouts()[i].draw(c, W, H, over ? Object.assign(data(), over) : data(), t);
-          if (state.mode !== 'card') { texture(c, W, H, L.tex); deco(c, W, H, L.deco, t); }
+          PHT = { t: t, icon: /invit/i.test(o.interest || o.service || '') ? 'heart' : iconsFor([f.business.value, o.words, (o.info || {}).sell].join(' '))[0], label: false };
+          try {
+            layouts()[i].draw(c, W, H, over ? Object.assign(data(), over) : data(), t);
+            if (state.mode !== 'card') { texture(c, W, H, L.tex); deco(c, W, H, L.deco, t); seasonMark(c, W, H, seasonOf(o.interest || o.service), t); }
+          } finally { PHT = null; }
         });
       } finally { state.photoIdx = keep; }
       return cv;

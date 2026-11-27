@@ -324,7 +324,7 @@
   }
   var PV_TEXT = [$('ds-pv-title') && $('ds-pv-title').textContent, $('ds-pv-tip') && $('ds-pv-tip').textContent];
   function pvText(logo) {
-    if ($('ds-pv-title')) $('ds-pv-title').textContent = logo ? '🔤 Logo starting ideas from your initials' : PV_TEXT[0];
+    if ($('ds-pv-title')) $('ds-pv-title').textContent = logo ? '🔤 Logo starting ideas from your business name' : PV_TEXT[0];
     if ($('ds-pv-tip')) $('ds-pv-tip').textContent = logo ? 'Quick ideas made from your business name. Tap any you like (optional): your designer uses them as a starting point and designs your logo properly, with your colours and an icon that suits your business.' : PV_TEXT[1];
   }
   // Logo and brand kit orders: 18 logo ideas from the business name and colours.

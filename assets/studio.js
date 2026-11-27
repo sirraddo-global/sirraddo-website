@@ -1406,7 +1406,64 @@
         cardRows(c, d, (W - rw) / 2, y + 52 * u, rw, 22 * u, '#374151', t.light, t.bg);
       },
       back: function (c, W, H, d, t) { cardBack(c, W, H, d, t, 'stripe'); } },
+    { name: 'Luxury foil card',
+      front: function (c, W, H, d, t) {
+        var u = W / 1050, bg = mixHex(t.bg, '#000000', 0.35), gold = foilGrad(c, t.accent, W, H); c.fillStyle = bg; c.fillRect(0, 0, W, H);
+        foilFrame(c, W, H, u, gold);
+        var mx = 205 * u; cardMark(c, d, mx, H / 2, 112 * u, gold, bg);
+        c.fillStyle = gold; c.fillRect(352 * u, 110 * u, 2 * u, H - 220 * u);
+        var x = 400 * u, w = W - x - 70 * u;
+        var nm = (d.name || 'Your Name').toUpperCase(), fs = fitFam(c, nm, w, 50 * u, 26 * u, '600', '"Cinzel", Georgia, serif');
+        var rowsH = cardRows(c, d, 0, 0, w, 21 * u, '#fff', bg, '#fff', true), top = Math.max(70 * u, (H - (fs + 70 * u + rowsH)) / 2);
+        c.fillStyle = gold; c.font = '600 ' + fs + 'px "Cinzel", Georgia, serif'; c.fillText(nm, x, top + fs);
+        if (d.title) { c.font = '500 ' + 19 * u + 'px ' + FONT; c.fillStyle = '#E8E1D0'; c.fillText(spaced(d.title.toUpperCase()), x, top + fs + 34 * u, w); }
+        cardRows(c, d, x, top + fs + 62 * u, w, 21 * u, '#F3EEE2', bg, t.accent);
+      },
+      back: function (c, W, H, d, t) {
+        var u = W / 1050, bg = mixHex(t.bg, '#000000', 0.35), gold = foilGrad(c, t.accent, W, H); c.fillStyle = bg; c.fillRect(0, 0, W, H);
+        foilFrame(c, W, H, u, gold);
+        var link = waLink(d), cx = link ? W * 0.4 : W / 2;
+        cardMark(c, d, cx, H * 0.4, 100 * u, gold, bg);
+        var bn = (d.business || 'Your business').toUpperCase(), fs = fitFam(c, bn, (link ? W * 0.62 : W - 200 * u), 36 * u, 18 * u, '600', '"Cinzel", Georgia, serif');
+        c.textAlign = 'center'; c.fillStyle = gold; c.fillText(bn, cx, H * 0.4 + 150 * u);
+        if (d.tagline) { c.font = 'italic 500 ' + 22 * u + 'px "Cormorant Garamond", ' + SERIF; c.fillStyle = '#E8E1D0'; c.fillText(d.tagline, cx, H * 0.4 + 190 * u, W * 0.6); }
+        c.textAlign = 'left';
+        if (link) { var qs = 150 * u, qx = W - qs - 80 * u, qy = H - qs - 110 * u; c.fillStyle = '#FFFFFF'; rr(c, qx - 12 * u, qy - 12 * u, qs + 24 * u, qs + 24 * u, 10 * u); c.fill(); drawQR(c, link, qx, qy, qs, '#111111');
+          c.font = '600 ' + 15 * u + 'px ' + FONT; c.fillStyle = '#E8E1D0'; c.textAlign = 'center'; c.fillText('Scan to order', qx + qs / 2, qy + qs + 40 * u); c.textAlign = 'left'; }
+      } },
+    { name: 'Monogram card',
+      front: function (c, W, H, d, t) {
+        var u = W / 1050; c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, W, H);
+        var pw = 330 * u; c.fillStyle = t.light; c.fillRect(0, 0, pw, H); c.fillStyle = t.accent; c.fillRect(pw, 0, 6 * u, H);
+        cardMark(c, d, pw / 2, H / 2 - 20 * u, 100 * u, t.accent, t.light, t.bg);
+        if (!d.logo) { var bn = (d.business || '').toUpperCase(); if (bn) { var bfs = fitFam(c, spaced(bn), pw - 60 * u, 18 * u, 11 * u, '700', FONT); c.textAlign = 'center'; c.fillStyle = t.bg; c.fillText(spaced(bn), pw / 2, H / 2 + 120 * u); c.textAlign = 'left'; } }
+        var x = pw + 70 * u, w = W - x - 60 * u, y0 = cardTop(c, d, [w, 56 * u, t.bg, t.bg, 'left'], 36 * u, [w, 22 * u], 50 * u, H - 50 * u);
+        var y = cardName(c, d, x, y0, w, 56 * u, t.bg, darkAccent(t), 'left');
+        c.fillStyle = t.accent; c.fillRect(x, y + 16 * u, 60 * u, 4 * u);
+        cardRows(c, d, x, y + 36 * u, w, 22 * u, '#1F2937', t.bg, '#FFFFFF');
+      },
+      back: function (c, W, H, d, t) { cardBack(c, W, H, d, t, 'mono'); } },
   ];
+  // Letter-spaced capitals for small labels.
+  function spaced(x) { return String(x).split('').join(String.fromCharCode(8202)); }
+  function foilGrad(c, acc, W, H) {
+    var g = c.createLinearGradient(0, 0, W, H); acc = acc.toLowerCase();
+    g.addColorStop(0, mixHex(acc, '#ffffff', 0.45)); g.addColorStop(0.35, acc); g.addColorStop(0.6, mixHex(acc, '#000000', 0.3)); g.addColorStop(0.8, mixHex(acc, '#ffffff', 0.3)); g.addColorStop(1, acc);
+    return g;
+  }
+  function foilFrame(c, W, H, u, gold) {
+    c.strokeStyle = gold; c.lineWidth = 3 * u; c.strokeRect(28 * u, 28 * u, W - 56 * u, H - 56 * u); c.lineWidth = 1 * u; c.strokeRect(38 * u, 38 * u, W - 76 * u, H - 76 * u);
+    c.lineWidth = 3 * u; [[28, 28, 1, 1], [W / u - 28, 28, -1, 1], [28, H / u - 28, 1, -1], [W / u - 28, H / u - 28, -1, -1]].forEach(function (k) {
+      var x = k[0] * u, y = k[1] * u; c.beginPath(); c.moveTo(x + k[2] * 40 * u, y + k[3] * 22 * u); c.lineTo(x + k[2] * 22 * u, y + k[3] * 22 * u); c.lineTo(x + k[2] * 22 * u, y + k[3] * 40 * u); c.stroke();
+    });
+  }
+  // The brand mark: their logo, or their initials in a fine double ring.
+  function cardMark(c, d, cx, cy, r, col, bg, letterCol) {
+    if (d.logo) { var k = Math.min(r * 1.7 / d.logo.width, r * 1.7 / d.logo.height); if (bg && lum(bg) < 0.3) { c.fillStyle = '#FFFFFF'; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill(); k = Math.min(r * 1.35 / d.logo.width, r * 1.35 / d.logo.height); } c.drawImage(d.logo, cx - d.logo.width * k / 2, cy - d.logo.height * k / 2, d.logo.width * k, d.logo.height * k); return; }
+    var u = r / 100; c.strokeStyle = col; c.lineWidth = 4 * u; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.stroke(); c.lineWidth = 1.5 * u; c.beginPath(); c.arc(cx, cy, r - 10 * u, 0, Math.PI * 2); c.stroke();
+    var ini = initialsOf(d.business || d.name || 'A'), fs = ini.length > 1 ? 74 * u : 96 * u;
+    c.font = '600 ' + fs + 'px "Cinzel", Georgia, serif'; c.fillStyle = letterCol || col; c.textAlign = 'center'; c.fillText(ini, cx, cy + fs * 0.35); c.textAlign = 'left';
+  }
   // Accent text on light card backgrounds: use the accent only if it's dark enough to read, else the main colour.
   function darkAccent(t) { return lum(t.accent) < 0.55 ? t.accent : t.bg; }
   function cardData(d) { return { name: d.name, title: d.title, special: d.special || '', services: d.services || [], email: d.email, address: d.address, tagline: d.tagline, web: d.web, socials: d.cardSocials || [], phones: d.cardPhones || [], logo: d.logo, business: d.business }; }
@@ -1424,6 +1481,7 @@
     c.fillStyle = bgc; c.fillRect(0, 0, W, H);
     if (style === 'border') { c.strokeStyle = t.accent; c.lineWidth = 3 * u; c.strokeRect(26 * u, 26 * u, W - 52 * u, H - 52 * u); }
     if (style === 'light') { c.fillStyle = t.bg; c.fillRect(0, H - 18 * u, W, 18 * u); c.fillStyle = t.accent; c.fillRect(0, H - 26 * u, W, 8 * u); }
+    if (style === 'mono') { c.strokeStyle = t.accent; c.lineWidth = 2 * u; c.strokeRect(30 * u, 30 * u, W - 60 * u, H - 60 * u); }
     if (style === 'stripe') { c.globalAlpha = 0.07; c.fillStyle = t.accent; for (var i = -H; i < W; i += 46 * u) { c.beginPath(); c.moveTo(i, H); c.lineTo(i + H, 0); c.lineTo(i + H + 14 * u, 0); c.lineTo(i + 14 * u, H); c.closePath(); c.fill(); } c.globalAlpha = 1; }
     var link = waLink(d), qs = 250 * u, qx = W - qs - 90 * u, qy = (H - qs) / 2 - 22 * u, left = 80 * u, lw = (link ? qx - 50 * u : W - 160 * u) - left;
     var y = 120 * u;
@@ -1611,6 +1669,57 @@
     return '<path id="' + pathId + '" d="' + d + '" fill="none"/><text text-anchor="middle"><textPath' + (id ? ' id="' + id + '"' : '') + ' href="#' + pathId + '" startOffset="50%" font-family="\'' + fam + '\', serif" font-weight="' + wt + '" font-size="' + s + '" letter-spacing="' + (ls * s).toFixed(1) + '" fill="' + fill + '" data-maxw="' + n1(len) + '" data-size="' + size + '" data-ls="' + ls + '"' + (upper ? ' data-case="upper"' : '') + '>' + esc(up) + '</textPath></text>';
   }
   function star(x, y, r, fill) { var p = ''; for (var i = 0; i < 10; i++) { var a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.42 : r; p += (i ? 'L' : 'M') + n1(x + rr * Math.cos(a)) + ' ' + n1(y + rr * Math.sin(a)); } return '<path d="' + p + 'Z" fill="' + fill + '"/>'; }
+  // ---------- Line icons for icon logos (100×100 box). s: drawn solid (filled) rather than as a line. ----------
+  var LOGO_ICONS = {
+    cake: { d: 'M20 88 H80 M24 88 V62 H76 V88 M30 62 V44 H70 V62 M24 72 C34 78 42 66 50 72 C58 78 66 66 76 72 M50 44 V32 M50 20 C45 26 46 31 50 32 C54 31 55 26 50 20' },
+    bottle: { d: 'M38 10 H62 V24 H38 Z M44 24 V34 M56 24 V34 M30 34 H70 Q78 34 78 42 V82 Q78 90 70 90 H30 Q22 90 22 82 V42 Q22 34 30 34 Z M36 58 H64' },
+    leaf: { d: 'M20 80 C20 40 45 18 82 18 C82 55 60 80 20 80 Z M20 80 C40 60 55 45 70 32' },
+    house: { d: 'M12 50 L50 16 L88 50 M24 40 V86 H76 V40 M42 86 V62 H58 V86' },
+    food: { d: 'M30 12 V40 M22 12 V34 C22 42 38 42 38 34 V12 M30 40 V88 M68 88 V12 C56 20 54 40 58 52 H68' },
+    scissors: { d: 'M22 70 a12 12 0 1 0 24 0 a12 12 0 1 0 -24 0 M54 70 a12 12 0 1 0 24 0 a12 12 0 1 0 -24 0 M42 60 L70 14 M58 60 L30 14' },
+    crown: { d: 'M14 74 L20 30 L38 52 L50 20 L62 52 L80 30 L86 74 Z M18 86 H82', s: 1 },
+    drop: { d: 'M50 10 C50 10 20 46 20 64 A30 30 0 0 0 80 64 C80 46 50 10 50 10 Z M36 64 A14 14 0 0 0 50 78' },
+    flame: { d: 'M50 8 C58 28 76 40 76 62 A26 26 0 0 1 24 62 C24 48 34 40 36 28 C42 38 44 44 50 46 C54 36 52 22 50 8 Z', s: 1 },
+    book: { d: 'M50 26 C40 18 24 16 12 20 V82 C24 78 40 80 50 88 C60 80 76 78 88 82 V20 C76 16 60 18 50 26 Z M50 26 V88' },
+    health: { d: 'M40 14 H60 V40 H86 V60 H60 V86 H40 V60 H14 V40 H40 Z', s: 1 },
+    cart: { d: 'M8 18 H22 L32 66 H78 L88 32 H26 M32 84 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0 M66 84 a6 6 0 1 0 12 0 a6 6 0 1 0 -12 0' },
+    hanger: { d: 'M50 36 V30 A9 9 0 1 1 59 21 M50 36 L10 66 Q5 73 14 73 H86 Q95 73 90 66 Z' },
+    camera: { d: 'M14 32 H32 L38 22 H62 L68 32 H86 V80 H14 Z M36 56 a14 14 0 1 0 28 0 a14 14 0 1 0 -28 0' },
+    lotus: { d: 'M50 18 C63 33 63 58 50 74 C37 58 37 33 50 18 Z M50 74 C34 72 20 60 16 42 C30 42 42 52 50 74 M50 74 C66 72 80 60 84 42 C70 42 58 52 50 74 M22 86 H78' },
+    hotel: { d: 'M22 88 V16 H78 V88 M14 88 H86 M34 30 H44 M56 30 H66 M34 46 H44 M56 46 H66 M34 62 H44 M56 62 H66 M44 88 V76 H56 V88' },
+    cross: { d: 'M50 8 V92 M26 32 H74' },
+    bolt: { d: 'M56 6 L22 56 H48 L42 94 L78 40 H52 Z', s: 1 },
+    heart: { d: 'M50 84 C20 62 10 46 18 30 C26 16 44 18 50 32 C56 18 74 16 82 30 C90 46 80 62 50 84 Z', s: 1 },
+    sparkle: { d: 'M50 8 C54 38 62 46 92 50 C62 54 54 62 50 92 C46 62 38 54 8 50 C38 46 46 38 50 8 Z', s: 1 },
+    cup: { d: 'M20 30 H70 V58 A22 22 0 0 1 48 80 H42 A22 22 0 0 1 20 58 Z M70 38 H78 A10 10 0 0 1 78 58 H70 M16 90 H74 M36 10 C32 16 40 18 36 24 M50 10 C46 16 54 18 50 24' },
+    car: { d: 'M10 64 V52 L22 48 L34 28 H66 L80 48 L90 52 V64 Z M22 64 a9 9 0 1 0 18 0 a9 9 0 1 0 -18 0 M60 64 a9 9 0 1 0 18 0 a9 9 0 1 0 -18 0 M36 30 L30 48 H72 L64 30' },
+  };
+  var ICON_WORDS = [
+    ['bottle', /perfume|scent|fragrance|oud|cologne|body spray|mist/], ['cake', /cake|bak(e|ery)|pastr|cupcake|dessert|treat|confection|doughnut|chin/],
+    ['food', /food|kitchen|restaurant|eatery|catering|chop|grill|suya|rice|cuisine|chef|buka|meal|snack|bistro/], ['cup', /coffee|cafe|tea|drink|juice|smoothie|zobo|parfait|lounge|bar\b/],
+    ['house', /estate|property|properties|realty|real estate|homes?\b|housing|rent|apartment|construction|builder/], ['hotel', /hotel|suites|short.?let|lodge|inn\b|resort|guest/],
+    ['scissors', /salon|barb|hair|tailor|stitch|sew|fashion design/], ['hanger', /boutique|fashion|cloth|wear|apparel|outfit|fabric|ankara|thrift/],
+    ['lotus', /spa|beauty|makeup|skin|cosmetic|wellness|nail|lash|glow/], ['health', /clinic|hospital|pharma|medic|health|care\b|diagnos|laborator|dental/],
+    ['cross', /church|ministr|chapel|gospel|cathedral|assembly/], ['book', /school|academy|college|tutor|education|learning|lesson|books?\b|institute/],
+    ['drop', /water|oil|lubricant|laundry|clean|wash|plumb/], ['flame', /gas|lpg|fuel|petrol|energy|grill/], ['bolt', /electric|power|solar|inverter|tech|digital|gadget|phone|computer|network/],
+    ['cart', /store|shop|mart|supermarket|mall|market|retail|wholesale|provision/], ['camera', /photo|studio|media|film|video|print/], ['car', /auto|car\b|cars|motor|garage|mechanic|logistics|haulage|transport|ride/],
+    ['leaf', /farm|agro|organic|natural|herbal|garden|green|plant|fresh/], ['crown', /royal|luxury|king|queen|empire|regal|prestige|premium/], ['heart', /love|gift|charity|foundation|wedding|event|care/],
+  ];
+  function iconsFor(text) {
+    text = String(text || '').toLowerCase(); var out = [];
+    ICON_WORDS.forEach(function (w) { if (w[1].test(text) && out.indexOf(w[0]) === -1) out.push(w[0]); });
+    ['sparkle', 'crown', 'leaf'].forEach(function (k) { if (out.length < 2 && out.indexOf(k) === -1) out.push(k); });
+    return out;
+  }
+  // The icon at (x, y) (top-left), size px, in colour col. solid: filled; otherwise a clean line icon.
+  function iconSvg(k, x, y, size, col, forceSolid) {
+    var ic = LOGO_ICONS[k] || LOGO_ICONS.sparkle, s = size / 100, solid = forceSolid || ic.s;
+    return '<g transform="translate(' + n1(x) + ' ' + n1(y) + ') scale(' + n1(s * 1000) / 1000 + ')"><path d="' + ic.d + '" fill="' + (solid ? col : 'none') + '" stroke="' + col + '" stroke-width="' + (solid ? 2 : 6) + '" stroke-linecap="round" stroke-linejoin="round" fill-rule="evenodd"/></g>';
+  }
+  function mixHex(a, b, k) {
+    var p = function (h) { h = h.replace('#', ''); if (h.length === 3) h = h.replace(/./g, '$&$&'); return [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16); }); };
+    var x = p(a), y = p(b); return '#' + x.map(function (v, i) { return ('0' + Math.round(v + (y[i] - v) * k).toString(16)).slice(-2); }).join('');
+  }
   function monoLogos(name, tag, what, P, A) {
     name = String(name || '').trim(); tag = String(tag || '').trim(); what = (String(what || '') + ' ' + name).toLowerCase(); P = P.toLowerCase(); A = A.toLowerCase(); var K = '#fefefd'; // K = "paper": white on light, the main colour on dark
     var ini = initialsOf(name), one = ini.charAt(0), two = ini.charAt(1) || '';
@@ -1691,6 +1800,30 @@
       body: '<circle cx="300" cy="200" r="186" fill="' + P + '"/><circle cx="300" cy="200" r="178" fill="none" stroke="' + A + '" stroke-width="3"/><circle cx="300" cy="200" r="126" fill="' + K + '"/><circle cx="300" cy="200" r="120" fill="none" stroke="' + A + '" stroke-width="2"/>' +
         arcText('name', name, 300, 200, 146, true, 'Cinzel', 600, 34, A, 0.12, true) + (tag ? arcText('tagline', tag, 300, 200, 162, false, 'Cinzel', 600, 24, A, 0.2, true) : star(300, 356, 9, A) + star(270, 350, 6, A) + star(330, 350, 6, A)) +
         star(140, 200, 11, A) + star(460, 200, 11, A) + txt('', one, 300, 248, 'Cinzel', 600, 140, 180, A) });
+    // 14–18. Icon logos: a clean icon that suits what they do, with the name (like the big logo makers)
+    var ics = iconsFor(what), i1 = ics[0], i2 = ics[1] || ics[0];
+    var nameWords = name.split(/\s+/), w1 = nameWords[0] || name, wRest = nameWords.slice(1).join(' ');
+    function twoTone(x, y, size, maxW, anchor, fam, wt, ls) {
+      var full = name.toUpperCase(), sz = fitSize(full, fam, wt, size, maxW, ls || 0);
+      return '<text id="name" x="' + x + '" y="' + y + '" text-anchor="' + (anchor || 'middle') + '" font-family="\'' + fam + '\', sans-serif" font-weight="' + wt + '" font-size="' + sz + '" letter-spacing="' + ((ls || 0) * sz).toFixed(1) + '" fill="' + P + '" data-maxw="' + maxW + '" data-size="' + size + '" data-ls="' + (ls || 0) + '" data-case="upper">' + esc(w1.toUpperCase()) + (wRest ? ' <tspan fill="' + A + '">' + esc(wRest.toUpperCase()) + '</tspan>' : '') + '</text>';
+    }
+    out.push({ name: 'Icon stacked', fonts: ['Montserrat|800', 'Montserrat|500'],
+      body: iconSvg(i1, 240, 22, 120, A) + twoTone(300, 236, 54, 540, 'middle', 'Montserrat', 800, 0.04) + (tag ? txt('tagline', tag, 300, 278, 'Montserrat', 500, 20, 440, P, { upper: true, ls: 0.28 }) : '') });
+    out.push({ name: 'Icon beside', fonts: ['Montserrat|800', 'Montserrat|500'],
+      body: '<circle cx="128" cy="200" r="86" fill="' + P + '"/><circle cx="128" cy="200" r="76" fill="none" stroke="' + A + '" stroke-width="3"/>' + iconSvg(i1, 88, 160, 80, A) +
+        (wRest ? txt('name', w1, 236, 186, 'Montserrat', 800, 66, 340, P, { anchor: 'start', upper: true }) + txt('', wRest, 238, 228, 'Montserrat', 800, 36, 340, A, { anchor: 'start', upper: true, ls: 0.12 })
+          : txt('name', name, 236, 210, 'Montserrat', 800, 66, 340, P, { anchor: 'start', upper: true })) + '<rect x="238" y="246" width="80" height="5" fill="' + A + '"/>' +
+        (tag ? txt('tagline', tag, 238, 284, 'Montserrat', 500, 18, 330, P, { anchor: 'start', upper: true, ls: 0.2 }) : '') });
+    out.push({ name: 'Icon badge', fonts: ['Cinzel|600', 'Montserrat|500'],
+      body: '<path d="M300 20 L378 65 V155 L300 200 L222 155 V65 Z" fill="none" stroke="' + A + '" stroke-width="5" stroke-linejoin="round"/><path d="M300 34 L366 72 V148 L300 186 L234 148 V72 Z" fill="' + P + '"/>' + iconSvg(i2, 260, 70, 80, A) +
+        txt('name', name, 300, 268, 'Cinzel', 600, 48, 540, P, { upper: true, ls: 0.12 }) + (tag ? txt('tagline', tag, 300, 304, 'Montserrat', 500, 18, 420, A, { upper: true, ls: 0.3 }) : '') });
+    out.push({ name: 'Line icon & serif', fonts: ['Cormorant Garamond|600', 'Montserrat|500'],
+      body: iconSvg(i2, 255, 30, 90, A) + '<rect x="150" y="146" width="110" height="1.5" fill="' + A + '"/><rect x="340" y="146" width="110" height="1.5" fill="' + A + '"/>' + star(300, 147, 7, A) +
+        txt('name', name, 300, 236, 'Cormorant Garamond', 600, 72, 540, P) + (tag ? txt('tagline', tag, 300, 280, 'Montserrat', 500, 18, 420, P, { upper: true, ls: 0.34 }) : '') });
+    out.push({ name: 'App icon', fonts: ['Montserrat|800', 'Montserrat|500'],
+      body: '<rect x="40" y="110" width="180" height="180" rx="44" fill="' + P + '"/><rect x="58" y="128" width="144" height="144" rx="32" fill="none" stroke="' + A + '" stroke-width="3"/>' + iconSvg(i1, 85, 155, 90, A) +
+        (wRest ? txt('name', w1, 246, 196, 'Montserrat', 800, 64, 330, P, { anchor: 'start' }) + txt('', wRest, 248, 240, 'Montserrat', 500, 40, 330, A, { anchor: 'start' })
+          : txt('name', name, 246, 214, 'Montserrat', 800, 64, 330, P, { anchor: 'start' })) + (tag ? txt('tagline', tag, 248, 280, 'Montserrat', 500, 18, 330, P, { anchor: 'start', upper: true, ls: 0.2 }) : '') });
     var keys = []; out.forEach(function (l) { l.fonts.forEach(function (k) { if (keys.indexOf(k) === -1) keys.push(k); }); });
     return Promise.all(keys.map(fontB64)).then(function (b64) {
       var face = {}; keys.forEach(function (k, i) { var p = k.split('|'); face[k] = '@font-face{font-family:\'' + p[0] + '\';font-weight:' + p[1] + ';src:url(data:font/woff2;base64,' + b64[i] + ') format(\'woff2\');}'; });
@@ -1787,13 +1920,14 @@
     lg.what.value = (((o.info || {}).sell ? o.info.sell + '. ' : '') + (o.words || '')).replace(/\s+/g, ' ').trim().slice(0, 300);
     lg.style.value = o.style || '';
     var logoOut = el('div', { class: 'st-logos' }), logoMsg = el('p', { class: 'admin-hint' });
+    var foil = el('input', { type: 'checkbox' }); foil.addEventListener('change', function () { drawLogos(); });
     var logos = [];
     var logoBtn = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '✨ Make 3 logo ideas', onclick: function () { makeLogos(); } });
-    var monoBtn = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '🔤 13 monogram logos (instant)', onclick: function () { makeMono(); } });
+    var monoBtn = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '🔤 18 instant logos', onclick: function () { makeMono(); } });
     var logoBox = el('details', { class: 'st-logobox' }, [
       el('summary', { text: '✨ Logo ideas' }),
       el('p', { class: 'admin-hint', text: 'Uses the business name above and the colours you picked. 🔤 Monogram logos are instant: their initials (e.g. GS for Glameenah Scents) in 6 styles, with a perfume bottle, crest or seal to suit the business. ✨ AI makes 3 original logos with a small icon. Change the name, tagline or colours and they update. Download as SVG (sharp at any size) or PNG.' }),
-      lab('Tagline', lg.tagline), lab('What they do', lg.what), lab('Style', lg.style), el('div', { class: 'admin-actions' }, [monoBtn, logoBtn]), logoMsg,
+      lab('Tagline', lg.tagline), lab('What they do', lg.what), lab('Style', lg.style), el('label', { class: 'st-check' }, [foil, ' ✨ Gold foil finish (metallic shine on the accent colour)']), el('div', { class: 'admin-actions' }, [monoBtn, logoBtn]), logoMsg,
     ]);
     // onDark: the reversed version for dark backgrounds (main colour becomes white, accent stays).
     function logoSvg(l, onDark) {
@@ -1801,8 +1935,21 @@
       if (l.paper) svg = svg.split(l.paper).join(onDark ? state.theme.bg.toLowerCase() : '#ffffff');
       var doc = new DOMParser().parseFromString(svg, 'image/svg+xml'), root = doc.documentElement;
       if (root.nodeName.toLowerCase() !== 'svg') return '';
-      var n = doc.getElementById('name'); if (n) n.textContent = f.business.value.trim() || n.textContent;
-      var t = doc.getElementById('tagline'); if (t) { if (lg.tagline.value.trim()) t.textContent = lg.tagline.value.trim(); else t.parentNode.removeChild(t); }
+      // Instant logos are rebuilt whenever the name or tagline changes, so their text is already right (and keeps its two colours).
+      var n = l.mono ? null : doc.getElementById('name'); if (n) n.textContent = f.business.value.trim() || n.textContent;
+      var t = l.mono ? null : doc.getElementById('tagline'); if (t) { if (lg.tagline.value.trim()) t.textContent = lg.tagline.value.trim(); else t.parentNode.removeChild(t); }
+      // Gold foil finish: the accent colour becomes a metallic gradient (light → accent → deep → light).
+      if (foil.checked) {
+        var acc = state.theme.accent.toLowerCase(), uses = root.querySelectorAll('[fill="' + acc + '"],[stroke="' + acc + '"]');
+        if (uses.length) {
+          var ns = 'http://www.w3.org/2000/svg', defs = root.querySelector('defs') || root.insertBefore(doc.createElementNS(ns, 'defs'), root.firstChild);
+          var gr = doc.createElementNS(ns, 'linearGradient'); gr.setAttribute('id', 'sir-foil'); gr.setAttribute('x1', '0'); gr.setAttribute('y1', '0'); gr.setAttribute('x2', '1'); gr.setAttribute('y2', '1');
+          [[0, mixHex(acc, '#ffffff', 0.45)], [0.35, acc], [0.6, mixHex(acc, '#000000', 0.3)], [0.8, mixHex(acc, '#ffffff', 0.3)], [1, acc]].forEach(function (st) { var e = doc.createElementNS(ns, 'stop'); e.setAttribute('offset', st[0]); e.setAttribute('stop-color', st[1]); gr.appendChild(e); });
+          gr.setAttribute('gradientUnits', 'userSpaceOnUse'); gr.setAttribute('x1', '0'); gr.setAttribute('y1', '0'); gr.setAttribute('x2', '600'); gr.setAttribute('y2', '400');
+          defs.appendChild(gr);
+          [].forEach.call(uses, function (e) { if (e.getAttribute('fill') === acc) e.setAttribute('fill', 'url(#sir-foil)'); if (e.getAttribute('stroke') === acc) e.setAttribute('stroke', 'url(#sir-foil)'); });
+        }
+      }
       // Monogram logos: keep the edited name and tagline inside their width.
       [n, t].forEach(function (x) {
         if (!x || !x.parentNode || !x.getAttribute('data-maxw')) return;
@@ -1861,8 +2008,8 @@
       monoBtn.disabled = true; logoMsg.textContent = 'Making monogram logos…';
       loadLookFonts().then(function () { return monoLogos(f.business.value, lg.tagline.value, lg.what.value, state.theme.bg, state.theme.accent); }).then(function (list) {
         logos = list.concat(logos.filter(function (l) { return !l.mono; }));
-        logoMsg.textContent = (typeof liked === 'string' ? '⭐ The customer liked “' + liked + '” on the order form. ' : '') + 'Initials used: ' + initialsOf(f.business.value) + '. Shown on white and on your main colour. Change the colours ' + (o.logoOnly ? 'further down' : 'above') + ' to try other looks.';
-        drawLogos(); logoOut.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        logoMsg.textContent = liked === true ? logoMsg.textContent : (typeof liked === 'string' ? '⭐ The customer liked “' + liked + '” on the order form. ' : '') + 'Initials used: ' + initialsOf(f.business.value) + '. Shown on white and on your main colour. Change the colours ' + (o.logoOnly ? 'further down' : 'above') + ' to try other looks.';
+        drawLogos(); if (liked !== true) logoOut.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }).catch(function () { logoMsg.textContent = 'Could not make the monograms. Try again.'; }).then(function () { monoBtn.disabled = false; });
     }
     function makeLogos() {
@@ -1879,7 +2026,10 @@
         .catch(function (e) { logoMsg.textContent = (e && e.message) || 'Could not make logos. Try again.'; })
         .then(function () { logoBtn.disabled = false; });
     }
-    lg.tagline.addEventListener('input', drawLogos);
+    // The instant logos are rebuilt from the new name/tagline/what they do (they fit the words to the space); AI ones just update.
+    var monoTimer;
+    function refreshMono() { clearTimeout(monoTimer); monoTimer = setTimeout(function () { if (logos.some(function (l) { return l.mono; })) makeMono(true); else drawLogos(); }, 500); }
+    lg.tagline.addEventListener('input', refreshMono); f.business.addEventListener('input', refreshMono); lg.what.addEventListener('input', refreshMono);
     if (o.openLogos && !o.logoOnly) { logoBox.open = true; setTimeout(function () { logoBox.scrollIntoView({ block: 'start' }); }, 300); }
     // The customer liked a monogram on the order form: make them straight away and say which one.
     var likedMono = String(o.prefer || '').match(/^Logo idea (\d+): (.+)$/);
@@ -2092,7 +2242,7 @@
       [preview, thumbs, dl].forEach(function (x) { if (x) x.hidden = true; });
       [].forEach.call(panel.children, function (ch) { if (!(ch.tagName === 'H2' || ch === logoBox || ch === status || ch.contains(f.business) || ch.contains(themeRow))) ch.hidden = true; });
       var left = logoOut.parentNode;
-      left.insertBefore(el('p', { class: 'admin-hint st-logohint', text: '🔤 Logo order: 13 monogram logos from their initials are below (✨ AI further down makes 3 more with an icon; the colours are there too). Pick the best, download PNG/SVG, or send them straight to the customer.' }), left.firstChild);
+      left.insertBefore(el('p', { class: 'admin-hint st-logohint', text: '🔤 Logo order: 18 instant logos from their name, initials and what they do are below (tick ✨ Gold foil for a metallic finish) (✨ AI further down makes 3 more with an icon; the colours are there too). Pick the best, download PNG/SVG, or send them straight to the customer.' }), left.firstChild);
       left.insertBefore(logoMsg, left.children[1]); left.insertBefore(logoOut, left.children[2]);
       logoBox.open = true;
       if (!likedMono) setTimeout(function () { makeMono(); }, 400);

@@ -232,12 +232,13 @@
   (function () {
     var orderSec = $('order'); if (!orderSec || !('IntersectionObserver' in window)) return;
     var b = mk('a', 'ds-sticky', '🎨 Order your design · 2 minutes'); b.href = '#order-title'; document.body.appendChild(b);
-    var heroSeen = true, orderSeen = false;
+    var heroSeen = true, orderSeen = false, footSeen = false;
     var typing = false;
-    var upd = function () { b.classList.toggle('is-on', !heroSeen && !orderSeen && !typing); };
+    var upd = function () { b.classList.toggle('is-on', !heroSeen && !orderSeen && !footSeen && !typing); };
     document.addEventListener('focusin', function (e) { typing = !!(e.target.closest && e.target.closest('form')); upd(); });
     document.addEventListener('focusout', function () { typing = false; setTimeout(upd, 50); });
     new IntersectionObserver(function (e) { orderSeen = e[0].isIntersecting; upd(); }).observe(orderSec);
+    var foot = document.querySelector('.site-footer'); if (foot) new IntersectionObserver(function (e) { footSeen = e[0].isIntersecting; upd(); }).observe(foot);
     var hero = document.querySelector('.hero'); if (hero) new IntersectionObserver(function (e) { heroSeen = e[0].isIntersecting; upd(); }).observe(hero); else heroSeen = false;
   })();
 

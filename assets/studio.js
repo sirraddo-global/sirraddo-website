@@ -1978,14 +1978,19 @@
       return out;
     }
     function save(blob, name) { var a = el('a', { href: URL.createObjectURL(blob), download: name }); document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+    // Logo orders: what the send box can send (the ticked ones, all, or one).
+    function sendChoices() {
+      if (!o.logoOnly || typeof sendWhich === 'undefined') return;
+      var keep = sendWhich.value; sendWhich.innerHTML = '';
+      var nTick = logos.filter(function (l) { return l.pick; }).length;
+      sendWhich.appendChild(el('option', { value: 'ticked', text: nTick ? 'The ' + nTick + ' I ticked' : 'The ones I tick (tick "Send this" on each)' }));
+      sendWhich.appendChild(el('option', { value: 'all', text: 'All ' + logos.length + ' logo options' }));
+      logos.forEach(function (l, i) { sendWhich.appendChild(el('option', { value: String(i), text: 'Logo option ' + (i + 1) + ': ' + l.name })); });
+      if ([].some.call(sendWhich.options, function (op) { return op.value === keep; })) sendWhich.value = keep;
+    }
     function drawLogos() {
       logoOut.innerHTML = '';
-      if (o.logoOnly && typeof sendWhich !== 'undefined') {
-        var keep = sendWhich.value; sendWhich.innerHTML = '';
-        sendWhich.appendChild(el('option', { value: 'all', text: 'All ' + logos.length + ' logo options' }));
-        logos.forEach(function (l, i) { sendWhich.appendChild(el('option', { value: String(i), text: 'Logo option ' + (i + 1) + ': ' + l.name })); });
-        if ([].some.call(sendWhich.options, function (op) { return op.value === keep; })) sendWhich.value = keep;
-      }
+      sendChoices();
       logos.forEach(function (l, i) {
         var svg = logoSvg(l); if (!svg) return;
         var light = el('div', { class: 'st-logo st-logo--light' }), dark = el('div', { class: 'st-logo', style: 'background:' + state.theme.bg });
@@ -1993,6 +1998,7 @@
         var slug = (f.business.value || 'logo').replace(/\W+/g, '-').toLowerCase() + '-logo-option-' + (i + 1);
         logoOut.appendChild(el('figure', { class: 'st-logocard' }, [el('div', { class: 'st-logopair' }, [light, dark]),
           el('figcaption', { text: 'Option ' + (i + 1) + ': ' + l.name }),
+          o.logoOnly ? el('label', { class: 'st-check st-pick' }, [el('input', { type: 'checkbox', checked: l.pick ? '' : null, onchange: function (e) { l.pick = e.target.checked; sendChoices(); if (l.pick) sendWhich.value = 'ticked'; } }), ' Send this']) : null,
           el('div', { class: 'admin-actions' }, [
             el('button', { class: 'admin-btn', type: 'button', text: 'SVG', onclick: function () { save(new Blob([logoSvg(l)], { type: 'image/svg+xml' }), slug + '.svg'); } }),
             el('button', { class: 'admin-btn', type: 'button', text: 'PNG', onclick: function () { svgToPng(logoSvg(l), 1800, function (cv) { trim(cv).toBlob(function (b) { save(b, slug + '.png'); }, 'image/png'); }); } }),
@@ -2007,6 +2013,8 @@
       if (f.business.value.trim().length < 2) { logoMsg.textContent = 'Type the business name first (above).'; f.business.focus(); return; }
       monoBtn.disabled = true; logoMsg.textContent = 'Making monogram logos…';
       loadLookFonts().then(function () { return monoLogos(f.business.value, lg.tagline.value, lg.what.value, state.theme.bg, state.theme.accent); }).then(function (list) {
+        var picked = logos.filter(function (l) { return l.pick; }).map(function (l) { return l.name; });
+        list.forEach(function (l) { if (picked.indexOf(l.name) > -1) l.pick = true; });
         logos = list.concat(logos.filter(function (l) { return !l.mono; }));
         logoMsg.textContent = liked === true ? logoMsg.textContent : (typeof liked === 'string' ? '⭐ The customer liked “' + liked + '” on the order form. ' : '') + 'Initials used: ' + initialsOf(f.business.value) + '. Shown on white and on your main colour. Change the colours ' + (o.logoOnly ? 'further down' : 'above') + ' to try other looks.';
         drawLogos(); if (liked !== true) logoOut.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2185,7 +2193,8 @@
     var sendMsg = el('span', { class: 'admin-hint', role: 'status' });
     function logoFiles() {
       var slug = (f.business.value || 'logo').replace(/\W+/g, '-').toLowerCase();
-      var pick = sendWhich.value === 'all' ? logos.map(function (l, i) { return i; }) : [Number(sendWhich.value)];
+      var pick = sendWhich.value === 'all' ? logos.map(function (l, i) { return i; }) : sendWhich.value === 'ticked' ? logos.map(function (l, i) { return l.pick ? i : -1; }).filter(function (i) { return i > -1; }) : [Number(sendWhich.value)];
+      if (!pick.length) return Promise.reject(new Error('Tick "Send this" on the logos you want to send first.'));
       return Promise.all(pick.filter(function (i) { return logos[i]; }).map(function (i) {
         return new Promise(function (ok) {
           svgToPng(logoSvg(logos[i]), 1500, function (cv) {
@@ -2218,7 +2227,7 @@
         files.forEach(function (fl, n) { setTimeout(function () { var a = el('a', { href: URL.createObjectURL(fl), download: fl.name }); document.body.appendChild(a); a.click(); setTimeout(function () { a.remove(); }, 1000); }, n * 400); });
         if (o.phone) window.open('https://wa.me/' + o.phone + '?text=' + encodeURIComponent(text), '_blank', 'noopener');
         sendMsg.textContent = 'Downloaded. Attach the picture' + (files.length > 1 ? 's' : '') + ' in the WhatsApp chat (📎).';
-      }).catch(function () { sendMsg.textContent = 'Couldn\'t prepare the design.'; }).then(function () { b.disabled = false; });
+      }).catch(function (er) { sendMsg.textContent = (er && er.message) || 'Couldn\'t prepare the design.'; }).then(function () { b.disabled = false; });
     } });
     var mailBtn = o.emailApi ? el('button', { class: 'admin-btn', type: 'button', text: '✉️ Email to customer', disabled: o.email ? null : '', title: o.email ? 'Send to ' + o.email : 'No email address on this order', onclick: function (e) {
       var b = e.currentTarget; b.disabled = true; sendMsg.textContent = 'Sending…';

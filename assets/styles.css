@@ -1,5 +1,7 @@
 /* SIRRADDO GLOBAL LIMITED — site styles
    Brand colours live in :root below. Change them here and the whole site follows. */
+/* Anything marked hidden stays hidden, whatever display a class gives it. */
+[hidden] { display: none !important; }
 /* Inter (variable, weights 100-900), hosted on this site so no visitor data goes to Google.
    Licence: SIL Open Font License 1.1, see assets/fonts/LICENSE-Inter.txt */
 @font-face {

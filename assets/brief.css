@@ -1,4 +1,6 @@
 /* Project brief page (brief.html) */
+/* Anything marked hidden stays hidden, whatever display a class gives it. */
+[hidden] { display: none !important; }
 .brief { background: var(--bg-soft); }
 .brief-main { max-width: 760px; padding-top: 24px; padding-bottom: 64px; }
 .brief-card, .brief-section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }

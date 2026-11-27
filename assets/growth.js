@@ -136,10 +136,11 @@
       out.querySelector('.qc-total').textContent = pre + naira(total);
       out.querySelector('.qc-dep').textContent = pre + naira(total * 0.7);
       out.querySelector('.qc-bal').textContent = pre + naira(total * 0.3);
+      out.querySelector('.qc-upfront').textContent = pre + naira(Math.round(total * 0.95));
       out.querySelector('.qc-store').hidden = !p.store;
       out.querySelector('.qc-com').hidden = p.domFree;
       var msg = 'Hello SIRRADDO, I would like this quote from your website:\n\n' + p.items.map(function (x) { return '• ' + x.label + ': ' + naira(x.price); }).join('\n') + (p.domFree ? '\n• .com.ng domain: included' : '') +
-        '\n\nTotal: ' + pre + naira(total) + '\n70% to start: ' + pre + naira(total * 0.7) + '\n30% before launch: ' + pre + naira(total * 0.3) + '\nDelivery: about 7 working days' + (p.store ? '\n(Online Store price depends on my catalogue)' : '') + (p.domFree ? '' : '\n(.com renewal: +₦18,000/year from year 2)') + '\n\nMy business name: ';
+        '\n\nTotal: ' + pre + naira(total) + '\n70% to start: ' + pre + naira(total * 0.7) + '\n30% before launch: ' + pre + naira(total * 0.3) + '\nOr 100% upfront (5% off): ' + pre + naira(Math.round(total * 0.95)) + '\nDelivery: about 7 working days' + (p.store ? '\n(Online Store price depends on my catalogue)' : '') + (p.domFree ? '' : '\n(.com renewal: +₦18,000/year from year 2)') + '\n\nMy business name: ';
       out.querySelector('.qc-send').href = 'https://wa.me/' + WA + '?text=' + encodeURIComponent(msg);
     }
     q.addEventListener('change', render);

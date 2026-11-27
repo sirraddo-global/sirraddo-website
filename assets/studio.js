@@ -469,7 +469,8 @@
       if (d.business) { var bf = fit(c, (d.business || '').toUpperCase(), tw - pad * 2, 1, 40 * u, 20 * u, 900); drawLines(c, bf, W / 2, ty + cut + 60 * u, 1, darkAccent(t), 900, 'center'); }
       var cf = fit(c, d.contact, tw - pad * 2, 2, 30 * u, 18 * u, 700); drawLines(c, cf, W / 2, ty + th - 150 * u, 1.3, t.bg, 700, 'center');
     } },
-    { name: 'Sweet boutique', draw: function (c, W, H, d, t) { boutique(c, W, H, d, t, false); } }
+    { name: 'Sweet boutique', draw: function (c, W, H, d, t) { boutique(c, W, H, d, t, false); } },
+    { name: 'Product showcase', draw: function (c, W, H, d, t) { showcase(c, W, H, d, t, false); } }
   ];
 
   // ---------- the editor ----------
@@ -535,6 +536,8 @@
         inline[2].replace(/\band\b/gi, ',').split(',').forEach(function (x) { x = x.trim().replace(/[.]$/, ''); if (x) m.items.push(x.charAt(0).toUpperCase() + x.slice(1)); });
         return;
       }
+      var nd = rest.match(/^(.{2,32}?)\s*(?::|\s[-–—]\s|[–—])\s*(.{6,})$/);
+      if (nd && mode !== 'contact' && !/^(open|opening|hours?|address|location|tel|phone|email|e-mail|website|web|call|whatsapp|contact|note|ps|delivery|deliver|we|our|follow|price|prices)\b/i.test(nd[1]) && !/^we\s/i.test(rest) && nd[1].split(/\s+/).length <= 4) { m.items.push(nd[1].charAt(0).toUpperCase() + nd[1].slice(1) + ' - ' + nd[2].replace(/[.]+$/, '')); return; }
       if (rest.length > 40 || /[.!]\s*$/.test(rest) || /^we\s/i.test(rest)) { m.note = m.note ? m.note + ' ' + rest : rest; return; }
       if (mode === 'contact') return;
       (rest.split(/,(?![^(]*\))/).length >= 3 ? rest.split(',') : [rest]).forEach(function (x) { x = x.trim(); if (x) m.items.push(x.charAt(0).toUpperCase() + x.slice(1)); });
@@ -763,6 +766,209 @@
     } finally { FONT = FB; }
     if (!menu && d.offer && hasPics) offerBadge(c, t, d.offer, px + pw - 30 * u, top + 60 * u, 90 * u);
   }
+  // ---------- "Product showcase": logo + name top left, "OUR Products" top right, category cards with icons down
+  // the left (name + a short line each), product photos on shelves on the right, a round badge, and a footer bar
+  // with WhatsApp, the main social handle and a thank-you. For perfumes, beauty, shops and any product range.
+  // "Perfumes - Luxury scents that last" → { name: 'Perfumes', desc: 'Luxury scents that last' }; prices stay with the name.
+  function splitItem(it) {
+    it = String(it || '').trim();
+    if (/[-–—:]\s*(?:from\s+)?₦\s?[\d,]+(?:\s*\/\s*\w+)?\s*$/i.test(it)) return { name: it, desc: '' };
+    var m = it.match(/^(.{2,32}?)\s*(?::|\s[-–—]\s|[–—])\s*(.{6,})$/);
+    return m ? { name: m[1].trim(), desc: m[2].trim() } : { name: it, desc: '' };
+  }
+  function itemKind(s) {
+    s = String(s || '').toLowerCase();
+    var map = [['spray', /spray|mist/], ['rollon', /roll|deodor|stick/], ['bottle', /perfume|fragrance|scent|cologne|oud|attar|oil perfume/], ['gift', /gift|hamper|set|package|bundle|box|souvenir/],
+      ['cake', /cake|cupcake|pastr|bread|doughnut|pie|cookie|chin/], ['cup', /drink|juice|zobo|smoothie|water|coffee|tea|parfait|yoghurt|wine/], ['shoe', /shoe|sneaker|slipper|heel|sandal|boot/],
+      ['bag', /bag|purse|wallet|luggage/], ['shirt', /dress|cloth|shirt|wear|gown|ankara|fabric|kaftan|jean|top|skirt|abaya|hijab/], ['jar', /cream|lotion|skin|soap|serum|butter|scrub|body|oil|cosmetic|makeup/],
+      ['plate', /food|rice|meal|chops|grill|soup|stew|small chops|catering|kitchen|snack/], ['phone', /phone|gadget|laptop|charger|accessor/]];
+    for (var i = 0; i < map.length; i++) if (map[i][1].test(s)) return map[i][0];
+    return 'star';
+  }
+  function itemIcon(c, k, x, y, r, col) {
+    c.save(); c.fillStyle = col; c.strokeStyle = col; c.lineWidth = r * 0.09; c.lineJoin = 'round';
+    if (k === 'bottle') { rr(c, x - r * 0.42, y - r * 0.12, r * 0.84, r * 0.78, r * 0.18); c.fill(); c.fillRect(x - r * 0.12, y - r * 0.34, r * 0.24, r * 0.22); rr(c, x - r * 0.24, y - r * 0.6, r * 0.48, r * 0.26, r * 0.06); c.fill(); }
+    else if (k === 'spray') { rr(c, x - r * 0.3, y - r * 0.1, r * 0.6, r * 0.78, r * 0.12); c.fill(); c.fillRect(x - r * 0.1, y - r * 0.3, r * 0.2, r * 0.2); rr(c, x - r * 0.2, y - r * 0.5, r * 0.4, r * 0.2, r * 0.05); c.fill(); c.lineWidth = r * 0.06; for (var s = -1; s <= 1; s++) { c.beginPath(); c.moveTo(x + r * 0.32, y - r * 0.42 + s * r * 0.1); c.lineTo(x + r * 0.62, y - r * 0.42 + s * r * 0.2); c.stroke(); } }
+    else if (k === 'rollon') { rr(c, x - r * 0.28, y - r * 0.2, r * 0.56, r * 0.86, r * 0.12); c.fill(); c.beginPath(); c.arc(x, y - r * 0.2, r * 0.28, Math.PI, 0); c.fill(); }
+    else if (k === 'gift') { c.fillRect(x - r * 0.5, y - r * 0.12, r, r * 0.74); c.fillRect(x - r * 0.58, y - r * 0.34, r * 1.16, r * 0.24); c.lineWidth = r * 0.1; c.beginPath(); c.ellipse(x - r * 0.2, y - r * 0.48, r * 0.2, r * 0.12, -0.4, 0, Math.PI * 2); c.ellipse(x + r * 0.2, y - r * 0.48, r * 0.2, r * 0.12, 0.4, 0, Math.PI * 2); c.stroke(); c.globalCompositeOperation = 'destination-out'; c.fillRect(x - r * 0.06, y - r * 0.34, r * 0.12, r * 0.96); c.restore(); return; }
+    else if (k === 'cake') { rr(c, x - r * 0.55, y - r * 0.05, r * 1.1, r * 0.6, r * 0.08); c.fill(); rr(c, x - r * 0.38, y - r * 0.4, r * 0.76, r * 0.32, r * 0.08); c.fill(); c.fillRect(x - r * 0.04, y - r * 0.66, r * 0.08, r * 0.22); }
+    else if (k === 'cup') { c.beginPath(); c.moveTo(x - r * 0.4, y - r * 0.45); c.lineTo(x + r * 0.4, y - r * 0.45); c.lineTo(x + r * 0.28, y + r * 0.6); c.lineTo(x - r * 0.28, y + r * 0.6); c.closePath(); c.fill(); c.fillRect(x + r * 0.05, y - r * 0.75, r * 0.08, r * 0.32); }
+    else if (k === 'shoe') { c.beginPath(); c.moveTo(x - r * 0.6, y + r * 0.35); c.lineTo(x - r * 0.6, y - r * 0.35); c.lineTo(x - r * 0.2, y - r * 0.35); c.quadraticCurveTo(x - r * 0.05, y, x + r * 0.4, y + r * 0.02); c.quadraticCurveTo(x + r * 0.65, y + r * 0.1, x + r * 0.62, y + r * 0.35); c.closePath(); c.fill(); }
+    else if (k === 'bag') { rr(c, x - r * 0.5, y - r * 0.2, r, r * 0.8, r * 0.1); c.fill(); c.beginPath(); c.arc(x, y - r * 0.2, r * 0.26, Math.PI, 0); c.stroke(); }
+    else if (k === 'shirt') { c.beginPath(); c.moveTo(x - r * 0.2, y - r * 0.55); c.lineTo(x - r * 0.62, y - r * 0.32); c.lineTo(x - r * 0.46, y); c.lineTo(x - r * 0.32, y - r * 0.08); c.lineTo(x - r * 0.32, y + r * 0.6); c.lineTo(x + r * 0.32, y + r * 0.6); c.lineTo(x + r * 0.32, y - r * 0.08); c.lineTo(x + r * 0.46, y); c.lineTo(x + r * 0.62, y - r * 0.32); c.lineTo(x + r * 0.2, y - r * 0.55); c.quadraticCurveTo(x, y - r * 0.3, x - r * 0.2, y - r * 0.55); c.fill(); }
+    else if (k === 'jar') { rr(c, x - r * 0.48, y - r * 0.15, r * 0.96, r * 0.7, r * 0.14); c.fill(); rr(c, x - r * 0.52, y - r * 0.42, r * 1.04, r * 0.22, r * 0.06); c.fill(); }
+    else if (k === 'plate') { c.beginPath(); c.arc(x, y + r * 0.15, r * 0.55, Math.PI, 0); c.closePath(); c.fill(); c.fillRect(x - r * 0.68, y + r * 0.2, r * 1.36, r * 0.1); c.fillRect(x - r * 0.05, y - r * 0.55, r * 0.1, r * 0.18); }
+    else if (k === 'phone') { rr(c, x - r * 0.3, y - r * 0.55, r * 0.6, r * 1.1, r * 0.1); c.fill(); }
+    else { c.beginPath(); for (var i = 0; i < 8; i++) { var a = i * Math.PI / 4 - Math.PI / 2, rad = i % 2 ? r * 0.2 : r * 0.62; c.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad); } c.closePath(); c.fill(); }
+    c.restore();
+  }
+  function waIcon(c, x, y, r, bg, fg) {
+    c.save(); c.fillStyle = bg; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = fg; c.fillStyle = fg; c.lineWidth = r * 0.12;
+    c.beginPath(); c.arc(x, y, r * 0.52, Math.PI * 0.75, Math.PI * 2.6); c.lineTo(x - r * 0.55, y + r * 0.58); c.closePath(); c.stroke();
+    c.beginPath(); c.arc(x - r * 0.08, y - r * 0.02, r * 0.17, Math.PI * 0.6, Math.PI * 1.4); c.stroke(); c.restore();
+  }
+  function showcase(c, W, H, d, t, menu) {
+    var u = W / 1080, pad = 46 * u, tall = H / W > 1.5, sq = H / W < 1.1;
+    var own = t && t.name === 'Their colours';
+    var navy = own ? t.bg : '#13234B', gold = own ? t.accent : '#C9A24B', cream = own ? (t.light || '#FBF8F2') : '#FBF8F2';
+    var deep = lum(navy) > 0.45 ? '#1F2937' : navy, onNavy = onColour(navy);
+    var SCRIPT = '"Great Vibes", "Playfair Display", Georgia, serif', SERIFF = '"Playfair Display", Georgia, serif', BODY = '"Montserrat", "Poppins", Inter, Arial, sans-serif';
+    // soft light background with a glow and a few gold curves
+    var g = c.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.55, cream); g.addColorStop(1, '#EFE8DC'); c.fillStyle = g; c.fillRect(0, 0, W, H);
+    var rg = c.createRadialGradient(W * 0.72, H * 0.45, 0, W * 0.72, H * 0.45, W * 0.6); rg.addColorStop(0, 'rgba(255,255,255,.95)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = rg; c.fillRect(0, 0, W, H);
+    c.fillStyle = navy; c.beginPath(); c.moveTo(0, 0); c.lineTo(W * 0.2, 0); c.quadraticCurveTo(W * 0.06, H * 0.03, 0, H * 0.09); c.closePath(); c.fill();
+    c.strokeStyle = gold; c.lineWidth = 3 * u; c.beginPath(); c.moveTo(W * 0.24, 0); c.quadraticCurveTo(W * 0.08, H * 0.04, 0, H * 0.12); c.stroke();
+    c.fillStyle = navy; c.beginPath(); c.moveTo(W, H * 0.62); c.quadraticCurveTo(W * 0.9, H * 0.72, W * 0.93, H); c.lineTo(W, H); c.closePath(); c.globalAlpha = 0.9; c.fill(); c.globalAlpha = 1;
+    var FB = FONT; FONT = BODY;
+    try {
+      var footH = (tall ? 150 : sq ? 104 : 124) * u, hdrH = (tall ? 360 : sq ? 230 : 290) * u, bodyBottom = H - footH - 24 * u;
+      var raw = menu ? (d.items || []) : (d.services || []), descs = menu ? (d.descs || []) : [];
+      var items = raw.map(function (it, i) { var s = splitItem(it); return { name: s.name, desc: descs[i] || s.desc }; }).slice(0, tall ? 8 : sq ? 5 : 6);
+      var pics = (menu ? (d.menuPhotos || []).map(function (x) { return x.img; }) : (d.photos || [])).filter(Boolean).slice(0, 9);
+      var leftW = pics.length ? W * 0.45 - pad : W - pad * 2, rx = W * 0.48, rw = W - rx - pad * 0.7;
+      // --- top left: logo, name, small line, tagline
+      var y = 30 * u, cx = pad + leftW / 2;
+      if (d.logo) {
+        var lh = (tall ? 150 : sq ? 92 : 120) * u, lw = Math.min(leftW * 0.6, lh * d.logo.width / d.logo.height), lhh = lw * d.logo.height / d.logo.width;
+        c.drawImage(d.logo, cx - lw / 2, y, lw, lhh); y += lhh + 10 * u;
+      }
+      var words = String(d.business || 'Your business').trim().split(/\s+/), bp = brandParts(d.business || 'Your business');
+      var big = bp.small ? bp.big : words.length > 1 ? words.slice(0, -1).join(' ') : words[0], small = bp.small || (words.length > 1 ? words[words.length - 1] : '');
+      var bf = fit(c, big.toUpperCase(), leftW, 1, (tall ? 76 : 62) * u, 30 * u, 700); c.font = '700 ' + bf.size + 'px ' + SERIFF; c.fillStyle = deep; c.textAlign = 'center'; c.fillText(bf.lines[0], cx, y + bf.size * 0.85);
+      while (c.measureText(bf.lines[0]).width > leftW && bf.size > 24 * u) { bf.size -= 2 * u; c.font = '700 ' + bf.size + 'px ' + SERIFF; }
+      y += bf.size * 1.05;
+      if (small) {
+        var st = small.toUpperCase().split('').join(String.fromCharCode(8202, 8202)), ss = 24 * u; c.font = '600 ' + ss + 'px ' + BODY;
+        while (c.measureText(st).width > leftW * 0.6 && ss > 12 * u) { ss -= 1 * u; c.font = '600 ' + ss + 'px ' + BODY; }
+        var sw = c.measureText(st).width; c.fillStyle = deep; c.fillText(st, cx, y + ss);
+        c.strokeStyle = gold; c.lineWidth = 2 * u; c.beginPath(); c.moveTo(cx - sw / 2 - 70 * u, y + ss * 0.65); c.lineTo(cx - sw / 2 - 14 * u, y + ss * 0.65); c.moveTo(cx + sw / 2 + 14 * u, y + ss * 0.65); c.lineTo(cx + sw / 2 + 70 * u, y + ss * 0.65); c.stroke();
+        y += ss * 1.6;
+      }
+      var tag = d.note && d.note.length <= 48 ? d.note.replace(/\.{2,}$|…$/, '') : (d.tagline || '');
+      if (tag) { var ts = (tall ? 44 : 36) * u; c.font = '400 ' + ts + 'px ' + SCRIPT; while (c.measureText(tag).width > leftW && ts > 20 * u) { ts -= 2 * u; c.font = '400 ' + ts + 'px ' + SCRIPT; } c.fillStyle = deep; c.fillText(tag, cx, y + ts * 0.85); y += ts * 1.1; }
+      c.textAlign = 'left';
+      var bodyTop = Math.max(y + 24 * u, hdrH);
+      // --- top right: "OUR" + script word
+      var lt = menu ? (d.listTitle && !/^contact us for$/i.test(d.listTitle) ? d.listTitle : 'Our Products') : 'Our Products';
+      var om = lt.match(/^(our|the|my)\s+(.+)$/i), w1 = om ? om[1].toUpperCase() : '', w2 = om ? om[2] : lt;
+      w2 = w2.charAt(0).toUpperCase() + w2.slice(1);
+      var hx = pics.length ? rx + rw / 2 : W / 2;
+      if (pics.length || !menu) {
+        var o1 = (tall ? 150 : sq ? 96 : 124) * u; c.font = '700 ' + o1 + 'px ' + SERIFF; c.fillStyle = deep; c.textAlign = 'center';
+        var hy = 40 * u + o1 * 0.85;
+        if (w1) c.fillText(w1, hx, hy);
+        var s2 = (tall ? 120 : sq ? 80 : 100) * u; c.font = '400 ' + s2 + 'px ' + SCRIPT; while (c.measureText(w2).width > rw && s2 > 40 * u) { s2 -= 3 * u; c.font = '400 ' + s2 + 'px ' + SCRIPT; }
+        c.fillStyle = gold; c.fillText(w2, hx + (w1 ? 20 * u : 0), w1 ? hy + s2 * 0.62 : hy);
+        c.strokeStyle = gold; c.lineWidth = 2 * u; var lw2 = c.measureText(w2).width; c.beginPath(); c.moveTo(hx - lw2 * 0.4, hy + s2 * 0.82); c.quadraticCurveTo(hx, hy + s2 * 0.9, hx + lw2 * 0.55, hy + s2 * 0.78); c.stroke();
+        c.textAlign = 'left';
+        if (!menu && d.headline && pics.length) bodyTop = Math.max(bodyTop, hy + s2);
+        bodyTop = Math.max(bodyTop, (w1 ? hy + s2 * 0.62 : hy) + 40 * u);
+      }
+      // --- right: product photos standing on shelves
+      if (pics.length) {
+        var rows = pics.length <= 2 ? 1 : pics.length <= 4 ? 2 : 3, per = Math.ceil(pics.length / rows), shelfGap = 26 * u;
+        var areaH = bodyBottom - bodyTop, rowH = (areaH - shelfGap * (rows - 1)) / rows;
+        c.save(); c.fillStyle = 'rgba(255,255,255,.7)'; c.shadowColor = 'rgba(19,35,75,.12)'; c.shadowBlur = 30 * u; rr(c, rx - 10 * u, bodyTop - 16 * u, rw + 20 * u, areaH + 32 * u, 40 * u); c.fill(); c.restore();
+        for (var r = 0; r < rows; r++) {
+          var rowPics = pics.slice(r * per, r * per + per); if (!rowPics.length) break;
+          var ry = bodyTop + r * (rowH + shelfGap), n = rowPics.length, gap = 16 * u, pw = (rw - gap * (n - 1) - 20 * u) / n, ph = rowH - 26 * u;
+          // the shelf: a soft gold-edged ellipse
+          c.save(); c.fillStyle = '#FFFFFF'; c.shadowColor = 'rgba(0,0,0,.18)'; c.shadowBlur = 16 * u; c.shadowOffsetY = 6 * u; c.beginPath(); c.ellipse(rx + rw / 2, ry + ph + 8 * u, rw / 2, 18 * u, 0, 0, Math.PI * 2); c.fill(); c.restore();
+          c.strokeStyle = gold; c.lineWidth = 2.5 * u; c.beginPath(); c.ellipse(rx + rw / 2, ry + ph + 8 * u, rw / 2, 18 * u, 0, 0, Math.PI); c.stroke();
+          rowPics.forEach(function (im, k) {
+            var px = rx + 10 * u + k * (pw + gap);
+            c.save(); c.shadowColor = 'rgba(0,0,0,.22)'; c.shadowBlur = 14 * u; c.shadowOffsetY = 6 * u; c.fillStyle = '#FFFFFF'; rr(c, px, ry, pw, ph, 18 * u); c.fill(); c.restore();
+            c.save(); rr(c, px + 4 * u, ry + 4 * u, pw - 8 * u, ph - 8 * u, 15 * u); c.clip(); cover(c, im, px + 4 * u, ry + 4 * u, pw - 8 * u, ph - 8 * u, 0.45); c.restore();
+          });
+        }
+      }
+      // --- left: category cards (or the headline and details when there is no list)
+      var deliv = /nationwide|deliver|dispatch|ship/i.test([d.place, d.note, d.details, d.offer].join(' '));
+      var place = String(d.place || '').replace(/[·,]?\s*(we\s+)?deliver[^·,]*|[·,]?\s*(available\s+)?nationwide/ig, '').replace(/^available\s+in\s+/i, '').replace(/^[\s·,]+|[\s·,]+$/g, '');
+      var featH = (place || deliv) ? (place && deliv ? 150 : 80) * u : 0;
+      var listTop = bodyTop, listBottom = bodyBottom - featH - (featH ? 20 * u : 0);
+      if (items.length) {
+        var gapC = 16 * u, cardH = Math.min((tall ? 215 : 140) * u, (listBottom - listTop - gapC * (items.length - 1)) / items.length), ir = cardH * 0.46;
+        items.forEach(function (it, i) {
+          var cy = listTop + i * (cardH + gapC), x0 = pad + ir * 0.9, cw = leftW - ir * 0.9;
+          c.save(); c.shadowColor = 'rgba(0,0,0,.22)'; c.shadowBlur = 12 * u; c.shadowOffsetY = 5 * u; c.fillStyle = navy; rr(c, x0, cy, cw, cardH, cardH * 0.22); c.fill(); c.restore();
+          c.strokeStyle = gold; c.globalAlpha = 0.55; c.lineWidth = 1.5 * u; rr(c, x0 + 5 * u, cy + 5 * u, cw - 10 * u, cardH - 10 * u, cardH * 0.18); c.stroke(); c.globalAlpha = 1;
+          var icx = pad + ir, icy = cy + cardH / 2;
+          c.save(); c.shadowColor = 'rgba(0,0,0,.3)'; c.shadowBlur = 10 * u; c.fillStyle = navy; c.beginPath(); c.arc(icx, icy, ir, 0, Math.PI * 2); c.fill(); c.restore();
+          var ringG = c.createLinearGradient(icx - ir, icy - ir, icx + ir, icy + ir); ringG.addColorStop(0, '#F3DDA0'); ringG.addColorStop(0.5, gold); ringG.addColorStop(1, '#8C6A22');
+          c.strokeStyle = ringG; c.lineWidth = ir * 0.12; c.beginPath(); c.arc(icx, icy, ir * 0.9, 0, Math.PI * 2); c.stroke();
+          itemIcon(c, itemKind(it.name + ' ' + it.desc), icx, icy, ir * 0.62, gold);
+          var tx = icx + ir + 18 * u, tw = x0 + cw - tx - 16 * u;
+          c.font = '700 10px ' + SERIFF; var nmax = Math.min(40 * u, cardH * 0.3), nf = fit(c, it.name.toUpperCase(), tw, 1, nmax, nmax * 0.72, 700); c.font = '700 ' + nf.size + 'px ' + SERIFF; if (c.measureText(nf.lines[0]).width > tw) nf = fit(c, it.name.toUpperCase(), tw, 2, nmax * 0.85, 14 * u, 700);
+          var df = it.desc ? fit(c, it.desc, tw, 3, Math.min(25 * u, cardH * 0.19), 13 * u, 500) : null;
+          var blockH = nf.size * (1 + (nf.lines.length - 1) * 1.05) + (df ? 8 * u + df.size * (1 + (df.lines.length - 1) * 1.25) : 0);
+          while (df && blockH > cardH - 20 * u && df.size > 12 * u) { df = fit(c, it.desc, tw, 3, df.size - 1 * u, 11 * u, 500); blockH = nf.size * (1 + (nf.lines.length - 1) * 1.05) + 8 * u + df.size * (1 + (df.lines.length - 1) * 1.25); }
+          var ty = cy + (cardH - blockH) / 2;
+          c.font = '700 ' + nf.size + 'px ' + SERIFF; c.fillStyle = onNavy;
+          nf.lines.forEach(function (l, k) { c.fillText(l, tx, ty + nf.size * (0.85 + k * 1.05), tw); });
+          if (df) { var dy = ty + nf.size * (1 + (nf.lines.length - 1) * 1.05) + 8 * u; c.font = '500 ' + df.size + 'px ' + BODY; c.fillStyle = onNavy; c.globalAlpha = 0.85; df.lines.forEach(function (l, k) { c.fillText(l, tx, dy + df.size * (0.9 + k * 1.25)); }); c.globalAlpha = 1; }
+        });
+      } else {
+        // no list: the headline and details, centred in the space, with a gold rule between
+        var hf = fit(c, d.headline || 'Your offer', leftW, 4, (tall ? 110 : 92) * u, 30 * u, 700);
+        var ddf = d.details ? fit(c, d.details.replace(/\n/g, ' · '), leftW, 5, (tall ? 42 : 36) * u, 18 * u, 500) : null;
+        var hh = hf.size * (1 + (hf.lines.length - 1) * 1.08), dh = ddf ? 50 * u + ddf.size * (1 + (ddf.lines.length - 1) * 1.35) : 0;
+        var y0 = listTop + Math.max(0, (listBottom - listTop - hh - dh) / 2);
+        c.font = '700 ' + hf.size + 'px ' + SERIFF; c.fillStyle = deep;
+        hf.lines.forEach(function (l, k) { c.fillText(l, pad, y0 + hf.size * (0.9 + k * 1.08), leftW); });
+        if (ddf) { var yy = y0 + hh + 22 * u; c.fillStyle = gold; c.fillRect(pad, yy, 90 * u, 5 * u); drawLines(c, ddf, pad, yy + 14 * u, 1.35, '#374151', 500); }
+      }
+      // --- place and delivery lines
+      var fy = bodyBottom - featH + 6 * u;
+      function feat(kind, a, b) {
+        var r0 = 30 * u, ix = pad + r0;
+        c.save(); c.fillStyle = deep; c.strokeStyle = deep; c.lineWidth = 4 * u;
+        if (kind === 'place') { c.beginPath(); c.arc(ix, fy + r0 * 0.75, r0 * 0.55, Math.PI, 0); c.lineTo(ix, fy + r0 * 1.9); c.closePath(); c.stroke(); c.beginPath(); c.arc(ix, fy + r0 * 0.75, r0 * 0.2, 0, Math.PI * 2); c.fill(); }
+        else { c.strokeRect(ix - r0 * 0.9, fy + r0 * 0.5, r0 * 1.1, r0 * 0.9); c.beginPath(); c.moveTo(ix + r0 * 0.2, fy + r0 * 0.8); c.lineTo(ix + r0 * 0.7, fy + r0 * 0.8); c.lineTo(ix + r0 * 0.95, fy + r0 * 1.1); c.lineTo(ix + r0 * 0.95, fy + r0 * 1.4); c.lineTo(ix + r0 * 0.2, fy + r0 * 1.4); c.stroke(); c.beginPath(); c.arc(ix - r0 * 0.5, fy + r0 * 1.55, r0 * 0.18, 0, Math.PI * 2); c.arc(ix + r0 * 0.6, fy + r0 * 1.55, r0 * 0.18, 0, Math.PI * 2); c.fill(); }
+        c.restore();
+        var fw = leftW - r0 * 2.6; c.fillStyle = deep;
+        var af = fit(c, a, fw, 1, 24 * u, 14 * u, 600); c.font = '600 ' + af.size + 'px ' + BODY; c.fillText(af.lines[0], pad + r0 * 2.4, fy + af.size + 4 * u);
+        var bf2 = fit(c, b.toUpperCase(), fw, 1, 28 * u, 14 * u, 800); c.font = '800 ' + bf2.size + 'px ' + BODY; c.fillText(bf2.lines[0], pad + r0 * 2.4, fy + af.size + bf2.size + 12 * u);
+        fy += 72 * u;
+      }
+      if (place) feat('place', 'AVAILABLE IN', place);
+      if (deliv) feat('truck', 'WE DELIVER', /nationwide/i.test([d.place, d.note, d.details].join(' ')) ? 'Nationwide' : 'To your door');
+      // --- round badge over the photos
+      var badge = d.offer || 'Perfect for every occasion', br = (tall ? 120 : sq ? 84 : 104) * u, bx = W - pad * 0.7 - br, by = bodyBottom - br * 0.75;
+      if (pics.length || d.offer) {
+        c.save(); c.shadowColor = 'rgba(0,0,0,.3)'; c.shadowBlur = 20 * u; c.fillStyle = navy; c.beginPath(); c.arc(bx, by, br, 0, Math.PI * 2); c.fill(); c.restore();
+        c.strokeStyle = gold; c.lineWidth = 4 * u; c.beginPath(); c.arc(bx, by, br * 0.9, 0, Math.PI * 2); c.stroke();
+        var bfit = fit(c, badge.toUpperCase(), br * 1.4, 4, br * (badge.length <= 12 ? 0.36 : 0.24), br * 0.12, 700); c.font = '700 ' + bfit.size + 'px ' + SERIFF; c.fillStyle = onNavy; c.textAlign = 'center';
+        var bh = bfit.size * 1.15 * bfit.lines.length; bfit.lines.forEach(function (l, k) { c.fillText(l, bx, by - bh / 2 + bfit.size * (0.9 + k * 1.15) - br * 0.06); });
+        c.strokeStyle = gold; c.lineWidth = 2.5 * u; c.beginPath(); var hy2 = by + bh / 2 + br * 0.1, hs = br * 0.1; c.moveTo(bx, hy2 + hs); c.bezierCurveTo(bx - hs * 2, hy2 - hs * 0.4, bx - hs * 0.6, hy2 - hs * 1.6, bx, hy2 - hs * 0.4); c.bezierCurveTo(bx + hs * 0.6, hy2 - hs * 1.6, bx + hs * 2, hy2 - hs * 0.4, bx, hy2 + hs); c.stroke();
+        c.textAlign = 'left';
+      }
+      // --- footer: WhatsApp | main social | thank you
+      var fyb = H - footH; c.fillStyle = navy; c.fillRect(0, fyb, W, footH); c.fillStyle = gold; c.fillRect(0, fyb, W, 4 * u);
+      var cells = [];
+      if (d.phones && d.phones.length) cells.push({ k: 'wa', a: 'WHATSAPP', b: d.phones[0] });
+      var soc = (d.socials || [])[0];
+      if (soc) { var sp = socialSplit(soc), nm = { ig: 'INSTAGRAM', tt: 'TIKTOK', fb: 'FACEBOOK', x: 'X', yt: 'YOUTUBE', snap: 'SNAPCHAT' }[sp.k] || 'FOLLOW US'; cells.push({ k: sp.k, a: nm, b: sp.t }); }
+      cells.push({ k: 'thanks' });
+      var cw2 = W / cells.length, mid = fyb + footH / 2 + 2 * u;
+      cells.forEach(function (cl, i) {
+        var x0 = i * cw2;
+        if (i) { c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 2 * u; c.beginPath(); c.moveTo(x0, fyb + 22 * u); c.lineTo(x0, fyb + footH - 18 * u); c.stroke(); }
+        if (cl.k === 'thanks') {
+          var tt = 'Thank you for choosing us', ts2 = (tall ? 50 : 40) * u; c.font = '400 ' + ts2 + 'px ' + SCRIPT; c.fillStyle = gold; c.textAlign = 'center';
+          var lines2 = c.measureText(tt).width > cw2 - 40 * u ? ['Thank you for', 'choosing us'] : [tt];
+          lines2.forEach(function (l, k) { c.fillText(l, x0 + cw2 / 2, mid + ts2 * 0.3 + (k - (lines2.length - 1) / 2) * ts2 * 0.95); }); c.textAlign = 'left'; return;
+        }
+        var ir2 = (tall ? 34 : 28) * u, ix2 = x0 + 34 * u + ir2;
+        if (cl.k === 'wa') waIcon(c, ix2, mid, ir2, 'rgba(0,0,0,0)', onNavy); else { c.save(); c.lineWidth = 3 * u; icon(c, cl.k, ix2, mid, ir2, 'rgba(0,0,0,0)', onNavy); c.restore(); }
+        var tx2 = ix2 + ir2 + 16 * u, tw2 = x0 + cw2 - tx2 - 14 * u;
+        var a = fit(c, cl.a, tw2, 1, 20 * u, 12 * u, 600), b = fit(c, cl.b, tw2, 1, (tall ? 38 : 32) * u, 14 * u, 700);
+        c.fillStyle = onNavy; c.font = '600 ' + a.size + 'px ' + BODY; c.globalAlpha = 0.85; c.fillText(a.lines[0], tx2, mid - 4 * u); c.globalAlpha = 1;
+        c.font = '700 ' + b.size + 'px ' + BODY; c.fillText(b.lines[0], tx2, mid + b.size + 2 * u);
+      });
+    } finally { FONT = FB; c.textAlign = 'left'; }
+  }
   var MENU_LAYOUTS = [
     { name: 'Classic menu', draw: function (c, W, H, d, t) {
       var u = W / 1080, pad = 56 * u, tall = H / W > 1.5;
@@ -887,7 +1093,8 @@
         c.textAlign = 'left';
       }
     } },
-    { name: 'Sweet boutique', draw: function (c, W, H, d, t) { boutique(c, W, H, d, t, true); } }
+    { name: 'Sweet boutique', draw: function (c, W, H, d, t) { boutique(c, W, H, d, t, true); } },
+    { name: 'Product showcase', draw: function (c, W, H, d, t) { showcase(c, W, H, d, t, true); } }
   ];
 
 
@@ -929,7 +1136,8 @@
     { name: 'Sporty', layout: 6, head: SANS('Oswald'), font: SANS('Oswald'), serif: SANS('Oswald'), tex: 'grain', deco: 'speed', theme: { bg: '#0A1931', accent: '#00D1FF', light: '#EEF6FF' }, tags: ['gym', 'fitness', 'sport', 'football', 'delivery', 'logistics', 'dispatch', 'car', 'auto', 'mechanic', 'wash'] },
     { name: 'Kids fun', layout: 9, head: SANS('Fredoka'), font: SANS('Fredoka'), serif: SANS('Fredoka'), tex: '', deco: 'bubbles', theme: { bg: '#FF6B6B', accent: '#FFD23F', light: '#E3F6FF' }, tags: ['school', 'kids', 'children', 'toy', 'creche', 'lesson', 'tutor', 'baby', 'nursery', 'summer'] },
     { name: 'Minimal', layout: 5, head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: 'paper', deco: '', theme: { bg: '#3B2416', accent: '#B08D57', light: '#F7F3EC' }, tags: ['studio', 'photography', 'architect', 'interior', 'design', 'tech', 'consult', 'portfolio'] },
-    { name: 'Sweet boutique', layout: 12, head: SER('Great Vibes'), font: SANS('Poppins'), serif: SER('Playfair Display'), tex: '', deco: '', theme: { bg: '#5B1E4F', accent: '#C9A227', light: '#FCEAF1' }, tags: ['cake', 'cupcake', 'bakery', 'pastr', 'clothing', 'fashion', 'boutique', 'aso ebi', 'ankara', 'beauty', 'makeup', 'lash', 'nail', 'event', 'decor', 'bouquet', 'gift'] }
+    { name: 'Sweet boutique', layout: 12, head: SER('Great Vibes'), font: SANS('Poppins'), serif: SER('Playfair Display'), tex: '', deco: '', theme: { bg: '#5B1E4F', accent: '#C9A227', light: '#FCEAF1' }, tags: ['cake', 'cupcake', 'bakery', 'pastr', 'clothing', 'fashion', 'boutique', 'aso ebi', 'ankara', 'beauty', 'makeup', 'lash', 'nail', 'event', 'decor', 'bouquet', 'gift'] },
+    { name: 'Luxury showcase', layout: 13, head: SER('Playfair Display'), font: SANS('Montserrat'), serif: SER('Playfair Display'), tex: '', deco: '', theme: { bg: '#13234B', accent: '#C9A24B', light: '#FBF8F2' }, tags: ['perfume', 'scent', 'fragrance', 'cologne', 'oud', 'body spray', 'body mist', 'roll-on', 'cosmetic', 'skincare', 'skin care', 'cream', 'lotion', 'products', 'store', 'mart', 'collection', 'gift set'] }
   ];
   function lookByName(n) { for (var i = 0; i < LOOKS.length; i++) if (LOOKS[i].name === n) return LOOKS[i]; return LOOKS[0]; }
   // The 3 looks that suit this business best (by words in the order), different from each other.
@@ -1313,7 +1521,7 @@
       var g = guess(o), mp = parseMenu(o), cd = parseCard(o), inf = o.info || {};
       var d = { business: o.business || g.business, headline: g.headline, details: g.details, offer: g.offer, contact: g.contact,
         photo: photos[0] || null, photos: photos, logo: logo, logoWide: logo ? logo.width / logo.height > 1.3 : false,
-        listTitle: mp.listTitle, items: mp.items, note: mp.note, phones: mp.phones, socials: mp.socials, place: mp.place,
+        listTitle: mp.listTitle, items: mp.items.map(function (x) { return splitItem(x).name; }), descs: mp.items.map(function (x) { return splitItem(x).desc; }), note: mp.note, phones: mp.phones, socials: mp.socials, place: mp.place,
         menuPhotos: photos.map(function (img) { return { img: img, caption: '' }; }),
         name: cd.name, title: cd.title, email: cd.email, address: cd.address, tagline: cd.tagline, web: cd.web, cardSocials: cd.socials, cardPhones: cd.phones };
       var list = mode === 'menu' ? MENU_LAYOUTS : mode === 'card' ? CARD_PREVIEW : null;
@@ -1725,10 +1933,11 @@
     function data() {
       var photos = state.photos.filter(function (p, i) { return i !== state.logoIdx && p; });
       var main = state.photos[state.photoIdx] && state.photoIdx !== state.logoIdx ? state.photos[state.photoIdx] : photos[0] || null;
+      var rawItems = mf.items.value.split('\n').map(function (x) { x = x.replace(/^[\s•\-*◆♦]+/, '').trim(); return showPrices.checked ? x : x.replace(/\s*[-–—:]\s*(?:from\s+)?\u20A6\s?[\d,]+.*$/i, ''); }).filter(Boolean).filter(notBrand);
       return { business: f.business.value.trim(), headline: f.headline.value.trim(), details: f.details.value.trim(), offer: f.offer.value.trim().toUpperCase(), contact: withPlace(f.contact.value.trim(), f.place.value.trim()),
         photo: main, photos: [main].concat(photos.filter(function (p) { return p !== main; })), logo: state.logoIdx >= 0 ? state.raw[state.logoIdx] : null,
         logoWide: state.logoIdx >= 0 && state.raw[state.logoIdx] ? state.raw[state.logoIdx].width / state.raw[state.logoIdx].height > 1.3 : false,
-        listTitle: mf.listTitle.value.trim(), items: mf.items.value.split('\n').map(function (x) { x = x.replace(/^[\s•\-*◆♦]+/, '').trim(); return showPrices.checked ? x : x.replace(/\s*[-–—:]\s*(?:from\s+)?\u20A6\s?[\d,]+.*$/i, ''); }).filter(Boolean).filter(notBrand),
+        listTitle: mf.listTitle.value.trim(), items: rawItems.map(function (x) { return splitItem(x).name; }), descs: rawItems.map(function (x) { return splitItem(x).desc; }),
         note: mf.note.value.trim(), phones: mf.phones.value.split(/[,;\/]+/).map(function (x) { return x.trim(); }).filter(Boolean),
         socials: socialList(mf.socials.value),
         place: mf.place.value.trim(),

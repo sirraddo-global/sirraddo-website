@@ -84,7 +84,15 @@
       }
       if (cur) lines.push(cur);
       var widest = Math.max.apply(null, lines.map(function (l) { return c.measureText(l).width; }).concat([0]));
-      if (lines.length <= maxLines && widest <= maxW) return { lines: lines, size: size };
+      if (lines.length <= maxLines && widest <= maxW) {
+        // No lonely last word ("31." on its own line): pull one word down from the line above.
+        var n = lines.length;
+        if (n >= 2 && lines[n - 1].indexOf(' ') === -1) {
+          var prev = lines[n - 2].split(' ');
+          if (prev.length >= 3) { var moved = prev.pop() + ' ' + lines[n - 1]; if (c.measureText(moved).width <= maxW) { lines[n - 2] = prev.join(' '); lines[n - 1] = moved; } }
+        }
+        return { lines: lines, size: size };
+      }
     }
     c.font = weight + ' ' + small + 'px ' + fam(weight);
     return { lines: [text], size: small };
@@ -142,8 +150,13 @@
   }
 
   // ---------- guessing the text from the order ----------
+  // "including, Spaghetti" → "including Spaghetti"; "10 percent" → "10%"; stray spaces before commas.
+  function tidy(x) {
+    return String(x || '').replace(/\b(including|such as|like|e\.g\.|plus|also)\s*,\s*/gi, '$1 ').replace(/\s+([,.;:!?])/g, '$1').replace(/,\s*,+/g, ',')
+      .replace(/(\d{1,2})\s*(?:per\s*cent|percent)\b/gi, '$1%').replace(/(\d)\s+%/g, '$1%').replace(/[ \t]{2,}/g, ' ');
+  }
   function guess(o) {
-    var words = String(o.words || '').replace(/\r/g, '');
+    var words = tidy(String(o.words || '').replace(/\r/g, ''));
     var info = o.info || {};
     var phone = (info.phone || '').split(/[,;\/]/)[0].trim() || (words.match(/(\+?234|0)[789][01]\d[\s-]?\d{3}[\s-]?\d{4}/) || [])[0] || o.contact || '';
     var offer = (words.match(/\d{1,2}\s?%\s?off\b|buy \d+ get \d+( free)?|free delivery|from \u20A6\s?[\d,]+|\u20A6\s?[\d,]+/i) || [])[0] || '';
@@ -351,7 +364,7 @@
       c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
       if (d.photo && d.photo.__cut) { var gb = c.createRadialGradient(W / 2, H * 0.38, 0, W / 2, H * 0.38, W * 0.8); gb.addColorStop(0, t.accent); gb.addColorStop(1, t.bg); c.globalAlpha = 0.35; c.fillStyle = gb; c.fillRect(0, 0, W, H); c.globalAlpha = 1; cover(c, d.photo, 0, 60 * u, W, H * 0.62); }
       else cover(c, d.photo, 0, 0, W, H, 0.35);
-      var g = c.createLinearGradient(0, H * 0.38, 0, H); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.55, 'rgba(0,0,0,.62)'); g.addColorStop(1, 'rgba(0,0,0,.88)'); c.fillStyle = g; c.fillRect(0, H * 0.38, W, H * 0.62);
+      var g = c.createLinearGradient(0, H, 0, H * 0.3); g.addColorStop(0, 'rgba(0,0,0,.92)'); g.addColorStop(0.45, 'rgba(0,0,0,.6)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, H * 0.3, W, H * 0.7);
       if (d.business && !d.logoWide) { c.font = '800 ' + 28 * u + 'px ' + FONT; c.fillStyle = '#fff'; c.fillText(d.business.toUpperCase(), pad, 90 * u, W - pad * 2 - (d.logo ? 130 * u : 0)); }
       logoBadge(c, d.logo, W - 100 * u, 100 * u, 56 * u);
       if (d.offer) sticker(c, t, d.offer, W - 190 * u, H * 0.42, 130 * u);
@@ -387,7 +400,7 @@
       c.font = '600 ' + 22 * u + 'px ' + FONT; c.fillStyle = t.bg; c.fillText((d.business || '').toUpperCase().split('').join(String.fromCharCode(8202)), pad, 100 * u, W - pad * 2);
       c.fillRect(pad, 120 * u, W - pad * 2, 1.5 * u); c.save(); c.globalAlpha = 0.22; c.fillStyle = t.accent; c.fillRect(36 * u, 36 * u, W - 72 * u, 100 * u); c.restore();
       var hf = fit(c, d.headline, W - pad * 2, tall ? 4 : 3, (tall ? 112 : 92) * u, 40 * u, 900), y = drawLines(c, hf, pad, 160 * u, 1.02, t.bg, 900);
-      if (d.details) { var df = fit(c, d.details.replace(/\n/g, ' · '), W - pad * 2, 2, 32 * u, 20 * u, 500); y = drawLines(c, df, pad, y + (HEAD && /Vibes|Script/.test(HEAD) ? 34 : 16) * u, 1.35, '#4B4038', 500); }
+      if (d.details) { var df = fit(c, d.details.replace(/\n/g, ' · '), W - pad * 2, 2, 32 * u, 20 * u, 500); y = drawLines(c, df, pad, y + (HEAD && /Vibes|Script/.test(HEAD) ? 40 : 26) * u, 1.35, '#4B4038', 500); }
       var py = y + 48 * u, ph = H - py - 200 * u;
       c.save(); rr(c, pad, py, W - pad * 2, ph, 4 * u); c.clip(); if (d.photo && d.photo.__cut) { c.fillStyle = '#EFE7DA'; c.fillRect(pad, py, W - pad * 2, ph); } cover(c, d.photo, pad, py, W - pad * 2, ph, 0.45); c.restore();
       c.strokeStyle = t.bg; c.lineWidth = 2 * u; c.strokeRect(pad, py, W - pad * 2, ph);
@@ -529,7 +542,7 @@
   }
   // Reads the customer's words as a menu: name, list title, items, a note ("We also offer…"), phones, handles, place.
   function parseMenu(o) {
-    var lines = String(o.words || '').replace(/\r/g, '').split('\n').map(function (l) { return l.replace(/^[\s•\-*◆♦▪·]+/, '').trim(); });
+    var lines = tidy(String(o.words || '').replace(/\r/g, '')).split('\n').map(function (l) { return l.replace(/^[\s•\-*◆♦▪·]+/, '').trim(); });
     var m = { brand: o.business || '', listTitle: '', items: [], note: '', phones: [], socials: [], place: '' };
     var mode = 'items';
     lines.forEach(function (l, i) {
@@ -736,7 +749,7 @@
     var bp = brandParts(d.business || 'Your business'), nameS = (tall ? 150 : 132) * u;
     c.font = '400 ' + nameS + 'px ' + SCRIPT; while (c.measureText(bp.big).width > colW && nameS > 60 * u) { nameS -= 4 * u; c.font = '400 ' + nameS + 'px ' + SCRIPT; }
     if (c.measureText(bp.big).width > colW) { var nf = fit(c, bp.big, colW, 2, 90 * u, 50 * u, 400); nameS = nf.size; c.font = '400 ' + nameS + 'px ' + SCRIPT; nf.lines.forEach(function (l, k) { c.fillStyle = plum; c.fillText(l, pad, y + nameS * (0.95 + k * 0.95)); }); y += nameS * (0.95 * nf.lines.length) + 6 * u; }
-    else { c.fillStyle = plum; c.fillText(bp.big, pad, y + nameS * 0.95); y += nameS * 1.02; }
+    else { c.fillStyle = plum; c.fillText(bp.big, pad, y + nameS * 0.95); y += nameS * 1.02 + (bp.small ? nameS * 0.22 : 0); }
     if (bp.small) {
       var ss2 = 46 * u; c.font = 'italic 700 ' + ss2 + 'px ' + SERIFF; while (c.measureText(bp.small).width > colW * 0.7 && ss2 > 22 * u) { ss2 -= 2 * u; c.font = 'italic 700 ' + ss2 + 'px ' + SERIFF; }
       var sw2 = c.measureText(bp.small).width; c.font = '400 ' + nameS + 'px ' + SCRIPT; var nw = Math.min(colW, c.measureText(bp.big).width || colW); c.font = 'italic 700 ' + ss2 + 'px ' + SERIFF;
@@ -876,11 +889,11 @@
         var hy = 40 * u + o1 * 0.85;
         if (w1) c.fillText(w1, hx, hy);
         var s2 = (tall ? 120 : sq ? 80 : 100) * u; c.font = '400 ' + s2 + 'px ' + SCRIPT; while (c.measureText(w2).width > rw && s2 > 40 * u) { s2 -= 3 * u; c.font = '400 ' + s2 + 'px ' + SCRIPT; }
-        c.fillStyle = gold; c.fillText(w2, hx + (w1 ? 20 * u : 0), w1 ? hy + s2 * 0.62 : hy);
-        c.strokeStyle = gold; c.lineWidth = 2 * u; var lw2 = c.measureText(w2).width; c.beginPath(); c.moveTo(hx - lw2 * 0.4, hy + s2 * 0.82); c.quadraticCurveTo(hx, hy + s2 * 0.9, hx + lw2 * 0.55, hy + s2 * 0.78); c.stroke();
+        c.fillStyle = gold; c.fillText(w2, hx + (w1 ? 20 * u : 0), w1 ? hy + s2 * 0.9 : hy);
+        c.strokeStyle = gold; c.lineWidth = 2 * u; var lw2 = c.measureText(w2).width; c.beginPath(); c.moveTo(hx - lw2 * 0.4, hy + s2 * 1.12); c.quadraticCurveTo(hx, hy + s2 * 1.2, hx + lw2 * 0.55, hy + s2 * 1.08); c.stroke();
         c.textAlign = 'left';
         if (!menu && d.headline && pics.length) bodyTop = Math.max(bodyTop, hy + s2);
-        bodyTop = Math.max(bodyTop, (w1 ? hy + s2 * 0.62 : hy) + 40 * u);
+        bodyTop = Math.max(bodyTop, (w1 ? hy + s2 * 0.9 : hy) + 56 * u);
       }
       // --- right: product photos standing on shelves
       if (pics.length) {
@@ -904,7 +917,7 @@
       var deliv = /nationwide|deliver|dispatch|ship/i.test([d.place, d.note, d.details, d.offer].join(' '));
       var place = String(d.place || '').replace(/[·,]?\s*(we\s+)?deliver[^·,]*|[·,]?\s*(available\s+)?nationwide/ig, '').replace(/^available\s+in\s+/i, '').replace(/^[\s·,]+|[\s·,]+$/g, '');
       var featH = (place || deliv) ? (place && deliv ? 150 : 80) * u : 0;
-      var listTop = bodyTop, listBottom = bodyBottom - featH - (featH ? 20 * u : 0);
+      var listTop = bodyTop, listBottom = bodyBottom - featH - (featH ? 20 * u : 0) - (menu && d.note && d.note.length > 48 ? 70 * u : 0);
       if (items.length) {
         var gapC = 16 * u, cardH = Math.min((tall ? 215 : 140) * u, (listBottom - listTop - gapC * (items.length - 1)) / items.length), ir = cardH * 0.46;
         items.forEach(function (it, i) {
@@ -949,6 +962,10 @@
         var bf2 = fit(c, b.toUpperCase(), fw, 1, 28 * u, 14 * u, 800); c.font = '800 ' + bf2.size + 'px ' + BODY; c.fillText(bf2.lines[0], pad + r0 * 2.4, fy + af.size + bf2.size + 12 * u);
         fy += 72 * u;
       }
+      if (menu && d.note && !(d.note.length <= 48) && items.length) {
+        var ntop = listTop + items.length * (cardH + gapC), nroom = bodyBottom - featH - ntop - 10 * u;
+        if (nroom > 40 * u) { var nf3 = fit(c, d.note, leftW, 2, 24 * u, 15 * u, 500); c.font = 'italic 500 ' + nf3.size + 'px ' + SERIFF; c.fillStyle = deep; nf3.lines.forEach(function (l, k) { c.fillText(l, pad, ntop + 6 * u + nf3.size * (0.9 + k * 1.25), leftW); }); }
+      }
       if (place) feat('place', 'AVAILABLE IN', place);
       if (deliv) feat('truck', 'WE DELIVER', /nationwide/i.test([d.place, d.note, d.details].join(' ')) ? 'Nationwide' : 'To your door');
       // --- round badge over the photos
@@ -967,7 +984,9 @@
       if (d.phones && d.phones.length) cells.push({ k: 'wa', a: 'WHATSAPP', b: d.phones[0] });
       var soc = (d.socials || [])[0];
       if (soc) { var sp = socialSplit(soc), nm = { ig: 'INSTAGRAM', tt: 'TIKTOK', fb: 'FACEBOOK', x: 'X', yt: 'YOUTUBE', snap: 'SNAPCHAT' }[sp.k] || 'FOLLOW US'; cells.push({ k: sp.k, a: nm, b: sp.t }); }
-      cells.push({ k: 'thanks' });
+      var soc2 = (d.socials || [])[1];
+      if (soc2) { var sp2 = socialSplit(soc2), nm2 = { ig: 'INSTAGRAM', tt: 'TIKTOK', fb: 'FACEBOOK', x: 'X', yt: 'YOUTUBE', snap: 'SNAPCHAT' }[sp2.k] || 'FOLLOW US'; cells.push({ k: sp2.k, a: nm2, b: sp2.t }); }
+      else cells.push({ k: 'thanks' });
       var cw2 = W / cells.length, mid = fyb + footH / 2 + 2 * u;
       cells.forEach(function (cl, i) {
         var x0 = i * cw2;
@@ -1251,7 +1270,7 @@
       for (var n = 0; n < 7; n++) { var dx = (n - 3) * W * 0.2; c.beginPath(); c.moveTo(W / 2, -40 * u); c.lineTo(W / 2 + dx - 40 * u, H * 0.75); c.lineTo(W / 2 + dx + 40 * u, H * 0.75); c.closePath(); c.fill(); }
     } else if (kind === 'sparkle') {
       c.globalAlpha = 0.9;
-      [[W - 60 * u, 60 * u, 22], [W - 120 * u, 110 * u, 12], [W - 40 * u, 140 * u, 9], [60 * u, H - 70 * u, 14]].forEach(function (p) {
+      [[W - 60 * u, 60 * u, 22], [W - 120 * u, 110 * u, 12], [W - 40 * u, 140 * u, 9], [60 * u, H - 70 * u, 14], [W - 60 * u, H - 70 * u, 14]].forEach(function (p) {
         var r = p[2] * u; c.beginPath(); c.moveTo(p[0], p[1] - r * 2); c.quadraticCurveTo(p[0], p[1], p[0] + r * 2, p[1]); c.quadraticCurveTo(p[0], p[1], p[0], p[1] + r * 2); c.quadraticCurveTo(p[0], p[1], p[0] - r * 2, p[1]); c.quadraticCurveTo(p[0], p[1], p[0], p[1] - r * 2); c.fill();
       });
     } else if (kind === 'speed') {
@@ -1446,7 +1465,7 @@
         if (d.tagline) { c.font = 'italic 500 ' + 22 * u + 'px "Cormorant Garamond", ' + SERIF; c.fillStyle = '#E8E1D0'; c.fillText(d.tagline, cx, H * 0.4 + 190 * u, W * 0.6); }
         c.textAlign = 'left';
         if (link) { var qs = 150 * u, qx = W - qs - 80 * u, qy = H - qs - 110 * u; c.fillStyle = '#FFFFFF'; rr(c, qx - 12 * u, qy - 12 * u, qs + 24 * u, qs + 24 * u, 10 * u); c.fill(); drawQR(c, link, qx, qy, qs, '#111111');
-          c.font = '600 ' + 15 * u + 'px ' + FONT; c.fillStyle = '#E8E1D0'; c.textAlign = 'center'; c.fillText('Scan to order', qx + qs / 2, qy + qs + 40 * u); c.textAlign = 'left'; }
+          c.font = '600 ' + 15 * u + 'px ' + FONT; c.fillStyle = '#E8E1D0'; c.textAlign = 'center'; c.fillText(qrLabel(d).replace(/ on WhatsApp$/, ''), qx + qs / 2, qy + qs + 40 * u); c.textAlign = 'left'; }
       } },
     { name: 'Monogram card',
       front: function (c, W, H, d, t) {
@@ -1479,7 +1498,7 @@
     if (d.logo) { var k = Math.min(r * 1.7 / d.logo.width, r * 1.7 / d.logo.height); if (bg && lum(bg) < 0.3) { c.fillStyle = '#FFFFFF'; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill(); k = Math.min(r * 1.35 / d.logo.width, r * 1.35 / d.logo.height); } c.drawImage(d.logo, cx - d.logo.width * k / 2, cy - d.logo.height * k / 2, d.logo.width * k, d.logo.height * k); return; }
     var u = r / 100; c.strokeStyle = col; c.lineWidth = 4 * u; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.stroke(); c.lineWidth = 1.5 * u; c.beginPath(); c.arc(cx, cy, r - 10 * u, 0, Math.PI * 2); c.stroke();
     var ini = initialsOf(d.business || d.name || 'A'), fs = ini.length > 1 ? 74 * u : 96 * u;
-    c.font = '600 ' + fs + 'px "Cinzel", Georgia, serif'; c.fillStyle = letterCol || col; c.textAlign = 'center'; c.fillText(ini, cx, cy + fs * 0.35); c.textAlign = 'left';
+    c.font = '600 ' + fs + 'px "Cinzel", Georgia, serif'; c.fillStyle = letterCol || col; c.textAlign = 'center'; var mm = c.measureText(ini), asc = mm.actualBoundingBoxAscent || fs * 0.7, dsc = mm.actualBoundingBoxDescent || 0; c.fillText(ini, cx, cy + (asc - dsc) / 2); c.textAlign = 'left';
   }
   // Accent text on light card backgrounds: use the accent only if it's dark enough to read, else the main colour.
   function darkAccent(t) { return lum(t.accent) < 0.55 ? t.accent : t.bg; }
@@ -1491,7 +1510,8 @@
     for (var r = 0; r < n; r++) for (var k = 0; k < n; k++) if (q.isDark(r, k)) c.fillRect(x + k * m, y + r * m, Math.ceil(m), Math.ceil(m));
     return true;
   }
-  function waLink(d) { var p = String((d.phones || [])[0] || '').replace(/\D/g, ''); if (!p) return ''; if (p.charAt(0) === '0') p = '234' + p.slice(1); return 'https://wa.me/' + p + '?text=' + encodeURIComponent('Hello ' + (d.business || '') + ', I would like to order'); }
+  function qrLabel(d) { var p = String((d.phones || [])[0] || '').replace(/\D/g, ''); return p ? (/order|shop|sell|food|cake|chops|store|boutique/i.test([d.business, d.special].join(' ')) ? 'Scan to order on WhatsApp' : 'Scan to chat on WhatsApp') : d.web ? 'Scan to visit our website' : ''; }
+  function waLink(d) { var p = String((d.phones || [])[0] || '').replace(/\D/g, ''); if (!p) return d.web ? (/^https?:/i.test(d.web) ? d.web : 'https://' + d.web) : ''; if (p.charAt(0) === '0') p = '234' + p.slice(1); return 'https://wa.me/' + p + '?text=' + encodeURIComponent('Hello ' + (d.business || '') + ', I would like to order'); }
   // Back of every card: brand, up to 4 services, social handle, and a "Scan to order on WhatsApp" code.
   function cardBack(c, W, H, d, t, style) {
     var u = W / 1050, dark = style === 'light' ? t.bg : onColour(t.bg), bgc = style === 'light' ? t.light : t.bg, acc = style === 'light' ? darkAccent(t) : t.accent;
@@ -1508,15 +1528,19 @@
     var sv = (d.services || []).slice(0, 4);
     if (sv.length) {
       c.font = '600 ' + 24 * u + 'px ' + FONT; var colW = lw / 2;
-      sv.forEach(function (x, n) { var cx = left + (n % 2) * colW, cy = y + Math.floor(n / 2) * 44 * u; c.fillStyle = acc; c.beginPath(); c.arc(cx + 7 * u, cy - 8 * u, 6 * u, 0, Math.PI * 2); c.fill(); c.fillStyle = dark; c.fillText(x, cx + 24 * u, cy, colW - 30 * u); });
+      sv.forEach(function (x, n) { var cx = left + (n % 2) * colW, cy = y + Math.floor(n / 2) * 44 * u; c.fillStyle = acc; c.beginPath(); c.arc(cx + 7 * u, cy - 8 * u, 6 * u, 0, Math.PI * 2); c.fill(); c.fillStyle = dark; c.fillText(x.charAt(0).toUpperCase() + x.slice(1), cx + 24 * u, cy, colW - 30 * u); });
       y += Math.ceil(sv.length / 2) * 44 * u + 18 * u;
     }
-    var handle = (d.socials || []).length ? socialSplit(d.socials[0]).t : d.web || '';
-    if (handle) { c.font = '700 ' + 24 * u + 'px ' + FONT; c.fillStyle = acc; c.fillText(handle, left, Math.min(y + 10 * u, H - 70 * u), lw); }
+    // Fill the lower left: tagline, then what they sell (when no services were listed), then every handle / website.
+    if (d.tagline && y < H - 150 * u) { var tf = fit(c, d.tagline, lw, 2, 26 * u, 16 * u, '500'); c.font = 'italic 500 ' + tf.size + 'px ' + SERIF; c.fillStyle = dark; c.globalAlpha = 0.85; tf.lines.forEach(function (l, k) { c.fillText(l, left, y + tf.size * k * 1.3); }); c.globalAlpha = 1; y += tf.lines.length * tf.size * 1.3 + 20 * u; }
+    if (!sv.length && d.special && y < H - 150 * u) { var spf = fit(c, d.special, lw, 2, 24 * u, 16 * u, '600'); c.font = '600 ' + spf.size + 'px ' + FONT; c.fillStyle = dark; spf.lines.forEach(function (l, k) { c.fillText(l, left, y + spf.size * k * 1.35); }); y += spf.lines.length * spf.size * 1.35 + 18 * u; }
+    var handles = (d.socials || []).map(function (x) { return socialSplit(x).t; }).concat(d.web ? [d.web] : []).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).slice(0, 3);
+    c.font = '700 ' + 24 * u + 'px ' + FONT; c.fillStyle = acc;
+    handles.forEach(function (h, k) { var hy = Math.min(y + 10 * u + k * 36 * u, H - 70 * u - (handles.length - 1 - k) * 36 * u); c.fillText(h, left, hy, lw); });
     if (link) {
       c.save(); c.shadowColor = 'rgba(0,0,0,.18)'; c.shadowBlur = 18 * u; c.fillStyle = '#FFFFFF'; rr(c, qx - 18 * u, qy - 18 * u, qs + 36 * u, qs + 80 * u, 16 * u); c.fill(); c.restore();
       if (!drawQR(c, link, qx, qy, qs, '#111111')) { c.fillStyle = '#EEE'; c.fillRect(qx, qy, qs, qs); }
-      c.font = '800 ' + 19 * u + 'px ' + FONT; c.fillStyle = '#111111'; c.textAlign = 'center'; c.fillText('Scan to order on WhatsApp', qx + qs / 2, qy + qs + 42 * u, qs + 20 * u); c.textAlign = 'left';
+      c.font = '800 ' + 19 * u + 'px ' + FONT; c.fillStyle = '#111111'; c.textAlign = 'center'; c.fillText(qrLabel(d), qx + qs / 2, qy + qs + 42 * u, qs + 20 * u); c.textAlign = 'left';
     }
   }
   // Both sides on one preview: front above, back below.
@@ -1844,8 +1868,8 @@
     // 12. Arc seal: initials in a thin ring with the name round the top and fine waves at the bottom
     var waves = ''; for (var wv = 0; wv < 6; wv++) waves += '<path d="M200 ' + (296 + wv * 6) + ' C250 ' + (276 + wv * 6) + ' 300 ' + (316 + wv * 6) + ' 400 ' + (290 + wv * 6) + '" fill="none" stroke="' + A + '" stroke-width="1.6" opacity="' + (1 - wv * 0.12) + '"/>';
     out.push({ name: 'Arc seal', fonts: ['Cormorant Garamond|600', 'Montserrat|500'],
-      body: '<circle cx="300" cy="200" r="150" fill="none" stroke="' + A + '" stroke-width="3"/>' + arcText('name', name, 300, 200, 124, true, 'Montserrat', 500, 26, P, 0.3, true) +
-        txt('', ini, 300, 238, 'Cormorant Garamond', 600, 120, 200, A, { ls: -0.02 }) + waves });
+      body: '<defs><clipPath id="arcseal-clip"><circle cx="300" cy="200" r="146"/></clipPath></defs><circle cx="300" cy="200" r="150" fill="none" stroke="' + A + '" stroke-width="3"/>' + arcText('name', name, 300, 200, 124, true, 'Montserrat', 500, 26, P, 0.3, true) +
+        txt('', ini, 300, 238, 'Cormorant Garamond', 600, 120, 200, A, { ls: -0.02 }) + '<g clip-path="url(#arcseal-clip)">' + waves + '</g>' });
     // 13. Star badge: a thick ring with the name on top, tagline below, stars at the sides, initial in the middle
     out.push({ name: 'Star badge', fonts: ['Cinzel|600', 'Montserrat|800'],
       body: '<circle cx="300" cy="200" r="186" fill="' + P + '"/><circle cx="300" cy="200" r="178" fill="none" stroke="' + A + '" stroke-width="3"/><circle cx="300" cy="200" r="126" fill="' + K + '"/><circle cx="300" cy="200" r="120" fill="none" stroke="' + A + '" stroke-width="2"/>' +
@@ -2009,14 +2033,22 @@
         var sz = fitSize(x.textContent, fam, wt, Number(x.getAttribute('data-size')), Number(x.getAttribute('data-maxw')), ls);
         x.setAttribute('font-size', sz); if (ls) x.setAttribute('letter-spacing', (ls * sz).toFixed(1));
       });
+      // Every bit of text gets a colour of its own (never left to default), so exports always show the words.
+      [].forEach.call(root.querySelectorAll('text, textPath, tspan'), function (x) { if (!x.getAttribute('fill') && !(x.parentNode && x.parentNode.getAttribute && x.parentNode.getAttribute('fill'))) x.setAttribute('fill', onDark ? '#ffffff' : state.theme.bg.toLowerCase()); });
       root.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
       return new XMLSerializer().serializeToString(root);
     }
-    function svgToPng(svg, W, cb) {
+    // bg: '#ffffff' for a white background (safe in WhatsApp/galleries), null for a see-through PNG.
+    function svgToPng(svg, W, cb, bg) {
+      var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+      ready.then(function () { svgToPng2(svg, W, cb, bg); });
+    }
+    function svgToPng2(svg, W, cb, bg) {
       var img = new Image(), url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
-      img.onload = function () { var cv = document.createElement('canvas'); cv.width = W; cv.height = Math.round(W * 2 / 3); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url); cb(cv); };
+      img.onload = function () { var cv = document.createElement('canvas'); cv.width = W; cv.height = Math.round(W * 2 / 3); var x = cv.getContext('2d'); x.clearRect(0, 0, cv.width, cv.height); x.drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url); if (bg) { var w = document.createElement('canvas'); w.width = cv.width; w.height = cv.height; var wx = w.getContext('2d'); wx.fillStyle = bg; wx.fillRect(0, 0, w.width, w.height); wx.drawImage(cv, 0, 0); w.__trimFrom = cv; cv = w; } cb(cv); };
       img.src = url;
     }
+    function padWhite(cv) { var p = Math.round(cv.width * 0.08), w = document.createElement('canvas'); w.width = cv.width + p * 2; w.height = cv.height + p * 2; var x = w.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, w.width, w.height); x.drawImage(cv, p, p); return w; }
     // Cut away the empty space around a logo so it fills its spot on the flyer.
     function trim(cv) {
       var c = cv.getContext('2d'), d = c.getImageData(0, 0, cv.width, cv.height).data, x0 = cv.width, y0 = cv.height, x1 = 0, y1 = 0;
@@ -2052,8 +2084,9 @@
           o.logoOnly ? el('label', { class: 'st-check st-pick' }, [el('input', { type: 'checkbox', checked: l.pick ? '' : null, onchange: function (e) { l.pick = e.target.checked; sendChoices(); if (l.pick) sendWhich.value = 'ticked'; } }), ' Send this']) : null,
           el('div', { class: 'admin-actions' }, [
             el('button', { class: 'admin-btn', type: 'button', text: 'SVG', onclick: function () { save(new Blob([logoSvg(l)], { type: 'image/svg+xml' }), slug + '.svg'); } }),
-            el('button', { class: 'admin-btn', type: 'button', text: 'PNG', onclick: function () { svgToPng(logoSvg(l), 1800, function (cv) { trim(cv).toBlob(function (b) { save(b, slug + '.png'); }, 'image/png'); }); } }),
-            el('button', { class: 'admin-btn', type: 'button', text: 'White PNG', title: 'For dark backgrounds', onclick: function () { svgToPng(logoSvg(l, true), 1800, function (cv) { trim(cv).toBlob(function (b) { save(b, slug + '-white.png'); }, 'image/png'); }); } }),
+            el('button', { class: 'admin-btn', type: 'button', text: 'PNG', title: 'On a white background: opens the same everywhere (WhatsApp, gallery, print)', onclick: function () { svgToPng(logoSvg(l), 1800, function (cv) { padWhite(trim(cv.__trimFrom || cv)).toBlob(function (b) { save(b, slug + '.png'); }, 'image/png'); }, '#ffffff'); } }),
+            el('button', { class: 'admin-btn', type: 'button', text: 'See-through PNG', title: 'No background, for putting on other designs', onclick: function () { svgToPng(logoSvg(l), 1800, function (cv) { trim(cv).toBlob(function (b) { save(b, slug + '-transparent.png'); }, 'image/png'); }); } }),
+            el('button', { class: 'admin-btn', type: 'button', text: 'White PNG', title: 'White logo with no background, for dark designs (looks empty on a white screen)', onclick: function () { svgToPng(logoSvg(l, true), 1800, function (cv) { trim(cv).toBlob(function (b) { save(b, slug + '-white.png'); }, 'image/png'); }); } }),
             o.logoOnly ? null : el('button', { class: 'admin-btn', type: 'button', text: 'Use on flyer', onclick: function () {
               svgToPng(logoSvg(l), 900, function (cv) { trim(cv).toBlob(function (b) { srcs.push({ url: URL.createObjectURL(b), name: 'logo-option-' + (i + 1) + '.png' }); logoGuess = srcs.length - 1; status.textContent = 'Loading photos…'; loadAll(); }, 'image/png'); });
             } }),

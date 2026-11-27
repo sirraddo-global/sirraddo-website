@@ -778,7 +778,7 @@
   }
   function itemKind(s) {
     s = String(s || '').toLowerCase();
-    var map = [['spray', /spray|mist/], ['rollon', /roll|deodor|stick/], ['bottle', /perfume|fragrance|scent|cologne|oud|attar|oil perfume/], ['gift', /gift|hamper|set|package|bundle|box|souvenir/],
+    var map = [['spray', /spray|mist/], ['rollon', /roll-?ons?\b|deodor|stick/], ['bottle', /perfume|fragrance|scent|cologne|oud|attar|oil perfume/], ['gift', /gift|hamper|set|package|bundle|box|souvenir/],
       ['cake', /cake|cupcake|pastr|bread|doughnut|pie|cookie|chin/], ['cup', /drink|juice|zobo|smoothie|water|coffee|tea|parfait|yoghurt|wine/], ['shoe', /shoe|sneaker|slipper|heel|sandal|boot/],
       ['bag', /bag|purse|wallet|luggage/], ['shirt', /dress|cloth|shirt|wear|gown|ankara|fabric|kaftan|jean|top|skirt|abaya|hijab/], ['jar', /cream|lotion|skin|soap|serum|butter|scrub|body|oil|cosmetic|makeup/],
       ['plate', /food|rice|meal|chops|grill|soup|stew|small chops|catering|kitchen|snack/], ['phone', /phone|gadget|laptop|charger|accessor/]];
@@ -845,7 +845,7 @@
         c.strokeStyle = gold; c.lineWidth = 2 * u; c.beginPath(); c.moveTo(cx - sw / 2 - 70 * u, y + ss * 0.65); c.lineTo(cx - sw / 2 - 14 * u, y + ss * 0.65); c.moveTo(cx + sw / 2 + 14 * u, y + ss * 0.65); c.lineTo(cx + sw / 2 + 70 * u, y + ss * 0.65); c.stroke();
         y += ss * 1.6;
       }
-      var tag = d.note && d.note.length <= 48 ? d.note.replace(/\.{2,}$|…$/, '') : (d.tagline || '');
+      var tag = d.note && d.note.length <= 48 ? d.note.replace(/[.…]+$/, '') : (menu ? '' : (d.tagline || ''));
       if (tag) { var ts = (tall ? 44 : 36) * u; c.font = '400 ' + ts + 'px ' + SCRIPT; while (c.measureText(tag).width > leftW && ts > 20 * u) { ts -= 2 * u; c.font = '400 ' + ts + 'px ' + SCRIPT; } c.fillStyle = deep; c.fillText(tag, cx, y + ts * 0.85); y += ts * 1.1; }
       c.textAlign = 'left';
       var bodyTop = Math.max(y + 24 * u, hdrH);
@@ -1602,7 +1602,7 @@
         '<rect x="252" y="200" width="70" height="5" fill="' + A + '"/>' + txt('name', name, 252, 184, 'DM Serif Display', 400, 72, 330, P, { anchor: 'start' }) + (tag ? txt('tagline', tag, 252, 246, 'Montserrat', 500, 20, 330, P, { ls: 0.16, upper: true, anchor: 'start' }) : '') });
     // 4. Script initial with the name across it
     out.push({ name: 'Script initial', fonts: ['Great Vibes|400', 'Playfair Display|700', 'Montserrat|500'],
-      body: '<text x="300" y="250" text-anchor="middle" font-family="\'Great Vibes\', cursive" font-size="290" fill="' + A + '" opacity="0.9">' + esc(one) + '</text>' +
+      body: '<text x="290" y="236" text-anchor="middle" font-family="\'Great Vibes\', cursive" font-size="230" fill="' + A + '" opacity="0.9">' + esc(one) + '</text>' +
         '<rect x="60" y="232" width="480" height="70" fill="' + K + '" opacity="0.85"/>' + txt('name', name, 300, 285, 'Playfair Display', 700, 50, 500, P, { upper: true, ls: 0.06 }) + tagT(338) });
     // 5. Bold block beside the name
     out.push({ name: 'Bold block', fonts: ['Bebas Neue|400', 'Montserrat|500'],

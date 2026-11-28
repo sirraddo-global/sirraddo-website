@@ -77,34 +77,52 @@
       sc.querySelector('.sc-view').addEventListener('click', function () { setTimeout(applyShowcase, 30); });
     }
 
-    // /design: a flyer and a business card drawn with their details.
+    // /design: flyers and a business card drawn with their details, in a look that suits what their name says
+    // they do (cakes → a warm bakery look with a cake picture; salon → boutique…), with wording for their trade.
     var pv = $('bp-designs'), drawn = '';
+    var TRADES = [
+      [/cake|chip|snack|chops|bak(e|ery)|pastr|bread|pie|treat|kitchen|food|grill|suya|cater|restaurant|eatery|buka|shawarma|pizza|zobo|juice|smoothie|parfait/i, { looks: ['Warm bakery', 'Afro print', 'Party pop'], icon: 'cake', svc: 'Cakes, Small chops, Snacks, Drinks', head: function (it) { return it ? 'Fresh ' + it + ', made to order' : 'Delicious food, made fresh daily'; }, sub: 'Order on WhatsApp today', sell: 'Made fresh to order' }],
+      [/salon|hair|beauty|spa|nail|lash|brow|make ?up|glam|barb|cosmetic|skin/i, { looks: ['Elegant script', 'Luxury gold', 'Fresh & natural'], icon: 'scissors', svc: 'Braids, Wigs, Nails, Makeup', head: function () { return 'Look your best'; }, sub: 'Book your appointment today', sell: 'Hair · Beauty · Nails' }],
+      [/fashion|cloth|wears?\b|boutique|tailor|stitch|fabric|couture|apparel|shoe|bag/i, { looks: ['Elegant script', 'Bold street', 'Luxury gold'], icon: 'hanger', svc: 'Ready-to-wear, Custom fits, Accessories', head: function () { return 'New styles just arrived'; }, sub: 'Order today · We deliver', sell: 'Quality styles for every occasion' }],
+      [/church|ministr|assembly|chapel|parish|gospel|mosque|islamic|faith/i, { looks: ['Royal', 'Faith & calm', 'Classic'], icon: 'cross', svc: 'Sunday service, Bible study, Prayer meetings', head: function () { return 'Join us this Sunday'; }, sub: 'Everyone is welcome', sell: 'Everyone is welcome' }],
+      [/school|academy|college|tutor|lesson|learning|nursery|montessori/i, { looks: ['Kids fun', 'Classic', 'Clean corporate'], icon: 'book', svc: 'Crèche, Nursery, Primary', head: function () { return 'Admission in progress'; }, sub: 'Book a school visit today', sell: 'Learning with care' }],
+      [/home|propert|realt|estate|land|apartment|shortlet/i, { looks: ['Clean corporate', 'Luxury gold', 'Classic'], icon: 'house', svc: 'Sales, Rentals, Shortlets, Land', head: function () { return 'Find your next home'; }, sub: 'Book an inspection today', sell: 'Sales · Rentals · Shortlets' }],
+      [/gas|fuel|petrol|energy|oil/i, { looks: ['Clean corporate', 'Bold street', 'Classic'], icon: 'flame', svc: 'Gas refill, Home delivery, Cylinders', head: function () { return 'Cooking gas refill, delivered'; }, sub: 'Order on WhatsApp today', sell: 'Fast and safe refills' }],
+      [/pharm|clinic|hospital|health|medic|care|lab\b|dental/i, { looks: ['Fresh & natural', 'Clean corporate', 'Minimal'], icon: 'health', svc: 'Consultation, Pharmacy, Lab tests', head: function () { return 'Your health, our care'; }, sub: 'We are here for you', sell: 'Caring for you and your family' }],
+      [/hotel|suites|lodge|resort|guest ?house|inn\b/i, { looks: ['Luxury gold', 'Luxury showcase', 'Night glow'], icon: 'hotel', svc: 'Rooms, Event hall, Restaurant', head: function () { return 'Book your stay with us'; }, sub: 'Reserve your room today', sell: 'Comfort you can trust' }],
+      [/event|party|decor|rental|wedding/i, { looks: ['Party pop', 'Elegant script', 'Festive'], icon: 'sparkle', svc: 'Decor, Rentals, Planning', head: function () { return 'Make your event unforgettable'; }, sub: 'Book your date today', sell: 'Events made beautiful' }],
+      [/law|legal|barr|solicitor|chamber|consult|advis|account|audit|tax|associates|& ?co\b/i, { looks: ['Luxury gold', 'Clean corporate', 'Minimal'], icon: 'crown', svc: 'Advice, Registration, Contracts', head: function () { return 'Trusted advice for your business'; }, sub: 'Book a consultation today', sell: 'Trusted, professional advice' }],
+      [/tech|digital|solution|computer|phone|gadget|print|media|studio|photo/i, { looks: ['Clean corporate', 'Night glow', 'Minimal'], icon: 'bolt', svc: '', head: function () { return 'Fast, reliable service'; }, sub: 'Talk to us today', sell: 'Fast and reliable service' }],
+    ];
+    var DEFAULT_TRADE = { looks: ['Classic', 'Clean corporate', 'Afro print'], icon: 'sparkle', svc: '', head: function () { return 'Now taking orders'; }, sub: 'Order on WhatsApp today', sell: 'Quality you can trust' };
+    // "Funmight cakes and chips" → what they sell: "cakes & chips" (the words after the first, when they name a trade).
+    function tradeOf(name) {
+      var t = DEFAULT_TRADE;
+      for (var i = 0; i < TRADES.length; i++) if (TRADES[i][0].test(name)) { t = TRADES[i][1]; break; }
+      var words = name.replace(/\b(ltd|limited|enterprises?|ventures?|global|nig(eria)?|services?|and more|& more|the)\b\.?/gi, ' ').trim().split(/\s+/);
+      var rest = words.slice(1).join(' ').replace(/\band\b/gi, '&').replace(/\s+/g, ' ').trim().toLowerCase();
+      var items = t !== DEFAULT_TRADE && t.icon === 'cake' && rest && rest.length <= 30 && TRADES[0][0].test(rest) ? rest : '';
+      return { looks: t.looks, icon: t.icon, head: t.head(items), sub: t.sub, sell: t.sell, svc: items ? items.split(/\s*&\s*/).map(function (x) { return x.charAt(0).toUpperCase() + x.slice(1); }).join(', ') : t.svc };
+    }
     function applyDesigns() {
       if (!pv || !window.SirStudio || !window.SirStudio.preview) return;
       var v = val(), name = v.name || 'Kassy Treats & More', phone = v.phone || '0810 838 3146', city = v.city || 'Ibadan · Available nationwide';
       var key = [name, phone, city].join('|'); if (key === drawn) return; drawn = key;
-      var photos = v.name ? [{ url: monogram(v.name), name: 'brand.png' }] : ['cake.png', 'meat-pie.jpg', 'parfait.jpg', 'zobo.jpg'].map(function (f) { return { url: '/assets/showcase/' + f, name: f }; });
-      var info = { phone: phone, address: city };
-      var flyer = window.SirStudio.preview({ size: 'post', business: name, words: name + '\nNow taking orders\nOrder on WhatsApp today', contact: phone, info: info, photos: photos }, 300);
-      var card = window.SirStudio.preview({ kind: 'card', business: name, words: name + '\n' + city, contact: phone, info: info, photos: [] }, 300);
+      var tr = tradeOf(name);
+      // Their own name: the picture space shows a picture for their trade (no photos yet). Our sample: Kassy's photos.
+      var photos = v.name ? [] : ['cake.png', 'meat-pie.jpg', 'parfait.jpg', 'zobo.jpg'].map(function (f) { return { url: '/assets/showcase/' + f, name: f }; });
+      var info = { phone: phone, address: city, sell: tr.sell };
+      var flyer = window.SirStudio.preview({ size: 'post', business: name, words: tr.head + '\n' + tr.sub, contact: phone, info: info, photos: photos, looks: v.name ? tr.looks : null, icon: v.name ? tr.icon : null, mark: 'corner' }, 300);
+      var card = window.SirStudio.preview({ kind: 'card', business: name, words: tr.sell + '\n' + city, contact: phone, info: { phone: phone, address: city, person: 'Your name here', title: tr.sell, sell: tr.svc }, photos: [], mark: 'corner', layout: 'Classic card' }, 300);
       Promise.all([flyer, card]).then(function (r) {
         if (key !== drawn) return;
         var slots = pv.querySelectorAll('.bp-slot');
-        [r[0][0], r[1][0]].forEach(function (cv, i) { if (!cv || !slots[i]) return; var box = slots[i].querySelector('.bp-canvas'); box.innerHTML = ''; box.appendChild(cv); });
+        var fbox = slots[0] && slots[0].querySelector('.bp-canvas');
+        if (fbox) { fbox.innerHTML = ''; fbox.classList.add('bp-row'); r[0].slice(0, 3).forEach(function (cv) { fbox.appendChild(cv); }); }
+        var cbox = slots[1] && slots[1].querySelector('.bp-canvas');
+        if (cbox && r[1][0]) { cbox.innerHTML = ''; cbox.appendChild(r[1][0]); }
         pv.hidden = false;
       }).catch(function () { drawn = ''; });
-    }
-    // Without their photos, a clean brand graphic (their initials) stands in for the picture.
-    var monoCache = {};
-    function monogram(name) {
-      var ini = name.replace(/&/g, ' ').split(/\s+/).filter(function (w) { return /^[A-Za-z0-9]/.test(w); }).slice(0, 2).map(function (w) { return w[0].toUpperCase(); }).join('') || 'S';
-      if (monoCache[ini]) return monoCache[ini];
-      var cv = document.createElement('canvas'); cv.width = cv.height = 800; var c = cv.getContext('2d');
-      var g = c.createLinearGradient(0, 0, 800, 800); g.addColorStop(0, '#13254F'); g.addColorStop(1, '#0B1733'); c.fillStyle = g; c.fillRect(0, 0, 800, 800);
-      c.strokeStyle = 'rgba(217,162,27,.35)'; c.lineWidth = 3; for (var i = -800; i < 800; i += 46) { c.beginPath(); c.moveTo(i, 800); c.lineTo(i + 800, 0); c.stroke(); }
-      c.fillStyle = '#B8862F'; c.beginPath(); c.arc(400, 400, 230, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#13254F'; c.font = '800 200px Inter, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(ini, 400, 410);
-      return (monoCache[ini] = cv.toDataURL('image/png'));
     }
     function apply() { applyShowcase(); applyDesigns(); }
     if (pv) {

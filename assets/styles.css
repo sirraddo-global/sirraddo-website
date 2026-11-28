@@ -1173,3 +1173,7 @@ body { overflow-x: clip; }
 .dsx-nav { position: static; }
 .dsx-sum > summary { cursor: pointer; font-weight: 600; margin-bottom: 10px; }
 .dsx-table { max-height: 70vh; }
+/* Brand preview: 3 flyer looks side by side (swipe on phones) */
+.bp-canvas.bp-row { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; justify-content: flex-start; padding-bottom: 6px; }
+.bp-canvas.bp-row canvas { flex: 0 0 78%; max-width: 300px; scroll-snap-align: center; }
+@media (min-width: 760px) { .bp-canvas.bp-row canvas { flex: 1 1 0; max-width: none; } }

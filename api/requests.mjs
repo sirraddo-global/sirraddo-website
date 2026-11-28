@@ -463,6 +463,15 @@ export default async function handler(req, res) {
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(result);
       }
+      // 🔍 AI check before sending (CV maker, design studio, QR poster): a list of things to fix, check or improve.
+      if (body.action === "review_work") {
+        const { reviewWork } = await import("./_lib/review.mjs");
+        const r = body.id ? await getRequest(Number(body.id)) : null;
+        if (body.id && !r) return res.status(404).json({ error: "Not found" });
+        const result = await reviewWork({ r, kind: String(body.kind || "design"), cv: body.cv, images: body.images, link: body.link }, FUNCTION_BUDGET_MS() - 2000);
+        if (!result.ok) throw new Bad(result.error);
+        return res.status(200).json(result);
+      }
       // One-page site (Mini website, QR menu): the AI fills the project form from the order.
       if (body.action === "onepage_brief") {
         const { onePageBrief } = await import("./_lib/onepage.mjs");

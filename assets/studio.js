@@ -2366,7 +2366,12 @@
       }).then(function (j) { sendMsg.textContent = 'Emailed to ' + ((j && j.to) || o.email) + ' ✓'; })
         .catch(function (er) { sendMsg.textContent = (er && er.message) || 'Couldn\'t send the email.'; }).then(function () { b.disabled = !o.email; });
     } }) : null;
-    var sendBox = el('div', { class: 'st-send' }, [el('b', { text: 'Send to the customer' }), el('div', { class: 'st-bgrow' }, [sendWhich, waBtn, mailBtn]), sendNote, sendMsg,
+    // 🔍 A second check by the AI before sending: the designs chosen above, compared with the order.
+    var reviewBtn = window.SirReview && o.reviewApi ? window.SirReview.button('🔍 AI check before sending', function () {
+      return designFiles().then(function (files) { return Promise.all(files.slice(0, 4).map(function (f) { return window.SirReview.shrink(f, 1400); })); })
+        .then(function (images) { return { images: images }; });
+    }, function (p) { return o.reviewApi(p.images); }) : null;
+    var sendBox = el('div', { class: 'st-send' }, [el('b', { text: 'Send to the customer' }), el('div', { class: 'st-bgrow' }, [sendWhich, waBtn, mailBtn]), sendNote, sendMsg, reviewBtn,
       o.email ? null : (o.emailApi ? el('p', { class: 'admin-hint', text: 'No email on this order: WhatsApp only.' }) : null)]);
     var dl = el('div', { class: 'admin-actions' }, [
       el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: 'Download this design', onclick: function () { download(state.layout); } }),

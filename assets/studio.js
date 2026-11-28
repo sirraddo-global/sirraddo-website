@@ -561,16 +561,17 @@
       if (/\b(ibadan|lagos|abuja|nationwide|located|address|street|road|avenue|state)\b/i.test(rest) && rest.length < 70 && (mode === 'contact' || !/^we /i.test(rest))) { m.place = m.place ? m.place + ' · ' + rest : rest; return; }
       // "We wash: shirts, trousers, duvets…" → list title + items.
       var inline = rest.match(/^([^:]{2,30}):\s*(.+)$/);
-      if (inline && inline[2].split(',').length >= 3) {
+      if (inline && inline[2].split(/,(?!\d{3}\b)/).length >= 3) {
         if (!m.listTitle) m.listTitle = inline[1].trim();
-        inline[2].replace(/\band\b/gi, ',').split(',').forEach(function (x) { x = x.trim().replace(/[.]$/, ''); if (x) m.items.push(x.charAt(0).toUpperCase() + x.slice(1)); });
+        inline[2].replace(/\band\b/gi, ',').split(/,(?!\d{3}\b)/).forEach(function (x) { x = x.trim().replace(/[.]$/, ''); if (x) m.items.push(x.charAt(0).toUpperCase() + x.slice(1)); });
         return;
       }
       var nd = rest.match(/^(.{2,32}?)\s*(?::|\s[-–—]\s|[–—])\s*(.{6,})$/);
       if (nd && mode !== 'contact' && !/^(open|opening|hours?|address|location|tel|phone|email|e-mail|website|web|call|whatsapp|contact|note|ps|delivery|deliver|we|our|follow|price|prices)\b/i.test(nd[1]) && !/^we\s/i.test(rest) && nd[1].split(/\s+/).length <= 4) { m.items.push(nd[1].charAt(0).toUpperCase() + nd[1].slice(1) + ' - ' + nd[2].replace(/[.]+$/, '')); return; }
       if (rest.length > 40 || /[.!]\s*$/.test(rest) || /^we\s/i.test(rest)) { m.note = m.note ? m.note + ' ' + rest : rest; return; }
       if (mode === 'contact') return;
-      (rest.split(/,(?![^(]*\))/).length >= 3 ? rest.split(',') : [rest]).forEach(function (x) { x = x.trim(); if (x) m.items.push(x.charAt(0).toUpperCase() + x.slice(1)); });
+      // commas inside prices (₦3,500) don't split an item
+      (rest.split(/,(?!\d{3}\b)(?![^(]*\))/).length >= 3 ? rest.split(/,(?!\d{3}\b)/) : [rest]).forEach(function (x) { x = x.trim(); if (x) m.items.push(x.charAt(0).toUpperCase() + x.slice(1)); });
     });
     if (!m.listTitle) m.listTitle = m.items.length ? 'Contact us for' : '';
     var inf = o.info || {};
@@ -1665,7 +1666,7 @@
         menuPhotos: photos.map(function (img) { return { img: img, caption: '' }; }),
         name: cd.name, title: cd.title, email: cd.email, address: cd.address, tagline: cd.tagline, web: cd.web, cardSocials: cd.socials, cardPhones: cd.phones };
       var list = mode === 'menu' ? MENU_LAYOUTS : mode === 'card' ? CARD_PREVIEW : null;
-      var looks = suggestLooks([o.business, o.words, inf.sell, o.service].join(' ')), custom = themeFrom(o.colours), pt = custom ? null : photoTheme(photos[0]);
+      var looks = o.looks || suggestLooks([o.business, o.words, inf.sell, o.service].join(' ')), custom = themeFrom(o.colours), pt = custom ? null : photoTheme(photos[0]);
       list = list || promoList(looks); d.contact = withPlace(d.contact, d.place); d.special = inf.sell || ''; d.services = (inf.sell || '').split(/,|\band\b/).map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4);
       var season = seasonOf(o.service), icon = /invit/i.test(o.service || '') ? 'heart' : iconsFor([o.business, o.words, inf.sell].join(' '))[0];
       // Social media pack: each draft shows a different post from their list, so they see the set, not one post three times.

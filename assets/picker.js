@@ -105,7 +105,8 @@
     sheet.appendChild(head); sheet.appendChild(list);
     wrap.appendChild(shade); wrap.appendChild(sheet);
     shade.addEventListener('click', function () { close(true); });
-    document.body.appendChild(wrap);
+    // Inside a pop-up form (an open <dialog>), the list must open inside it too: a dialog sits above everything else on the page.
+    (sel.closest('dialog[open]') || document.body).appendChild(wrap);
     if (wide) {
       var r = btn.getBoundingClientRect(), below = window.innerHeight - r.bottom;
       sheet.style.left = Math.max(12, r.left) + 'px';

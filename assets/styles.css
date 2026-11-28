@@ -667,10 +667,10 @@ p { margin: 0 0 1em; }
 .ag-points li::before { content: "✓ "; color: var(--gold); font-weight: 800; }
 .ag-info h2 { margin-top: 34px; }
 .ag-info h2:first-child { margin-top: 0; }
-.ag-steps { list-style: none; padding: 0; display: grid; gap: 12px; }
+.ag-steps { list-style: none; padding: 0; display: grid; gap: 12px; counter-reset: ag; }
 @media (min-width: 760px) { .ag-steps { grid-template-columns: repeat(3, 1fr); } }
 .ag-steps li { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 4px; }
-.ag-steps li span { width: 34px; height: 34px; border-radius: 50%; background: var(--navy); color: var(--gold); display: grid; place-items: center; font-weight: 900; margin-bottom: 4px; }
+.ag-steps li::before { counter-increment: ag; content: counter(ag); width: 34px; height: 34px; border-radius: 50%; background: var(--navy); color: var(--gold); display: grid; place-items: center; font-weight: 900; margin-bottom: 4px; }
 .ag-steps b { color: var(--ink); font-size: 1.05rem; }
 .ag-earn { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .ag-earn div { border: 1px solid var(--line); border-top: 4px solid var(--gold); border-radius: 14px; padding: 14px; background: var(--surface); display: grid; gap: 2px; }

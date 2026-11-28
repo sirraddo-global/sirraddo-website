@@ -463,6 +463,20 @@ export default async function handler(req, res) {
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(result);
       }
+      // CV maker: the AI drafts a CV (and cover letter) from the order; drafts are kept per order.
+      if (/^cv_(get|save|draft)$/.test(body.action || "")) {
+        const cvm = await import("./_lib/cv.mjs");
+        const r = await getRequest(Number(body.id));
+        if (!r) return res.status(404).json({ error: "Not found" });
+        const key = `cv:${r.id}`;
+        if (body.action === "cv_get") { const m = await getMeta([key]); let cv = null; try { cv = m[key] ? JSON.parse(m[key]) : null; } catch { cv = null; } return res.status(200).json({ cv }); }
+        if (body.action === "cv_save") { const cv = cvm.cleanCv(body.cv); await setMeta(key, JSON.stringify(cv)); return res.status(200).json({ ok: true, cv }); }
+        const result = await cvm.cvDraft(r, FUNCTION_BUDGET_MS() - 2000);
+        if (!result.ok) throw new Bad(result.error);
+        await setMeta(key, JSON.stringify(result.cv));
+        await logStaff(me, "Drafted a CV with AI", r.id);
+        return res.status(200).json(result);
+      }
       // Logo ideas for the Design studio: 3 original SVG logos from a short brief (nothing is saved).
       if (body.action === "logo_ideas") {
         const result = await logoIdeas(body.brief || {}, FUNCTION_BUDGET_MS() - 2000);

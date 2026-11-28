@@ -610,6 +610,11 @@
         box.appendChild(el('p', { class: 'admin-meta', text: '🗂️ Returning customer: ' + past.length + ' earlier request(s): ' + past.slice(0, 4).map(function (x) { return 'SGL-' + String(x.id).padStart(4, '0') + ' ' + x.interest; }).join(', ') + '. Reuse their logo and colours from those orders.' }));
         if (owed) box.appendChild(el('p', { class: 'admin-meta' }, [badge('Owed 20% off this order (we were late last time)', 'is-due')]));
       }
+      if ((q.key === 'cv' || q.key === 'cvcover') && window.SirCV) {
+        box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '📄 CV maker: AI draft, 2 layouts, PDF + Word', onclick: function () {
+          window.SirCV.open({ request: r, phone: waNumber(r.contact) || '', api: function (body) { return api('POST', body); } });
+        } })]));
+      }
       if ((q.design || q.key === 'qrmenu') && window.SirStudio) {
         box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: /Logo|Brand kit|Launch pack/.test(q.interest) ? '✨ Logo ideas + designs' : '🎨 Instant draft: designs from their photos', onclick: function () { openStudio(r); } })]));
       }

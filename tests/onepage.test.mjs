@@ -60,3 +60,12 @@ test("free address: name.sirraddo.com.ng, safe names only, no www", async () => 
   assert.equal(em.status, 400);
   assert.match(em.json.error, /don't include email/);
 });
+
+test("live preview on /services: their one page from what they typed, prices become the list", async () => {
+  const r = await h.call("POST", "/api/order", { action: "site_preview", kind: "qrmenu", business: "Mama Tee's Kitchen", contact: "08000000000", words: "Home-cooked meals\nAmala & Ewedu - ₦3,500\nJollof rice N4000\nZobo 800 naira" });
+  assert.equal(r.status, 200);
+  const j = r.json;
+  assert.match(j.html, /Our menu/);
+  for (const t of ["Amala &amp; Ewedu", "₦3,500", "Jollof rice", "₦4,000", "Zobo", "₦800"]) assert.ok(j.html.includes(t), t);
+  assert.match(j.html, /Live preview/);
+});

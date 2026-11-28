@@ -252,7 +252,7 @@
     if (!j || !j.service) return;
     Array.prototype.forEach.call(sel.options, function (o) { if (o.value === j.service) sel.value = j.service; });
     if (j.business) $('ds-business').value = j.business;
-    if (j.colours) $('ds-colours').value = j.colours;
+    if (j.colours && $('ds-colours')) $('ds-colours').value = j.colours;
     if (j.style && $('ds-style')) $('ds-style').value = j.style;
     Object.keys(j.info || {}).forEach(function (k) { var x = $('ds-' + k); if (x && j.info[k]) x.value = j.info[k]; });
     if (j.info && j.info.socials && window.sirSocialsFill) window.sirSocialsFill(j.info.socials);
@@ -298,15 +298,21 @@
     if (!pvBox || !window.SirStudio || !window.SirStudio.preview || !$('ds-words') || !document.body.contains(sel)) return;
     var o = sel.options[sel.selectedIndex], key = (o && o.getAttribute('data-svc')) || '';
     if (!key || key === 'custom') { pvBox.hidden = true; pickedLook = ''; return; }
+    // /services: a live preview for the side services that make something to look at.
+    if (key === 'maps' || key === 'domain') { pvBox.hidden = true; pickedLook = ''; return; }
+    if (key === 'cv' || key === 'cvcover') return cvPreview(run);
+    if (key === 'whatsapp') return qrPreview(run);
+    if (key === 'minisite' || key === 'qrmenu') return sitePreview(run, key);
     if (key === 'logo' || key === 'brand') return logoPreview(run);
     pvText(false);
+    if (key === 'posts') setPv('📅 Your month of posts', 'A rough first draft: each line you typed becomes its own post, in one style for the month. Tap the look you like (optional): we start from it and polish it with your photos.');
     var info = {}; ['sell', 'person', 'title', 'phone', 'bizmail', 'web', 'address', 'socials'].forEach(function (k) { var x = $('ds-' + k); if (x && !x.closest('[hidden]') && x.value.trim()) info[k] = x.value.trim(); });
     info.email = info.bizmail;
     var words = $('ds-words').value.trim();
     if (!words && !$('ds-business').value.trim() && !info.person) { pvBox.hidden = true; return; }
     var szv = $('ds-size') ? $('ds-size').value : '';
     window.SirStudio.preview({ size: /status/.test(szv) ? 'status' : /square/.test(szv) ? 'square' : 'post', kind: key === 'card' ? 'card' : '', service: sel.value, words: words, business: $('ds-business').value.trim(), contact: info.phone || $('ds-contact').value,
-      colours: $('ds-colours').value, info: info, photos: files }, 260).then(function (cvs) {
+      colours: v('ds-colours'), info: info, photos: files }, 260).then(function (cvs) {
       if (run !== pvRun) return;
       if (!cvs || !cvs.length) { pvBox.hidden = true; return; }
       pvRow.innerHTML = '';
@@ -328,13 +334,91 @@
     if ($('ds-pv-title')) $('ds-pv-title').textContent = logo ? '🔤 Logo starting ideas from your business name' : PV_TEXT[0];
     if ($('ds-pv-tip')) $('ds-pv-tip').textContent = logo ? 'Quick ideas made from your business name. Tap any you like (optional): your designer uses them as a starting point and designs your logo properly, with your colours and an icon that suits your business.' : PV_TEXT[1];
   }
+  function setPv(title, tip) { if ($('ds-pv-title')) $('ds-pv-title').textContent = title; if ($('ds-pv-tip')) $('ds-pv-tip').textContent = tip; }
+  function pvCard(node, label, choose) {
+    var f = document.createElement(choose ? 'button' : 'div'); if (choose) f.type = 'button'; f.className = 'ds-pv' + (pickedLook === label ? ' is-on' : '');
+    f.appendChild(node);
+    var cap = document.createElement('span'); cap.className = 'ds-pv-cap'; cap.textContent = label; f.appendChild(cap);
+    if (choose) {
+      f.setAttribute('aria-pressed', pickedLook === label);
+      var pick = document.createElement('span'); pick.className = 'ds-pv-pick'; pick.textContent = pickedLook === label ? '✓ Your choice' : choose; f.appendChild(pick);
+      f.addEventListener('click', function () { pickedLook = pickedLook === label ? '' : label; previewNow(); });
+    }
+    return f;
+  }
+  function v(id) { var x = $(id); return x ? x.value.trim() : ''; }
+  // CV and CV + cover letter: page 1 of their CV in our 2 layouts, from what they typed (we write it properly).
+  function cvPreview(run) {
+    if (!window.SirCV || !window.SirCV.preview) return;
+    var text = v('ds-words'), name = v('ds-name');
+    if (!text && !name) { pvBox.hidden = true; return; }
+    var lines = text.split(/\n+/).map(function (l) { return l.replace(/^[-•*]\s*/, '').trim(); }).filter(Boolean);
+    var first = (lines[0] || '').replace(/^(job( i want)?|position|role|target)\s*[:\-]\s*/i, '');
+    var headline = first && first.length <= 60 && !/\b(19|20)\d\d\b/.test(first) ? first : '';
+    var rest = headline ? lines.slice(1) : lines, jobs = [], edu = [], skills = [], about = [];
+    rest.forEach(function (l) {
+      var sk = /^skills?\s*[:\-]\s*(.+)$/i.exec(l);
+      if (sk) { skills = skills.concat(sk[1].split(/,|;/).map(function (x) { return x.trim(); }).filter(Boolean)); return; }
+      var yr = l.match(/\b(19|20)\d\d\b(\s*[-–to]+\s*(\b(19|20)\d\d\b|present|now|date))?/i);
+      if (/\b(b\.?\s?sc|b\.?\s?a\b|hnd|ond|nce|waec|neco|ssce|degree|university|polytechnic|college of|m\.?\s?sc|mba)\b/i.test(l)) { edu.push({ qualification: l.replace(yr ? yr[0] : '', '').replace(/[,(\s]+$/, '').trim(), school: '', dates: yr ? yr[0] : '' }); return; }
+      if (yr) { jobs.push({ role: l.replace(yr[0], '').replace(/[,(\s\-–]+$/, '').replace(/\(\s*\)/, '').trim(), company: '', place: '', dates: yr[0], bullets: [] }); return; }
+      about.push(l);
+    });
+    var cv = { name: name || 'Your Name', headline: headline, contact: { phone: v('ds-contact'), email: v('ds-email') },
+      summary: about.join(' ').slice(0, 420) || 'A short, strong profile written from your details.', experience: jobs.slice(0, 5), education: edu.slice(0, 4),
+      skills: skills.slice(0, 12), referees: 'Available on request' };
+    setPv('📄 Your CV, in our 2 layouts', 'A rough preview from what you typed. We write it properly: strong bullet points, clean dates, nothing you didn\'t give us. Tap the layout you like (optional).');
+    var cvs = window.SirCV.preview(cv, 360);
+    if (run !== pvRun) return;
+    pvRow.innerHTML = ''; cvs.forEach(function (c, i) { pvRow.appendChild(pvCard(c, 'Layout ' + (i + 1) + ': ' + c.title.replace(/^Option \d · /, ''), 'Choose this layout')); });
+    var note = $('ds-pv-note'); if (note) note.textContent = pickedLook ? '👍 Got it: we\'ll use ' + pickedLook.replace(/^Layout \d+: /, '') + ' for your CV.' : 'Tap the layout you like (optional).';
+    var note = $('ds-pv-note'); if (note) note.textContent = pickedLook ? '👍 Got it: we\'ll use ' + pickedLook.replace(/^Layout \d+: /, '') + ' for your CV.' : 'Tap the layout you like (optional).';
+    pvBox.hidden = false;
+  }
+  // WhatsApp Business setup: the "Scan to chat" poster that comes with it, with their number in the code.
+  function qrPreview(run) {
+    if (!window.SirQR || !window.qrcode) return;
+    var num = v('ds-contact').replace(/\D/g, ''), biz = v('ds-business') || v('ds-name');
+    if (num.length < 10) { pvBox.hidden = true; return; }
+    var intl = num.charAt(0) === '0' ? '234' + num.slice(1) : num;
+    setPv('📱 Your "Scan to chat" poster', 'Comes with your WhatsApp Business setup: customers scan it to chat with you. 2 designs in your colours, to print or post. Tap the one you like (optional).');
+    window.SirQR.fonts().then(function () {
+      if (run !== pvRun) return;
+      var cvs = window.SirQR.render({ link: 'https://wa.me/' + intl, business: biz || 'Your business', headline: 'Scan to chat with us on WhatsApp', sub: 'Ask questions, order and get updates', footer: 'WhatsApp: 0' + intl.slice(3), main: '#13254F', accent: '#E8B230' }, 'a5');
+      pvRow.innerHTML = '';
+      cvs.forEach(function (big, i) {
+        var c = document.createElement('canvas'); c.width = 420; c.height = Math.round(420 * big.height / big.width); var x = c.getContext('2d'); x.drawImage(big, 0, 0, c.width, c.height);
+        x.save(); x.translate(c.width - 40, 40); x.rotate(Math.PI / 4); x.fillStyle = 'rgba(17,24,39,.78)'; x.fillRect(-90, -13, 180, 26); x.fillStyle = '#fff'; x.font = '800 14px Inter, Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('PREVIEW', 0, 0); x.restore();
+        pvRow.appendChild(pvCard(c, 'Poster ' + (i + 1) + ': ' + big.title, 'Choose this one'));
+      });
+      var note = $('ds-pv-note'); if (note) note.textContent = pickedLook ? '👍 Got it: we\'ll make your poster like ' + pickedLook.replace(/^Poster \d+: /, '') + '.' : 'Tap the one you like (optional).';
+      pvBox.hidden = false;
+    });
+  }
+  // Mini website and QR menu: their one page on a phone, built by our website builder from what they typed.
+  var siteKey = '';
+  function sitePreview(run, key) {
+    var words = v('ds-words'), biz = v('ds-business');
+    if (!words && !biz) { pvBox.hidden = true; return; }
+    var k = [key, words, biz, v('ds-contact')].join('|'); if (k === siteKey && !pvBox.hidden) return; siteKey = k;
+    setPv(key === 'qrmenu' ? '📱 Your menu page on a phone' : '📱 Your page on a phone', key === 'qrmenu' ? 'A rough preview from what you typed: every line with a price becomes a menu item with an Order button. Your finished page uses your photos and a QR poster comes with it.' : 'A rough preview from what you typed (lines with a price become your price list). Your finished page uses your own photos and wording, at yourname.sirraddo.com.ng.');
+    fetch('/api/order', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'site_preview', kind: key, words: words, business: biz, contact: v('ds-contact') }) })
+      .then(function (r) { return r.json(); }).then(function (j) {
+        if (run !== pvRun || !j.html) return;
+        var wrap = document.createElement('div'); wrap.className = 'ds-phone';
+        var fr = document.createElement('iframe'); fr.title = 'Preview of your page'; fr.setAttribute('sandbox', 'allow-scripts'); fr.setAttribute('loading', 'lazy'); fr.srcdoc = j.html; wrap.appendChild(fr);
+        pvRow.innerHTML = ''; pvRow.appendChild(pvCard(wrap, 'Scroll inside the phone to see the whole page', ''));
+        var note = $('ds-pv-note'); if (note) note.textContent = '';
+        pvBox.hidden = false;
+      }).catch(function () {});
+  }
   // Logo and brand kit orders: 18 logo ideas from the business name and colours.
   function logoPreview(run) {
     var name = $('ds-business').value.trim();
     if (name.length < 2 || !window.SirStudio.monograms) { pvBox.hidden = true; return; }
     pvText(true);
     var what = [$('ds-words').value, $('ds-sell') ? $('ds-sell').value : ''].join(' ');
-    window.SirStudio.monograms(name, what, $('ds-colours').value).then(function (list) {
+    window.SirStudio.monograms(name, what, v('ds-colours')).then(function (list) {
       if (run !== pvRun) return;
       // Icon logos (a cake, scissors, a house… that suits them) first: they look most like a finished logo. Then the best monograms; 9 in all.
       var icon = list.filter(function (l) { return /icon/i.test(l.name); }), mono = list.filter(function (l) { return !/icon/i.test(l.name); });

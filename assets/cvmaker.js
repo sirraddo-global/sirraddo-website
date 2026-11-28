@@ -337,5 +337,15 @@
     }).catch(function (e) { msg.textContent = e.message; });
   }
 
-  window.SirCV = { open: open, _layout: layout, _toDocx: toDocx, _toPdf: toPdf, _textToJobs: textToJobs, _jobsToText: jobsToText };
+  // Live preview on /services: page 1 of the CV in both layouts, with a small PREVIEW sash in the corner.
+  function previewCanvases(cv, width) {
+    var m = canvasMeasure(), c0 = Object.assign({ contact: {}, experience: [], education: [], skills: [], certifications: [], extras: [], accent: '#13254F' }, cv);
+    return Object.keys(LAYOUTS).map(function (style) {
+      var cvs = toCanvas(layout(c0, style, 'cv', m)[0], width, false), x = cvs.getContext('2d'), k = width / A4W, sz = 15 * k * 2.2;
+      x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.translate(cvs.width - 46 * k * 2.2, 46 * k * 2.2); x.rotate(Math.PI / 4);
+      x.fillStyle = 'rgba(17,24,39,.78)'; x.fillRect(-120 * k * 2.2, -sz * 0.95, 240 * k * 2.2, sz * 1.9); x.fillStyle = '#fff'; x.font = '800 ' + sz + 'px Helvetica, Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('PREVIEW', 0, 0); x.restore();
+      cvs.title = LAYOUTS[style]; return cvs;
+    });
+  }
+  window.SirCV = { open: open, preview: previewCanvases, _layout: layout, _toDocx: toDocx, _toPdf: toPdf, _textToJobs: textToJobs, _jobsToText: jobsToText };
 })();

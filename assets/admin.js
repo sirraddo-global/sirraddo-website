@@ -3181,9 +3181,26 @@
       var din = el('input', { value: guess, placeholder: 'theirbusiness.com.ng', autocapitalize: 'none', spellcheck: 'false' });
       if (isOnePage(r) && !guess) din.value = String((r.brief && r.brief.business_name) || r.business || r.name || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '').slice(0, 30) + '.sirraddo.com.ng';
       box.appendChild(field('1. Their domain', din, isOnePage(r) ? 'Free address: name.sirraddo.com.ng (works at once, no nameservers). Or their own domain if they bought "Domain + business email".' : 'Buy it first (in their business name) if they don\'t have one. You can also publish without a domain and add it later. For a free address use name.sirraddo.com.ng.'));
+      // Errors show right here, step by step (e.g. the one-time Cloudflare key fix for free addresses).
+      var dErr = el('p', { class: 'admin-error', style: 'white-space:pre-line' });
       box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Add domain to Cloudflare', onclick: function (e) {
-        act({ action: 'host_domain', domain: din.value }, 'Domain added. Now set the nameservers below.', e.currentTarget, 'Adding…');
+        dErr.textContent = '';
+        var free = /\.sirraddo\.com\.ng\s*$/i.test(din.value), b = e.currentTarget, was = b.textContent;
+        b.disabled = true; b.textContent = 'Adding…';
+        api('POST', { id: r.id, action: 'host_domain', domain: din.value }).then(function (j) {
+          if (j.row) replaceRequest(j.row);
+          flash(free ? 'Free address added. Publish below: it works within a few minutes.' : 'Domain added. Now set the nameservers below.'); render();
+        }).catch(function (err) { b.disabled = false; b.textContent = was; dErr.textContent = err.message; if (err.status === 401 || err.status === 429) fail(err); });
       } })]));
+      box.appendChild(dErr);
+      box.appendChild(el('details', { class: 'admin-fold' }, [el('summary', null, [el('span', { class: 'admin-fold-title', text: '📋 Free address (name.sirraddo.com.ng): step by step' })]), el('ol', { class: 'admin-mini' }, [
+        'Type a short name with .sirraddo.com.ng at the end, e.g. kassytreats.sirraddo.com.ng (letters, numbers and dashes only).',
+        'Tap Add domain to Cloudflare. The system checks the name is free and not one of ours (www, admin, mail, pay, zappi…), and that your Cloudflare key may add it.',
+        'Then tap Publish below. The address works within a few minutes, with the padlock (https).',
+        'Send the customer the link, and make the 📱 QR poster on their order with it.',
+        'First time only: if it says the Cloudflare key isn\'t allowed, follow the steps it shows (give the key "Zone · DNS · Edit" for sirraddo.com.ng), then tap Add again.',
+        'No email on free addresses. If they want info@theirname, sell "Domain + business email" and switch the site to their own domain later in Go live.',
+      ].map(function (t) { return el('li', { text: t }); }))]));
     } else {
       var active = h.zoneStatus === 'active';
       var meta = [el('b', { text: h.domain }), ' ', active ? badge('Active', 'is-won') : badge('Waiting for nameservers', 'is-due')];

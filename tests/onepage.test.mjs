@@ -36,6 +36,10 @@ test("free address: name.sirraddo.com.ng, safe names only, no www", async () => 
   h.CF.zones.push({ id: "zown", name: "sirraddo.com.ng", status: "active", name_servers: [] });
   h.CF.dns.push({ id: "taken1", zone: "zown", type: "A", name: "taken.sirraddo.com.ng", content: "1.2.3.4" });
   const bad = async (domain, re) => { const r = await h.action({ action: "host_domain", id, domain }); assert.equal(r.status, 400, domain); assert.match(r.json.error, re, domain); };
+  h.CF.denyDns = true;
+  await bad("kassytreats.sirraddo.com.ng", /isn't allowed to add records[\s\S]*Zone · DNS · Edit/);
+  h.CF.denyDns = false;
+  assert.ok(!h.CF.dns.some((r) => /_sirraddo-check/.test(r.name)), "the test record is always removed");
   await bad("sirraddo.com.ng", /our own website/);
   await bad("admin.sirraddo.com.ng", /kept for SIRRADDO/);
   await bad("a.b.sirraddo.com.ng", /one simple name/);

@@ -1147,3 +1147,29 @@ body { overflow-x: clip; }
   :root:not([data-theme="dark"]) .site-header .logo { color: var(--white); }
   :root:not([data-theme="dark"]) .site-header .theme-toggle, :root:not([data-theme="dark"]) .site-header .menu-toggle { background: transparent; color: var(--white); border-color: rgba(255,255,255,.35); }
 }
+/* ---------- /design-samples ---------- */
+.dsx-nav { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); }
+.dsx-nav .container { display: flex; gap: 8px; overflow-x: auto; padding-top: 10px; padding-bottom: 10px; }
+.dsx-nav a { flex: none; text-decoration: none; color: var(--ink); font-weight: 600; font-size: .9rem; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; }
+.dsx-nav a:hover, .dsx-nav a:focus-visible { border-color: var(--gold); }
+.dsx-sec { scroll-margin-top: 64px; }
+.dsx-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); }
+.dsx-grid.dsx-wide { grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); }
+.dsx-fig { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.dsx-fig img { width: 100%; height: auto; border-radius: 6px; display: block; }
+.dsx-fig figcaption { display: flex; flex-direction: column; gap: 6px; font-size: .88rem; }
+.dsx-meta { color: var(--muted); font-size: .82rem; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.dsx-c { white-space: nowrap; }
+.dsx-sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.2); vertical-align: -1px; margin-right: 4px; }
+.dsx-words { font-size: .84rem; line-height: 1.45; border-top: 1px dashed var(--line); padding-top: 6px; }
+.dsx-table { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.dsx-table table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: .86rem; }
+.dsx-table th, .dsx-table td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.dsx-table thead th { background: var(--navy); color: #fff; position: sticky; top: 0; }
+.dsx-table td:nth-child(2) { font-weight: 600; min-width: 200px; }
+.dsx-table td:last-child { min-width: 260px; }
+.dsx-note { font-size: .85rem; color: var(--muted); margin-top: 12px; }
+.page-hero .lead a { color: var(--gold); font-weight: 700; }
+.dsx-nav { position: static; }
+.dsx-sum > summary { cursor: pointer; font-weight: 600; margin-bottom: 10px; }
+.dsx-table { max-height: 70vh; }

@@ -159,8 +159,8 @@
     var words = tidy(String(o.words || '').replace(/\r/g, ''));
     var info = o.info || {};
     var phone = (info.phone || '').split(/[,;\/]/)[0].trim() || (words.match(/(\+?234|0)[789][01]\d[\s-]?\d{3}[\s-]?\d{4}/) || [])[0] || o.contact || '';
-    var offer = (words.match(/\d{1,2}\s?%\s?off\b|buy \d+ get \d+( free)?|free delivery|from \u20A6\s?[\d,]+|\u20A6\s?[\d,]+/i) || [])[0] || '';
-    var lines = words.split(/\n|[.!?]\s+/).map(function (l) { return l.replace(/^[\s•\-*]+/, '').trim(); }).filter(Boolean);
+    var offer = (words.match(/\d{1,2}\s?%\s?off\b|buy \d+ get \d+( free)?|free delivery|from \u20A6\s?[\d,]+(?:\.\d+)?\s?[mk]?\b|\u20A6\s?[\d,]+(?:\.\d+)?\s?[mk]?\b/i) || [])[0] || '';
+    var lines = words.split(/\n|(?<!\b(?:Reg|No|Dr|Mr|Mrs|Barr|Pst|Rev|St|Rd|Ave))[.!?]\s+/).map(function (l) { return l.replace(/^[\s•\-*]+/, '').trim(); }).filter(Boolean);
     var biz = o.business || '';
     if (!biz && lines[0] && lines[0].indexOf(':') > 0 && lines[0].indexOf(':') < 40) biz = lines[0].split(':')[0];
     var clean = function (l) { return l.replace(phone, '').replace(biz ? new RegExp('^' + biz.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*[:\\-–]?\\s*', 'i') : /$^/, '').replace(/\b(call|whatsapp|phone)\b[:\s]*$/i, '').trim(); };
@@ -550,7 +550,7 @@
       if (!m.brand && i === lines.findIndex(function (x) { return x; }) && l.length <= 40 && !PHONE_RE.test(l)) { PHONE_RE.lastIndex = 0; m.brand = l; return; }
       PHONE_RE.lastIndex = 0;
       if (/^(contact|call|reach)\s*(us)?\s*(for|on)?\s*:?$/i.test(l) && /for/i.test(l)) { m.listTitle = l.replace(/:$/, ''); mode = 'items'; return; }
-      if (/^(our\s+)?(menu|services|products|price ?list|we (sell|offer|make))\s*:?$/i.test(l)) { m.listTitle = l.replace(/:$/, ''); mode = 'items'; return; }
+      if (/^(our\s+)?((service|product)s?\s+)?(menu|services|products|price ?list|we (sell|offer|make))\s*:?$/i.test(l)) { m.listTitle = l.replace(/:$/, ''); mode = 'items'; return; }
       if (/^contact\s*(info|information|us|details)?\s*:?$/i.test(l)) { mode = 'contact'; return; }
       var phones = l.match(PHONE_RE) || [];
       phones.forEach(function (p) { var n = p.replace(/[\s-]/g, ''); if (m.phones.indexOf(n) === -1) m.phones.push(n); });
@@ -1667,20 +1667,26 @@
         name: cd.name, title: cd.title, email: cd.email, address: cd.address, tagline: cd.tagline, web: cd.web, cardSocials: cd.socials, cardPhones: cd.phones };
       var list = mode === 'menu' ? MENU_LAYOUTS : mode === 'card' ? CARD_PREVIEW : null;
       var looks = o.looks || suggestLooks([o.business, o.words, inf.sell, o.service].join(' ')), custom = themeFrom(o.colours), pt = custom ? null : photoTheme(photos[0]);
-      list = list || promoList(looks); d.contact = withPlace(d.contact, d.place); d.special = inf.sell || ''; d.services = (inf.sell || '').split(/,|\band\b/).map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4);
-      var season = seasonOf(o.service), icon = /invit/i.test(o.service || '') ? 'heart' : iconsFor([o.business, o.words, inf.sell].join(' '))[0];
+      // Sample book: a set layout, exact colours and fonts can be asked for (o.layout, o.theme {bg, accent, light}, o.fonts {head, body}).
+      if (o.layout) { var pool = mode === 'menu' ? MENU_LAYOUTS : mode === 'card' ? CARD_PREVIEW : LAYOUTS, hit = pool.filter(function (L) { return L.name === o.layout; }); if (hit.length) list = hit; }
+      list = list || promoList(looks);
+      // A price from the list isn't an offer: it would sit on the menu as a lone badge ("₦25,000").
+      if (mode === 'menu' && /^(from\s*)?\u20A6/i.test(d.offer || '')) d.offer = ''; d.contact = withPlace(d.contact, d.place); d.special = inf.sell || ''; d.services = (inf.sell || '').split(/,|\band\b/).map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4);
+      var season = seasonOf(o.service), icon = o.icon || (/invit/i.test(o.service || '') ? 'heart' : iconsFor([o.business, o.words, inf.sell].join(' '))[0]);
       // Social media pack: each draft shows a different post from their list, so they see the set, not one post three times.
       var posts = /social/i.test(o.service || '') ? String(o.words || '').split(/\s*(?:post\s*\d+\s*[:\-–.]|\n)\s*/i).map(function (x) { return x.replace(/[.\s]+$/, '').trim(); }).filter(function (x) { return x.length > 2; }) : [];
       return list.map(function (L, i) {
         var look = lookByName(looks[i]), t = custom || (i === 0 && pt) || (look.theme ? Object.assign({ name: look.name }, look.theme) : THEMES[0]);
         if (season && i > 0 && mode !== 'card') t = SEASONS[season].themes[(i - 1) % 2];
+        if (o.theme) t = Object.assign({ name: look.name, light: '#F7F5F0' }, o.theme);
         var dd = d;
         if (posts.length > 1 && mode === 'promo') { var pg = guess({ words: posts[i % posts.length], business: d.business, info: inf }); dd = Object.assign({}, d, { headline: pg.headline, details: pg.details, offer: pg.offer || '', photo: photos[i % Math.max(1, photos.length)] || null }); }
         var sz = SIZES[o.size] || SIZES.post, W = width, H = mode === 'card' ? Math.round(width * (CARD.h * 2 + 90) / CARD.w) : Math.round(width * sz.h / sz.w);
         var big = 2, cv = document.createElement('canvas'); cv.width = W * big; cv.height = H * big;
         var c = cv.getContext('2d'), F = FONT, S = SERIF, Hd = HEAD;
         FONT = look.font; SERIF = look.serif; HEAD = look.head || null;
-        PHT = { t: t, icon: icon, label: true };
+        if (o.fonts) { FONT = SANS(o.fonts.body); SERIF = SER(o.fonts.head); HEAD = SER(o.fonts.head); }
+        PHT = { t: t, icon: icon, label: !o.noMark }; // the sample book leaves off "Your photo here"
         // Note each font family the design draws with (cards draw on their own canvases too), so its details can name them.
         var used = [], fd = window.CanvasRenderingContext2D && Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'font');
         if (fd) Object.defineProperty(CanvasRenderingContext2D.prototype, 'font', { configurable: true, enumerable: fd.enumerable, get: function () { return fd.get.call(this); }, set: function (v) { fd.set.call(this, v); var f = String(v).replace(/^.*?[\d.]+px\s+/, '').split(',')[0].replace(/["']/g, '').trim(); if (f && used.indexOf(f) < 0) used.push(f); } });
@@ -1694,7 +1700,7 @@
         // What was drawn, in words (for the sample book and anyone checking a design without seeing it)
         var fam = function (f) { return String(f || '').split(',')[0].replace(/["']/g, '').trim(); };
         cv.meta = { layout: L.name, look: mode === 'card' ? '' : (season && i > 0 ? t.name : look.name), colours: { main: t.bg, accent: t.accent, light: t.light || '' },
-          fonts: mode === 'card' ? used.slice(0, 4) : [fam(look.head || look.serif), fam(look.font)].filter(function (x, k, a) { return x && a.indexOf(x) === k; }),
+          fonts: mode === 'card' ? used.slice(0, 4) : o.fonts ? [o.fonts.head, o.fonts.body] : [fam(look.head || look.serif), fam(look.font)].filter(function (x, k, a) { return x && a.indexOf(x) === k; }),
           text: mode === 'menu' ? [dd.business, dd.listTitle].concat(dd.items.map(function (x, k) { return x + (dd.descs[k] ? ' – ' + dd.descs[k] : ''); }), [dd.note, (dd.phones || []).join(', '), (dd.socials || []).join(', '), dd.place]).filter(Boolean)
             : mode === 'card' ? [dd.name, dd.title, dd.business, (dd.cardPhones || dd.phones || []).join(', '), dd.email, dd.web, (dd.cardSocials || []).join(', '), dd.address, dd.special].filter(Boolean)
             : [dd.business, dd.headline, dd.details, dd.offer, dd.contact].filter(Boolean) };

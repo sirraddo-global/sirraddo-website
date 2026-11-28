@@ -24,6 +24,7 @@ GROUPS = [
     ("card", "Business cards", "Business card", "5 layouts, front and back in one picture. The back has a QR code to WhatsApp or the website."),
     ("logo", "Logos", "Logo", "18 logos made straight away from the business name: 13 from the initials and 5 with an icon chosen from what the business does."),
     ("sizes", "Sizes", "Size", "Every design also comes in WhatsApp status, square and A4 print sizes."),
+    ("more", "More industry samples", "Industry sample", "Five designs for other kinds of business: real estate, church, salon and beauty, a corporate business card and a product label. Same design tools, set to each business's own colours and fonts. The photo spaces show an icon here; the customer's own photos go there."),
 ]
 SIZE_NAMES = ["WhatsApp status (9:16)", "Square (1:1)", "A4 print"]
 
@@ -54,7 +55,7 @@ for key, title, short, intro in GROUPS:
         m = it.get("m") or {}
         layout = m.get("layout") or it["t"].split(" · ")[0]
         look = m.get("look") or ""
-        name = SIZE_NAMES[i] + " · " + layout if key == "sizes" else (look + " look · " + layout + " layout" if look else layout)
+        name = it["name"] + " (" + (look + " look · " if look else "") + layout + " layout)" if it.get("name") else SIZE_NAMES[i] + " · " + layout if key == "sizes" else (look + " look · " + layout + " layout" if look else layout)
         fonts = ", ".join(m.get("fonts") or [])
         words = lines(m)
         img = f"/assets/design-samples/{key}-{i:02d}.jpg"
@@ -77,7 +78,7 @@ main = f'''<main id="main">
       <div class="container">
         <p class="eyebrow">Design samples</p>
         <h1>{n} designs from our design studio</h1>
-        <p class="lead">Every design below was made by the same design tools our customers use on <a href="/design">sirraddo.com.ng/design</a>, for one sample business, Kassy Treats &amp; More (a bakery in Ibadan), with sample wording and six product photos. Under each picture you can read its look, colours, fonts and every word on it.</p>
+        <p class="lead">Every design below was made by the same design tools our customers use on <a href="/design">sirraddo.com.ng/design</a>, mostly for one sample business, Kassy Treats &amp; More (a bakery in Ibadan), with sample wording and six product photos, plus five more for a property company, a church, a salon, a law firm and a drinks label. Under each picture you can read its look, colours, fonts and every word on it.</p>
         <p><a class="btn btn--gold" href="/design">Order your design</a></p>
       </div>
     </section>
@@ -89,7 +90,7 @@ main = f'''<main id="main">
         <thead><tr><th>Category</th><th>Design and look</th><th>Colours</th><th>Fonts</th><th>Words on the design</th></tr></thead>
         <tbody>{"".join(rows)}</tbody>
       </table></div></details>
-      <p class="dsx-note">Sample business and wording for illustration. The phone number shown is a sample. Business cards show the QR code only as a grey box in these samples; the finished card has the real code.</p>
+      <p class="dsx-note">Sample business and wording for illustration. The phone number shown is a sample.</p>
     </div></section>
     {"".join(sections)}
   </main>'''

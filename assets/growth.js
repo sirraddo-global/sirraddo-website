@@ -61,8 +61,19 @@
         strip.textContent = '📞 Call / WhatsApp: ' + v.phone;
       } else if (strip) strip.remove();
     }
+    // Their business name says what they do: open the sample website for that trade (until they pick one themselves).
+    var SC_TRADES = [[/cake|chip|snack|chops|bak|pastr|bread|treat|kitchen|food|grill|suya|cater|restaurant|eatery|zobo|juice/i, /food/i], [/home|propert|realt|estate|land|apartment/i, /real estate/i],
+      [/salon|hair|beauty|spa|nail|fashion|cloth|wears?\b|boutique|tailor|stitch|fabric|atelier|couture/i, /fashion/i], [/pharm|clinic|hospital|health|medic|lab\b|dental/i, /clinic/i],
+      [/school|academy|college|nursery|montessori/i, /school/i], [/hotel|suites|lodge|resort|guest ?house|shortlet/i, /hotel/i], [/gas|fuel|petrol|filling|energy/i, /filling/i]];
+    function autoTab(name) {
+      if (!sc || !name || sc.dataset.picked) return;
+      var hit = SC_TRADES.filter(function (x) { return x[0].test(name); })[0]; if (!hit) return;
+      var btn = [].slice.call(sc.querySelectorAll('.sc-tabs button')).filter(function (b) { return hit[1].test(b.textContent); })[0];
+      if (btn && btn.getAttribute('aria-selected') !== 'true') btn.click();
+    }
     function applyShowcase() {
       if (!sc) return;
+      autoTab(val().name);
       sc.querySelectorAll('.sc-stage iframe').forEach(applyFrame);
       var v = val(), url = sc.querySelector('.sc-url'), nameEl = sc.querySelector('.sc-name');
       [[url, v.name ? slug(v.name) + '.com.ng' : ''], [nameEl, v.name ? v.name + ': your website, built like this sample' : '']].forEach(function (x) {
@@ -73,7 +84,7 @@
     }
     if (sc) {
       sc.querySelectorAll('.sc-stage iframe').forEach(function (f) { f.addEventListener('load', function () { applyFrame(f); }); });
-      sc.querySelector('.sc-tabs').addEventListener('click', function () { ['.sc-url', '.sc-name'].forEach(function (c) { var el = sc.querySelector(c); if (el) delete el.dataset.orig; }); setTimeout(applyShowcase, 30); });
+      sc.querySelector('.sc-tabs').addEventListener('click', function (e) { if (e.isTrusted) sc.dataset.picked = '1'; ['.sc-url', '.sc-name'].forEach(function (c) { var el = sc.querySelector(c); if (el) delete el.dataset.orig; }); setTimeout(applyShowcase, 30); });
       sc.querySelector('.sc-view').addEventListener('click', function () { setTimeout(applyShowcase, 30); });
     }
 

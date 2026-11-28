@@ -462,6 +462,10 @@
       c.fillStyle = t.bg; c.fillRect(0, 0, W, H);
       c.fillStyle = t.accent; c.globalAlpha = 0.18; for (var k = 0; k < 9; k++) { c.beginPath(); c.arc((k * 173 % 1000) * u + 40 * u, (k * 311 % 1300) * u * H / 1350 / u * u, (30 + k * 7) * u, 0, Math.PI * 2); c.fill(); } c.globalAlpha = 1;
       var pw = W * 0.62, phh = pw * 1.05, cx = W / 2, cy = (tall ? H * 0.32 : H * 0.36);
+      // Room for the words under the photo: a long headline shrinks the photo, so the words never run over its caption.
+      var hf0 = fit(c, d.headline, W - pad * 2, 2, (tall ? 100 : 80) * u, 36 * u, 900), df0 = d.details ? fit(c, d.details.replace(/\n/g, ' \u00B7 '), W - pad * 2, 2, 30 * u, 18 * u, 500) : null;
+      var need = hf0.size * (1 + (hf0.lines.length - 1) * 1.04) + (df0 ? 14 * u + df0.size * (1 + (df0.lines.length - 1) * 1.3) : 0) + 146 * u + 40 * u;
+      for (var shrink = 0; shrink < 8 && cy + phh / 2 + 110 * u > H - need; shrink++) { pw *= 0.92; phh = pw * 1.05; cy = Math.max(phh / 2 + 50 * u, cy - 10 * u); }
       c.save(); c.translate(cx, cy); c.rotate(-0.06); c.shadowColor = 'rgba(0,0,0,.35)'; c.shadowBlur = 36 * u; c.shadowOffsetY = 18 * u; c.fillStyle = '#FFFFFF'; c.fillRect(-pw / 2 - 22 * u, -phh / 2 - 22 * u, pw + 44 * u, phh + 120 * u); c.shadowColor = 'transparent';
       c.save(); c.beginPath(); c.rect(-pw / 2, -phh / 2, pw, phh); c.clip(); c.fillStyle = '#F3EEE6'; c.fillRect(-pw / 2, -phh / 2, pw, phh); cover(c, d.photo, -pw / 2, -phh / 2, pw, phh, 0.45); c.restore();
       if (d.business) { var bf = fit(c, d.business, pw, 1, 46 * u, 22 * u, 700); c.font = '700 ' + bf.size + 'px ' + SERIF; c.fillStyle = '#333'; c.textAlign = 'center'; c.fillText(d.business, 0, phh / 2 + 70 * u, pw); c.textAlign = 'left'; }
@@ -1655,7 +1659,8 @@
   var prevCache = {};
   function previewDesigns(o, width) {
     o = o || {}; width = width || 300;
-    var mode = o.kind === 'card' ? 'card' : parseMenu(o).items.length >= 4 ? 'menu' : 'promo';
+    // A social media pack is a set of separate posts (one per line), never a menu, however many lines they typed.
+    var mode = o.kind === 'card' ? 'card' : /social|monthly.*posts/i.test(o.service || '') ? 'promo' : parseMenu(o).items.length >= 4 ? 'menu' : 'promo';
     var urls = (o.photos || []).filter(function (p) { return /\.(jpe?g|png|webp)(\?|$)/i.test(p.name || p.url || '') || /^blob:/.test(p.url || ''); }).slice(0, 6);
     return Promise.all([loadLookFonts()].concat(urls.map(function (p) {
       if (prevCache[p.url]) return prevCache[p.url];
@@ -1690,7 +1695,7 @@
         var c = cv.getContext('2d'), F = FONT, S = SERIF, Hd = HEAD;
         FONT = look.font; SERIF = look.serif; HEAD = look.head || null;
         if (o.fonts) { FONT = SANS(o.fonts.body); SERIF = SER(o.fonts.head); HEAD = SER(o.fonts.head); }
-        PHT = { t: t, icon: icon, label: !o.noMark && !o.icon }; // left off in the sample book, and when a picture for their trade was chosen
+        PHT = { t: t, icon: icon, label: false }; // quick previews show a picture for their trade, never the words "Your photo here"
         // Note each font family the design draws with (cards draw on their own canvases too), so its details can name them.
         var used = [], fd = window.CanvasRenderingContext2D && Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'font');
         if (fd) Object.defineProperty(CanvasRenderingContext2D.prototype, 'font', { configurable: true, enumerable: fd.enumerable, get: function () { return fd.get.call(this); }, set: function (v) { fd.set.call(this, v); var f = String(v).replace(/^.*?[\d.]+px\s+/, '').split(',')[0].replace(/["']/g, '').trim(); if (f && used.indexOf(f) < 0) used.push(f); } });
@@ -1699,8 +1704,8 @@
           if (mode !== 'card') { texture(c, cv.width, cv.height, look.tex); deco(c, cv.width, cv.height, look.deco, t); seasonMark(c, cv.width, cv.height, season, t); }
         } finally { FONT = F; SERIF = S; HEAD = Hd; PHT = null; if (fd) Object.defineProperty(CanvasRenderingContext2D.prototype, 'font', fd); }
         // "Preview" mark, so it isn't used as the finished design (left off only for our own sample book)
-        // mark: 'corner' (website previews): a small sash in the top corner, so the design itself stays clear.
-        if (!o.noMark && o.mark === 'corner') { var sw = cv.width, sz = Math.round(sw * 0.042), off = sw * 0.16, left = mode === 'card'; c.save(); c.translate(left ? off * 0.72 : sw - off * 0.72, off * 0.72); c.rotate(left ? -Math.PI / 4 : Math.PI / 4);
+        // A small PREVIEW sash in the top corner (website previews), so the design itself stays clear; mark: 'center' for the old big stamp.
+        if (!o.noMark && o.mark !== 'center') { var sw = cv.width, sz = Math.round(sw * 0.034), off = sw * 0.13, left = mode === 'card'; c.save(); c.translate(left ? off * 0.72 : sw - off * 0.72, off * 0.72); c.rotate(left ? -Math.PI / 4 : Math.PI / 4);
           c.fillStyle = 'rgba(17,24,39,.78)'; c.fillRect(-sw * 0.3, -sz * 0.95, sw * 0.6, sz * 1.9); c.fillStyle = '#FFFFFF'; c.font = '800 ' + sz + 'px Inter, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
           c.fillText('PREVIEW', 0, 0); c.restore(); }
         else if (!o.noMark) { c.save(); c.translate(cv.width / 2, cv.height / 2); c.rotate(-0.5); c.globalAlpha = 0.16; c.fillStyle = '#FFFFFF'; c.strokeStyle = '#000000'; c.lineWidth = 2;

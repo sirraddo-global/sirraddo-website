@@ -12,10 +12,14 @@ export const KINDS = {
   "Starter website": "starter",
   "Business website": "business",
   "Online Store": "store",
+  // Quick services that are one-page websites: built like a Starter website, one page only (Admin → 🌐 Build the page).
+  "Mini website": "starter",
+  "QR menu / price list": "starter",
 };
+export const ONE_PAGE = ["Mini website", "QR menu / price list"];
 export const kindFor = (interest) => KINDS[interest] || "project";
 // Business email addresses included: Starter 1, Business and Online Store up to 5.
-export const emailAllowance = (interest) => ({ starter: 1, business: 5, store: 5 })[kindFor(interest)] || 0;
+export const emailAllowance = (interest) => (ONE_PAGE.includes(interest) ? 0 : ({ starter: 1, business: 5, store: 5 })[kindFor(interest)] || 0);
 
 export const KIND_LABEL = {
   starter: "Starter website",

@@ -463,6 +463,14 @@ export default async function handler(req, res) {
         if (!result.ok) throw new Bad(result.error);
         return res.status(200).json(result);
       }
+      // One-page site (Mini website, QR menu): the AI fills the project form from the order.
+      if (body.action === "onepage_brief") {
+        const { onePageBrief } = await import("./_lib/onepage.mjs");
+        const result = await onePageBrief(Number(body.id), FUNCTION_BUDGET_MS() - 2000);
+        if (!result.ok) throw new Bad(result.error);
+        await logStaff(me, "Filled the one-page site form from the order", Number(body.id));
+        return res.status(200).json({ ...result, row: await getRequest(Number(body.id)) });
+      }
       // CV maker: the AI drafts a CV (and cover letter) from the order; drafts are kept per order.
       if (/^cv_(get|save|draft)$/.test(body.action || "")) {
         const cvm = await import("./_lib/cv.mjs");

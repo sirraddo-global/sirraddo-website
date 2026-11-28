@@ -527,6 +527,12 @@ export async function mergeBrief(id, patch) {
   await ensureSchema();
   await q(`UPDATE customer_requests SET brief = COALESCE(brief, '{}'::jsonb) || $1::jsonb, updated_at = now() WHERE id = $2`, [JSON.stringify(patch), id]);
 }
+// One-page sites made straight from a quick-service order: their photos and logo, and the form marked as received.
+export async function setBriefFromOrder(id, brief, files) {
+  await ensureSchema();
+  await q(`UPDATE customer_requests SET brief = COALESCE(brief, '{}'::jsonb) || $1::jsonb, brief_files = COALESCE(brief_files, '{}'::jsonb) || $2::jsonb,
+     brief_submitted_at = COALESCE(brief_submitted_at, now()), updated_at = now() WHERE id = $3`, [JSON.stringify(brief), JSON.stringify(files), id]);
+}
 export async function updateRequestShop(id, patch) {
   await ensureSchema();
   const rows = await q(`UPDATE customer_requests SET shop = shop || $1::jsonb, updated_at = now() WHERE id = $2 RETURNING ${REQUEST_COLUMNS}`, [JSON.stringify(patch), id]);

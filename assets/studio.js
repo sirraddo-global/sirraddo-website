@@ -159,8 +159,8 @@
     var words = tidy(String(o.words || '').replace(/\r/g, ''));
     var info = o.info || {};
     var phone = (info.phone || '').split(/[,;\/]/)[0].trim() || (words.match(/(\+?234|0)[789][01]\d[\s-]?\d{3}[\s-]?\d{4}/) || [])[0] || o.contact || '';
-    var offer = (words.match(/\d{1,2}\s?%\s?off\b|buy \d+ get \d+( free)?|free delivery|from \u20A6\s?[\d,]+|\u20A6\s?[\d,]+/i) || [])[0] || '';
-    var lines = words.split(/\n|[.!?]\s+/).map(function (l) { return l.replace(/^[\s•\-*]+/, '').trim(); }).filter(Boolean);
+    var offer = (words.match(/\d{1,2}\s?%\s?off\b|buy \d+ get \d+( free)?|free delivery|from \u20A6\s?[\d,]+(?:\.\d+)?\s?[mk]?\b|\u20A6\s?[\d,]+(?:\.\d+)?\s?[mk]?\b/i) || [])[0] || '';
+    var lines = words.split(/\n|(?<!\b(?:Reg|No|Dr|Mr|Mrs|Barr|Pst|Rev|St|Rd|Ave))[.!?]\s+/).map(function (l) { return l.replace(/^[\s•\-*]+/, '').trim(); }).filter(Boolean);
     var biz = o.business || '';
     if (!biz && lines[0] && lines[0].indexOf(':') > 0 && lines[0].indexOf(':') < 40) biz = lines[0].split(':')[0];
     var clean = function (l) { return l.replace(phone, '').replace(biz ? new RegExp('^' + biz.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*[:\\-–]?\\s*', 'i') : /$^/, '').replace(/\b(call|whatsapp|phone)\b[:\s]*$/i, '').trim(); };
@@ -186,6 +186,9 @@
     return { business: biz, headline: headline, details: rest.slice(0, 3).join('\n'), offer: offer.replace(/\s+/g, ' ').toUpperCase(), contact: phone ? (/invit|wedding|birthday party|burial|naming/i.test(String(o.service || o.interest || '')) ? 'RSVP: ' : 'Call / WhatsApp: ') + phone : '' };
   }
   function themeFrom(colours) {
+    // Colour codes in the order ("#0B2545, #D4AF37, #F8F5EE") are used exactly: main, accent, light.
+    var hx = (String(colours || '').match(/#[0-9a-f]{6}\b/gi) || []).map(function (h) { return h.toUpperCase(); });
+    if (hx.length >= 2) return { name: 'Their colours', bg: hx[0], accent: hx[1], light: hx[2] || '#F7F5F0' };
     var found = [];
     String(colours || '').toLowerCase().replace(/[a-z]+/g, function (w) { if (COLOUR_WORDS[w] && found.indexOf(COLOUR_WORDS[w]) === -1) found.push(COLOUR_WORDS[w]); return w; });
     if (!found.length) return null;
@@ -550,7 +553,7 @@
       if (!m.brand && i === lines.findIndex(function (x) { return x; }) && l.length <= 40 && !PHONE_RE.test(l)) { PHONE_RE.lastIndex = 0; m.brand = l; return; }
       PHONE_RE.lastIndex = 0;
       if (/^(contact|call|reach)\s*(us)?\s*(for|on)?\s*:?$/i.test(l) && /for/i.test(l)) { m.listTitle = l.replace(/:$/, ''); mode = 'items'; return; }
-      if (/^(our\s+)?(menu|services|products|price ?list|we (sell|offer|make))\s*:?$/i.test(l)) { m.listTitle = l.replace(/:$/, ''); mode = 'items'; return; }
+      if (/^(our\s+)?((service|product)s?\s+)?(menu|services|products|price ?list|we (sell|offer|make))\s*:?$/i.test(l)) { m.listTitle = l.replace(/:$/, ''); mode = 'items'; return; }
       if (/^contact\s*(info|information|us|details)?\s*:?$/i.test(l)) { mode = 'contact'; return; }
       var phones = l.match(PHONE_RE) || [];
       phones.forEach(function (p) { var n = p.replace(/[\s-]/g, ''); if (m.phones.indexOf(n) === -1) m.phones.push(n); });
@@ -1667,20 +1670,26 @@
         name: cd.name, title: cd.title, email: cd.email, address: cd.address, tagline: cd.tagline, web: cd.web, cardSocials: cd.socials, cardPhones: cd.phones };
       var list = mode === 'menu' ? MENU_LAYOUTS : mode === 'card' ? CARD_PREVIEW : null;
       var looks = o.looks || suggestLooks([o.business, o.words, inf.sell, o.service].join(' ')), custom = themeFrom(o.colours), pt = custom ? null : photoTheme(photos[0]);
-      list = list || promoList(looks); d.contact = withPlace(d.contact, d.place); d.special = inf.sell || ''; d.services = (inf.sell || '').split(/,|\band\b/).map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4);
-      var season = seasonOf(o.service), icon = /invit/i.test(o.service || '') ? 'heart' : iconsFor([o.business, o.words, inf.sell].join(' '))[0];
+      // Sample book: a set layout, exact colours and fonts can be asked for (o.layout, o.theme {bg, accent, light}, o.fonts {head, body}).
+      if (o.layout) { var pool = mode === 'menu' ? MENU_LAYOUTS : mode === 'card' ? CARD_PREVIEW : LAYOUTS, hit = pool.filter(function (L) { return L.name === o.layout; }); if (hit.length) list = hit; }
+      list = list || promoList(looks);
+      // A price from the list isn't an offer: it would sit on the menu as a lone badge ("₦25,000").
+      if (mode === 'menu' && /^(from\s*)?\u20A6/i.test(d.offer || '')) d.offer = ''; d.contact = withPlace(d.contact, d.place); d.special = inf.sell || ''; d.services = (inf.sell || '').split(/,|\band\b/).map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 4);
+      var season = seasonOf(o.service), icon = o.icon || (/invit/i.test(o.service || '') ? 'heart' : iconsFor([o.business, o.words, inf.sell].join(' '))[0]);
       // Social media pack: each draft shows a different post from their list, so they see the set, not one post three times.
       var posts = /social/i.test(o.service || '') ? String(o.words || '').split(/\s*(?:post\s*\d+\s*[:\-–.]|\n)\s*/i).map(function (x) { return x.replace(/[.\s]+$/, '').trim(); }).filter(function (x) { return x.length > 2; }) : [];
       return list.map(function (L, i) {
         var look = lookByName(looks[i]), t = custom || (i === 0 && pt) || (look.theme ? Object.assign({ name: look.name }, look.theme) : THEMES[0]);
         if (season && i > 0 && mode !== 'card') t = SEASONS[season].themes[(i - 1) % 2];
+        if (o.theme) t = Object.assign({ name: look.name, light: '#F7F5F0' }, o.theme);
         var dd = d;
         if (posts.length > 1 && mode === 'promo') { var pg = guess({ words: posts[i % posts.length], business: d.business, info: inf }); dd = Object.assign({}, d, { headline: pg.headline, details: pg.details, offer: pg.offer || '', photo: photos[i % Math.max(1, photos.length)] || null }); }
         var sz = SIZES[o.size] || SIZES.post, W = width, H = mode === 'card' ? Math.round(width * (CARD.h * 2 + 90) / CARD.w) : Math.round(width * sz.h / sz.w);
         var big = 2, cv = document.createElement('canvas'); cv.width = W * big; cv.height = H * big;
         var c = cv.getContext('2d'), F = FONT, S = SERIF, Hd = HEAD;
         FONT = look.font; SERIF = look.serif; HEAD = look.head || null;
-        PHT = { t: t, icon: icon, label: true };
+        if (o.fonts) { FONT = SANS(o.fonts.body); SERIF = SER(o.fonts.head); HEAD = SER(o.fonts.head); }
+        PHT = { t: t, icon: icon, label: !o.noMark }; // the sample book leaves off "Your photo here"
         // Note each font family the design draws with (cards draw on their own canvases too), so its details can name them.
         var used = [], fd = window.CanvasRenderingContext2D && Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'font');
         if (fd) Object.defineProperty(CanvasRenderingContext2D.prototype, 'font', { configurable: true, enumerable: fd.enumerable, get: function () { return fd.get.call(this); }, set: function (v) { fd.set.call(this, v); var f = String(v).replace(/^.*?[\d.]+px\s+/, '').split(',')[0].replace(/["']/g, '').trim(); if (f && used.indexOf(f) < 0) used.push(f); } });
@@ -1694,7 +1703,7 @@
         // What was drawn, in words (for the sample book and anyone checking a design without seeing it)
         var fam = function (f) { return String(f || '').split(',')[0].replace(/["']/g, '').trim(); };
         cv.meta = { layout: L.name, look: mode === 'card' ? '' : (season && i > 0 ? t.name : look.name), colours: { main: t.bg, accent: t.accent, light: t.light || '' },
-          fonts: mode === 'card' ? used.slice(0, 4) : [fam(look.head || look.serif), fam(look.font)].filter(function (x, k, a) { return x && a.indexOf(x) === k; }),
+          fonts: mode === 'card' ? used.slice(0, 4) : o.fonts ? [o.fonts.head, o.fonts.body] : [fam(look.head || look.serif), fam(look.font)].filter(function (x, k, a) { return x && a.indexOf(x) === k; }),
           text: mode === 'menu' ? [dd.business, dd.listTitle].concat(dd.items.map(function (x, k) { return x + (dd.descs[k] ? ' – ' + dd.descs[k] : ''); }), [dd.note, (dd.phones || []).join(', '), (dd.socials || []).join(', '), dd.place]).filter(Boolean)
             : mode === 'card' ? [dd.name, dd.title, dd.business, (dd.cardPhones || dd.phones || []).join(', '), dd.email, dd.web, (dd.cardSocials || []).join(', '), dd.address, dd.special].filter(Boolean)
             : [dd.business, dd.headline, dd.details, dd.offer, dd.contact].filter(Boolean) };
@@ -1955,6 +1964,8 @@
     function withLook(i, fn) {
       var L = lookByName(state.looks[i]), F = FONT, S = SERIF, Hd = HEAD;
       FONT = L.font; SERIF = L.serif; HEAD = L.head || null;
+      if (fHead.value) { SERIF = SER(fHead.value); HEAD = SER(fHead.value); }
+      if (fBody.value) FONT = SANS(fBody.value);
       try { return fn(L, themeFor(i)); } finally { FONT = F; SERIF = S; HEAD = Hd; }
     }
     var srcs = (o.photos || []).filter(function (p) { return !/\.pdf(\?|$)/i.test((p.name || '') + ' ' + (p.url || '')) && /\.(jpe?g|png|webp)(\?|$)/i.test(p.name || p.url || '') || /^blob:/.test(p.url); });
@@ -2007,7 +2018,15 @@
     }
     var enh = el('input', { type: 'checkbox' }); enh.checked = true;
     var addPhotos = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', multiple: '' });
-    var c1 = el('input', { type: 'color', value: state.theme.bg, title: 'Main colour' }), c2 = el('input', { type: 'color', value: state.theme.accent, title: 'Accent colour' });
+    var c1 = el('input', { type: 'color', value: state.theme.bg, title: 'Main colour' }), c2 = el('input', { type: 'color', value: state.theme.accent, title: 'Accent colour' }), c3 = el('input', { type: 'color', value: state.theme.light || '#F7F5F0', title: 'Light colour (backgrounds)' });
+    // Exact colours typed as codes: "#0B2545, #D4AF37, #F8F5EE" (main, accent, light).
+    var hexIn = el('input', { maxlength: '40', placeholder: '#0B2545, #D4AF37, #F8F5EE', 'aria-label': 'Colour codes: main, accent, light' });
+    // Fonts the customer asked for (headings and body); "Look's own" keeps the look's pair.
+    var FONT_NAMES = LOOK_FONTS.map(function (x) { return x[0]; }).concat(['Inter', 'Georgia']).filter(function (x, i, a) { return a.indexOf(x) === i; });
+    var fontOpts = function () { return [el('option', { value: '', text: "Look's own" })].concat(FONT_NAMES.map(function (n) { return el('option', { value: n, text: n }); })); };
+    var fHead = el('select', { 'aria-label': 'Heading font' }, fontOpts()), fBody = el('select', { 'aria-label': 'Body font' }, fontOpts());
+    // The picture shown in empty photo spaces when there's no photo (house, cross, bottle…).
+    var iconSel = el('select', { 'aria-label': 'Icon for empty photo spaces' }, [el('option', { value: '', text: 'Auto (from what they do)' })].concat(Object.keys(LOGO_ICONS).map(function (k) { return el('option', { value: k, text: k.charAt(0).toUpperCase() + k.slice(1) }); })));
     var status = el('p', { class: 'admin-hint', text: 'Loading photos…' });
 
     // ---------- Logo ideas (AI draws 3 original SVG logos; you edit name, tagline and colours) ----------
@@ -2288,7 +2307,9 @@
       promoBox, menuBox, cardBox,
       saveRow,
       badgeLab,
-      el('div', { class: 'st-field' }, [el('span', { text: 'Colours' }), themeRow, el('div', { class: 'st-custom' }, [c1, c2, el('small', { text: 'or pick your own: main and accent' })])]),
+      el('div', { class: 'st-field' }, [el('span', { text: 'Colours' }), themeRow, el('div', { class: 'st-custom' }, [c1, c2, c3, el('small', { text: 'or pick your own: main, accent and light' })]), lab('Or type colour codes', hexIn)]),
+      el('div', { class: 'st-field' }, [el('span', { text: 'Fonts (if the customer asked for them)' }), el('div', { class: 'st-custom' }, [fHead, fBody, el('small', { text: 'headings, then body text' })])]),
+      lab('Icon in empty photo spaces', iconSel),
       mainPhotoLab, bgRow, el('div', { class: 'st-field' }, [el('span', { text: 'Logo (tap one)' }), logoTiles]),
       el('label', { class: 'st-check' }, [enh, ' Auto-enhance photos (brighter, richer colour, sharper)']),
       lab('Add more photos from this phone', addPhotos),
@@ -2390,8 +2411,21 @@
       themeRow.insertBefore(el('button', { type: 'button', class: 'st-swatch', title: 'From their sample', style: 'background:linear-gradient(135deg,' + t.bg + ' 60%,' + t.accent + ' 60%);outline:2px dashed #D9A21B', onclick: function () { state.theme = t; state.themePicked = true; c1.value = t.bg; c2.value = t.accent; draw(); } }), themeRow.firstChild);
       if (!themeFrom(o.colours)) { state.theme = t; state.themePicked = true; c1.value = t.bg; c2.value = t.accent; draw(); }
     });
-    function customTheme() { state.themePicked = true; state.theme = { name: 'Custom', bg: c1.value, accent: c2.value, light: lum(c1.value) < 0.5 ? '#F7F5F0' : '#FFFFFF' }; draw(); }
-    c1.addEventListener('input', customTheme); c2.addEventListener('input', customTheme);
+    function customTheme() { state.themePicked = true; state.theme = { name: 'Custom', bg: c1.value, accent: c2.value, light: c3.value }; draw(); }
+    c1.addEventListener('input', customTheme); c2.addEventListener('input', customTheme); c3.addEventListener('input', customTheme);
+    hexIn.addEventListener('change', function () {
+      var hx = (hexIn.value.match(/#?[0-9a-f]{6}\b/gi) || []).map(function (h) { return '#' + h.replace('#', '').toUpperCase(); });
+      if (!hx.length) return;
+      c1.value = hx[0]; if (hx[1]) c2.value = hx[1]; if (hx[2]) c3.value = hx[2];
+      customTheme();
+    });
+    [fHead, fBody, iconSel].forEach(function (x) { x.addEventListener('change', function () { draw(); }); });
+    // Fonts named in the order ("Fonts: Cinzel, Poppins") are picked for them: the first for headings, the second for body text.
+    (function () {
+      var said = [o.colours, o.style, o.words, o.fonts].join(' ').toLowerCase(), named = FONT_NAMES.filter(function (n) { return said.indexOf(n.toLowerCase()) !== -1; })
+        .sort(function (a, b) { return said.indexOf(a.toLowerCase()) - said.indexOf(b.toLowerCase()); });
+      if (named[0]) fHead.value = named[0]; if (named[1]) fBody.value = named[1];
+    })();
 
     // The business name sometimes sits in the customer's list ("KASSYtreats&more"); it's already the title, so leave it out.
     function squash(x) { return String(x || '').toLowerCase().replace(/[^a-z0-9]/g, ''); }
@@ -2425,7 +2459,7 @@
       var keep = state.photoIdx; if (photoIdx != null) state.photoIdx = photoIdx;
       try {
         withLook(i, function (L, t) {
-          PHT = { t: t, icon: /invit/i.test(o.interest || o.service || '') ? 'heart' : iconsFor([f.business.value, o.words, (o.info || {}).sell].join(' '))[0], label: false };
+          PHT = { t: t, icon: iconSel.value || (/invit/i.test(o.interest || o.service || '') ? 'heart' : null) || iconsFor([f.business.value, o.words, (o.info || {}).sell].join(' '))[0], label: false };
           try {
             layouts()[i].draw(c, W, H, over ? Object.assign(data(), over) : data(), t);
             if (state.mode !== 'card') { texture(c, W, H, L.tex); deco(c, W, H, L.deco, t); seasonMark(c, W, H, seasonOf(o.interest || o.service), t); }

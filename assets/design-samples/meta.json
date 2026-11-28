@@ -1562,5 +1562,133 @@
     ]
    }
   }
+ ],
+ "more": [
+  {
+   "t": "Real estate · Estate & land promo flyer",
+   "name": "Real estate · Estate & land promo flyer",
+   "m": {
+    "layout": "Bold photo",
+    "look": "Luxury showcase",
+    "colours": {
+     "main": "#0B2545",
+     "accent": "#D4AF37",
+     "light": "#F8F5EE"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Montserrat"
+    ],
+    "text": [
+     "Crestline Homes & Properties",
+     "Royal Palm Estate, Akobo",
+     "600sqm dry land with C of O · Outright: ₦3.5M | 6-month plan available · Free site inspection every Saturday, 10am",
+     "₦3.5M",
+     "Call / WhatsApp: 08000000000 · Ibadan"
+    ]
+   }
+  },
+  {
+   "t": "Church · Program flyer",
+   "name": "Church · Program flyer",
+   "m": {
+    "layout": "Poster type",
+    "look": "Royal",
+    "colours": {
+     "main": "#2B124C",
+     "accent": "#E0B354",
+     "light": "#F7F2FB"
+    },
+    "fonts": [
+     "Cinzel",
+     "Poppins"
+    ],
+    "text": [
+     "Grace Assembly Ibadan",
+     "3-Day Power & Prophetic Conference",
+     "Theme: Open Doors · Ministering: Pastor David Adeyemi & Guest Choir · Fri 20 – Sun 22 Nov · 5pm daily · 20 Agodi Road, Ibadan · Free bus pick-up available",
+     "20 Agodi Road, Ibadan · Free bus pick-up available"
+    ]
+   }
+  },
+  {
+   "t": "Salon & beauty · Service price list",
+   "name": "Salon & beauty · Service price list",
+   "m": {
+    "layout": "Dark menu",
+    "look": "Sweet boutique",
+    "colours": {
+     "main": "#5B1E4F",
+     "accent": "#E6B89C",
+     "light": "#FCEAF1"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Glow Haven Salon",
+     "Service Price List",
+     "Knotless Braids – ₦25,000",
+     "Frontal Wig Install – ₦15,000",
+     "Natural Hair Treatment – ₦8,000",
+     "Gel Nails & Pedicure – ₦10,000",
+     "Home service available. Book on WhatsApp.",
+     "Call / WhatsApp: 08000000000",
+     "Bodija, Ibadan"
+    ]
+   }
+  },
+  {
+   "t": "Corporate & consultant · Dark business card (front and back)",
+   "name": "Corporate & consultant · Dark business card (front and back)",
+   "m": {
+    "layout": "Luxury foil card",
+    "look": "Matte dark & gold",
+    "colours": {
+     "main": "#121417",
+     "accent": "#C9A227",
+     "light": "#FFFFFF"
+    },
+    "fonts": [
+     "Cinzel",
+     "Inter",
+     "Cormorant Garamond"
+    ],
+    "text": [
+     "Front: Barr. Tunde Adebayo",
+     "Principal Partner",
+     "08000000000",
+     "info@adebayolaw.com.ng",
+     "Jericho, Ibadan",
+     "Back: Adebayo & Co.",
+     "Corporate & Property Law",
+     "QR code: Scan to chat"
+    ]
+   }
+  },
+  {
+   "t": "Product packaging · Bottle / pouch label",
+   "name": "Product packaging · Bottle / pouch label",
+   "m": {
+    "layout": "Clean frame",
+    "look": "Afro print",
+    "colours": {
+     "main": "#1B4332",
+     "accent": "#F4A300",
+     "light": "#FFF8E7"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "100% Natural Hibiscus Zobo Drink",
+     "No artificial preservatives · Serve chilled · 500ml · NAFDAC Reg. Pending · Best Before: See Cap",
+     "Call / WhatsApp: 08000000000 · Reorder on WhatsApp · Made in Ibadan"
+    ]
+   }
+  }
  ]
 }

@@ -1681,17 +1681,20 @@
         var c = cv.getContext('2d'), F = FONT, S = SERIF, Hd = HEAD;
         FONT = look.font; SERIF = look.serif; HEAD = look.head || null;
         PHT = { t: t, icon: icon, label: true };
+        // Note each font family the design draws with (cards draw on their own canvases too), so its details can name them.
+        var used = [], fd = window.CanvasRenderingContext2D && Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'font');
+        if (fd) Object.defineProperty(CanvasRenderingContext2D.prototype, 'font', { configurable: true, enumerable: fd.enumerable, get: function () { return fd.get.call(this); }, set: function (v) { fd.set.call(this, v); var f = String(v).replace(/^.*?[\d.]+px\s+/, '').split(',')[0].replace(/["']/g, '').trim(); if (f && used.indexOf(f) < 0) used.push(f); } });
         try {
           L.draw(c, cv.width, cv.height, dd, t);
           if (mode !== 'card') { texture(c, cv.width, cv.height, look.tex); deco(c, cv.width, cv.height, look.deco, t); seasonMark(c, cv.width, cv.height, season, t); }
-        } finally { FONT = F; SERIF = S; HEAD = Hd; PHT = null; }
+        } finally { FONT = F; SERIF = S; HEAD = Hd; PHT = null; if (fd) Object.defineProperty(CanvasRenderingContext2D.prototype, 'font', fd); }
         // "Preview" mark, so it isn't used as the finished design (left off only for our own sample book)
         if (!o.noMark) { c.save(); c.translate(cv.width / 2, cv.height / 2); c.rotate(-0.5); c.globalAlpha = 0.16; c.fillStyle = '#FFFFFF'; c.strokeStyle = '#000000'; c.lineWidth = 2;
         c.font = '900 ' + Math.round(cv.width * 0.12) + 'px Inter, Arial, sans-serif'; c.textAlign = 'center'; c.strokeText('PREVIEW', 0, 0); c.fillText('PREVIEW', 0, 0); c.restore(); }
         // What was drawn, in words (for the sample book and anyone checking a design without seeing it)
         var fam = function (f) { return String(f || '').split(',')[0].replace(/["']/g, '').trim(); };
         cv.meta = { layout: L.name, look: mode === 'card' ? '' : (season && i > 0 ? t.name : look.name), colours: { main: t.bg, accent: t.accent, light: t.light || '' },
-          fonts: mode === 'card' ? [] : [fam(look.head || look.serif), fam(look.font)].filter(function (x, k, a) { return x && a.indexOf(x) === k; }),
+          fonts: mode === 'card' ? used.slice(0, 4) : [fam(look.head || look.serif), fam(look.font)].filter(function (x, k, a) { return x && a.indexOf(x) === k; }),
           text: mode === 'menu' ? [dd.business, dd.listTitle].concat(dd.items.map(function (x, k) { return x + (dd.descs[k] ? ' – ' + dd.descs[k] : ''); }), [dd.note, (dd.phones || []).join(', '), (dd.socials || []).join(', '), dd.place]).filter(Boolean)
             : mode === 'card' ? [dd.name, dd.title, dd.business, (dd.cardPhones || dd.phones || []).join(', '), dd.email, dd.web, (dd.cardSocials || []).join(', '), dd.address, dd.special].filter(Boolean)
             : [dd.business, dd.headline, dd.details, dd.offer, dd.contact].filter(Boolean) };

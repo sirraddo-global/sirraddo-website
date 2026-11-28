@@ -1058,7 +1058,10 @@
      "accent": "#E8B230",
      "light": "#F7F5F0"
     },
-    "fonts": [],
+    "fonts": [
+     "Poppins",
+     "DM Serif Display"
+    ],
     "text": [
      "Kassy Adeyemi",
      "Founder & Head Baker",
@@ -1081,7 +1084,10 @@
      "accent": "#E8B230",
      "light": "#F7F5F0"
     },
-    "fonts": [],
+    "fonts": [
+     "Lora",
+     "Poppins"
+    ],
     "text": [
      "Kassy Adeyemi",
      "Founder & Head Baker",
@@ -1104,7 +1110,10 @@
      "accent": "#E8B230",
      "light": "#F7F5F0"
     },
-    "fonts": [],
+    "fonts": [
+     "Poppins",
+     "DM Serif Display"
+    ],
     "text": [
      "Kassy Adeyemi",
      "Founder & Head Baker",
@@ -1127,7 +1136,10 @@
      "accent": "#E8B230",
      "light": "#F7F5F0"
     },
-    "fonts": [],
+    "fonts": [
+     "Cinzel",
+     "Inter"
+    ],
     "text": [
      "Kassy Adeyemi",
      "Founder & Head Baker",
@@ -1150,7 +1162,11 @@
      "accent": "#E8B230",
      "light": "#F7F5F0"
     },
-    "fonts": [],
+    "fonts": [
+     "Cinzel",
+     "Inter",
+     "Georgia"
+    ],
     "text": [
      "Kassy Adeyemi",
      "Founder & Head Baker",

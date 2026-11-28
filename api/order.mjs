@@ -26,6 +26,7 @@ function rateLimited(ip) {
 }
 const str = (v, n) => (typeof v === "string" ? v.trim().slice(0, n) : "");
 
+const PREVIEWS = new Map();
 const IDEAS = new Map();
 export const REFERRAL_OFF = 1000;
 // "Order again" from the tracking page: the service and the details to fill the form with (no personal data beyond their own order).
@@ -54,6 +55,15 @@ export default async function handler(req, res) {
     try { return res.status(200).json(await addReview(body.t, body)); } catch (e) { return res.status(e.status || 500).json({ error: e.message }); }
   }
   // Headline ideas for the order form (AI), a few per visitor per hour.
+  // Live preview of a one-page site (Mini website, QR menu) from what they typed: no AI, nothing saved.
+  if (body.action === "site_preview") {
+    const now = Date.now(), list = (PREVIEWS.get(ip) || []).filter((t) => now - t < 600000);
+    if (list.length >= 60) return res.status(429).json({ error: "Too many previews for now." });
+    list.push(now); PREVIEWS.set(ip, list);
+    const { onePagePreview } = await import("./_lib/onepage-preview.mjs");
+    const html = onePagePreview({ words: str(body.words, 2000), business: str(body.business, 80), contact: str(body.contact, 30), kind: body.kind === "qrmenu" ? "qrmenu" : "minisite" });
+    return res.status(200).json({ html });
+  }
   if (body.action === "ideas") {
     const now = Date.now(), list = (IDEAS.get(ip) || []).filter((t) => now - t < 3600000);
     if (list.length >= 6) return res.status(429).json({ error: "That's enough ideas for now. Pick one or write your own." });

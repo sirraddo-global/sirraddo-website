@@ -171,5 +171,5 @@
     var logoFile = (o.files || []).filter(function (x) { return /logo/i.test(x.name) && /\.(png|jpe?g|webp)(\?|$)/i.test(x.url); })[0];
     if (logoFile) load(logoFile.url); else draw();
   }
-  window.SirQR = { open: open, render: render };
+  window.SirQR = { open: open, render: render, fonts: loadFonts };
 })();

@@ -28,6 +28,10 @@
   <script src="/assets/site.js" defer></script>
   <script src="/assets/chat.js" defer></script>
   <script src="/assets/greeting.js" defer></script>
+        <script src="/assets/qrcode.js" defer></script>
+        <script src="/assets/studio.js" defer></script>
+        <script src="/assets/cvmaker.js" defer></script>
+        <script src="/assets/qrposter.js" defer></script>
         <script src="/assets/design.js" defer></script>
 </head>
 <body>
@@ -278,6 +282,12 @@
             <input id="ds-email" type="email" maxlength="200" autocomplete="email">
           </div>
           <input class="rv-hp" id="ds-hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <section class="ds-preview" id="ds-preview" hidden aria-label="Live preview">
+            <h3 id="ds-pv-title">👀 Live preview</h3>
+            <p class="ds-tip" id="ds-pv-tip">A rough first draft from what you've typed. Tap the one you like: we start from it and polish it.</p>
+            <div class="ds-preview-row" id="ds-preview-row"></div>
+            <p class="ds-tip" id="ds-pv-note" aria-live="polite"></p>
+          </section>
           <p class="ds-total" id="ds-total" aria-live="polite"></p>
           <button class="btn btn--gold btn--block" type="submit" id="ds-submit">Order and pay</button>
           <p class="ds-promise">⏱️ On-time promise: If we deliver after the promised date, you get 20% off your next order.</p>

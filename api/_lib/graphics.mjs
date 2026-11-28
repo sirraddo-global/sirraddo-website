@@ -195,12 +195,12 @@ export const QUICK_SERVICES = [
     ask: ["About you", "e.g. The job you want, education, work experience (company, role, dates, what you did), skills, phone and email"],
     files: "Your old CV (optional)",
     guide: [
-      "Read their old CV/details. Ask on WhatsApp about anything missing (dates, results, the job they want).",
+      "Open 📄 CV maker on this order and tap ✨ Draft with AI: it reads their details and old CV. Ask on WhatsApp about anything missing (the questions it lists, and every [ask]).",
       "Use a simple one-column layout (2 pages at most): no photos or tables, so company screening software can read it.",
       "Write strong lines with results ('Grew sales by 20%'). AI can help draft; check every fact with them.",
-      "Put it in 2 different clean layouts and send both as PDF previews (Option 1, Option 2); they pick one.",
+      "Tap 1️⃣ PDF previews: both layouts (Option 1, Option 2), watermarked. Send both; they pick one.",
       "Up to 2 rounds of changes on the chosen one.",
-      "Send the final as Word (so they can update it) and PDF. Mark Done.",
+      "Tap 2️⃣ Final PDF and 2️⃣ Final Word (so they can update it) and send both. Mark Done.",
     ],
   },
   {

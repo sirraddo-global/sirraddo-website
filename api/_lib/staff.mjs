@@ -31,7 +31,7 @@ const ACTIONS = {
   mk_showcase_ok: "marketing", mk_reviews: "marketing", mk_ref: "marketing", mk_ref_top: "marketing", mk_offer_get: "marketing",
   agents_list: "marketing", // approving agents, their commission and payouts stay owner only
   doc_link: "money", send_doc: "money", paystack_link: "money", paystack_sync: "money", mk_svc_paid: "money", mk_spend: "money", mk_spend_add: "money", mk_spend_del: "money", shop_orders: "money", mk_ref_use: "money",
-  design: "build", design_ref_add: "build", design_clear: "build", design_option: "build", design_ref_remove: "build", write_draft: "build", send_preview: "build", preview_link: "build",
+  design: "build", cv_get: "build", cv_save: "build", cv_draft: "build", design_ref_add: "build", design_clear: "build", design_option: "build", design_ref_remove: "build", write_draft: "build", send_preview: "build", preview_link: "build",
   host_check: "build", host_domain: "build", host_email: "build", host_pause: "build", host_publish: "build", host_restore: "build", host_rollback: "build",
 };
 // Anything not listed (settings, notices, greetings, email, backups, offers, staff, Neon, report on/off, delete…) is owner only.

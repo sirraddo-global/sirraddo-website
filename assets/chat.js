@@ -3,7 +3,7 @@
   var WHATSAPP = 'https://wa.me/2348167550937';
   var STORE_KEY = 'sirraddo-chat-v1';
   var GREETING =
-    "Hi! I'm the SIRRADDO assistant. I can help you choose a website package, tell you about ZAPPI PAY, or pass a request to our team. What do you need?";
+    "Hi! I'm the SIRRADDO assistant. I can help you choose a website package, order flyers, logos and other designs, tell you about ZAPPI PAY, or pass a request to our team. What do you need?";
   var CHIPS = ['I need an app for my business', 'How long does a website take?', 'What do I need to get started?'];
   // "Chat in": the assistant replies in the language picked (the server tells the AI).
   var LANGS = [['en', 'English', 'Okay! Ask me anything.'], ['pcm', 'Pidgin', 'Oya, make we yarn for Pidgin. Wetin you need?'], ['yo', 'Yorùbá', 'Ẹ káàbọ̀! Ẹ lè kọ ọ̀rọ̀ yín ní Yorùbá. Kí ni ẹ nílò?'], ['ha', 'Hausa', 'Barka da zuwa! Ku rubuta da Hausa. Me kuke bukata?'], ['ig', 'Igbo', 'Nnọọ! Dee n\'Igbo. Gịnị ka ị chọrọ?']];

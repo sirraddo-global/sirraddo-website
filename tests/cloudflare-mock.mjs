@@ -11,6 +11,7 @@ export async function cfFetch(url, opts = {}) {
   let mm;
   if (p.startsWith("/pages/assets/") && auth !== "Bearer JWT") return err(401, 8000000, "bad jwt");
   if (!p.startsWith("/pages/assets/") && auth !== "Bearer cftoken") return err(403, 10000, "Authentication error");
+  if (CF.denyDns && m === "POST" && /\/dns_records$/.test(p)) return err(403, 10000, "Authentication error");
   if (p === "/zones" && m === "GET") return ok(CF.zones.filter((z) => z.name === u.searchParams.get("name")));
   if (p === "/zones" && m === "POST") { const z = { id: id(), name: body.name, status: "pending", name_servers: ["ada.ns.cloudflare.com", "bob.ns.cloudflare.com"] }; CF.zones.push(z); return ok(z); }
   if ((mm = p.match(/^\/zones\/([^/]+)$/))) return ok(CF.zones.find((z) => z.id === mm[1]));

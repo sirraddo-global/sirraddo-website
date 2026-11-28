@@ -113,12 +113,30 @@ export async function addDomain(id, input) {
 export const OWN_DOMAIN = (process.env.OWN_DOMAIN || "sirraddo.com.ng").toLowerCase();
 const RESERVED = new Set(["www", "mail", "email", "api", "admin", "staff", "app", "apps", "pay", "shop", "store", "demo", "files", "cdn", "ftp", "smtp", "imap", "pop",
   "webmail", "cpanel", "ns1", "ns2", "blog", "help", "support", "status", "test", "dev", "staging", "zappi", "zappipay", "taskverse", "sirraddo", "invoices", "receipts", "info"]);
+// What to do once, when the Cloudflare key can't make free addresses yet.
+const FREE_SETUP = (why) => `${why} One-time fix (about 3 minutes):
+1. On your phone, open dash.cloudflare.com and sign in.
+2. Tap your profile (top right) → My Profile → API Tokens.
+3. Find the token SIRRADDO uses (the one saved in Admin → Settings → Keys & connections) and tap Edit. If you're not sure which, tap Create Token → Custom token.
+4. Under Permissions make sure it has: Zone · DNS · Edit and Zone · Zone · Read (plus the ones already there: Cloudflare Pages · Edit, Zone · Zone · Edit, Email Routing).
+5. Under Zone Resources choose "Include · All zones" (or add ${OWN_DOMAIN} to the list).
+6. Tap Continue to summary → Update token. If you made a new token, copy it and paste it in Admin → Settings → Keys & connections → Cloudflare token (never in a chat).
+7. Come back here and tap Add again.
+If ${OWN_DOMAIN} is in a different Cloudflare account from your customers' sites, the token and the account ID in Settings must be for the account that has ${OWN_DOMAIN}.`;
 async function addFreeAddress(id, domain) {
   const sub = domain.slice(0, -(OWN_DOMAIN.length + 1));
   if (!/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(sub) || sub.length < 3) throw new Bad(`Use one simple name before .${OWN_DOMAIN}, e.g. kassytreats.${OWN_DOMAIN} (letters, numbers and dashes).`);
   if (RESERVED.has(sub)) throw new Bad(`${domain} is kept for SIRRADDO. Pick another name.`);
-  const zone = await findZone(OWN_DOMAIN);
-  if (!zone) throw new Bad(`${OWN_DOMAIN} isn't in this Cloudflare account, so free addresses can't be made.`);
+  const zone = await findZone(OWN_DOMAIN).catch(() => null);
+  if (!zone) throw new Bad(FREE_SETUP(`Cloudflare can't find ${OWN_DOMAIN} with the key saved in Admin.`));
+  // Make sure the key may change our records (a test record, removed at once) before anything is promised.
+  try {
+    const t = await cf(`/zones/${zone.id}/dns_records`, { method: "POST", body: { type: "TXT", name: `_sirraddo-check.${OWN_DOMAIN}`, content: "free-address permission check", ttl: 60 } });
+    if (t?.id) await cf(`/zones/${zone.id}/dns_records/${t.id}`, { method: "DELETE" }).catch(() => {});
+  } catch (e) {
+    if (e.status === 401 || e.status === 403 || /auth|permission|10000|9109/i.test(e.message)) throw new Bad(FREE_SETUP(`The Cloudflare key saved in Admin isn't allowed to add records to ${OWN_DOMAIN}.`));
+    throw e;
+  }
   const used = await cf(`/zones/${zone.id}/dns_records?name=${encodeURIComponent(domain)}&per_page=20`);
   const row = await getRequest(id);
   const ours = (used || []).every((r) => r.type === "CNAME" && /\.pages\.dev$/.test(r.content) && (row.hosting?.project ? r.content === `${row.hosting.project}.pages.dev` : false));

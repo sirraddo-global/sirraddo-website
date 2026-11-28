@@ -3,7 +3,7 @@
 // The businesses are made up; every page says it's a demo and links to "Get one like this" (the agent's link when
 // opened from an agent's dashboard, ?a=CODE).
 const img = (name, type = "image/svg+xml") => ({ url: `/assets/demo/${name}.svg`, name: `${name}.svg`, type });
-const base = { phone: "0801 234 5678", whatsapp: "08012345678", email: "hello@example.com.ng" };
+const base = { phone: "0800 000 0000", whatsapp: "08000000000", email: "hello@example.com.ng" };
 
 export const DEMOS = {
   salon: {

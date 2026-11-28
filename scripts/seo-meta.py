@@ -16,7 +16,7 @@ SEO = {
     "real-estate-websites-nigeria.html": ("Real Estate Website Design Nigeria (From ₦50,000) | SIRRADDO",
         "Property & real estate websites in Nigeria from ₦50,000. Showcase houses, land with C of O, price filters & WhatsApp inspection booking in 7 working days."),
     "ecommerce-online-store-nigeria.html": ("E-Commerce & Online Store Design Nigeria (₦50k+) | SIRRADDO",
-        "Sell online in Nigeria from ₦50,000 with WhatsApp ordering, or a full cart with Paystack checkout and your own store admin from ₦150,000."),
+        "Sell online in Nigeria from ₦50,000 with WhatsApp ordering, or a full cart with Paystack or Flutterwave checkout and your own store admin from ₦150,000."),
     "clinic-hospital-websites-nigeria.html": ("Clinic, Hospital & Pharmacy Websites Nigeria | SIRRADDO",
         "Trusted websites for clinics, labs & pharmacies in Nigeria from ₦50,000. List HMOs, lab tests, doctor schedules & WhatsApp appointment booking."),
     "hotel-websites-nigeria.html": ("Hotel & Short-Let Website Design Nigeria (₦50k+) | SIRRADDO",

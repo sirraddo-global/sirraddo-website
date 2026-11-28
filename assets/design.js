@@ -294,7 +294,8 @@
   var pvBox = $('ds-preview'), pvRow = $('ds-preview-row'), pvTimer = null, pickedLook = '', pvRun = 0;
   function previewNow() {
     var run = ++pvRun; // a slower, older draw must never show after the service changed
-    if (!pvBox || !window.SirStudio || !window.SirStudio.preview) return;
+    // After the order is sent the form is replaced by the thank-you message: nothing left to preview.
+    if (!pvBox || !window.SirStudio || !window.SirStudio.preview || !$('ds-words') || !document.body.contains(sel)) return;
     var o = sel.options[sel.selectedIndex], key = (o && o.getAttribute('data-svc')) || '';
     if (!key || key === 'custom') { pvBox.hidden = true; pickedLook = ''; return; }
     if (key === 'logo' || key === 'brand') return logoPreview(run);

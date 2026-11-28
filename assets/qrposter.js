@@ -159,6 +159,10 @@
           lab('Link the code opens', f.link), lab('Business name', f.business), lab('Headline', f.headline), lab('Small line under the code', f.sub), lab('Bottom line', f.footer),
           el('div', { class: 'st-field' }, [el('span', { text: 'Colours: main and accent' }), el('div', { class: 'st-custom' }, [f.main, f.accent])]),
           lab('Size', f.size), el('div', { class: 'st-field' }, [el('span', { text: 'Logo (tap one of their files, or upload)' }), logoPick, f.logo]),
+          window.SirReview && o.api ? window.SirReview.button('🔍 AI check the posters', function () {
+            if (!canv.length) throw new Error('Make the posters first (type the link).');
+            return Promise.all(canv.map(function (c) { return window.SirReview.shrink(c, 1300); })).then(function (images) { return { kind: 'poster', images: images, link: f.link.value }; });
+          }, function (p) { return o.api(Object.assign({ action: 'review_work', id: r.id }, p)); }) : null,
           el('p', { class: 'admin-hint', text: 'Send both options; they pick one. Print it at A5 for tables and counters, A4 for walls and doors.' }),
         ]),
       ]),

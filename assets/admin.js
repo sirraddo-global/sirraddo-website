@@ -630,7 +630,7 @@
         box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '📱 QR poster (2 designs, print PDF)', onclick: function () {
           var det = String(r.details || ''), files = []; det.replace(/^• (.+?): (https?:\/\/\S+)$/gm, function (_, name, url) { files.push({ name: name, url: url }); return _; });
           var hex = (orderField(det, 'Colours').match(/#[0-9a-f]{6}/gi) || []);
-          window.SirQR.open({ request: r, phone: waNumber(orderField(det, 'Phone on design') || r.contact) || '', business: orderField(det, 'Business name') || r.business || '', files: files, main: hex[0], accent: hex[1] });
+          window.SirQR.open({ api: function (body) { return api('POST', body); }, request: r, phone: waNumber(orderField(det, 'Phone on design') || r.contact) || '', business: orderField(det, 'Business name') || r.business || '', files: files, main: hex[0], accent: hex[1] });
         } })]));
       }
       if ((q.key === 'cv' || q.key === 'cvcover') && window.SirCV) {
@@ -666,6 +666,7 @@
       prefer: orderField(details, 'Look they picked in the preview'),
       email: /@/.test(r.email || '') ? r.email : /@/.test(r.contact || '') ? r.contact : '', phone: waNumber(r.contact) || '', customer: String(r.name || '').split(' ')[0],
       emailApi: function (images, note) { return api('POST', { action: 'design_send_email', id: r.id, images: images, note: note }); },
+      reviewApi: function (images) { return api('POST', { action: 'review_work', id: r.id, kind: 'design', images: images }); },
       saveApi: function (info) { return api('POST', { action: 'order_info_set', id: r.id, info: info }).then(function (row) { replaceRequest(row); return row; }); },
       set: /Social media designs/.test(r.interest) ? 5 : /Monthly social media posts/.test(r.interest) ? 8 : 0, kind: /Business card/i.test(r.interest) ? 'card' : '',
       info: { sell: orderField(details, 'What they sell'), person: orderField(details, 'Name on card'), title: orderField(details, 'Job title'),

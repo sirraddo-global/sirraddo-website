@@ -320,6 +320,7 @@
           el('div', { class: 'admin-actions' }, [aiBtn, el('button', { class: 'admin-btn', type: 'button', text: '💾 Save', onclick: function () { save(false); } })]), msg, questions,
           el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '1️⃣ PDF previews (both options)', onclick: previewsPdf })]),
           el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: '2️⃣ Final PDF', onclick: finalPdf }), el('button', { class: 'admin-btn', type: 'button', text: '2️⃣ Final Word', onclick: finalWord })]),
+          window.SirReview ? window.SirReview.button('🔍 AI check before sending', function () { return { kind: 'cv', cv: read() }; }, function (p) { return api(Object.assign({ action: 'review_work', id: r.id }, p)); }) : null,
           el('p', { class: 'admin-hint', text: 'Send both previews (watermarked) on WhatsApp; they pick one. Up to 2 rounds of changes, then send the final PDF and Word (so they can update it later).' }),
           el('div', { class: 'st-field' }, [el('span', { text: 'Layout and colour' }), el('div', { class: 'st-custom' }, [f.layout, f.accent])]),
           lab('Full name', f.name), lab('Job title they want', f.headline),

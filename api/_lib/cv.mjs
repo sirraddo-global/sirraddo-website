@@ -74,13 +74,10 @@ Reply with ONLY JSON in this shape, no other text:
 
 const LETTER_YES = `{"to":"Hiring Manager, Company, City (from the job advert)","subject":"Application for the position of …","greeting":"Dear Hiring Manager,","paragraphs":["why this job and company","2–3 achievements that match the advert","polite close and availability"],"closing":"Yours faithfully,"}`;
 
-/** Drafts a CV from an order: { ok, cv } or { ok:false, error }. */
-export async function cvDraft(r, budgetMs = 50000) {
-  const provider = pickProvider();
-  if (!provider) return { ok: false, error: "No AI is set up yet (Admin → Settings → Keys & connections)." };
+/** What the customer sent on an order: the text, their files for the AI (PDF/photos) and Word files as text. */
+export async function orderSources(r, max = 4) {
   const details = String(r.details || "");
-  const wantsLetter = /cover letter/i.test(r.interest || "") || /cover letter/i.test(details);
-  const urls = [...details.matchAll(/^[•◦] (.+?): (https?:\/\/\S+)$/gm)].map((m) => ({ name: m[1], url: m[2] })).slice(0, 4);
+  const urls = [...details.matchAll(/^[•◦] (.+?): (https?:\/\/\S+)$/gm)].map((m) => ({ name: m[1], url: m[2] })).slice(0, max);
   const files = [], texts = [];
   for (const f of urls) {
     if (/\.docx(\?|$)/i.test(f.url) || /\.docx$/i.test(f.name)) {
@@ -91,6 +88,16 @@ export async function cvDraft(r, budgetMs = 50000) {
     }
   }
   const text = details.replace(/^[•◦] .+?: https?:\/\/\S+$/gm, "").replace(/\n{3,}/g, "\n\n").trim().slice(0, 8000);
+  return { files, texts, text };
+}
+
+/** Drafts a CV from an order: { ok, cv } or { ok:false, error }. */
+export async function cvDraft(r, budgetMs = 50000) {
+  const provider = pickProvider();
+  if (!provider) return { ok: false, error: "No AI is set up yet (Admin → Settings → Keys & connections)." };
+  const details = String(r.details || "");
+  const wantsLetter = /cover letter/i.test(r.interest || "") || /cover letter/i.test(details);
+  const { files, texts, text } = await orderSources(r);
   const prompt = `Customer: ${clip(r.name, 80)}\nService ordered: ${clip(r.interest, 60)}\nPhone/contact on the order: ${clip(r.contact, 80)}\nEmail on the order: ${clip(r.email, 100)}\n\nOrder details:\n${text}\n\n${texts.join("\n\n")}${files.length ? `\n\n(${files.length} attached file(s): their old CV or the job advert. Read them.)` : ""}\n\nWrite the CV${wantsLetter ? " and the cover letter for the job in the advert/details" : ""} now.`;
   const system = SYSTEM.replace("LETTER", wantsLetter ? LETTER_YES : "null");
   const model = provider.name === "anthropic" ? process.env.ANTHROPIC_DESIGN_MODEL || "claude-haiku-5-5" : undefined;

@@ -14,8 +14,9 @@ export default async function handler(req, res) {
   const getOne = code ? `/?a=${encodeURIComponent(code)}` : "/websites";
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "public, max-age=300");
-  res.setHeader("X-Robots-Tag", "noindex");
+  // The list of demos can be found by search engines and AI tools; the made-up demo sites themselves stay out.
   if (!parts.length) return res.status(200).send(listPage(keep, getOne));
+  res.setHeader("X-Robots-Tag", "noindex");
   // ?s= page background (tinted, dark, cream, light): the pills in the top bar switch it.
   const surface = SURFACES[req.query?.s] ? req.query.s : "tinted";
   const key = parts[0], row = demoRow(key, { surface });
@@ -32,7 +33,7 @@ export default async function handler(req, res) {
 
 function listPage(keep, getOne) {
   const cards = Object.entries(DEMOS).map(([k, d]) => `<a class="dm-card" href="/demo/${k}${keep}"><span class="dm-ico">${d.icon}</span><b>${esc(d.label)}</b><small>${esc(d.brief.business_name)} · ${esc(d.interest)}</small></a>`).join("");
-  return `<!doctype html><html lang="en-NG"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+  return `<!doctype html><html lang="en-NG"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="${keep ? "noindex" : "index, follow"}"><link rel="canonical" href="https://www.sirraddo.com.ng/demo"><meta name="description" content="Live demo websites by SIRRADDO for salons, restaurants, churches, schools, estate agents, clinics, hotels, filling stations and shops. The businesses are made up.">
 <title>Demo websites · SIRRADDO</title><link rel="stylesheet" href="/assets/styles.css">
 <style>.dm{max-width:880px;margin:0 auto;padding:28px 18px 60px}.dm h1{margin:6px 0 8px}.dm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:18px 0}
 .dm-card{display:grid;gap:4px;padding:18px;border:1px solid var(--line);border-top:4px solid var(--gold);border-radius:16px;background:var(--surface);text-decoration:none;color:var(--text)}

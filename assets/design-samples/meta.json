@@ -1,0 +1,1550 @@
+{
+ "flyer": [
+  {
+   "t": "Classic · Bold photo",
+   "m": {
+    "layout": "Bold photo",
+    "look": "Classic",
+    "colours": {
+     "main": "#13254F",
+     "accent": "#E8B230",
+     "light": "#F4F1E8"
+    },
+    "fonts": [
+     "Georgia",
+     "Inter"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Luxury gold · Full-bleed overlay",
+   "m": {
+    "layout": "Full-bleed overlay",
+    "look": "Luxury gold",
+    "colours": {
+     "main": "#111111",
+     "accent": "#D4AF37",
+     "light": "#F8F4EA"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Elegant script · Editorial",
+   "m": {
+    "layout": "Editorial",
+    "look": "Elegant script",
+    "colours": {
+     "main": "#5B1A2A",
+     "accent": "#E9C46A",
+     "light": "#FBF5EC"
+    },
+    "fonts": [
+     "Great Vibes",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Bold street · Diagonal sticker",
+   "m": {
+    "layout": "Diagonal sticker",
+    "look": "Bold street",
+    "colours": {
+     "main": "#141414",
+     "accent": "#FF5A1F",
+     "light": "#F2F2F2"
+    },
+    "fonts": [
+     "Bebas Neue",
+     "Oswald"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Clean corporate · Split",
+   "m": {
+    "layout": "Split",
+    "look": "Clean corporate",
+    "colours": {
+     "main": "#0B3C5D",
+     "accent": "#3FC1C9",
+     "light": "#F3F7FA"
+    },
+    "fonts": [
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Warm bakery · Centered hero",
+   "m": {
+    "layout": "Centered hero",
+    "look": "Warm bakery",
+    "colours": {
+     "main": "#6B3E26",
+     "accent": "#F4A261",
+     "light": "#FFF6EC"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Afro print · Side band",
+   "m": {
+    "layout": "Side band",
+    "look": "Afro print",
+    "colours": {
+     "main": "#1B4332",
+     "accent": "#F4A300",
+     "light": "#FFF8E7"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Fresh & natural · Clean frame",
+   "m": {
+    "layout": "Clean frame",
+    "look": "Fresh & natural",
+    "colours": {
+     "main": "#2D6A4F",
+     "accent": "#B7E4C7",
+     "light": "#F1FAF3"
+    },
+    "fonts": [
+     "Lora",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Party pop · Polaroid",
+   "m": {
+    "layout": "Polaroid",
+    "look": "Party pop",
+    "colours": {
+     "main": "#3A0CA3",
+     "accent": "#FFD60A",
+     "light": "#FFF9E6"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Night glow · Magazine cover",
+   "m": {
+    "layout": "Magazine cover",
+    "look": "Night glow",
+    "colours": {
+     "main": "#0D0221",
+     "accent": "#FF2E88",
+     "light": "#F6F1FF"
+    },
+    "fonts": [
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Royal · Ticket",
+   "m": {
+    "layout": "Ticket",
+    "look": "Royal",
+    "colours": {
+     "main": "#2B124C",
+     "accent": "#E0B354",
+     "light": "#F7F2FB"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Faith & calm · Editorial",
+   "m": {
+    "layout": "Editorial",
+    "look": "Faith & calm",
+    "colours": {
+     "main": "#2F4A3A",
+     "accent": "#9DBF9E",
+     "light": "#F4F8F3"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Lora"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Festive · Poster type",
+   "m": {
+    "layout": "Poster type",
+    "look": "Festive",
+    "colours": {
+     "main": "#8B0000",
+     "accent": "#FFD166",
+     "light": "#FFF7EB"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Sporty · Diagonal sticker",
+   "m": {
+    "layout": "Diagonal sticker",
+    "look": "Sporty",
+    "colours": {
+     "main": "#0A1931",
+     "accent": "#00D1FF",
+     "light": "#EEF6FF"
+    },
+    "fonts": [
+     "Oswald"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Kids fun · Polaroid",
+   "m": {
+    "layout": "Polaroid",
+    "look": "Kids fun",
+    "colours": {
+     "main": "#FF6B6B",
+     "accent": "#FFD23F",
+     "light": "#E3F6FF"
+    },
+    "fonts": [
+     "Fredoka"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Minimal · Editorial",
+   "m": {
+    "layout": "Editorial",
+    "look": "Minimal",
+    "colours": {
+     "main": "#3B2416",
+     "accent": "#B08D57",
+     "light": "#F7F3EC"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Sweet boutique · Sweet boutique",
+   "m": {
+    "layout": "Sweet boutique",
+    "look": "Sweet boutique",
+    "colours": {
+     "main": "#5B1E4F",
+     "accent": "#C9A227",
+     "light": "#FCEAF1"
+    },
+    "fonts": [
+     "Great Vibes",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Luxury showcase · Product showcase",
+   "m": {
+    "layout": "Product showcase",
+    "look": "Luxury showcase",
+    "colours": {
+     "main": "#13234B",
+     "accent": "#C9A24B",
+     "light": "#FBF8F2"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\nOrder 3 days ahead\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  }
+ ],
+ "menu": [
+  {
+   "t": "Classic menu · Warm bakery",
+   "m": {
+    "layout": "Classic menu",
+    "look": "Warm bakery",
+    "colours": {
+     "main": "#2c1500",
+     "accent": "#ff9e00",
+     "light": "#FBF7F0"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Our menu",
+     "Celebration cakes – Birthdays, weddings and anniversaries",
+     "Small chops – Puff-puff, samosa, spring rolls",
+     "Meat pies – Freshly baked, rich and filling",
+     "Parfaits – Yoghurt, fruit and granola",
+     "Zobo – Chilled and refreshing",
+     "Plantain chips – Crunchy, sweet or spicy",
+     "Freshly made, just for you.",
+     "08000000000",
+     "IG @kassytreats, TikTok @kassytreats",
+     "Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Dark menu · Night glow",
+   "m": {
+    "layout": "Dark menu",
+    "look": "Night glow",
+    "colours": {
+     "main": "#0D0221",
+     "accent": "#FF2E88",
+     "light": "#F6F1FF"
+    },
+    "fonts": [
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Our menu",
+     "Celebration cakes – Birthdays, weddings and anniversaries",
+     "Small chops – Puff-puff, samosa, spring rolls",
+     "Meat pies – Freshly baked, rich and filling",
+     "Parfaits – Yoghurt, fruit and granola",
+     "Zobo – Chilled and refreshing",
+     "Plantain chips – Crunchy, sweet or spicy",
+     "Freshly made, just for you.",
+     "08000000000",
+     "IG @kassytreats, TikTok @kassytreats",
+     "Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Photo grid · Fresh & natural",
+   "m": {
+    "layout": "Photo grid",
+    "look": "Fresh & natural",
+    "colours": {
+     "main": "#2D6A4F",
+     "accent": "#B7E4C7",
+     "light": "#F1FAF3"
+    },
+    "fonts": [
+     "Lora",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Our menu",
+     "Celebration cakes – Birthdays, weddings and anniversaries",
+     "Small chops – Puff-puff, samosa, spring rolls",
+     "Meat pies – Freshly baked, rich and filling",
+     "Parfaits – Yoghurt, fruit and granola",
+     "Zobo – Chilled and refreshing",
+     "Plantain chips – Crunchy, sweet or spicy",
+     "Freshly made, just for you.",
+     "08000000000",
+     "IG @kassytreats, TikTok @kassytreats",
+     "Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Sweet boutique · Sweet boutique",
+   "m": {
+    "layout": "Sweet boutique",
+    "look": "Sweet boutique",
+    "colours": {
+     "main": "#5B1E4F",
+     "accent": "#C9A227",
+     "light": "#FCEAF1"
+    },
+    "fonts": [
+     "Great Vibes",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Our menu",
+     "Celebration cakes – Birthdays, weddings and anniversaries",
+     "Small chops – Puff-puff, samosa, spring rolls",
+     "Meat pies – Freshly baked, rich and filling",
+     "Parfaits – Yoghurt, fruit and granola",
+     "Zobo – Chilled and refreshing",
+     "Plantain chips – Crunchy, sweet or spicy",
+     "Freshly made, just for you.",
+     "08000000000",
+     "IG @kassytreats, TikTok @kassytreats",
+     "Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Product showcase · Luxury showcase",
+   "m": {
+    "layout": "Product showcase",
+    "look": "Luxury showcase",
+    "colours": {
+     "main": "#13234B",
+     "accent": "#C9A24B",
+     "light": "#FBF8F2"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Our menu",
+     "Celebration cakes – Birthdays, weddings and anniversaries",
+     "Small chops – Puff-puff, samosa, spring rolls",
+     "Meat pies – Freshly baked, rich and filling",
+     "Parfaits – Yoghurt, fruit and granola",
+     "Zobo – Chilled and refreshing",
+     "Plantain chips – Crunchy, sweet or spicy",
+     "Freshly made, just for you.",
+     "08000000000",
+     "IG @kassytreats, TikTok @kassytreats",
+     "Ibadan · We deliver"
+    ]
+   }
+  }
+ ],
+ "social": [
+  {
+   "t": "Centered hero · Warm bakery (post 1)",
+   "m": {
+    "layout": "Centered hero",
+    "look": "Warm bakery",
+    "colours": {
+     "main": "#2c1500",
+     "accent": "#ff9e00",
+     "light": "#FBF7F0"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Celebration cakes baked to order",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Polaroid · Party pop (post 2)",
+   "m": {
+    "layout": "Polaroid",
+    "look": "Party pop",
+    "colours": {
+     "main": "#3A0CA3",
+     "accent": "#FFD60A",
+     "light": "#FFF9E6"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Small chops trays for parties",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Clean frame · Fresh & natural (post 3)",
+   "m": {
+    "layout": "Clean frame",
+    "look": "Fresh & natural",
+    "colours": {
+     "main": "#2D6A4F",
+     "accent": "#B7E4C7",
+     "light": "#F1FAF3"
+    },
+    "fonts": [
+     "Lora",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Meat pies, freshly baked",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  }
+ ],
+ "launch": [
+  {
+   "t": "Centered hero · Warm bakery",
+   "m": {
+    "layout": "Centered hero",
+    "look": "Warm bakery",
+    "colours": {
+     "main": "#2c1500",
+     "accent": "#ff9e00",
+     "light": "#FBF7F0"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Grand opening",
+     "This Saturday\n10% off everything all week\nOpen 8am to 8pm",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Clean frame · Fresh & natural",
+   "m": {
+    "layout": "Clean frame",
+    "look": "Fresh & natural",
+    "colours": {
+     "main": "#2D6A4F",
+     "accent": "#B7E4C7",
+     "light": "#F1FAF3"
+    },
+    "fonts": [
+     "Lora",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Grand opening",
+     "This Saturday\n10% off everything all week\nOpen 8am to 8pm",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Polaroid · Party pop",
+   "m": {
+    "layout": "Polaroid",
+    "look": "Party pop",
+    "colours": {
+     "main": "#3A0CA3",
+     "accent": "#FFD60A",
+     "light": "#FFF9E6"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Grand opening",
+     "This Saturday\n10% off everything all week\nOpen 8am to 8pm",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  }
+ ],
+ "xmas": [
+  {
+   "t": "Poster type · Festive",
+   "m": {
+    "layout": "Poster type",
+    "look": "Festive",
+    "colours": {
+     "main": "#2c1500",
+     "accent": "#ff9e00",
+     "light": "#FBF7F0"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Christmas cake sale",
+     "20% off all cakes till 24 December\nMerry Christmas from Kassy Treats",
+     "20% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Centered hero · Christmas red",
+   "m": {
+    "layout": "Centered hero",
+    "look": "Christmas red",
+    "colours": {
+     "main": "#8B0000",
+     "accent": "#FFD166",
+     "light": "#FFF7EB"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Christmas cake sale",
+     "20% off all cakes till 24 December\nMerry Christmas from Kassy Treats",
+     "20% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Clean frame · Christmas green",
+   "m": {
+    "layout": "Clean frame",
+    "look": "Christmas green",
+    "colours": {
+     "main": "#0F4D2E",
+     "accent": "#E9C46A",
+     "light": "#F4FAF6"
+    },
+    "fonts": [
+     "Lora",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Christmas cake sale",
+     "20% off all cakes till 24 December\nMerry Christmas from Kassy Treats",
+     "20% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  }
+ ],
+ "sallah": [
+  {
+   "t": "Centered hero · Warm bakery",
+   "m": {
+    "layout": "Centered hero",
+    "look": "Warm bakery",
+    "colours": {
+     "main": "#2c1500",
+     "accent": "#ff9e00",
+     "light": "#FBF7F0"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Ramadan Kareem",
+     "Iftar packs from ₦3,500, delivered\nEid Mubarak from Kassy Treats",
+     "FROM ₦3,500,",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Clean frame · Eid green",
+   "m": {
+    "layout": "Clean frame",
+    "look": "Eid green",
+    "colours": {
+     "main": "#0B5D3B",
+     "accent": "#E9C46A",
+     "light": "#F3FAF6"
+    },
+    "fonts": [
+     "Lora",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Ramadan Kareem",
+     "Iftar packs from ₦3,500, delivered\nEid Mubarak from Kassy Treats",
+     "FROM ₦3,500,",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Poster type · Ramadan night",
+   "m": {
+    "layout": "Poster type",
+    "look": "Ramadan night",
+    "colours": {
+     "main": "#1B2A4A",
+     "accent": "#D4AF37",
+     "light": "#F7F5EE"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Ramadan Kareem",
+     "Iftar packs from ₦3,500, delivered\nEid Mubarak from Kassy Treats",
+     "FROM ₦3,500,",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  }
+ ],
+ "easter": [
+  {
+   "t": "Centered hero · Warm bakery",
+   "m": {
+    "layout": "Centered hero",
+    "look": "Warm bakery",
+    "colours": {
+     "main": "#2c1500",
+     "accent": "#ff9e00",
+     "light": "#FBF7F0"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Easter treats",
+     "Buy 2 cakes, get 1 free\nHappy Easter from Kassy Treats",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Clean frame · Easter purple",
+   "m": {
+    "layout": "Clean frame",
+    "look": "Easter purple",
+    "colours": {
+     "main": "#5B3F8F",
+     "accent": "#F7C948",
+     "light": "#FBF7FF"
+    },
+    "fonts": [
+     "Lora",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Easter treats",
+     "Buy 2 cakes, get 1 free\nHappy Easter from Kassy Treats",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Polaroid · Easter spring",
+   "m": {
+    "layout": "Polaroid",
+    "look": "Easter spring",
+    "colours": {
+     "main": "#2F6B4F",
+     "accent": "#F4A7B9",
+     "light": "#F6FBF8"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Easter treats",
+     "Buy 2 cakes, get 1 free\nHappy Easter from Kassy Treats",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  }
+ ],
+ "independence": [
+  {
+   "t": "Centered hero · Warm bakery",
+   "m": {
+    "layout": "Centered hero",
+    "look": "Warm bakery",
+    "colours": {
+     "main": "#2c1500",
+     "accent": "#ff9e00",
+     "light": "#FBF7F0"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Happy Independence Day",
+     "10% off everything on 1st October\nProudly Nigerian",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Clean frame · Naija green",
+   "m": {
+    "layout": "Clean frame",
+    "look": "Naija green",
+    "colours": {
+     "main": "#008751",
+     "accent": "#E9C46A",
+     "light": "#F2FAF6"
+    },
+    "fonts": [
+     "Lora",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Happy Independence Day",
+     "10% off everything on 1st October\nProudly Nigerian",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Polaroid · Green & white",
+   "m": {
+    "layout": "Polaroid",
+    "look": "Green & white",
+    "colours": {
+     "main": "#0B3D2A",
+     "accent": "#7FD1A8",
+     "light": "#F2FAF6"
+    },
+    "fonts": [
+     "DM Serif Display",
+     "Poppins"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Happy Independence Day",
+     "10% off everything on 1st October\nProudly Nigerian",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  }
+ ],
+ "invite": [
+  {
+   "t": "Editorial · Elegant script",
+   "m": {
+    "layout": "Editorial",
+    "look": "Elegant script",
+    "colours": {
+     "main": "#2c1500",
+     "accent": "#ff9e00",
+     "light": "#FBF7F0"
+    },
+    "fonts": [
+     "Great Vibes",
+     "Poppins"
+    ],
+    "text": [
+     "Bola & Tunde",
+     "Wedding of Bola & Tunde",
+     "Saturday 12 December 2026, 11am\nRoyal Gardens, Ibadan\nColours: gold and wine",
+     "RSVP: 08012345678  ·  Royal Gardens, Ibadan"
+    ]
+   }
+  },
+  {
+   "t": "Ticket · Royal",
+   "m": {
+    "layout": "Ticket",
+    "look": "Royal",
+    "colours": {
+     "main": "#2B124C",
+     "accent": "#E0B354",
+     "light": "#F7F2FB"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Montserrat"
+    ],
+    "text": [
+     "Bola & Tunde",
+     "Wedding of Bola & Tunde",
+     "Saturday 12 December 2026, 11am\nRoyal Gardens, Ibadan\nColours: gold and wine",
+     "RSVP: 08012345678  ·  Royal Gardens, Ibadan"
+    ]
+   }
+  },
+  {
+   "t": "Poster type · Festive",
+   "m": {
+    "layout": "Poster type",
+    "look": "Festive",
+    "colours": {
+     "main": "#8B0000",
+     "accent": "#FFD166",
+     "light": "#FFF7EB"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Poppins"
+    ],
+    "text": [
+     "Bola & Tunde",
+     "Wedding of Bola & Tunde",
+     "Saturday 12 December 2026, 11am\nRoyal Gardens, Ibadan\nColours: gold and wine",
+     "RSVP: 08012345678  ·  Royal Gardens, Ibadan"
+    ]
+   }
+  }
+ ],
+ "card": [
+  {
+   "t": "Classic card",
+   "m": {
+    "layout": "Classic card",
+    "look": "",
+    "colours": {
+     "main": "#7C4A21",
+     "accent": "#E8B230",
+     "light": "#F7F5F0"
+    },
+    "fonts": [],
+    "text": [
+     "Kassy Adeyemi",
+     "Founder & Head Baker",
+     "Kassy Treats & More",
+     "08000000000",
+     "kassytreats.com",
+     "IG @kassytreats, TikTok @kassytreats",
+     "Ibadan, Oyo State",
+     "Cakes, small chops, parfait"
+    ]
+   }
+  },
+  {
+   "t": "Split card",
+   "m": {
+    "layout": "Split card",
+    "look": "",
+    "colours": {
+     "main": "#7C4A21",
+     "accent": "#E8B230",
+     "light": "#F7F5F0"
+    },
+    "fonts": [],
+    "text": [
+     "Kassy Adeyemi",
+     "Founder & Head Baker",
+     "Kassy Treats & More",
+     "08000000000",
+     "kassytreats.com",
+     "IG @kassytreats, TikTok @kassytreats",
+     "Ibadan, Oyo State",
+     "Cakes, small chops, parfait"
+    ]
+   }
+  },
+  {
+   "t": "Minimal card",
+   "m": {
+    "layout": "Minimal card",
+    "look": "",
+    "colours": {
+     "main": "#7C4A21",
+     "accent": "#E8B230",
+     "light": "#F7F5F0"
+    },
+    "fonts": [],
+    "text": [
+     "Kassy Adeyemi",
+     "Founder & Head Baker",
+     "Kassy Treats & More",
+     "08000000000",
+     "kassytreats.com",
+     "IG @kassytreats, TikTok @kassytreats",
+     "Ibadan, Oyo State",
+     "Cakes, small chops, parfait"
+    ]
+   }
+  },
+  {
+   "t": "Luxury foil card",
+   "m": {
+    "layout": "Luxury foil card",
+    "look": "",
+    "colours": {
+     "main": "#7C4A21",
+     "accent": "#E8B230",
+     "light": "#F7F5F0"
+    },
+    "fonts": [],
+    "text": [
+     "Kassy Adeyemi",
+     "Founder & Head Baker",
+     "Kassy Treats & More",
+     "08000000000",
+     "kassytreats.com",
+     "IG @kassytreats, TikTok @kassytreats",
+     "Ibadan, Oyo State",
+     "Cakes, small chops, parfait"
+    ]
+   }
+  },
+  {
+   "t": "Monogram card",
+   "m": {
+    "layout": "Monogram card",
+    "look": "",
+    "colours": {
+     "main": "#7C4A21",
+     "accent": "#E8B230",
+     "light": "#F7F5F0"
+    },
+    "fonts": [],
+    "text": [
+     "Kassy Adeyemi",
+     "Founder & Head Baker",
+     "Kassy Treats & More",
+     "08000000000",
+     "kassytreats.com",
+     "IG @kassytreats, TikTok @kassytreats",
+     "Ibadan, Oyo State",
+     "Cakes, small chops, parfait"
+    ]
+   }
+  }
+ ],
+ "sizes": [
+  {
+   "t": "Magazine cover · Night glow",
+   "m": {
+    "layout": "Magazine cover",
+    "look": "Night glow",
+    "colours": {
+     "main": "#0D0221",
+     "accent": "#FF2E88",
+     "light": "#F6F1FF"
+    },
+    "fonts": [
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Magazine cover · Night glow",
+   "m": {
+    "layout": "Magazine cover",
+    "look": "Night glow",
+    "colours": {
+     "main": "#0D0221",
+     "accent": "#FF2E88",
+     "light": "#F6F1FF"
+    },
+    "fonts": [
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  },
+  {
+   "t": "Magazine cover · Night glow",
+   "m": {
+    "layout": "Magazine cover",
+    "look": "Night glow",
+    "colours": {
+     "main": "#0D0221",
+     "accent": "#FF2E88",
+     "light": "#F6F1FF"
+    },
+    "fonts": [
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More",
+     "Birthday cake promo",
+     "Fresh celebration cakes baked to order\n10% off this December",
+     "10% OFF",
+     "Call / WhatsApp: 08000000000  ·  Ibadan · We deliver"
+    ]
+   }
+  }
+ ],
+ "logo": [
+  {
+   "t": "Round seal",
+   "m": {
+    "layout": "Round seal",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Playfair Display"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Interlocked letters",
+   "m": {
+    "layout": "Interlocked letters",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Seal and name",
+   "m": {
+    "layout": "Seal and name",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "DM Serif Display"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Script initial",
+   "m": {
+    "layout": "Script initial",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Great Vibes",
+     "Playfair Display"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Bold block",
+   "m": {
+    "layout": "Bold block",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Bebas Neue"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Diamond frame",
+   "m": {
+    "layout": "Diamond frame",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "DM Serif Display"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Luxury crest",
+   "m": {
+    "layout": "Luxury crest",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Cormorant Garamond",
+     "Cinzel"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Circle stamp",
+   "m": {
+    "layout": "Circle stamp",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Montserrat",
+     "Cormorant Garamond"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Elegant overlap",
+   "m": {
+    "layout": "Elegant overlap",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Cormorant Garamond",
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Swoosh initial",
+   "m": {
+    "layout": "Swoosh initial",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Playfair Display",
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Script signature",
+   "m": {
+    "layout": "Script signature",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Great Vibes"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Arc seal",
+   "m": {
+    "layout": "Arc seal",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Montserrat",
+     "Cormorant Garamond"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Star badge",
+   "m": {
+    "layout": "Star badge",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Cinzel"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Icon stacked",
+   "m": {
+    "layout": "Icon stacked",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Icon beside",
+   "m": {
+    "layout": "Icon beside",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Icon badge",
+   "m": {
+    "layout": "Icon badge",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Cinzel"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "Line icon & serif",
+   "m": {
+    "layout": "Line icon & serif",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Cormorant Garamond"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  },
+  {
+   "t": "App icon",
+   "m": {
+    "layout": "App icon",
+    "look": "",
+    "colours": {
+     "main": "#7c4a21",
+     "accent": "#e8b230"
+    },
+    "fonts": [
+     "Montserrat"
+    ],
+    "text": [
+     "Kassy Treats & More"
+    ]
+   }
+  }
+ ]
+}

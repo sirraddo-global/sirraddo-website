@@ -1564,11 +1564,12 @@
   var CARD_PREVIEW = CARD_LAYOUTS.map(function (L) {
     return { name: L.name, side: function (which, c, W, H, d, t) { L[which](c, W, H, cardData(d), t); }, draw: function (c, W, H, d, t) {
       d = cardData(d);
-      var cw = W, ch = Math.round(W * CARD.h / CARD.w), gap = H - ch * 2;
-      c.fillStyle = '#E5E7EB'; c.fillRect(0, 0, W, H);
-      [[L.front, 0], [L.back, ch + gap]].forEach(function (p) {
+      // Both cards sit on a soft backdrop with even space around them (a full-width card left a grey strip that looked like a mistake).
+      var cw = W, ch = Math.round(W * CARD.h / CARD.w), k = Math.min(0.9, (H * 0.92) / (2 * ch + W * 0.05)), dw = cw * k, dh = ch * k, x = (W - dw) / 2, gap = (H - 2 * dh) / 3;
+      var bg = c.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#F1F3F6'); bg.addColorStop(1, '#E2E6EC'); c.fillStyle = bg; c.fillRect(0, 0, W, H);
+      [[L.front, gap], [L.back, gap * 2 + dh]].forEach(function (p) {
         var cv = document.createElement('canvas'); cv.width = cw; cv.height = ch; p[0](cv.getContext('2d'), cw, ch, d, t);
-        c.save(); c.shadowColor = 'rgba(0,0,0,.25)'; c.shadowBlur = W * 0.02; c.shadowOffsetY = W * 0.008; c.drawImage(cv, 0, p[1]); c.restore();
+        c.save(); c.shadowColor = 'rgba(0,0,0,.22)'; c.shadowBlur = W * 0.03; c.shadowOffsetY = W * 0.012; c.drawImage(cv, x, p[1], dw, dh); c.restore();
       });
     } };
   });
@@ -1689,7 +1690,7 @@
         var c = cv.getContext('2d'), F = FONT, S = SERIF, Hd = HEAD;
         FONT = look.font; SERIF = look.serif; HEAD = look.head || null;
         if (o.fonts) { FONT = SANS(o.fonts.body); SERIF = SER(o.fonts.head); HEAD = SER(o.fonts.head); }
-        PHT = { t: t, icon: icon, label: !o.noMark }; // the sample book leaves off "Your photo here"
+        PHT = { t: t, icon: icon, label: !o.noMark && !o.icon }; // left off in the sample book, and when a picture for their trade was chosen
         // Note each font family the design draws with (cards draw on their own canvases too), so its details can name them.
         var used = [], fd = window.CanvasRenderingContext2D && Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'font');
         if (fd) Object.defineProperty(CanvasRenderingContext2D.prototype, 'font', { configurable: true, enumerable: fd.enumerable, get: function () { return fd.get.call(this); }, set: function (v) { fd.set.call(this, v); var f = String(v).replace(/^.*?[\d.]+px\s+/, '').split(',')[0].replace(/["']/g, '').trim(); if (f && used.indexOf(f) < 0) used.push(f); } });
@@ -1698,7 +1699,11 @@
           if (mode !== 'card') { texture(c, cv.width, cv.height, look.tex); deco(c, cv.width, cv.height, look.deco, t); seasonMark(c, cv.width, cv.height, season, t); }
         } finally { FONT = F; SERIF = S; HEAD = Hd; PHT = null; if (fd) Object.defineProperty(CanvasRenderingContext2D.prototype, 'font', fd); }
         // "Preview" mark, so it isn't used as the finished design (left off only for our own sample book)
-        if (!o.noMark) { c.save(); c.translate(cv.width / 2, cv.height / 2); c.rotate(-0.5); c.globalAlpha = 0.16; c.fillStyle = '#FFFFFF'; c.strokeStyle = '#000000'; c.lineWidth = 2;
+        // mark: 'corner' (website previews): a small sash in the top corner, so the design itself stays clear.
+        if (!o.noMark && o.mark === 'corner') { var sw = cv.width, sz = Math.round(sw * 0.042), off = sw * 0.16, left = mode === 'card'; c.save(); c.translate(left ? off * 0.72 : sw - off * 0.72, off * 0.72); c.rotate(left ? -Math.PI / 4 : Math.PI / 4);
+          c.fillStyle = 'rgba(17,24,39,.78)'; c.fillRect(-sw * 0.3, -sz * 0.95, sw * 0.6, sz * 1.9); c.fillStyle = '#FFFFFF'; c.font = '800 ' + sz + 'px Inter, Arial, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+          c.fillText('PREVIEW', 0, 0); c.restore(); }
+        else if (!o.noMark) { c.save(); c.translate(cv.width / 2, cv.height / 2); c.rotate(-0.5); c.globalAlpha = 0.16; c.fillStyle = '#FFFFFF'; c.strokeStyle = '#000000'; c.lineWidth = 2;
         c.font = '900 ' + Math.round(cv.width * 0.12) + 'px Inter, Arial, sans-serif'; c.textAlign = 'center'; c.strokeText('PREVIEW', 0, 0); c.fillText('PREVIEW', 0, 0); c.restore(); }
         // What was drawn, in words (for the sample book and anyone checking a design without seeing it)
         var fam = function (f) { return String(f || '').split(',')[0].replace(/["']/g, '').trim(); };

@@ -108,3 +108,7 @@ head = re.sub(r'<script[^>]*src="/assets/design\.js[^"]*"[^>]*></script>\s*', ""
 foot = re.sub(r'<script[^>]*src="/assets/(design|growth)\.js[^"]*"[^>]*></script>\s*', "", foot)
 (ROOT / "design-samples.html").write_text(head + main + foot)
 print("design-samples.html:", n, "designs")
+
+# Google titles and descriptions come from one list.
+import subprocess as _sp, sys as _sys
+_sp.run([_sys.executable, str(Path(__file__).resolve().parent / "seo-meta.py")], check=True)

@@ -235,3 +235,7 @@ def page(p):
 for p in PAGES:
     (ROOT / f'{p["slug"]}.html').write_text(page(p))
     print("wrote", p["slug"] + ".html")
+
+# Google titles and descriptions come from one list.
+import subprocess as _sp, sys as _sys
+_sp.run([_sys.executable, str(Path(__file__).resolve().parent / "seo-meta.py")], check=True)

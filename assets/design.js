@@ -336,6 +336,9 @@
     var what = [$('ds-words').value, $('ds-sell') ? $('ds-sell').value : ''].join(' ');
     window.SirStudio.monograms(name, what, $('ds-colours').value).then(function (list) {
       if (run !== pvRun) return;
+      // Icon logos (a cake, scissors, a house… that suits them) first: they look most like a finished logo. Then the best monograms; 9 in all.
+      var icon = list.filter(function (l) { return /icon/i.test(l.name); }), mono = list.filter(function (l) { return !/icon/i.test(l.name); });
+      list = icon.slice(0, 3).concat(mono.slice(0, 4), icon.slice(3), mono.slice(4)).slice(0, 9);
       pvRow.innerHTML = '';
       list.forEach(function (l, i) {
         var label = 'Logo idea ' + (i + 1) + ': ' + l.name;

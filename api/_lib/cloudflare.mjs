@@ -155,7 +155,9 @@ export async function deployPhotos(jwt, { list, known = {}, load, budgetMs = 600
 // Connect domain (and www.domain) to the project: Pages custom domains + DNS records.
 export async function attachDomain(project, zoneId, domain) {
   const target = `${project}.pages.dev`;
-  for (const name of [domain, `www.${domain}`]) {
+  // A free address on our own domain (name.sirraddo.com.ng) has no www. version.
+  const free = domain.endsWith("." + (process.env.OWN_DOMAIN || "sirraddo.com.ng").toLowerCase());
+  for (const name of free ? [domain] : [domain, `www.${domain}`]) {
     try {
       await cf(`/accounts/${acct()}/pages/projects/${project}/domains`, { method: "POST", body: { name } });
     } catch (e) {
@@ -163,7 +165,7 @@ export async function attachDomain(project, zoneId, domain) {
     }
   }
   await pointName(zoneId, domain, "@", target);
-  await pointName(zoneId, domain, "www", target);
+  if (!free) await pointName(zoneId, domain, "www", target);
 }
 export async function domainStatuses(project) {
   const list = await cf(`/accounts/${acct()}/pages/projects/${project}/domains`).catch(() => []);

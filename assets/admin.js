@@ -610,12 +610,35 @@
         box.appendChild(el('p', { class: 'admin-meta', text: '🗂️ Returning customer: ' + past.length + ' earlier request(s): ' + past.slice(0, 4).map(function (x) { return 'SGL-' + String(x.id).padStart(4, '0') + ' ' + x.interest; }).join(', ') + '. Reuse their logo and colours from those orders.' }));
         if (owed) box.appendChild(el('p', { class: 'admin-meta' }, [badge('Owed 20% off this order (we were late last time)', 'is-due')]));
       }
+      if (q.key === 'minisite' || q.key === 'qrmenu') {
+        var opMsg = el('p', { class: 'admin-hint', text: r.has_draft ? 'The page is written. Open it in Clients to preview, add its address and go live.' : 'Builds the one-page website from what they wrote on the order: the AI fills the project form (their logo and photos too), then writes the page.' });
+        var opBtn = el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: r.has_draft ? '🌐 Rebuild the page from this order' : '🌐 Build the page from this order', onclick: function () {
+          if (r.has_draft && !confirm('Write the page again from the order? Changes made to the text since will be replaced.')) return;
+          opBtn.disabled = true; opMsg.textContent = '1/2 Reading the order…';
+          api('POST', { action: 'onepage_brief', id: r.id }).then(function (j) {
+            opMsg.textContent = '2/2 Writing the page (' + j.brief.services.length + ' items, ' + j.files.photos + ' photos' + (j.files.logo ? ', logo' : '') + ')… up to a minute';
+            return api('POST', { action: 'write_draft', id: r.id });
+          }).then(function (row) {
+            replaceRequest(row); opMsg.textContent = '✅ Page written. Next: Clients → this customer → Preview, then Go live with a free address (name.sirraddo.com.ng).';
+            opBtn.disabled = false;
+          }).catch(function (e) { opBtn.disabled = false; opMsg.textContent = e.message || String(e); });
+        } });
+        box.appendChild(el('div', { class: 'admin-actions' }, [opBtn, el('button', { class: 'admin-btn', type: 'button', text: 'Open in Clients', onclick: function () { state.open[r.id] = true; setTab('clients'); } })]));
+        box.appendChild(opMsg);
+      }
+      if ((q.key === 'whatsapp' || q.key === 'qrmenu' || q.key === 'minisite') && window.SirQR) {
+        box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '📱 QR poster (2 designs, print PDF)', onclick: function () {
+          var det = String(r.details || ''), files = []; det.replace(/^• (.+?): (https?:\/\/\S+)$/gm, function (_, name, url) { files.push({ name: name, url: url }); return _; });
+          var hex = (orderField(det, 'Colours').match(/#[0-9a-f]{6}/gi) || []);
+          window.SirQR.open({ request: r, phone: waNumber(orderField(det, 'Phone on design') || r.contact) || '', business: orderField(det, 'Business name') || r.business || '', files: files, main: hex[0], accent: hex[1] });
+        } })]));
+      }
       if ((q.key === 'cv' || q.key === 'cvcover') && window.SirCV) {
         box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: '📄 CV maker: AI draft, 2 layouts, PDF + Word', onclick: function () {
           window.SirCV.open({ request: r, phone: waNumber(r.contact) || '', api: function (body) { return api('POST', body); } });
         } })]));
       }
-      if ((q.design || q.key === 'qrmenu') && window.SirStudio) {
+      if ((q.design || q.key === 'qrmenu' || q.key === 'posts') && window.SirStudio) {
         box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn admin-btn--primary', type: 'button', text: /Logo|Brand kit|Launch pack/.test(q.interest) ? '✨ Logo ideas + designs' : '🎨 Instant draft: designs from their photos', onclick: function () { openStudio(r); } })]));
       }
       box.appendChild(quickGuide(q, extras.length ? extras : []));
@@ -644,7 +667,7 @@
       email: /@/.test(r.email || '') ? r.email : /@/.test(r.contact || '') ? r.contact : '', phone: waNumber(r.contact) || '', customer: String(r.name || '').split(' ')[0],
       emailApi: function (images, note) { return api('POST', { action: 'design_send_email', id: r.id, images: images, note: note }); },
       saveApi: function (info) { return api('POST', { action: 'order_info_set', id: r.id, info: info }).then(function (row) { replaceRequest(row); return row; }); },
-      set: /Social media designs/.test(r.interest) ? 5 : 0, kind: /Business card/i.test(r.interest) ? 'card' : '',
+      set: /Social media designs/.test(r.interest) ? 5 : /Monthly social media posts/.test(r.interest) ? 8 : 0, kind: /Business card/i.test(r.interest) ? 'card' : '',
       info: { sell: orderField(details, 'What they sell'), person: orderField(details, 'Name on card'), title: orderField(details, 'Job title'),
         phone: orderField(details, 'Phone on design'), email: orderField(details, 'Email on design'), web: orderField(details, 'Website'),
         address: orderField(details, 'Address / area'), socials: orderField(details, 'Social handles'), business: orderField(details, 'Business name') }, animated: /Animated WhatsApp status/i.test(details) });
@@ -2787,6 +2810,8 @@
   function previewUrl(r) { return location.origin + '/preview?t=' + r.preview_token; }
   // Quick services (flyers, cards, CVs…) are not websites: no project form, preview or renewal messages.
   function isQuickRow(r) { return (state.quick || []).some(function (q) { return q.interest === r.interest; }); }
+  // Quick services that are one-page websites: they also show under Clients, with preview and Go live.
+  function isOnePage(r) { return r.interest === 'Mini website' || r.interest === 'QR menu / price list'; }
   var QUICK_TPLS = ['tpl_payment', 'tpl_invoice', 'tpl_receipt'];
   function suggestedTemplate(r) {
     if (isQuickRow(r)) return payments(r).length ? 'tpl_payment' : 'tpl_invoice';
@@ -3154,7 +3179,8 @@
     if (!h.domain) {
       var guess = (r.handover && r.handover.domain) || '';
       var din = el('input', { value: guess, placeholder: 'theirbusiness.com.ng', autocapitalize: 'none', spellcheck: 'false' });
-      box.appendChild(field('1. Their domain', din, 'Buy it first (in their business name) if they don\'t have one. You can also publish without a domain and add it later.'));
+      if (isOnePage(r) && !guess) din.value = String((r.brief && r.brief.business_name) || r.business || r.name || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '').slice(0, 30) + '.sirraddo.com.ng';
+      box.appendChild(field('1. Their domain', din, isOnePage(r) ? 'Free address: name.sirraddo.com.ng (works at once, no nameservers). Or their own domain if they bought "Domain + business email".' : 'Buy it first (in their business name) if they don\'t have one. You can also publish without a domain and add it later. For a free address use name.sirraddo.com.ng.'));
       box.appendChild(el('div', { class: 'admin-actions' }, [el('button', { class: 'admin-btn', type: 'button', text: 'Add domain to Cloudflare', onclick: function (e) {
         act({ action: 'host_domain', domain: din.value }, 'Domain added. Now set the nameservers below.', e.currentTarget, 'Adding…');
       } })]));
@@ -3970,7 +3996,7 @@
   function renderClients(view) {
     // Website, store and app clients only: design and other side-service orders have no website, handover or
     // renewal; they are followed in Requests (stages: Working on it → Delivered).
-    var won = state.requests.filter(function (r) { return r.status === 'won' && !isQuickRow(r); });
+    var won = state.requests.filter(function (r) { return r.status === 'won' && (!isQuickRow(r) || isOnePage(r)); });
     won.sort(function (a, b) {
       var da = a.renewal_due || '9999', db = b.renewal_due || '9999';
       return da < db ? -1 : da > db ? 1 : 0;

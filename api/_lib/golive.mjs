@@ -10,7 +10,7 @@ import { submitToGoogle, googleSearchConfigured } from "./google-search.mjs";
 import { balance } from "./docs.mjs";
 import { applyRules, todayLagos, daysBetween } from "./automation.mjs";
 import {
-  cloudflareConfigured, ensureZone, zoneStatus, getProject, createProject, deploy, attachDomain, domainStatuses,
+  cloudflareConfigured, ensureZone, findZone, cf, zoneStatus, getProject, createProject, deploy, attachDomain, domainStatuses,
   startForwarding, addressVerified, createForwardRules, setRulesEnabled, rollbackDeployment,
 } from "./cloudflare.mjs";
 
@@ -98,10 +98,32 @@ export async function addDomain(id, input) {
   need();
   const domain = normDomain(input);
   if (!domain) throw new Bad("That domain doesn't look right. Example: adasalon.com.ng");
+  if (domain === OWN_DOMAIN) throw new Bad(`${OWN_DOMAIN} is our own website. Use name.${OWN_DOMAIN} or the customer's domain.`);
+  if (domain.endsWith("." + OWN_DOMAIN)) return addFreeAddress(id, domain);
   const zone = await ensureZone(domain);
   const row = await getRequest(id);
   const h = row.hosting || {};
   await saveHosting(id, { domain, zoneId: zone.id, zoneStatus: zone.status, nameservers: zone.name_servers || [], attached: h.domain === domain ? h.attached : false });
+  if (!row.handover?.domain) await updateRequest(id, { handover: { ...(row.handover || {}), domain } });
+  return checkHosting(id);
+}
+
+// Free address on our own domain (theirname.sirraddo.com.ng) for one-page sites: a record in our zone,
+// no nameservers to change. Only one simple name, never one of ours, never one that's already in use.
+export const OWN_DOMAIN = (process.env.OWN_DOMAIN || "sirraddo.com.ng").toLowerCase();
+const RESERVED = new Set(["www", "mail", "email", "api", "admin", "staff", "app", "apps", "pay", "shop", "store", "demo", "files", "cdn", "ftp", "smtp", "imap", "pop",
+  "webmail", "cpanel", "ns1", "ns2", "blog", "help", "support", "status", "test", "dev", "staging", "zappi", "zappipay", "taskverse", "sirraddo", "invoices", "receipts", "info"]);
+async function addFreeAddress(id, domain) {
+  const sub = domain.slice(0, -(OWN_DOMAIN.length + 1));
+  if (!/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(sub) || sub.length < 3) throw new Bad(`Use one simple name before .${OWN_DOMAIN}, e.g. kassytreats.${OWN_DOMAIN} (letters, numbers and dashes).`);
+  if (RESERVED.has(sub)) throw new Bad(`${domain} is kept for SIRRADDO. Pick another name.`);
+  const zone = await findZone(OWN_DOMAIN);
+  if (!zone) throw new Bad(`${OWN_DOMAIN} isn't in this Cloudflare account, so free addresses can't be made.`);
+  const used = await cf(`/zones/${zone.id}/dns_records?name=${encodeURIComponent(domain)}&per_page=20`);
+  const row = await getRequest(id);
+  const ours = (used || []).every((r) => r.type === "CNAME" && /\.pages\.dev$/.test(r.content) && (row.hosting?.project ? r.content === `${row.hosting.project}.pages.dev` : false));
+  if ((used || []).length && !ours) throw new Bad(`${domain} is already in use. Pick another name.`);
+  await saveHosting(id, { domain, zoneId: zone.id, zoneStatus: zone.status, nameservers: [], sub: true, attached: false });
   if (!row.handover?.domain) await updateRequest(id, { handover: { ...(row.handover || {}), domain } });
   return checkHosting(id);
 }
@@ -269,6 +291,7 @@ const validInbox = (x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
 // 4. Email forwarding: e.g. info@ and sales@theirdomain -> their Gmail, and optionally receipts@ -> their accountant.
 // Cloudflare first emails each new inbox a link to confirm. routesText: lines like "receipts accountant@gmail.com".
 export async function setupEmail(id, localsText, to, routesText = "") {
+  { const r0 = await getRequest(id); if (r0?.hosting?.sub) throw new Bad("Free .sirraddo.com.ng addresses don't include email. Buy their own domain for business email."); }
   need();
   const row = await getRequest(id);
   const h = row.hosting || {};
